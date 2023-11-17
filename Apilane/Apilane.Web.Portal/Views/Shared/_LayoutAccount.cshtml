@@ -1,0 +1,28 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Web.Portal.Abstractions;
+@inject IPortalSettingsService _portalSettingsService;
+@{ 
+    var portalSettings = _portalSettingsService.Get();
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+    <title>@portalSettings.InstanceTitle | @ViewBag.Title</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="~/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="~/account.min.css?v=@Html.AssemblyVersion()">
+    @RenderSection("styles", required: false)
+</head>
+<body>
+    <div class="login-dark" style="background-image: linear-gradient(to top, #09203f 0%, #537895 100%);">
+        @RenderBody()
+    </div>   
+
+    <script src="~/account.min.js?v=@Html.AssemblyVersion()"></script>
+    @RenderSection("scripts", required: false)
+</body>
+</html>

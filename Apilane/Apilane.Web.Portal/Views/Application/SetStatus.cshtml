@@ -1,0 +1,60 @@
+﻿@using Apilane.Common.Models;
+@model DBWS_Application
+
+@{
+    ViewBag.Title = "Status";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Model.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Model.Token })">@Model.Name</a></li>
+                        <li class="breadcrumb-item active">Status</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="row clearfix">
+                <div class="col-12 col-xl-6">
+                    <div class="card">
+                        <h4 class="card-header">
+                            Change appplication status
+                        </h4>
+                        <div class="card-body">
+                            @using (Html.BeginRouteForm("AppRoute", new { appid = Model.Token, controller = "Application", action = "SetStatus" }, FormMethod.Post, true, new { role = "form" }))
+                            {
+                                @Html.HiddenFor(m => m.ID)
+                                @Html.HiddenFor(m => m.Online)
+                                <div class="form-group mb-3">
+                                    Are you sure you wish to change status to <b>@(Model.Online ? "Offline" : "Online")</b> for application <b>@Model.Name</b> ?
+                                    @if (Model.Online)
+                                    {
+                                        <div class="alert alert-danger mt-4" role="alert">
+                                            <div class="d-flex flex-column gap-2">
+                                                <h6 class="mb-0">Warning</h6>
+                                                <p class="mb-0">The application will not be available to the users, until the status is set back online.</p>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="form-group">
+                                    @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                </div>
+
+                                <button type="submit" class="btn_save btn btn-@(Model.Online ? "danger" : "success")" title="Save">
+                                    @(Model.Online ? "Go offline" : "Go online")
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

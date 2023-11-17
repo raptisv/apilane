@@ -1,0 +1,43 @@
+version: '3.7'
+services:
+
+  # Portal
+  apilanewebportal:
+    image: raptis/apilane:portal-8.0.0
+    restart: always
+    networks:
+      - apilane-backend
+    ports:
+      - 5000:5000
+    environment:
+      - Url=http://0.0.0.0:5000
+      - ApiUrl=http://127.0.0.1:5001 # The url to the initial Api service. Change it according to your setup.
+      - FilesPath=/etc/apilanewebportal # The portal server files path.
+      - InstallationKey=8dc64403-0f5b-4723-9aa7-42004841d838 # Can be any string, but should be the same for apilanewebapi.
+      - AdminEmail=admin@admin.com # Default email for instance administrator, change it with your email. Default password is "admin".
+    volumes:
+      - apilane-portal-data:/etc/apilanewebportal
+
+  # Api
+  apilanewebapi:
+    image: raptis/apilane:api-8.0.0
+    restart: always
+    networks:
+      - apilane-backend
+    ports:
+      - 5001:5001
+    environment:
+      - Url=http://0.0.0.0:5001
+      - PortalUrl=http://127.0.0.1:5000 # The url to the Portal. Change it according to your setup.
+      - FilesPath=/etc/apilanewebapi/Files # The api server files path.
+      - InstallationKey=8dc64403-0f5b-4723-9aa7-42004841d838 # Can be any string, but should be the same for apilanewebportal.
+    volumes:
+      - apilane-api-data:/etc/apilanewebapi
+
+networks:
+  apilane-backend:
+    driver: bridge
+
+volumes:
+  apilane-portal-data:
+  apilane-api-data:

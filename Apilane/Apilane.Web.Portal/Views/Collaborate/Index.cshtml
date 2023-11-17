@@ -1,0 +1,78 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Models;
+@using Microsoft.AspNetCore.Authorization;
+@model DBWS_Application
+@{
+    ViewBag.Title = "Collaborate";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Model.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Model.Token })">@Model.Name</a></li>
+                        <li class="breadcrumb-item active">Share</li>
+                    </ol>
+                </nav>
+            </div>
+
+            @{
+                await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Model);
+            }
+
+            <div class="mb-4">
+                <a href="@Url.RouteUrl("AppRoute", new {controller = "Collaborate", action = "Share", appid = Html.GetAppToken() })" class="btn btn-primary"><i class="bi bi-plus me-1"></i>Share with another user</a>
+            </div>
+
+            <div class="row clearfix">
+                <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                    @if (Model.Collaborates.Count > 0)
+                    {
+                        <div class="table-responsive p-6 custom-border">
+                            <table class="table table-sm table-hover table-borderless">
+                                <thead>
+                                    <tr>
+                                        <th>Shared with</th>
+                                        <th class="text-end">Remove</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{
+                                        foreach (var item in Model.Collaborates)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <a title="Email to @item.UserEmail" href="mailto:@item.UserEmail">
+                                                        @item.UserEmail
+                                                    </a>
+                                                </td>
+                                                <td class="text-end">
+                                                    <a title="Remove collaborator" href="@Url.RouteUrl("AppRoute", new { controller = "Collaborate", action = "Unshare", appid = Html.GetAppToken() })?ID=@item.ID" class="btn btn-danger">
+                                                        <i class="bi bi-trash"></i>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted">
+                            Application @Model.Name is not shared with any user.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

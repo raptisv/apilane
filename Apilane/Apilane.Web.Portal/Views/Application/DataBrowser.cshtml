@@ -1,0 +1,87 @@
+﻿@using Apilane.Common.Models;
+@model DBWS_Application
+
+@{
+    ViewBag.Title = "Data browser";
+    Layout = ViewBag.Layout;
+    List<DBWS_Entity> AvailableEntities = Model.Entities;
+
+    var SelectedEntity = Context.Request.Query["entity"];
+
+    if (!AvailableEntities.Any(x => x.Name.Equals(SelectedEntity)))
+    {
+        SelectedEntity = AvailableEntities.First().Name;
+    }
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Model.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Model.Token })">@Model.Name</a></li>
+                        <li class="breadcrumb-item active">Data</li>
+                    </ol>
+                </nav>
+            </div>
+
+            @{
+                await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Model);
+            }
+
+            <div class="row data-browser">
+                <div class='col-lg-12 col-md-12 col-sm-12 col-xs-12'>
+                    <ul class="nav-entities nav nav-pills" role="tablist">
+
+                        @for (int i = 0; i < AvailableEntities.Count; i++)
+                        {
+                            DBWS_Entity ent = AvailableEntities[i];
+                            var active = SelectedEntity.Equals(ent.Name) ? "active" : "";
+                            <li class="nav-item" role="presentation">
+                                <a id="link-entity-@ent.Name" class="nav-link @(SelectedEntity.Equals(ent.Name) ? "active" : "")" href="#@ent.Name" data-bs-toggle="tab" role="tab" data-entity="@ent.Name" data-toggle="tab" rel="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Data", appid = Model.Token, entid = ent.Name })">@ent.Name</a>
+
+                            </li>
+                        }
+
+                    </ul>
+                    <div class="tab-content mt-4" style="border-color: rgb(222, 226, 230); border-style: solid; border-width: 1px;">
+                        @for (int i = 0; i < AvailableEntities.Count; i++)
+                        {
+                            DBWS_Entity ent = AvailableEntities[i];
+                            <div class="tab-pane fade @(SelectedEntity.Equals(ent.Name) ? "active show" : "")" id="@ent.Name" role="tabpanel"></div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts{
+    <script>
+
+        $(document).ready(function () {
+
+            loadTabFrame($('#link-entity-@SelectedEntity').attr("href"), $('#link-entity-@SelectedEntity').attr("rel"));
+
+            $(".nav-entities a").click(function () {
+                var newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?entity=' + $(this).data().entity;
+                window.history.pushState({ path: newUrl }, '', newUrl);
+                loadTabFrame($(this).attr("href"), $(this).attr("rel"));
+            });
+
+            //tab switching function
+            function loadTabFrame(tab, url) {
+                if ($(tab).find("iframe").length == 0) {
+                    $(tab).append(`<div class="openout"></div><iframe class="iframetab w-100" src="${url}"></iframe>`);
+                }
+                $(tab).find("iframe").height($(window).height() - $('.nav-entities').offset().top - 150);
+                return false;
+            }
+        });
+
+    </script>
+}

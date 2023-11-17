@@ -1,0 +1,5 @@
+This project uses System.Data.SQLite.Core, which is licensed under the Microsoft Public License.
+https://opensource.org/license/ms-pl-html
+
+SQLite itself is in the public domain.
+For more information, visit: https://www.sqlite.org/copyright.html

@@ -1,0 +1,16 @@
+﻿
+@{
+    ViewBag.Title = "Checkout";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="jumbotron text-xs-center">
+  <h3 class="display-3">Thank you!</h3>
+  <p class="lead">Your payment is being processed.</p>
+  <p class="lead">You will be notified via email when the payment is confirmed.</p>
+  <p class="lead">You can track previous payments in your <a href="@Url.Action("Payments", "Application")">payments</a> section</p>
+  <hr>
+  <p class="lead">
+    <a class="btn btn-primary btn-sm" href="@Url.Action("Index", "Application")" role="button">Back to my applications</a>
+  </p>
+</div>

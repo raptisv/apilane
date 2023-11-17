@@ -1,0 +1,199 @@
+﻿@using Apilane.Common;
+@using Apilane.Common.Models;
+
+@{
+    ViewBag.Title = "Parameters";
+    Layout = "~/Areas/Help/Views/Shared/_Layout.cshtml";
+
+    DBWS_Application Application = (DBWS_Application)ViewBag.Application;
+}
+
+<div id="body" class="help-page">
+    <section class="featured">
+        <div class="content-wrapper">
+            <p>
+                <a href="@Url.RouteUrl("areas", new { apptoken = Application.Token, controller = "Help", action = "Index", IsPortal = true, Authorization = ViewBag.PortalUserAuthToken })" class="btn bg-blue btn-circle-lg waves-effect waves-circle waves-float " title="API home">
+                    <i class="material-icons">home</i>
+                </a>
+            </p>
+        </div>
+    </section>
+    <section class="content-wrapper main-content clear-fix">
+
+        <div class="row clearfix" id="Filter" >
+            <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                <div class="card">
+                    <div class="header">
+                        <h2>
+                            Filter
+                        </h2>
+                    </div>
+                    <div class="body">
+                        The filter parameter is a JSON string:
+
+                        <pre class="wrapped">
+{
+    "Property": "FirstName",
+    "Operator": "equal",
+    "Value": "John"
+}</pre>
+
+                        To apply multiple filters use:
+
+                        <pre class="wrapped">
+{
+    "Logic": "and",
+    "Filters": [{
+        "Property": "FirstName",
+        "Operator": "equal",
+        "Value": "John"
+    }, {
+        "Property": "LastName",
+        "Operator": "equal",
+        "Value": "Doe"
+    }]
+}</pre>
+                        Accepted values for <b>Property</b>
+                        <pre class="wrapped">
+Any property of the given Entity
+</pre>
+                        Accepted values for <b>Operator</b> (values on the same line have the same effect)
+                        <pre class="wrapped">
+@foreach(var item in FilterData.AvailableFilterOperators)
+{
+    @(string.Join(", ", item.Item2) + "\n")
+}
+</pre>
+                        Accepted values for <b>Value</b>
+                        <pre class="wrapped">
+Any string
+Any number
+</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row clearfix" id="Sort">
+            <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                <div class="card">
+                    <div class="header">
+                        <h2>
+                            Sort
+                        </h2>
+                    </div>
+                    <div class="body">
+                        The Sort parameter is a JSON string:
+
+                        <pre class="wrapped">
+{
+    "Property": "FirstName",
+    "Direction": "asc"
+}</pre>
+                        To Sort by multiple properties use:
+
+                        <pre class="wrapped">
+[{
+    "Property": "FirstName",
+    "Direction": "asc"
+},{
+    "Property": "LastName",
+    "Direction": "desc"
+}]</pre>
+                        Accepted values for <b>Property</b>
+                        <pre class="wrapped">
+Any property of the given Entity
+</pre>
+                        Accepted values for <b>Direction</b>
+                        <pre class="wrapped">
+asc
+desc
+</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row clearfix" id="GroupBy">
+            <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                <div class="card">
+                    <div class="header">
+                        <h2>
+                            GroupBy
+                        </h2>
+                    </div>
+                    <div class="body">
+                        The GroupBy parameter is a string:
+
+                        <pre class="wrapped">
+Firstname
+</pre>
+                        To GroupBy by multiple properties use comma between:
+
+                        <pre class="wrapped">
+Firstname,LastName,DateOfBirth</pre>
+                        Accepted values
+                        <pre class="wrapped">
+Any property of the given Entity
+</pre>
+                        Accepted values for properties of type <b>Date</b>
+                        <pre class="wrapped">
+DateOfBirth.Year <span style="color:gray;">to group by the year part of the date</span>
+DateOfBirth.Month <span style="color:gray;">to group by the month part of the date</span>
+DateOfBirth.Day <span style="color:gray;">to group by the day part of the date</span>
+DateOfBirth.Hour <span style="color:gray;">to group by the hour part of the date</span>
+DateOfBirth.Mimute <span style="color:gray;">to group by the minute part of the date</span>
+DateOfBirth.Second <span style="color:gray;">to group by the second part of the date</span>
+
+For example, in order to get results groupped by year and then by month use:
+DateOfBirth.Year,DateOfBirth.Month
+</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row clearfix" id="Relationships">
+            <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                <div class="card">
+                    <div class="header">
+                        <h2>
+                            Relationships
+                        </h2>
+                    </div>
+                    <div class="body">
+                        The Relationships parameter is a string:
+
+                        <pre class="wrapped">
+RelatedEntityName
+</pre>
+                        To fetch by multiple related entities use comma between:
+
+                        <pre class="wrapped">
+RelatedEntityNameOne,RelatedEntityNameTwo,RelatedEntityNameThree</pre>
+                        Accepted values
+                        <pre class="wrapped">
+Any Entity name that this Entity points to using a foreign key
+</pre>
+                        Use "." to fech only specific properties of the related Entity
+                        <pre class="wrapped">
+For example, in order to get only the property named "Firstname" of the related Entity use:
+RelatedEntityNameOne.Firstname
+
+In order to get only the properties named "Firstname" and "Lastname" of the related Entity use:
+RelatedEntityNameOne.Firstname.Lastname
+</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+    </section>
+</div>
+
+<style>
+    .row.focused .card{
+        border:3px solid green;
+    }
+</style>

@@ -1,0 +1,64 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Common.Models;
+@model DBWS_Server
+
+@{
+    ViewBag.Title = "Delete";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="row clearfix">
+    <div class="col-12 col-xl-6">
+        <div class="card">
+            <h4 class="card-header">
+                Delete server
+            </h4>
+            <div class="card-body">
+                @using (Html.BeginForm("ServerDelete", "Admin", FormMethod.Post))
+                {
+                    @Html.HiddenFor(m => m.ID)
+                    <p>
+                        Delete server <b>@Model.Name</b>?
+                    </p>
+                    <div class="form-group">
+                        @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                    </div>
+                }
+                <button class="btn_delete_server btn btn-danger" title="Delete">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+        var name = '@Model.Name';
+        $('button.btn_delete_server').on('click', function () {
+            Swal.fire({
+                title: "Confirm",
+                text: "Please type the server name",
+                input: "text",
+                showCancelButton: true,
+                confirmButtonText: 'Delete',
+                buttonsStyling: false,
+                customClass: {
+                    confirmButton: 'btn btn-danger',
+                    cancelButton: 'btn'
+                },
+                inputValidator: (value) => {
+                    if (!value || value != name) {
+                        return `You need to write '${name}'`;
+                    }
+                }
+            }).then((submit) => {
+                if (submit.isConfirmed && submit.value === name) {
+                    $('button.confirm').attr('disabled', true);
+                    $('form').submit();
+                }
+                return false;
+            });
+        });
+    </script>
+}

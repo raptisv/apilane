@@ -1,0 +1,59 @@
+﻿@using Apilane.Web.Portal.Models
+@using Apilane.Common.Models
+@using Apilane.Common.Enums
+@using Microsoft.AspNetCore.Http;
+@model (DBWS_ReportItem Report, DBWS_Entity Entity, string AppToken, string ServerUrl)
+
+@{
+
+}
+
+<div id="@Model.Report.ID" class="report-@Model.Report.ID report-item col-lg-@Model.Report.PanelWidth col-md-@Model.Report.PanelWidth col-sm-12 col-xs-12 mt-4">
+    <div class="card grid-report">
+        <div class="card-header d-flex justify-content-between align-items-center" style="cursor: grab;">
+            <h5 class="m-0 mr-2" title="@Model.Report.Title">
+                @Model.Report.Title
+            </h5>
+            <div class="card-header-elements ml-md-auto">
+                <a href="javascript:void(0);" title="Refresh" id="refresh-report-@Model.Report.ID" class="btn btn-sm btn-default">
+                    <span class="bi bi-arrow-clockwise"></span>
+                </a>
+                <div class="btn-group">
+                    <button class="btn btn-sm dropdown-toggle btn-default" type="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a href="@(Url.RouteUrl("AppRoute", new { controller = "Reports", action = "Edit", appid = Model.AppToken }))?ID=@Model.Report.ID" data-id="@Model.Report.ID" class="dropdown-item">Edit</a></li>
+                        <li><a href="@(Url.RouteUrl("AppRoute", new { controller = "Reports", action = "Delete", appid = Model.AppToken }))?ID=@Model.Report.ID" data-id="@Model.Report.ID" class="dropdown-item">Delete</a></li>
+                        <li><div class="dropdown-divider"></div></li>
+                        <li><a href="javascript:void(0);" id="view-api-endpoint-@Model.Report.ID" class="dropdown-item">View API endpoint</a></li>
+                        <li><div class="dropdown-divider"></div></li>
+                        <li><a href="javascript:void(0);" id="resize-4-@Model.Report.ID" class="dropdown-item resize-link-@Model.Report.ID @(Model.Report.PanelWidth == 4 ? "disabled" : "")">Minimum width</a></li>
+                        <li><a href="javascript:void(0);" id="resize-6-@Model.Report.ID" class="dropdown-item resize-link-@Model.Report.ID @(Model.Report.PanelWidth == 6 ? "disabled" : "")">Half width</a></li>
+                        <li><a href="javascript:void(0);" id="resize-12-@Model.Report.ID" class="dropdown-item resize-link-@Model.Report.ID @(Model.Report.PanelWidth == 12 ? "disabled" : "")">Full width</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="card-body" style="height: 235px;">
+            <div id="report_@(Model.Report.ID)" style="height: 100%;@(Model.Report.TypeID_Enum != ReportType.Grid ? "padding:6px;" : string.Empty);" class="table-fixed-head"></div>
+        </div>
+    </div>
+</div>
+
+@using (Html.BeginScripts())
+{
+    <script type="text/javascript">
+        $(document).ready(function () {
+            loadApplicationReport(
+                @Model.Report.ID,
+               '@Model.AppToken',
+               '@Html.GetPortalUserAuthToken(User.Identity!)',
+               '@Model.Report.TypeID_Enum.ToString()',
+               '@Model.ServerUrl/api/@Html.Raw(Model.Report.GetApiUrl())',
+                @Html.Raw(Json.Serialize(Html.GetPropertiesForChart(Model.Entity, Model.Report.Properties))),
+                @Html.Raw(Json.Serialize(Html.GetGroupsForChart(Model.Entity, Model.Report.GroupBy))));
+        });
+
+    </script>
+}

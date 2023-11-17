@@ -1,0 +1,163 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Common.Models;
+@using Apilane.Common.Enums;
+@using Apilane.Common;
+@using Apilane.Common.Extensions;
+@using Microsoft.AspNetCore.Http;
+@model List<DBWS_Entity>
+@{
+    var Application = (DBWS_Application)ViewBag.Application;
+    var isDarkTheme = Html.IsDarkTheme(Context.Request);
+}
+
+@if (Model.Count > 0)
+{
+    <div class="table-responsive">
+        <table class="table table-sm table-borderless table-hover m-0">
+            <thead>
+                <tr>
+                    <th style="width:1px;">Options</th>
+                    <th style="width:1px;">Data</th>
+                    <th>Entity</th>
+                    <th>Records</th>
+                    <th>Change tracking</th>
+                    <th>Contraints</th>
+                    @if (!string.IsNullOrWhiteSpace(Application.DifferentiationEntity))
+                    {
+                        <th title="Differentiation property">Differentiation</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @{
+                    foreach (var entity in Model.OrderBy(x => x.Name))
+                    {
+                        <tr>
+                            <td>
+                                <div class="btn-group position-static">
+                                    <button class="btn btn-sm dropdown-toggle btn-default" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-three-dots"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <a class="dropdown-item" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Edit", appid = Html.GetAppToken(), entid = entity.Name })">
+                                                Edit
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item @(entity.IsSystem ? "disabled" : "")" title="@(entity.IsSystem ? "Cannot rename system Entities" : "")" href="@(entity.IsSystem ? "#" : Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Rename", appid = Html.GetAppToken(), entid = entity.Name }))">
+                                                Rename
+                                            </a>
+                                        </li>
+                                        <li><div class="dropdown-divider"></div></li>
+                                        <li>
+                                            <a class="dropdown-item @(entity.IsSystem ? "disabled" : "")" title="@(entity.IsSystem ? "Cannot add constraint to system Entities" : "")" href="@(entity.IsSystem ? "#" : Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Constraints", appid = Html.GetAppToken(), entid = entity.Name }))">
+                                                Constraints
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "DefaultOrder", appid = Html.GetAppToken(), entid = entity.Name })">
+                                                Default sorting
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item" href="@Url.RouteUrl("AppRoute", new { controller = "Application", action = "Security", appid = Html.GetAppToken(), entity = $"Entity-{entity.Name}" })">
+                                                Security
+                                            </a>
+                                        </li>
+                                        <li><div class="dropdown-divider"></div></li>
+                                        <li>
+                                            <a class="dropdown-item @(entity.IsSystem ? "disabled" : "")" title="@(entity.IsSystem ? "Cannot delete system Entities" : "")" href="@(entity.IsSystem ? "#" : Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Delete", appid = Html.GetAppToken(), entid = entity.Name }))">
+                                                Delete
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </td>
+                            <td>
+                                <a href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Data", appid = Html.GetAppToken(), entid = entity.Name, inFrame = true })" title="@entity.Name data" class="btn btn-sm iframe-link-popup btn-default">
+                                    <i class="bi bi-database"></i>
+                                </a>
+                            </td>
+                            <td>
+                                <a class="app-grid-link text-decoration-none text-primary" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Properties", appid = Html.GetAppToken(), entid = entity.Name })">
+                                    <strong class="text-primary">@entity.Name</strong>
+                                    @if (!string.IsNullOrWhiteSpace(entity.Description))
+                                    {
+                                        <i class="bi bi-info-circle text-primary" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-original-title="@entity.Description"></i>
+                                    }
+                                </a>
+                            </td>
+                            <td>
+                                <div id="entity-records-@entity.ID">
+                                    <div class="spinner-grow spinner-grow-sm" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                @if (entity.RequireChangeTracking)
+                                {
+                                    <div id="change-track-@entity.ID">
+                                        <i class="bi bi-check"></i>
+                                    </div>
+                                }
+                            </td>
+                            <td>
+                                @Html.Raw(string.Join("", entity.Constraints.Where(x => x.TypeID == (int)ConstraintType.Unique && !string.IsNullOrWhiteSpace(x.Properties)).Select(x => $"<div class='badge {(isDarkTheme ? "text-bg-dark" : "text-bg-light")} me-1' title='Unique'>{x.Properties}</div>")))
+                                @Html.Raw(string.Join("", entity.Constraints.Where(x => x.TypeID == (int)ConstraintType.ForeignKey && !string.IsNullOrWhiteSpace(x.Properties)).Select(x => $"<div class='badge {(isDarkTheme ? "text-bg-dark" : "text-bg-light")} me-1' title='Foreign key'>{x.GetForeignKeyProperties().FKEntity}({x.GetForeignKeyProperties().Property})</div>")))
+                            </td>
+                            @if (!string.IsNullOrWhiteSpace(Application.DifferentiationEntity))
+                            {
+                                <td>
+                                    @if (entity.HasDifferentiationProperty)
+                                    {
+                                        <i class="bi bi-check"></i>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@using (Html.BeginScripts())
+{
+    <script type="text/javascript">
+
+        $.ajaxSetup({
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('Authorization', 'Bearer @Html.GetPortalUserAuthToken(User.Identity!)');
+                xhr.setRequestHeader('@Globals.ClientIdHeaderName', '@Globals.ClientIdHeaderValuePortal');
+                xhr.setRequestHeader('@Globals.ApplicationTokenHeaderName', '@Application.Token');
+            }
+        });
+
+        function loadEntityCountDataAndHistory(entityId, entityName) {
+            $.ajax({
+                url: `@Application.Server.ServerUrl/api/Stats/CountDataAndHistory?entity=${entityName}`,
+                type: 'GET',
+                contentType: 'application/json; charset=utf-8',
+                success: function (data) {
+                    $(`#entity-records-${entityId}`).html(data.Data);
+                    $(`#change-track-${entityId}`).append((data.History > 0 ? `<small class="text-muted" title="${data.History} tracked changes">&nbsp;${data.History}</small>` : ''));
+                },
+                error: function (e) {
+                    var js = getErrorJSON(e);
+                    var message = js !== null && js.Message && js.Message !== null
+                        ? js.Message
+                        : 'Error';
+                    $(`#entity-records-${entityId}`).html(`<div style="color:red;">${message}</div>`);
+                }
+            });
+        }
+
+    @foreach (var entity in Model)
+    {
+        @: loadEntityCountDataAndHistory(@entity.ID, '@entity.Name');
+    }
+    </script>
+}

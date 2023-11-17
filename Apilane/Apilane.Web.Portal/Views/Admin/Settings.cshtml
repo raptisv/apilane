@@ -1,0 +1,108 @@
+﻿@using Apilane.Common.Models;
+@model GlobalSettings
+
+@{
+    ViewBag.Title = "Settings";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@using (Html.BeginForm("Settings", "Admin", new { }, FormMethod.Post, true, new { role = "form" }))
+{
+    <div class="row clearfix">
+        <div class="col-12 col-xl-6">
+            <div class="card">
+                <h4 class="card-header">
+                    General Settings
+                </h4>
+                <div class="card-body">
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            @Html.CheckBoxFor(m => m.AllowRegisterToPortal, new { @class = "form-check-input" })
+                            <label class="form-check-label" for="AllowRegisterToPortal">Allow new users register to this Apilane instance</label>
+                        </div>
+                        @Html.ValidationMessageFor(m => m.AllowRegisterToPortal, "", new { @class = "text-danger" })
+                        <div class="alert alert-info mt-2" role="alert">
+                            If the instance is publicly accessible, you probably want to prevent unrelated users from creating an account.
+                            In case you want to allow the registration of a legitimate user, you can activate the functionality for a while and deactivate it again after the user registers.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Instance name</label>
+                        @Html.TextBoxFor(m => m.InstanceTitle, new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.InstanceTitle, "", new { @class = "text-danger" })
+                        <div class="alert alert-info mt-2" role="alert">
+                            Internal use only, this name is not visible to anyone outside this Portal.
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Installation key (guid)</label>
+                        @Html.TextBoxFor(m => m.InstallationKey, new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.InstallationKey, "", new { @class = "text-danger" })
+                        <div class="alert alert-warning mt-2" role="alert">
+                            Do not share this key. This is used to authenticate between Portal and API instances.
+                            If you need to change it, you should also re-instantiate API instances with the new key.
+                        </div>
+                    </div>
+                    <br>
+                    <div class="form-group mb-3">
+                        @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                    </div>
+                    <button type="submit" class="btn_save btn btn-primary" title="Save">
+                        <i class="bi bi-floppy"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-6 mt-4 mt-xl-0">
+            <div class="card">
+                <h4 class="card-header">
+                    Mail Settings
+                </h4>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Mail server</label>
+                        @Html.TextBoxFor(m => m.MailServer, new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.MailServer, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mail server port</label>
+                        @Html.TextBoxFor(m => m.MailServerPort, new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.MailServerPort, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mail username</label>
+                        @Html.TextBoxFor(m => m.MailUserName, new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.MailUserName, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mail password</label>
+                        @Html.TextBoxFor(m => m.MailPassword, new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.MailPassword, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mail from address</label>
+                        @Html.TextBoxFor(m => m.MailFromAddress, new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.MailFromAddress, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Mail from display name</label>
+                        @Html.TextBoxFor(m => m.MailFromDisplayName, new { @class = "form-control" })
+                        @Html.ValidationMessageFor(m => m.MailFromDisplayName, "", new { @class = "text-danger" })
+                    </div>
+
+                    <div class="alert alert-info mt-2 mb-3" role="alert">
+                        These email settings are used from this Apilane instance for password reset, in case a user forgets password.
+                        These settings do not apply to any application.
+                        Each application has separate email settings.
+                    </div>
+
+                    <button type="submit" class="btn_save btn btn-primary" title="Save">
+                        <i class="bi bi-floppy"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+}

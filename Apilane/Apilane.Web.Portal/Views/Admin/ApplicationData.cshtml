@@ -1,0 +1,55 @@
+﻿@using Apilane.Common.Models;
+
+@model DBWS_Application
+
+@{
+    ViewBag.Title = Model.Name + " - Data browser";
+    Layout = "~/Views/Shared/_LayoutData.cshtml";
+}
+
+<div class="row clearfix">
+    <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+        <div class="card my-4 border-0">
+            <ul class="nav-entities nav nav-pills" role="tablist">
+                @for (int i = 0; i < Model.Entities.Count; i++)
+                {
+                    DBWS_Entity ent = Model.Entities[i];
+                    var active = i == 0 ? "active" : "";
+
+                    <li class="nav-item" role="presentation">
+                        <a id="link-entity-@ent.Name" class="nav-link @active" href="#@ent.Name" data-bs-toggle="tab" role="tab" data-entity="@ent.Name" data-toggle="tab" rel="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Data", appid = Model.Token, entid = ent.Name })">@ent.Name</a>
+                    </li>
+                }
+            </ul>
+            <div class="tab-content mt-4" style="border-color: rgb(222, 226, 230); border-style: solid; border-width: 1px;">
+                @for (int i = 0; i < Model.Entities.Count; i++)
+                {
+                    DBWS_Entity ent = Model.Entities[i];
+                    <div class="tab-pane fade @(i == 0 ? "active show" : "")" id="@ent.Name" role="tabpanel"></div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts{
+<script>
+     $(document).ready(function () {
+
+        loadTabFrame($('#link-entity-@Model.Entities.First().Name').attr("href"), $('#link-entity-@Model.Entities.First().Name').attr("rel"));
+
+        $(".nav-entities a").click(function () {
+            loadTabFrame($(this).attr("href"), $(this).attr("rel"));
+        });
+
+        //tab switching function
+        function loadTabFrame(tab, url) {
+            if ($(tab).find("iframe").length == 0) {
+                $(tab).append(`<div class="openout"></div><iframe class="iframetab w-100" src="${url}"></iframe>`);
+            }
+            $(tab).find("iframe").height($(window).height() - $('.nav-entities').offset().top - 150);
+            return false;
+        }
+     });
+</script>
+}

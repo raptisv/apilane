@@ -1,0 +1,55 @@
+# extra_css:
+# - assets/versions.css
+# extra_javascript:
+# - assets/versions.js
+markdown_extensions:
+- pymdownx.highlight:
+- codehilite:
+    css_class: highlight
+- footnotes
+- admonition
+- attr_list
+- md_in_html
+- toc:
+    permalink: true
+- pymdownx.superfences
+nav:
+- Overview: index.md
+- Concepts: concepts.md
+- Getting started: getting_started.md
+- Deployment: deployment.md
+- Security Considerations: security_considerations.md
+- Developer Guide:
+  - developer_guide/server_overview.md
+  - developer_guide/application.md
+  - developer_guide/storage_providers.md
+  - developer_guide/security.md
+  - developer_guide/custom_endpoints.md
+  - developer_guide/email_templates.md
+  - developer_guide/reports.md
+  - developer_guide/sdk.md
+repo_url: https://github.com/raptisv/apilane
+site_name: Apilane
+# strict: true
+theme:
+  #custom_dir: overrides
+  features:
+    - content.code.copy
+  favicon: assets/favicon.png
+  font:
+    text: Work Sans
+  logo: assets/favicon.png
+  name: material
+  palette:
+  - media: '(prefers-color-scheme: light)'
+    primary: blue
+    scheme: default
+    toggle:
+      icon: material/brightness-7
+      name: Switch to dark mode
+  - media: '(prefers-color-scheme: dark)'
+    primary: blue
+    scheme: slate
+    toggle:
+      icon: material/brightness-4
+      name: Switch to light mode

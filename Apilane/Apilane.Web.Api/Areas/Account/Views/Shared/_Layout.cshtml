@@ -1,0 +1,32 @@
+﻿@using Apilane.Common.Models;
+
+@{
+    DBWS_Application Application = ViewBag.Application;
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+    <title>@Application.Name</title>
+    <link rel="icon" href="~/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ionicons/2.0.1/css/ionicons.min.css">
+    <link rel="stylesheet" href="@Url.Content("~/assets/account.css")">
+</head>
+<body>
+    <div class="login-dark" style="background-image: linear-gradient(to top, #09203f 0%, #537895 100%);">
+        @RenderBody()
+    </div>
+    <script src="@Url.Content("~/assets/vendor/jquery/jquery-3.7.1.min.js")" asp-append-version="true"></script>
+</body>
+</html>
+
+<script>
+    $('button[type="submit"]').click(function () {
+        $('button[type="submit"]').attr('disabled', true);
+        $('button[type="submit"]').html('<div class="loader">Loading...</div>');
+        $('form').submit();
+    });
+</script>

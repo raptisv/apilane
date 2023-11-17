@@ -1,0 +1,97 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Common.Models;
+@model DBWS_Entity
+
+@{
+    ViewBag.Title = "Delete";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    DBWS_Application Application = (DBWS_Application)ViewBag.Application;
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Application.Token })">@Application.Name</a></li>
+                        <li class="breadcrumb-item active">@Model.Name</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="row clearfix">
+                <div class="col-12 col-xl-6">
+                    <div class="card">
+                        <h4 class="card-header">
+                            Delete entity @Model.Name<text>?</text>
+                        </h4>
+                        <div class="card-body">
+                            @if (Model.IsSystem)
+                            {
+                                <div class="form-group">
+                                    This entity is system and cannot be deleted.
+                                </div>
+                            }
+                            else
+                            {
+                                using (Html.BeginRouteForm("EntRoute", new { controller = "Entity", action = "Delete", appid = Html.GetAppToken(), entid = Model.Name }, FormMethod.Post, true, new { role = "form" }))
+                                {
+                                    @Html.HiddenFor(m => m.ID)
+                                    @Html.HiddenFor(m => m.Name)
+                                    <div class="form-group">
+                                        All data of entity @Model.Name will be lost. This action is not reversible!
+                                    </div>
+                                    <br>
+                                    <div class="form-group">
+                                        @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                    </div>
+                                }
+                                <button class="btn_delete_entity btn btn-danger" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@section scripts{
+    <script type="text/javascript">
+
+        var name = '@Model.Name';
+        $('button.btn_delete_entity').on('click', function () {
+            Swal.fire({
+                title: "Confirm",
+                text: "Please type the entity name",
+                input: "text",
+                showCancelButton: true,
+                closeOnConfirm: false,
+                confirmButtonText: 'Delete',
+                buttonsStyling: false,
+                customClass: {
+                    confirmButton: 'btn btn-danger',
+                    cancelButton: 'btn'
+                },
+                inputValidator: (value) => {
+                    if (!value || value != name) {
+                        return `You need to write '${name}'`;
+                    }
+                }
+            }).then((submit) => {
+                if (submit.isConfirmed && submit.value === name) {
+                    $('button.confirm').attr('disabled', true);
+                    var frm = $("form");
+                    frm.submit();
+                }
+                return false;
+            });
+        });
+
+    </script>
+}

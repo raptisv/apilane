@@ -1,0 +1,141 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Models;
+@using Apilane.Common.Utilities;
+@using Apilane.Common.Models.Dto;
+@using Apilane.Common.Enums;
+@using Microsoft.AspNetCore.Html;
+@model ApplicationClone_DTO
+
+@{
+    ViewBag.Title = "Clone";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    DBWS_Application Application = ViewBag.Application;
+
+    List<SelectListItem> Servers = new List<SelectListItem>();
+
+    var availableServers = (List<DBWS_Server>)ViewBag.AvailableServers;
+    foreach (var s in availableServers)
+    {
+        Servers.Add(new SelectListItem()
+        {
+            Value = s.ID.ToString(),
+            Disabled = false,
+            Selected = false,
+            Text = s.Name
+        });
+    }
+
+    List<SelectListItem> DatabaseTypes = new List<SelectListItem>();
+    DatabaseTypes.Add(new SelectListItem() { Selected = true, Value = ((int)DatabaseType.SQLLite).ToString(), Text = "SQL Lite" });
+    DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.SQLServer).ToString(), Text = "SQL Server" });
+    DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.MySQL).ToString(), Text = "My SQL" });
+}
+
+<div class="row clearfix">
+    <div class="col-12 col-xl-6">
+        <div class="card">
+            <h4 class="card-header">
+                Clone application @Application.Name
+            </h4>
+            <div class="card-body">
+
+                <div class="alert alert-primary" role="alert">
+                    <div class="d-flex gap-4">
+                        <span><i class="bi bi-info-circle-fill icon-primary"></i></span>
+                        <ul class="mb-0">
+                            <li>The cloned application is going to be identical to the original.</li>
+                            <li>Entities, properties custom endpoints and security will be identical.</li>
+                            <li>If "Clone data" option is  selected, data will also be migrated. Otherwise the new database will be empty.</li>
+                            <li>A new application token will be automatically generated.</li>
+                            <li>The applications (source and clone) will not be connected to each other.</li>
+                            <li>Any change to each application schema or data, will not be mirrored to the other.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning" role="alert">
+                    <div class="d-flex gap-4">
+                        <span><i class="bi bi-exclamation-triangle-fill icon-warning"></i></span>
+                        If you change storage provider (e.g. from SQLite to MySql) you may encounter several compatibility issues due to differences in how the two databases handle data types.
+                        For instance, SQLite is more flexible with data types and allows implicit conversions, while MySQL enforces stricter type definitions.
+                       It's important to thoroughly review and adapt your schema and data to ensure a smooth transition between the two systems.
+                    </div>
+                </div>
+
+                @using (Html.BeginRouteForm("AppRoute", new { appid = Application.Token, action = "Clone", controller = "Application" }, FormMethod.Post, true, new { role = "form" }))
+                {
+                    <div class="form-group mb-3">
+                        <div class="form-line">
+                            @Html.DropDownList("ServerID", Servers, null, new { @class = "form-select" })
+                        </div>
+                    </div>
+                    <div class="form-group mb-3">
+                        <div class="form-line">
+                            @Html.DropDownList("DatabaseType", DatabaseTypes, null, new { id = "databaseType", @class = "form-select" })
+                        </div>
+                    </div>
+                    <div class="form-group mb-3" id="databaseConnectionString" @(Model == null || Model.DatabaseType == (int)DatabaseType.SQLLite ? new HtmlString("style='display:none;'") : new HtmlString(""))>
+                        <div class="form-line">
+                            @Html.TextBox("ConnectionString", null, new { @class = "form-control", placeholder = "Connection string" })
+                        </div>
+                    </div>
+                    <div class="info-db-type info-db-type-@((int)DatabaseType.SQLServer)" @(Model == null || Model.DatabaseType != (int)DatabaseType.SQLServer ? new HtmlString("style='display:none;'") : new HtmlString(""))>
+                        <div class="alert alert-primary mt-3">
+                            The connection string must be pointing to an existing but empty database with the necessary access rights.
+                            The connection string will be validated as soon as you click on 'save'.
+                            <a target="_blank" href="https://www.connectionstrings.com/sql-server/">SQLServer connection string examples</a>
+                        </div>
+                        <div class="alert alert-warning mt-3">
+                            Remember to use <strong>TrustServerCertificate=true;</strong> in case there is no specific certificate used for the connection.
+                        </div>
+                    </div>
+                    <div class="info-db-type info-db-type-@((int)DatabaseType.MySQL)" @(Model == null || Model.DatabaseType != (int)DatabaseType.MySQL ? new HtmlString("style='display:none;'") : new HtmlString(""))>
+                        <div class="alert alert-primary mt-3">
+                            The connection string must be pointing to an existing but empty database with the necessary access rights.
+                            The connection string will be validated as soon as you click on 'save'.
+                            <a target="_blank" href="https://www.connectionstrings.com/mysql/">MySQL connection string examples</a>
+                        </div>
+                        <div class="alert alert-warning mt-3">
+                            Do not forget to use <strong>UseXaTransactions=false;</strong> to allow queries execute inside TransactionScope.
+                        </div>
+                    </div>
+                    <div class="form-group mb-3">
+                        <div class="form-line">
+                            @Html.CheckBoxFor(x => x.CloneData, new { @class = "form-check-input" })
+                            <label class="form-check-label" for="CloneData">Clone data. If not selected, only schema will be cloned.</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-2" title="Save">
+                        <i class="bi bi-floppy"></i>
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+
+    <script type="text/javascript">
+
+        $(document).ready(function () {
+
+            $('#databaseType').on('change', function () {
+                var selected = $(this).find("option:selected").val();
+                if (selected != @((int)DatabaseType.SQLLite)) {
+                    $('#databaseConnectionString').show();
+                    $('.info-db-type').hide();
+                    $(`.info-db-type-${selected}`).show();
+                } else {
+                    $('#databaseConnectionString, .info-db-type').hide();
+                }
+            });
+
+        });
+    </script>
+
+}

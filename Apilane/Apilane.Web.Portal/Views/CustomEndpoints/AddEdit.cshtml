@@ -1,0 +1,433 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Microsoft.AspNetCore.Authorization;
+@using Apilane.Common;
+@using Apilane.Common.Enums;
+@using Apilane.Common.Models;
+@model DBWS_CustomEndpoint
+
+@{
+    bool IsEdit = Model != null && Model.ID > 0;
+
+    ViewBag.Title = IsEdit ? "Edit" : "Create";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    DBWS_Application Application = ViewBag.Application;
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Application.Token })">@Application.Name</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "CustomEndpoints", action = "Index", appid = Application.Token })">Custom endpoints</a></li>
+                        <li class="breadcrumb-item">@(IsEdit ? "Edit" : "Create")</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="row clearfix">
+                <div class="col-lg-8 col-md-6 col-sm-12 col-xs-12">
+                    <div class="row">
+                        <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                            <div class="card">
+                                <h4 class="card-header">
+                                    @(IsEdit ? "Edit custom endpoint" : "Create custom endpoint")
+                                </h4>
+                                <div class="card-body">
+                                    @using (Html.BeginRouteForm("AppRoute", new { controller = "CustomEndpoints", action = (IsEdit ? "Edit" : "Create"), appid = Html.GetAppToken(), ReturnUrl = ViewBag.ReturnUrl, ID = (Model?.ID ?? 0) }, FormMethod.Post, true, new { role = "form" }))
+                                    {
+                                        @Html.HiddenFor(m => m.ID)
+                                        @Html.HiddenFor(m => m.AppID)
+                                        <div class="form-group mb-3">
+                                            <div class="form-line">
+                                                @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Name", maxlength = "80" })
+                                            </div>
+                                            @Html.ValidationMessageFor(m => m.Name, "", new { @class = "text-danger" })
+                                        </div>
+                                        <div class="form-group mb-3">
+                                            <div class="form-line">
+                                                @Html.TextBoxFor(m => m.Description, new { @class = "form-control", placeholder = "Description" })
+                                            </div>
+                                            @Html.ValidationMessageFor(m => m.Description, "", new { @class = "text-danger" })
+                                        </div>
+                                        <div class="form-group mb-3">
+                                            <div class="form-line code_sql">
+                                                @Html.TextAreaFor(m => m.Query, new { placeholder = "SQL query" })
+                                            </div>
+                                            @Html.ValidationMessageFor(m => m.Query, "", new { @class = "text-danger" })
+                                        </div>
+                                        <ul>
+                                            <li>
+                                                Type the SQL query to execute when calling this endpoint. Add any query string parameters using brackets. e.g. parameter with name ProductID will be typed as {ProductID}.
+                                            </li>
+                                            <li>
+                                                <u>Query string parameters can be only of type long integer.</u> If the parameter is invalid (not long integer), the placeholder will be replaced with <b>null</b>.
+                                            </li>
+                                            <li>
+                                                Use the keyword <b>{Owner}</b> to be replaced with the User ID that made the API call. The use of {Owner} keyword, means that this endpoint can be called only from authorized users.
+                                            </li>
+                                        </ul>
+                                        <br>
+                                        <div class="form-group">
+                                            @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                        </div>
+                                        if (!IsEdit)
+                                        {
+                                            <div class="alert alert-primary">
+                                                <strong>Tip!</strong> Do not forget to authorize users to access the custom endpoint on <a target="_blank" class="alert-link" href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Security", appid = Application.Token })">security section</a>.
+                                            </div>
+                                        }
+                                    }
+                                    <button type="submit" class="btn_save btn btn-primary" title="Save">
+                                        <i class="bi bi-floppy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                            <div class="accordion p-6 custom-border mt-4" id="accordion">
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="headingOne">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="false" aria-controls="collapse1">
+                                            What is a custom endpoint?
+                                        </button>
+                                    </h2>
+                                    <div id="collapse1" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordion">
+                                        <div class="accordion-body">
+                                            Custom endpoints allow you to get, create, update or delete records, your way.
+                                            <br />
+                                            Custom endpoints accept only numeric parameters.
+                                            <br />
+                                            Use custom endpoints to perform join between tables-entities, and get the results exactly the way you like.
+                                            <br />
+                                            <b>Custom endpoint queries are executed inside a transaction. If the query fails, the transaction will not be commited.</b> 
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="headingThree">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse3" aria-expanded="false" aria-controls="collapse3">
+                                            How to NOT use custom endpoints
+                                        </button>
+                                    </h2>
+                                    <div id="collapse3" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordion">
+                                        <div class="accordion-body">
+                                            <ul>
+                                                <li>
+                                                    DO NOT use custom endpoints to create or drop tables or properties. In case something like that happens, you will have to <a href="@Url.RouteUrl("AppRoute", new { appid =Application.Token, controller = "Application", action = "Rebuild" })">rebuild</a> your application. Rebuilding the application leads to data loss.
+                                                </li>
+                                                <li>
+                                                    DO NOT use custom endpoints to create/update/delete records that require specific validation. Do it only if you know exactly what you are doing.
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="headingThree">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse4" aria-expanded="false" aria-controls="collapse4">
+                                            How to create a custom endpoint?
+                                        </button>
+                                    </h2>
+                                    <div id="collapse4" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordion">
+                                        <div class="accordion-body">
+                                            <ul>
+                                            <li>
+                                                Select the name you like
+                                            </li>
+                                            <li>
+                                                Write a description to help you remember why you created this endpoint
+                                            </li>
+                                            <li>
+                                                Write the SQL query you wish to run, everytime the endpoint is called
+                                            </li>
+                                            <li>
+                                                Hit the save button
+                                            </li>
+                                            <li>
+                                                Give access to user roles you like
+                                            </li>
+                                            <li>
+                                                You are all set
+                                            </li>
+                                        </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="headingThree">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse5" aria-expanded="false" aria-controls="collapse5">
+                                            Can I change the custom endpoint name later?
+                                        </button>
+                                    </h2>
+                                    <div id="collapse5" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordion">
+                                        <div class="accordion-body">
+                                            Yes you can change the custom endpoint name at any time. If you change the custom endpoint's name security access is reset.
+                                        </div>
+                                    </div>
+                                </div>
+                                @if (Application.DatabaseType == (int)DatabaseType.SQLServer)
+                                {
+                                    <div class="accordion-item">
+                                        <h2 class="accordion-header" id="headingTwo">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
+                                                How can I raise a custom SQL error?
+                                            </button>
+                                        </h2>
+                                        <div id="collapse2" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordion">
+                                            <div class="accordion-body">
+                                                Use <code>RAISERROR('Your error message', 16, 1);</code>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-4 col-md-6 mt-4 mt-md-0 mt-lg-0">
+                    <div class="card">
+                        <h4 class="card-header">
+                            Result
+                        </h4>
+                        <div class="card-body result" style="position:relative;">
+                            <div class="form-group mb-3">
+                                <b>Url</b>
+                                <textarea id="custom-call-url" readonly="readonly" class="form-control"></textarea>
+                            </div>
+                            <div class="form-group mb-3" id="wrapper-parameters">
+                                <b>Parameters</b>
+                                <div id="area-parameters">
+
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-primary mb-3" id="btn-test">
+                                <i class="bi bi-send me-2"></i><span>Test</span>
+                            </button>
+                            <div id="query_error" style="color:red;margin-top:10px;">
+                            </div>
+                            <div id="query_area">
+                                <div id="test_query_wrapper" class="well" style="padding:0;">
+                                    <div class="loader report blue" style="display:none;">Loading...</div>
+                                    <textarea rows="10" readonly="readonly" id="test_query" class="form-control"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts{
+    <script type="text/javascript" src="~/codemirror.min.js"></script>
+    <script type="text/javascript">
+
+        $.ajaxSetup({
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader('Authorization', 'Bearer @Html.GetPortalUserAuthToken(User.Identity!)');
+                xhr.setRequestHeader('@Globals.ClientIdHeaderName', '@Globals.ClientIdHeaderValuePortal');
+                xhr.setRequestHeader('@Globals.ApplicationTokenHeaderName', '@Application.Token');
+            }
+        });
+
+        var UrlGetCustomEndpointUrl = '@Url.RouteUrl("AppRoute", new { action = "GetUrl", controller = "CustomEndpoints", appid = Html.GetAppToken() })';
+        var ServerUrl = '@Application.Server.ServerUrl';
+        var Query = null;
+
+        $(document).ready(function () {
+            Query = CodeMirror.fromTextArea(document.getElementById('Query'), {
+                mode: 'text/x-mssql',
+                theme: 'material',
+                indentWithTabs: true,
+                smartIndent: true,
+                lineNumbers: true,
+                matchBrackets : true,
+                autofocus: true,
+                extraKeys: {"Ctrl-Space": "autocomplete"},
+                hintOptions: {
+                    tables: {
+                    @foreach (var entity in Application.Entities)
+                    {
+                        @entity.Name
+                        @: :[
+                            @Html.Raw(string.Join(",", entity.Properties.Select(x => $"\"{x.Name}\"")))
+                        @: ],
+                    }
+                }}
+            });
+
+            Query.on('change', editor => {
+                $('#query_error').empty();
+                getQuery();
+            });
+
+            Query.setSize(null, 200);
+
+            getQuery();
+
+            $('#btn-test').click(function () {
+                $('#btn-test').attr('disabled', 'disabled');
+                $('#btn-test').addClass('disabled');
+                testQuery();
+            });
+
+            $('#Name').bind('input', function () {
+                $('#query_error').empty();
+                getQuery();
+            });
+
+            $('#Name').on('keypress', function (event) {
+                return (event.charCode >= 65 && event.charCode <= 89) || (event.charCode >= 97 && event.charCode <= 122);
+            });
+        });
+
+
+        function getQuery() {
+            $.ajax({
+                url: UrlGetCustomEndpointUrl,
+                type: 'POST',
+                data: JSON.stringify({
+                    Name: $('#Name').val(),
+                    Query: Query.getValue()
+                }),
+                dataType: 'json',
+                contentType: 'application/json; charset=utf-8',
+                success: function (data) {
+                    $('#custom-call-url').text(data.Url);
+
+                    //data.Params.splice($.inArray("AuthToken", data.Params), 1);
+                    if (data.Params.length == 0) {
+                        $('#wrapper-parameters').hide();
+                        $('#area-parameters').empty();
+                    } else {
+                        $('#wrapper-parameters').show();
+
+                        // Store existing values
+                        var queryParams = [];
+                        $.each($('.query-param'), function (index, value) {
+                            queryParams.push({ name: $(this).data().id, value: $(this).val() });
+                        });
+
+                        var html = '';
+                        $.each(data.Params, function (index, value) {
+                            html += '<div class="form-line mt-2"><input type="number" data-id="' + value + '" placeholder="' + value + '" class="query-param query-param-' + value + ' form-control"/></div>';
+                        });
+                        $('#area-parameters').html(html);
+
+                        // Restore pre-existing values
+                        $.each(queryParams, function (index, value) {
+                            $('.query-param-' + value.name).val(value.value);
+                        });
+                    }
+                },
+                error: function (e) {
+                    console.log(e);
+                }
+            });
+        }
+
+        function testQuery() {
+
+            $('#test_query_wrapper .loader').show();
+
+            var queryParams = [];
+            $.each($('.query-param'), function (index, value) {
+                queryParams.push($(this).data().id + '=' + $(this).val());
+            });
+
+            $.ajax({
+                url: ServerUrl + '/api/Custom/TestQuery?' + queryParams.join('&'),
+                type: 'POST',
+                data: JSON.stringify({
+                    Name: 'test',
+                    Query: Query.getValue()
+                }),
+                dataType: 'json',
+                contentType: 'application/json; charset=utf-8',
+                success: function (data) {
+                    $('#test_query_wrapper .loader').hide();
+                    $('#query_error').empty();
+                    var result = JSON.stringify(data, null, 4);
+                    $('#test_query').text(result);
+                    $('#test_query').show();
+
+                    $('#btn-test').attr('disabled', false);
+                    $('#btn-test').removeClass('disabled');
+                },
+                error: function (e) {
+                    $('#test_query_wrapper .loader').hide();
+                    $('#test_query').text('');
+                    $('#btn-test').attr('disabled', false);
+                    $('#btn-test').removeClass('disabled');
+                    console.log(e);
+                    $('#query_error').html('<div class="alert alert-danger" role="alert">' +
+                                                getErrorJSON(e).Message +
+                                            '</div>');
+                }
+            });
+        }
+    </script>
+}
+
+@section styles{
+    <link href="~/codemirror.min.css" rel="stylesheet" />
+    <style>
+        .CodeMirror {
+            height: auto !important;
+        }
+
+        .CodeMirror-scroll {
+            min-height: 100px;
+        }
+
+        #test_query {
+            width: 100%;
+            padding: 10px;
+            margin: 0px;
+            height: 100%;
+        }
+
+        textarea {
+            font-family: monospace;
+        }
+
+        .CodeMirror-hints {
+            position: absolute;
+            z-index: 10;
+            overflow: hidden;
+            list-style: none;
+            margin: 0;
+            padding: 2px;
+            -webkit-box-shadow: 2px 3px 5px rgba(0,0,0,.2);
+            -moz-box-shadow: 2px 3px 5px rgba(0,0,0,.2);
+            box-shadow: 2px 3px 5px rgba(0,0,0,.2);
+            border-radius: 3px;
+            border: 1px solid silver;
+            background: white;
+            font-size: 90%;
+            font-family: monospace;
+            max-height: 20em;
+            overflow-y: auto;
+        }
+
+        .CodeMirror-hint {
+            margin: 0;
+            padding: 0 4px;
+            border-radius: 2px;
+            white-space: pre;
+            color: black;
+            cursor: pointer;
+        }
+
+        li.CodeMirror-hint-active {
+            background: #08f;
+            color: white;
+        }
+    </style>
+}

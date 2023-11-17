@@ -1,0 +1,80 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Models;
+@model DBWS_EntityProperty
+
+@{
+    ViewBag.Title = "Rename";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    DBWS_Application Application = (DBWS_Application)ViewBag.Application;
+    DBWS_Entity Entity = (DBWS_Entity)ViewBag.Entity;
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Application.Token })">@Application.Name</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Properties", appid = Application.Token, entid = Entity.Name })">@Entity.Name</a></li>
+                        <li class="breadcrumb-item active">@Model.Name</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="row clearfix">
+                <div class="col-12 col-xl-6">
+
+                    <div class="card">
+                        <h4 class="card-header">
+                            Rename property @Model.Name
+                        </h4>
+                        <div class="card-body">
+                            @using (Html.BeginRouteForm("PropRoute", new { controller = "Property", action = "Rename", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = Model.Name }, FormMethod.Post, true, new { role = "form" }))
+                            {
+
+                                @Html.HiddenFor(m => m.ID)
+                                @Html.HiddenFor(m => m.EntityID)
+
+                                if (Application.CustomEndpoints.Count > 0)
+                                {
+                                    <div class="alert alert-warning">
+                                        <strong>Warning!</strong> Note that existing custom endpoints that refer to this Property will be affected.
+                                        After renaming the Property, please visit <a target="_blank" class="alert-link" href="@Url.RouteUrl("AppRoute", new { controller = "CustomEndpoints", action = "Index", appid = Application.Token })">custom endpoints</a> section to make the necessary changes.
+                                    </div>
+                                }
+
+                                if (Entity.RequireChangeTracking)
+                                {
+                                    <div class="alert alert-warning">
+                                        <strong>Warning!</strong> Note that existing history records refering to this property, will no longer be available.
+                                    </div>
+                                }
+
+                                <div class="form-group mb-3">
+                                    <div class="form-line">
+                                        @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "New property name", maxlength = 30 })
+                                    </div>
+                                    @Html.ValidationMessageFor(m => m.Name, "", new { @class = "text-danger" })
+                                </div>
+                                <div class="form-group mb-3">
+                                    @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                </div>
+                            }
+                            <button type="submit" class="btn_save btn btn-primary" title="Save">
+                                <i class="bi bi-floppy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+

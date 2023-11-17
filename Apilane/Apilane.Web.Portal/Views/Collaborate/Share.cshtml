@@ -1,0 +1,98 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Common.Models;
+@model DBWS_Collaborate
+
+@{
+    DBWS_Application Application = ViewBag.Application;
+
+    ViewBag.Title = "Share";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Application.Token })">@Application.Name</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new { appid = Application.Token, controller = "Collaborate", action = "Index" })">Share</a></li>
+                        <li class="breadcrumb-item">Share</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="row clearfix">
+                <div class="col-12 col-xl-6">
+                    <div class="card">
+                        <h4 class="card-header">
+                            Share with another user
+                        </h4>
+                        <div class="card-body">
+                            @using (Html.BeginRouteForm("AppRoute", new { controller = "Collaborate", action = "Share", appid = Html.GetAppToken(), ReturnUrl = ViewBag.ReturnUrl }, FormMethod.Post, true, new { role = "form" }))
+                            {
+                                <div class="form-group">
+                                    <div class="form-line">
+                                        @Html.TextBoxFor(m => m.UserEmail, new { @class = "form-control", placeholder = "User email", autofocus = "autofocus" })
+                                    </div>
+                                    @Html.ValidationMessageFor(m => m.UserEmail, "", new { @class = "text-danger" })
+                                </div>
+                                <div class="form-group">
+                                    @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                </div>
+                                <div class="alert alert-primary mt-2">
+                                    The user will be notified by email that he/she has administrator rights to the application.
+                                </div>
+                            }
+                            <button type="submit" class="btn_save btn btn-primary" title="Send request">
+                                <i class="bi bi-send me-1"></i><span>Send request</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12 col-xl-6 mt-4 mt-xl-0">
+                    <div class="accordion p-6 custom-border" id="accordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingOne">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="false" aria-controls="collapse1">
+                                    What is an application collaborator?
+                                </button>
+                            </h2>
+                            <div id="collapse1" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordion">
+                                <div class="accordion-body">
+                                    When you add a user as an application collaborator, you give that user administrator access to that application.
+                                    <br />
+                                    <ul>
+                                        <li>
+                                            <b>The user has full access to modify the application, even delete it.</b>
+                                        </li>
+                                        <li>
+                                            The user has to be a registered user in the current APILANE instance.
+                                        </li>
+                                        <li>
+                                            The collaborator will not be able to add other collaborators on that application.
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingTwo">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
+                                    Can I remove a collaborator?
+                                </button>
+                            </h2>
+                            <div id="collapse2" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordion">
+                                <div class="accordion-body">
+                                    Yes you can remove any collaborator at any time.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

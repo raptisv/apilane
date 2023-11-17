@@ -1,0 +1,49 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Common.Models;
+@model DBWS_Entity
+
+@{
+    ViewBag.Title = "Clone";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="row clearfix">
+    <div class="col-12 col-xl-6">
+        <div class="card">
+            <div class="header">
+                <h2>
+                    Clone entity @Model.Name
+                </h2>
+            </div>
+            <div class="body">
+                @using (Html.BeginRouteForm("EntRoute", new { appid = Html.GetAppToken(), entid = Model.Name, controller = "Entity", action = "Clone" }, FormMethod.Post, true, new { role = "form" }))
+                {
+                    
+                    @Html.HiddenFor(m => m.ID)
+                    <div class="form-group">
+                        <div class="form-line">
+                            @{
+                                Model.Name = $"{Model.Name}_Clone";
+                            }
+                            @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Name", autofocus = "autofocus" })
+                        </div>
+                        @Html.ValidationMessageFor(m => m.Name, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="form-group">
+                        <div class="form-line">
+                            @Html.TextBoxFor(m => m.Description, new { @class = "form-control", placeholder = "Description" })
+                        </div>
+                        @Html.ValidationMessageFor(m => m.Description, "", new { @class = "text-danger" })
+                    </div>
+                    <br>
+                    <div class="form-group">
+                        @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                    </div>
+                }
+                <button type="submit" class="btn_save btn bg-blue btn-circle-lg  waves-circle " title="Save">
+                    <i class="material-icons ">save</i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

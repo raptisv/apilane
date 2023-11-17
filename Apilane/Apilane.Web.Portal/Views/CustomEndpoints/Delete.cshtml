@@ -1,0 +1,89 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Common.Models;
+@model DBWS_CustomEndpoint
+
+@{
+    ViewBag.Title = "Delete";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    DBWS_Application Application = ViewBag.Application;
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Application.Token })">@Application.Name</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "CustomEndpoints", action = "Index", appid = Application.Token })">Custom endpoints</a></li>
+                        <li class="breadcrumb-item">Delete</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="row clearfix">
+                <div class="col-12 col-xl-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                Delete endpoint @Model.Name?
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            @using (Html.BeginRouteForm("AppRoute", new { controller = "CustomEndpoints", action = "Delete", appid = Html.GetAppToken(), ID = Model.ID }, FormMethod.Post, true, new { role = "form" }))
+                            {
+                                @Html.HiddenFor(m => m.ID)
+                                @Html.HiddenFor(m => m.Name)
+                                @Html.HiddenFor(m => m.AppID)
+                                <div class="form-group">
+                                    The endpoint will be deleted. This action is not reversible!
+                                </div>
+                                <br>
+                                <div class="form-group">
+                                    @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                </div>
+                            }
+                            <button class="btn_delete_customendpoint btn btn-danger" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+        
+        var name = '@Model.Name';
+        $('button.btn_delete_customendpoint').on('click', function () {
+            Swal.fire({
+                title: "Confirm",
+                text: "Please type the endpoint name",
+                input: "text",
+                showCancelButton: true,
+                confirmButtonText: 'Delete',
+                buttonsStyling: false,
+                customClass: {
+                    confirmButton: 'btn btn-danger',
+                    cancelButton: 'btn'
+                },
+                inputValidator: (value) => {
+                    if (!value || value != name) {
+                        return `You need to write '${name}'`;
+                    }
+                }
+            }).then((submit) => {
+                if (submit.isConfirmed && submit.value === name) {
+                    $('button.confirm').attr('disabled', true);
+                    $('form').submit();
+                }
+                return false;
+            });
+        });
+
+    </script>
+}

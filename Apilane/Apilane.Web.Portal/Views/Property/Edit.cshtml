@@ -1,0 +1,92 @@
+﻿@using Apilane.Web.Portal.Models;
+@using System.Linq;
+@using Apilane.Common.Enums;
+@using Apilane.Common.Utilities;
+@using Apilane.Common.Models;
+@model DBWS_EntityProperty
+
+@{
+    ViewBag.Title = "Edit";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    DBWS_Application Application = ViewBag.Application;
+    DBWS_Entity Entity = ViewBag.Entity;
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Application.Token })">@Application.Name</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Properties", appid = Application.Token, entid = Entity.Name })">@Entity.Name</a></li>
+                        <li class="breadcrumb-item active">@Model.Name</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="row clearfix">
+                <div class="col-12 col-xl-6">
+                    <div class="card">
+                        <h4 class="card-header">
+                            Edit property @Model.Name
+                        </h4>
+                        <div class="card-body">
+                            @using (Html.BeginRouteForm("PropRoute", new { controller = "Property", action = "Edit", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = Model.Name, ReturnUrl = ViewBag.ReturnUrl }, FormMethod.Post, true, new { role = "form" }))
+                            {
+
+                                @Html.HiddenFor(m => m.ID)
+                                @Html.HiddenFor(m => m.TypeID)
+                                @Html.HiddenFor(m => m.Name)
+
+                                <div class="form-group mb-3">
+                                    <div class="form-line">
+                                        @Html.TextBoxFor(m => m.Description, new { @class = "form-control", placeholder = "Description" })
+                                    </div>
+                                    @Html.ValidationMessageFor(m => m.Description, "", new { @class = "text-danger" })
+                                </div>
+                                if (Model.AllowValidationRegex())
+                                {
+                                    <div class="form-group mb-3">
+                                        <div class="form-line">
+                                            @Html.TextBoxFor(m => m.ValidationRegex, new { @class = "form-control", placeholder = "Validation regex" })
+                                        </div>
+                                        @Html.ValidationMessageFor(m => m.ValidationRegex, "", new { @class = "text-danger" })
+                                    </div>
+                                }
+                                if (Model.AllowMin())
+                                {
+                                    <div class="form-group mb-3">
+                                        <div class="form-line">
+                                            @Html.TextBoxFor(m => m.Minimum, new { @class = "form-control", type = "number", placeholder = "Min" })
+                                        </div>
+                                        @Html.ValidationMessageFor(m => m.Minimum, "", new { @class = "text-danger" })
+                                    </div>
+                                }
+                                if (Model.AllowMaxEdit())
+                                {
+                                    <div class="form-group mb-3">
+                                        <div class="form-line">
+                                            @Html.TextBoxFor(m => m.Maximum, new { @class = "form-control", type = "number", placeholder = "Max" })
+                                        </div>
+                                        @Html.ValidationMessageFor(m => m.Maximum, "", new { @class = "text-danger" })
+                                    </div>
+                                }
+                                <br>
+                                <div class="form-group mb-3">
+                                    @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                </div>
+                            }
+                            <button type="submit" class="btn_save btn btn-primary" title="Save">
+                                <i class="bi bi-floppy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

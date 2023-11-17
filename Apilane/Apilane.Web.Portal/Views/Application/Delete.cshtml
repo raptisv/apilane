@@ -1,0 +1,106 @@
+﻿@using Apilane.Common.Models;
+@model DBWS_Application
+
+@{
+    ViewBag.Title = "Delete";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Model.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Model.Token })">@Model.Name</a></li>
+                        <li class="breadcrumb-item active">Delete</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="row clearfix">
+                <div class="col-12 col-xl-6">
+                    <div class="card">
+                        <h4 class="card-header">
+                            Delete appplication @Model.Name
+                        </h4>
+                        <div class="card-body">
+                            @using (Html.BeginRouteForm("AppRoute", new { appid = Model.Token, action = "Delete", controller = "Application" }, FormMethod.Post, true, new { role = "form" }))
+                            {
+                                @Html.HiddenFor(m => m.ID)
+                                @Html.HiddenFor(m => m.Name)
+                                @Html.HiddenFor(m => m.ConnectionString)
+                                @Html.HiddenFor(m => m.EncryptionKey)
+                                <div class="alert alert-danger mb-3">
+                                    <strong>Warning!</strong> The application will be deleted. This action is not reversible!
+                                </div>
+                                <div class="form-group mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" value="" id="chk-confirm">
+                                        <label class="form-check-label" for="chk-confirm">
+                                            I understand that all associated data and existing functionality will be lost
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-group mb-3">
+                                    @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                </div>
+                            }
+                            <button class="btn_delete btn btn-danger disabled" disabled title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@section scripts{
+    <script type="text/javascript">
+
+        $('#chk-confirm').change(function () {
+            var checked = $('#chk-confirm').is(':checked');
+
+            if (checked) {
+                $('button.btn_delete').removeClass('disabled');
+                $('button.btn_delete').removeAttr('disabled');
+            } else {
+                $('button.btn_delete').addClass('disabled');
+                $('button.btn_delete').attr('disabled', 'disabled');
+            }
+        });
+
+        $('button.btn_delete').on('click', function () {
+            var name = '@Html.Raw(Model.Name)';
+            Swal.fire({
+                title: "Confirm",
+                text: "Please type the application name",
+                input: "text",
+                showCancelButton: true,
+                closeOnConfirm: false,
+                confirmButtonText: 'Delete',
+                buttonsStyling: false,
+                customClass: {
+                    confirmButton: 'btn btn-danger',
+                    cancelButton: 'btn'
+                },
+                inputPlaceholder: "Application name",
+                inputValidator: (value) => {
+                    if (!value || value != name) {
+                        return `You need to write '${name}'`;
+                    }
+                }
+            }).then((submit) => {
+                if (submit.isConfirmed && submit.value === name) {
+                    $('form').submit();
+                }
+                return false;
+            });
+        });
+
+    </script>
+}

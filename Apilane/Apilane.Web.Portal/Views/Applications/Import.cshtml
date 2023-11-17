@@ -1,0 +1,186 @@
+﻿@using Apilane.Web.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Models;
+@using Apilane.Common.Utilities;
+@using Apilane.Common.Models.Dto;
+@using Apilane.Common.Enums;
+@using Microsoft.AspNetCore.Html;
+
+@{
+    ViewBag.Title = "Import";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    List<SelectListItem> Servers = new List<SelectListItem>();
+
+    var availableServers = (List<DBWS_Server>)ViewBag.AvailableServers;
+    foreach (var s in availableServers)
+    {
+        Servers.Add(new SelectListItem()
+        {
+            Value = s.ID.ToString(),
+            Disabled = false,
+            Selected = false,
+            Text = s.Name
+        });
+    }
+
+    List<SelectListItem> DatabaseTypes = new List<SelectListItem>();
+    DatabaseTypes.Add(new SelectListItem() { Selected = true, Value = ((int)DatabaseType.SQLLite).ToString(), Text = "SQL Lite" });
+    DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.SQLServer).ToString(), Text = "SQL Server" });
+    DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.MySQL).ToString(), Text = "My SQL" });
+}
+
+@section scripts{
+
+    <script type="text/javascript">
+        
+        var CurrentFileData = null;
+
+        $(document).ready(function () {
+
+            $('#btn-import-application').click(function(){
+
+                if (CurrentFileData == null){
+                    
+                    Swal.fire({
+                        icon: 'error',
+                        title: "Error",
+                        html: 'Please select a file',
+                        showCancelButton: true,
+                        showConfirmButton: false,
+                        cancelButtonText: "OK",
+                        allowOutsideClick: true
+                    });
+
+                } else {
+
+                    $(this).attr('disabled', true);
+                    $(this).html(`<div class="spinner-border spinner-border-sm">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>`);
+
+                    var url = `@Url.Action("Import", "Applications")?ServerID=${$('#ServerID').val()}&DatabaseType=${$('#DatabaseType').val()}&ConnectionString=${$('#ConnectionString').val()}`;
+                    $('#file-upload').fileupload('option', 'url', );
+                    CurrentFileData.submit();
+                }
+            });
+
+            $('#file-upload').fileupload({
+                url: '',
+                type: 'POST',
+                autoUpload: false,
+                sequentialUploads: false,
+                replaceFileInput: false,
+                fileInput: $("input:file"),
+                done: function (e, data) {
+                    // Redirect to the imported app
+                    location.href = data.result;
+                },
+                fail: function (e, data) {
+                    
+                    var error = "Something went wrong, please try again";
+                    try {
+                        error = data.response().jqXHR.responseJSON;
+                    } catch { } // do nothing
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: "Error",
+                        html: error,
+                        showCancelButton: true,
+                        showConfirmButton: false,
+                        cancelButtonText: "OK",
+                        allowOutsideClick: true
+                    }).then((submit) => {
+                        location.reload();
+                    });
+                },
+                add: function (e, data) {
+                    $('#file-upload-name').val(data.files[0].name);
+                    CurrentFileData = data;
+                },
+                progressall: function (e, data) {
+
+                }
+            });
+
+            $('#databaseType').on('change', function () {
+                var selected = $(this).find("option:selected").val();
+                if (selected != @((int)DatabaseType.SQLLite)) {
+                    $('#databaseConnectionString').show();
+                    $('.info-db-type').hide();
+                    $(`.info-db-type-${selected}`).show();
+                } else {
+                    $('#databaseConnectionString, .info-db-type').hide();
+                }
+            });
+
+        });
+    </script>
+
+}
+
+<div class="row clearfix">
+    <div class="col-12 col-xl-6">
+        <div class="card">
+            <h4 class="card-header">
+                Import application
+            </h4>
+            <div class="card-body">
+                <form>
+                    <div class="form-group mb-3">
+                        <div class="form-line">
+                            @Html.DropDownList("ServerID", Servers, null, new { @class = "form-select" })
+                        </div>
+                    </div>
+                    <div class="form-group mb-3">
+                        <div class="form-line">
+                            @Html.DropDownList("DatabaseType", DatabaseTypes, null, new { id = "databaseType", @class = "form-select" })
+                        </div>
+                    </div>
+                    <div class="form-group mb-3" id="databaseConnectionString" style="display:none;">
+                        <div class="form-line">
+                            @Html.TextBox("ConnectionString", null, new { @class = "form-control", placeholder = "Connection string" })
+                        </div>
+                    </div>
+                    <div class="info-db-type info-db-type-@((int)DatabaseType.SQLServer)" style="display:none;">
+                        <div class="alert alert-primary mt-3">
+                            The connection string must be pointing to an existing but empty database with the necessary access rights.
+                            The connection string will be validated as soon as you click on 'save'.
+                            <a target="_blank" href="https://www.connectionstrings.com/sql-server/">SQLServer connection string examples</a>
+                        </div>
+                        <div class="alert alert-warning mt-3">
+                            Remember to use <strong>TrustServerCertificate=true;</strong> in case there is no specific certificate used for the connection.
+                        </div>
+                    </div>
+                    <div class="info-db-type info-db-type-@((int)DatabaseType.MySQL)" style="display:none;">
+                        <div class="alert alert-primary mt-3">
+                            The connection string must be pointing to an existing but empty database with the necessary access rights.
+                            The connection string will be validated as soon as you click on 'save'.
+                            <a target="_blank" href="https://www.connectionstrings.com/mysql/">MySQL connection string examples</a>
+                        </div>
+                        <div class="alert alert-warning mt-3">
+                            Do not forget to use <strong>UseXaTransactions=false;</strong> to allow queries execute inside TransactionScope.
+                        </div>
+                    </div>
+                    <div class="form-group mb-3">
+                        <div class="form-line">
+                            <input id="file-upload" type="file" name="FileUpload" accept=".json" class="form-control text_input">
+                        </div>
+                    </div>
+                    <div class="alert alert-primary mb-3">
+                        Upload <b>application.json</b> file from any exported application. The imported application will be generated using the same <b>Token</b>.
+                        If you wish to change the token, make sure to edit the json file before uploading.
+                    </div>
+                    <br>
+                    <div class="form-group">
+                        @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                    </div>
+                </form>
+                <button id="btn-import-application" class="btn btn-primary" title="Save">
+                    <i class="bi bi-floppy"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
