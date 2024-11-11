@@ -8,6 +8,7 @@ using Apilane.Web.Portal.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.CodeAnalysis;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -20,14 +21,17 @@ namespace Apilane.Web.Portal.Controllers
     [Authorize]
     public class ApplicationController : BaseWebApplicationController
     {
+        private readonly ILogger<ApplicationController> _logger;
         private readonly PortalConfiguration _portalConfiguration;
 
         public ApplicationController(
+            ILogger<ApplicationController> logger,
             ApplicationDbContext dbContext,
             IApiHttpService apiHttpService,
             PortalConfiguration portalConfiguration)
             : base(dbContext, apiHttpService)
         {
+            _logger = logger;
             _portalConfiguration = portalConfiguration;
         }
 
@@ -667,10 +671,17 @@ namespace Apilane.Web.Portal.Controllers
                 }
 
                 int pageIndex = 0;
-                int pageSize = 100;
+                int pageSize = 1000;
                 var currentPage = entityData.Value.Data.Skip(pageIndex * pageSize).Take(pageSize).ToList();
                 while (currentPage.Count > 0)
                 {
+                    // Importing 
+                    var recordStart = pageIndex * pageSize;
+                    var recordEnd = (pageIndex * pageSize) + pageSize;
+                    var recordCount = entityData.Value.Data.Count;
+                    recordEnd = recordCount >= recordEnd ? recordEnd : recordCount;
+                    _logger.LogInformation($"Importing '{entity.Name}' records {recordStart}-{recordEnd}/{recordCount}");
+
                     // Insert current page
                     var insertedIds = await ApiHttpService.ImportDataAsync(serverTo.ServerUrl, appTokenTo, entity.Name, currentPage, portalUserAuthToken);
 

@@ -142,7 +142,6 @@ namespace Apilane.Web.Portal
                 var listOfQueries = new List<string>()
                 {
                     // Add any migration queries here
-                    "ALTER TABLE [Applications] DROP COLUMN [AppVersion]"
                 };
 
                 foreach(var item in listOfQueries)
@@ -157,7 +156,6 @@ namespace Apilane.Web.Portal
                         Console.WriteLine($"Error executing query '{item}' | {ex.Message}");
                     }
                 }
-
             }
 
             if (environment == Common.Enums.HostingEnvironment.Development)

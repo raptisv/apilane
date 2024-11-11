@@ -8,6 +8,7 @@ using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Common.Utilities;
 using Apilane.Data.Abstractions;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -21,17 +22,20 @@ namespace Apilane.Api.Services
 {
     public class ApplicationDataService : IApplicationDataService
     {
+        private readonly ILogger<ApplicationDataService> _logger;
         private readonly IApplicationDataStoreFactory _dataStore;
         private readonly IApplicationService _applicationService;
         private readonly IApplicationHelperService _applicationHelperService;
         private readonly IEntityHistoryAPI _entityHistoryAPI;
 
         public ApplicationDataService(
+            ILogger<ApplicationDataService> logger,
             IApplicationDataStoreFactory dataStore,
             IApplicationService applicationService,
             IApplicationHelperService applicationHelperService,
             IEntityHistoryAPI entityHistoryAPI)
         {
+            _logger = logger;
             _dataStore = dataStore;
             _applicationService = applicationService;
             _applicationHelperService = applicationHelperService;
@@ -643,10 +647,12 @@ namespace Apilane.Api.Services
                 }
                 catch (FormatException ex)
                 {
+                    _logger.LogWarning(ex, $"INVALID_FILTER_PARAMETER | Entity '{entity}' | Filter '{filter}' | {ex.Message}");
                     throw new ApilaneException(AppErrors.INVALID_FILTER_PARAMETER, ex.Message, entity: entity.Name);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    _logger.LogWarning(ex, $"INVALID_FILTER_PARAMETER | Entity '{entity}' | Filter '{filter}' | {ex.Message}");
                     throw new ApilaneException(AppErrors.INVALID_FILTER_PARAMETER, entity: entity.Name);
                 }
             }

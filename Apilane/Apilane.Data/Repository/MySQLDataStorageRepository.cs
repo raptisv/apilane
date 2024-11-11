@@ -466,7 +466,6 @@ namespace Apilane.Data.Repository
 
                                 SELECT LAST_INSERT_ID();";
 
-
             var result = await ExecScalarAsync(insertCmd);
 
             return Utils.GetNullLong(result);
