@@ -386,7 +386,7 @@ namespace Apilane.Api.Services
                 var response = await _applicationDataStoreFactory.CreateDataAsync(
                     entity.Name,
                     item,
-                    true);
+                    allowInsertIdentity: true);
 
                 if (response.HasValue)
                 {
