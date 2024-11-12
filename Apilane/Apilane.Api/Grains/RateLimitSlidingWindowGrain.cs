@@ -32,7 +32,7 @@ namespace Apilane.Api.Grains
             // Part 2 = identifier (e.g. ID:role:post:entity for users in role post entity)
 
             // IMPORTANT! An identifier might contain a _ so we check for length < 3 and NOT exactly 3.
-            // We only care about the 2 first parts, the third is not used. it is just identifier.
+            // We only care about the 2 first parts, the third is not used, it is just identifier.
 
             if (parts.Length < 3 ||
                 !int.TryParse(parts[0], out _maxRequests) ||

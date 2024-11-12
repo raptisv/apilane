@@ -12,7 +12,6 @@ namespace Apilane.Api.Grains
         [AlwaysInterleave]
         Task<DBWS_Application> GetAsync();
         Task ClearCacheAsync();
-        Task DeactivateAsync();
     }
 
     public class ApplicationGrain : Grain, IApplicationGrain
@@ -41,13 +40,6 @@ namespace Apilane.Api.Grains
         public Task ClearCacheAsync()
         {
             _application = null;
-            return Task.CompletedTask;
-        }
-
-        public Task DeactivateAsync()
-        {
-            DeactivateOnIdle();
-
             return Task.CompletedTask;
         }
     }

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
 
@@ -21,11 +22,14 @@ namespace Apilane.Web.Api.Filters
 
     public class ApplicationOwnerAuthorizationFilter : IAsyncAuthorizationFilter
     {
+        private ILogger<ApplicationOwnerAuthorizationFilter> _logger;
         private IQueryDataService _queryService;
 
         public ApplicationOwnerAuthorizationFilter(
+            ILogger<ApplicationOwnerAuthorizationFilter> logger,
             IQueryDataService queryService)
         {
+            _logger = logger;
             _queryService = queryService;
         }
 
@@ -41,8 +45,9 @@ namespace Apilane.Web.Api.Filters
                     return;
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, $"Unauthorized | {ex.Message}");
                 context.Result = new CustomUnauthorizedResult(AppErrors.ERROR, "Error");
             }
         }
