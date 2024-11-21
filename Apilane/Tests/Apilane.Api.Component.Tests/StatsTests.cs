@@ -175,7 +175,10 @@ namespace Apilane.Api.Component.Tests
 
             var getData = await ApilaneService.GetStatsDistinctAsync<T>(request);
 
-            getData.Match(response => throw new Exception($"We should not be here"),
+            getData.Match(response =>
+            {
+                throw new Exception($"We should not be here");
+            },
             error =>
             {
                 Assert.NotNull(error);

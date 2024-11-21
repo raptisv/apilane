@@ -2,6 +2,7 @@
 using Apilane.Net.JsonConverters;
 using Apilane.Net.Models.Data;
 using Apilane.Net.Models.Enums;
+using Apilane.Net.Request;
 using Apilane.Net.Utilities;
 using System;
 using System.Net.Http;
@@ -18,6 +19,7 @@ namespace Apilane.Net.Services
         private readonly string _applicationTokenHeaderName = "x-application-token";
         private readonly HttpClient _httpClient;
         private readonly ApilaneConfiguration _config;
+        private readonly IApilaneAuthTokenProvider? _apilaneAuthTokenProvider;
 
         public static readonly JsonSerializerOptions JsonDeserializerSettings = new JsonSerializerOptions()
         {
@@ -37,10 +39,12 @@ namespace Apilane.Net.Services
 
         internal ApilaneService(
             HttpClient httpClient,
-            ApilaneConfiguration config)
+            ApilaneConfiguration config,
+            IApilaneAuthTokenProvider? apilaneAuthTokenProvider = null)
         {
             _httpClient = httpClient;
             _config = config;
+            _apilaneAuthTokenProvider = apilaneAuthTokenProvider;
 
             if (string.IsNullOrWhiteSpace(config.ApplicationApiUrl))
             {
@@ -94,6 +98,25 @@ namespace Apilane.Net.Services
         public string UrlFor_Email_ForgotPassword(string email)
         {
             return $"{_config.ApplicationApiUrl.TrimEnd('/')}/api/Email/ForgotPassword?AppToken={_config.ApplicationToken}&Email={email}";
+        }
+
+        private async Task<string?> GetAuthTokenAsync<TBuilder>(ApilaneRequestBase<TBuilder> request) where TBuilder : ApilaneRequestBase<TBuilder>
+        {
+            // Request auth token is a priority
+            if (request.HasAuthToken(out var requestAuthToken))
+            {
+                return requestAuthToken;
+            }
+            else
+            {
+                // Else check for global authtoken provider
+                if (_apilaneAuthTokenProvider is not null)
+                {
+                    return await _apilaneAuthTokenProvider.GetAuthTokenAsync();
+                }
+            }
+            
+            return null;
         }
     }
 }

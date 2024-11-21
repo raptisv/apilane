@@ -2,7 +2,7 @@
 
 namespace Apilane.Net.Request
 {
-    public class AccountConfirmationEmailRequest : ApilaneRequestBase
+    public class AccountConfirmationEmailRequest : ApilaneRequestBase<AccountConfirmationEmailRequest>
     {
         public static AccountConfirmationEmailRequest New(string email) => new(email);
 

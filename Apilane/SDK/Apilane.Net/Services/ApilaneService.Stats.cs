@@ -1,7 +1,9 @@
 ﻿using Apilane.Net.Abstractions;
+using Apilane.Net.Extensions;
 using Apilane.Net.Models.Data;
 using Apilane.Net.Request;
 using Apilane.Net.Utilities;
+using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
@@ -18,7 +20,8 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, apiRequest.GetUrl(_config.ApplicationApiUrl)))
             {
-                if (apiRequest.HasAuthToken(out string authorizationToken))
+                var authorizationToken = await GetAuthTokenAsync(apiRequest);
+                if (!string.IsNullOrWhiteSpace(authorizationToken))
                 {
                     httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
                 }
@@ -27,7 +30,12 @@ namespace Apilane.Net.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    if (apiRequest.ShouldThrowExceptionOnError())
+                    {
+                        throw new Exception(errorResponse.BuildErrorMessage());
+                    }
+                    return errorResponse;
                 }
 
                 return jsonString;
@@ -40,7 +48,8 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, apiRequest.GetUrl(_config.ApplicationApiUrl)))
             {
-                if (apiRequest.HasAuthToken(out string authorizationToken))
+                var authorizationToken = await GetAuthTokenAsync(apiRequest);
+                if (!string.IsNullOrWhiteSpace(authorizationToken))
                 {
                     httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
                 }
@@ -49,7 +58,12 @@ namespace Apilane.Net.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    if (apiRequest.ShouldThrowExceptionOnError())
+                    {
+                        throw new Exception(errorResponse.BuildErrorMessage());
+                    }
+                    return errorResponse;
                 }
 
                 return JsonSerializer.Deserialize<T>(jsonString, JsonDeserializerSettings)!;
@@ -60,7 +74,8 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, apiRequest.GetUrl(_config.ApplicationApiUrl)))
             {
-                if (apiRequest.HasAuthToken(out string authorizationToken))
+                var authorizationToken = await GetAuthTokenAsync(apiRequest);
+                if (!string.IsNullOrWhiteSpace(authorizationToken))
                 {
                     httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
                 }
@@ -69,7 +84,12 @@ namespace Apilane.Net.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    if (apiRequest.ShouldThrowExceptionOnError())
+                    {
+                        throw new Exception(errorResponse.BuildErrorMessage());
+                    }
+                    return errorResponse;
                 }
 
                 return jsonString;
@@ -80,7 +100,8 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, apiRequest.GetUrl(_config.ApplicationApiUrl)))
             {
-                if (apiRequest.HasAuthToken(out string authorizationToken))
+                var authorizationToken = await GetAuthTokenAsync(apiRequest);
+                if (!string.IsNullOrWhiteSpace(authorizationToken))
                 {
                     httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
                 }
@@ -89,7 +110,12 @@ namespace Apilane.Net.Services
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    if (apiRequest.ShouldThrowExceptionOnError())
+                    {
+                        throw new Exception(errorResponse.BuildErrorMessage());
+                    }
+                    return errorResponse;
                 }
 
                 return JsonSerializer.Deserialize<T>(jsonString, JsonDeserializerSettings)!;

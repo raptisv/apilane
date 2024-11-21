@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace Apilane.Net.Request
 {
-    public abstract class ApilaneRequestBase
+    public abstract class ApilaneRequestBase<TBuilder> where TBuilder : ApilaneRequestBase<TBuilder>
     {
         protected static JsonSerializerOptions JsonSerializerOptions = new()
         {
@@ -21,6 +21,8 @@ namespace Apilane.Net.Request
             _entity,
             _authToken;
 
+        protected bool _throwOnError = false;
+
         protected ApilaneRequestBase(string? entity, string controller, string action)
         {
             _controller = controller;
@@ -35,10 +37,33 @@ namespace Apilane.Net.Request
             }
         }
 
-        public bool HasAuthToken(out string authToken)
+        internal bool HasAuthToken(out string authToken)
         {
             authToken = _authToken ?? string.Empty;
             return !string.IsNullOrWhiteSpace(_authToken);
+        }
+
+        internal bool ShouldThrowExceptionOnError()
+        {
+            return _throwOnError;
+        }
+
+        /// <summary>
+        /// Use this method to directly throw exception instead of checking for error on each request.
+        /// </summary>
+        public TBuilder OnErrorThrowException()
+        {
+            _throwOnError = true;
+            return (TBuilder)this;
+        }
+
+        /// <summary>
+        /// Use this method to override the auth token provided from <see cref="Apilane.Net.Abstractions.IApilaneAuthTokenProvider"/>, if any.
+        /// </summary>
+        public TBuilder WithAuthToken(string authToken)
+        {
+            _authToken = authToken;
+            return (TBuilder)this;
         }
 
         protected virtual NameValueCollection? GetExtraParams()

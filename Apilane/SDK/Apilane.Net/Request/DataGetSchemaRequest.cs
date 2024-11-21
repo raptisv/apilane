@@ -2,7 +2,7 @@
 
 namespace Apilane.Net.Request
 {
-    public class DataGetSchemaRequest : ApilaneRequestBase
+    public class DataGetSchemaRequest : ApilaneRequestBase<DataGetSchemaRequest>
     {
         public static DataGetSchemaRequest New(string encryptionKey) => new(encryptionKey);
 
@@ -11,12 +11,6 @@ namespace Apilane.Net.Request
         private DataGetSchemaRequest(string encryptionKey) : base(null, "Data", "Schema")
         {
             _encryptionKey = encryptionKey;
-        }
-
-        public DataGetSchemaRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         protected override NameValueCollection GetExtraParams()

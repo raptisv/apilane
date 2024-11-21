@@ -1,6 +1,6 @@
 ﻿namespace Apilane.Net.Request
 {
-    public class AccountRenewAuthTokenRequest : ApilaneRequestBase
+    public class AccountRenewAuthTokenRequest : ApilaneRequestBase<AccountRenewAuthTokenRequest>
     {
         public static AccountRenewAuthTokenRequest New() => new();
 

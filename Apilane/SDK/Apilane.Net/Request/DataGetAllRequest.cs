@@ -13,6 +13,7 @@ namespace Apilane.Net.Request
         private List<string>? _properties = null;
         protected FilterItem? _filter = null;
         protected SortItem? _sort = null;
+        protected bool _throwOnError = false;
 
         public string Entity => _entity;
         public string? AuthToken => _authToken;
@@ -25,12 +26,25 @@ namespace Apilane.Net.Request
             _entity = entity;
         }
 
+        internal bool ShouldThrowExceptionOnError()
+        {
+            return _throwOnError;
+        }
+
+        /// <summary>
+        /// Use this method to directly throw exception instead of checking for error on each request.
+        /// </summary>
+        public DataGetAllRequest OnErrorThrowException()
+        {
+            _throwOnError = true;
+            return this;
+        }
+
         public DataGetAllRequest WithAuthToken(string authToken)
         {
             _authToken = authToken;
             return this;
         }
-
 
         public DataGetAllRequest WithFilter(FilterItem filterItem)
         {

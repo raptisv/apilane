@@ -11,13 +11,23 @@ namespace Microsoft.Extensions.DependencyInjection
             this IServiceCollection services,
             string applicationApiUrl,
             string applicationToken,
-            HttpClient? httpClient = null)
+            HttpClient? httpClient = null,
+            IApilaneAuthTokenProvider? apilaneAuthTokenProvider = null)
         {
-            services.AddSingleton<IApilaneService>((s) => new ApilaneService(httpClient ?? new HttpClient(), new ApilaneConfiguration()
+            services.AddSingleton<IApilaneService>((serviceProvider) =>
             {
-                ApplicationApiUrl = applicationApiUrl,
-                ApplicationToken = applicationToken
-            }));
+                // Optional global auth token provider
+                var authTokenProvider = apilaneAuthTokenProvider ?? serviceProvider.GetService<IApilaneAuthTokenProvider>();
+
+                return new ApilaneService(
+                    httpClient ?? new HttpClient(),
+                    new ApilaneConfiguration()
+                    {
+                        ApplicationApiUrl = applicationApiUrl,
+                        ApplicationToken = applicationToken
+                    },
+                    authTokenProvider);
+            });
 
             return services;
         }

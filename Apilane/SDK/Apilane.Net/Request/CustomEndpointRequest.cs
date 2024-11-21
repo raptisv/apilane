@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Apilane.Net.Request
 {
-    public class CustomEndpointRequest : ApilaneRequestBase
+    public class CustomEndpointRequest : ApilaneRequestBase<CustomEndpointRequest>
     {
         public static CustomEndpointRequest New(string endpoint) => new(endpoint);
 
@@ -13,12 +13,6 @@ namespace Apilane.Net.Request
         private CustomEndpointRequest(string endpoint) : base(null, "Custom", endpoint)
         {
 
-        }
-
-        public CustomEndpointRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         public CustomEndpointRequest(string endpoint, Dictionary<string, long?> parameters) : base(null, "Custom", endpoint)

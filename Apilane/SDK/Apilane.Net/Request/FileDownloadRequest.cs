@@ -1,9 +1,8 @@
-﻿using System;
-using System.Collections.Specialized;
+﻿using System.Collections.Specialized;
 
 namespace Apilane.Net.Request
 {
-    public class FileDownloadRequest : ApilaneRequestBase
+    public class FileDownloadRequest : ApilaneRequestBase<FileDownloadRequest>
     {
         public static FileDownloadRequest New() => new();
 
@@ -13,12 +12,6 @@ namespace Apilane.Net.Request
         private FileDownloadRequest() : base(null, "Files", "Download")
         {
 
-        }
-
-        public FileDownloadRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         public FileDownloadRequest WithFileID(long fileId)

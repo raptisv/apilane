@@ -1,4 +1,5 @@
 ﻿using Apilane.Net.Models.Data;
+using Apilane.Net.Request;
 using Apilane.Net.Utilities;
 using System.Text.Json;
 using System.Threading;
@@ -9,13 +10,13 @@ namespace Apilane.Net.Abstractions
     public interface IApilaneService
     {
         Task<Either<Models.Account.AccountLoginResponse<T>, ApilaneError>> AccountLoginAsync<T>(Models.Account.LoginItem loginItem, CancellationToken cancellationToken = default) where T : Models.Account.IApiUser;
-        Task<Either<int, ApilaneError>> AccountLogoutAsync(string authToken, bool logOutFromEverywhere = false, CancellationToken cancellationToken = default);
+        Task<Either<int, ApilaneError>> AccountLogoutAsync(AccountLogoutRequest request, CancellationToken cancellationToken = default);
         Task<Either<long, ApilaneError>> AccountRegisterAsync(Models.Account.IRegisterItem registerItem, CancellationToken cancellationToken = default);
-        Task<Either<string, ApilaneError>> AccountRenewAuthTokenAsync(string authorizationToken, CancellationToken cancellationToken = default);
-        Task<Either<T, ApilaneError>> AccountUpdateAsync<T>(string authToken, object updateItem, CancellationToken cancellationToken = default) where T : Models.Account.IApiUser;
+        Task<Either<string, ApilaneError>> AccountRenewAuthTokenAsync(AccountRenewAuthTokenRequest request, CancellationToken cancellationToken = default);
+        Task<Either<T, ApilaneError>> AccountUpdateAsync<T>(AccountUpdateRequest request, object updateItem, CancellationToken cancellationToken = default) where T : Models.Account.IApiUser;
         Task<Either<long[], ApilaneError>> DeleteDataAsync(Request.DataDeleteRequest apiRequest, CancellationToken cancellationToken = default);
         Task<Either<long[], ApilaneError>> DeleteFileAsync(Request.FileDeleteRequest apiRequest, CancellationToken cancellationToken = default);
-        Task<Either<Models.Account.AccountUserDataResponse<T>, ApilaneError>> GetAccountUserDataAsync<T>(string authToken, CancellationToken cancellationToken = default) where T : Models.Account.IApiUser;
+        Task<Either<Models.Account.AccountUserDataResponse<T>, ApilaneError>> GetAccountUserDataAsync<T>(AccountUserDataRequest request, CancellationToken cancellationToken = default) where T : Models.Account.IApiUser;
         Task<Either<System.Collections.Generic.List<T>, ApilaneError>> GetAllDataAsync<T>(Request.DataGetAllRequest apiRequest, JsonSerializerOptions? customJsonSerializerOptions = null, CancellationToken cancellationToken = default);
         Task<Either<Models.ApplicationSchemaDto, ApilaneError>> GetApplicationSchemaAsync(string encryptionKey, CancellationToken cancellationToken = default);
         Task<Either<string, ApilaneError>> GetCustomEndpointAsync(Request.CustomEndpointRequest apiRequest, CancellationToken cancellationToken = default);

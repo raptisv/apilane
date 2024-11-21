@@ -1,6 +1,6 @@
 ﻿namespace Apilane.Net.Request
 {
-    public class AccountRegisterRequest : ApilaneRequestBase
+    public class AccountRegisterRequest : ApilaneRequestBase<AccountRegisterRequest>
     {
         public static AccountRegisterRequest New() => new();
 

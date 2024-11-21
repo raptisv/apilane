@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Apilane.Net.Request
 {
-    public class StatsDistinctRequest : ApilaneRequestBase
+    public class StatsDistinctRequest : ApilaneRequestBase<StatsDistinctRequest>
     {
         public static StatsDistinctRequest New(string entity, string property) => new(entity, property);
 
@@ -19,12 +19,6 @@ namespace Apilane.Net.Request
             {
                 _property = "id"; // Default property
             }
-        }
-
-        public StatsDistinctRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         public StatsDistinctRequest WithFilter(FilterItem filterItem)

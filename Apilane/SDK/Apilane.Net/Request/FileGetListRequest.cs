@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Apilane.Net.Request
 {
-    public class FileGetListRequest : ApilaneRequestBase
+    public class FileGetListRequest : ApilaneRequestBase<FileGetListRequest>
     {
         public static FileGetListRequest New() => new();
 
@@ -19,12 +19,6 @@ namespace Apilane.Net.Request
         private FileGetListRequest() : base(null, "Files", "Get")
         {
 
-        }
-
-        public FileGetListRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         public FileGetListRequest WithPageIndex(int pageIndex)

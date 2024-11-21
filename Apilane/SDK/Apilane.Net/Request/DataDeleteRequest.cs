@@ -3,7 +3,7 @@ using System.Collections.Specialized;
 
 namespace Apilane.Net.Request
 {
-    public class DataDeleteRequest : ApilaneRequestBase
+    public class DataDeleteRequest : ApilaneRequestBase<DataDeleteRequest>
     {
         public static DataDeleteRequest New(string entity) => new(entity);
         public static DataDeleteRequest New(string entity, List<long> Ids) => new(entity, Ids);
@@ -17,12 +17,6 @@ namespace Apilane.Net.Request
         private DataDeleteRequest(string entity, List<long> Ids) : base(entity, "Data", "Delete")
         {
             _Ids = Ids;
-        }
-
-        public DataDeleteRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         public DataDeleteRequest AddIdToDelete(long id)

@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Apilane.Net.Request
 {
-    public class FileGetByIdRequest : ApilaneRequestBase
+    public class FileGetByIdRequest : ApilaneRequestBase<FileGetByIdRequest>
     {
         public static FileGetByIdRequest New(long id) => new(id);
 
@@ -19,12 +19,6 @@ namespace Apilane.Net.Request
         public FileGetByIdRequest WithProperties(params string[] properties)
         {
             _properties = properties?.ToList();
-            return this;
-        }
-
-        public FileGetByIdRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
             return this;
         }
 

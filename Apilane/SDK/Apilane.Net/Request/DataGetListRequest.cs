@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Apilane.Net.Request
 {
-    public class DataGetListRequest : ApilaneRequestBase
+    public class DataGetListRequest : ApilaneRequestBase<DataGetListRequest>
     {
         public static DataGetListRequest New(string entity) => new(entity);
 
@@ -19,12 +19,6 @@ namespace Apilane.Net.Request
         private DataGetListRequest(string entity) : base(entity, "Data", "Get")
         {
 
-        }
-
-        public DataGetListRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         public DataGetListRequest WithPageIndex(int pageIndex)

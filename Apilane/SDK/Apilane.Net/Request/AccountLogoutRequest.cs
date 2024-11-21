@@ -2,7 +2,7 @@
 
 namespace Apilane.Net.Request
 {
-    public class AccountLogoutRequest : ApilaneRequestBase
+    public class AccountLogoutRequest : ApilaneRequestBase<AccountLogoutRequest>
     {
         public static AccountLogoutRequest New(bool logOutFromEverywhere) => new(logOutFromEverywhere);
 
@@ -11,12 +11,6 @@ namespace Apilane.Net.Request
         private AccountLogoutRequest(bool logOutFromEverywhere) : base(null, "Account", "Logout")
         {
             _logOutFromEverywhere = logOutFromEverywhere;
-        }
-
-        public AccountLogoutRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         protected override NameValueCollection GetExtraParams()

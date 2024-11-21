@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Apilane.Net.Request
 {
-    public class DataGetByIdRequest : ApilaneRequestBase
+    public class DataGetByIdRequest : ApilaneRequestBase<DataGetByIdRequest>
     {
         public static DataGetByIdRequest New(string entity, long id) => new(entity, id);
 
@@ -19,12 +19,6 @@ namespace Apilane.Net.Request
         public DataGetByIdRequest WithProperties(params string[] properties)
         {
             _properties = properties?.ToList();
-            return this;
-        }
-
-        public DataGetByIdRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
             return this;
         }
 

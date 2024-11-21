@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Apilane.Net.Request
 {
-    public class StatsAggregateRequest : ApilaneRequestBase
+    public class StatsAggregateRequest : ApilaneRequestBase<StatsAggregateRequest>
     {
         public static StatsAggregateRequest New(string entity) => new(entity);
 
@@ -28,12 +28,6 @@ namespace Apilane.Net.Request
         private StatsAggregateRequest(string entity) : base(entity, "Stats", "Aggregate")
         {
             _properties = new List<string>();
-        }
-
-        public StatsAggregateRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         public StatsAggregateRequest WithPageIndex(int pageIndex)

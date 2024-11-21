@@ -230,7 +230,8 @@ namespace Apilane.Api.Component.Tests
 
             // Update first name
 
-            var updateFirstNameResult = await ApilaneService.AccountUpdateAsync<UserItem>(loginWithUsernameResult.Value.AuthToken,
+            var updateFirstNameResult = await ApilaneService.AccountUpdateAsync<UserItem>(AccountUpdateRequest.New()
+                .WithAuthToken(loginWithUsernameResult.Value.AuthToken),
                 new
                 {
                     Custom_String = user_Custom_String2
@@ -273,7 +274,8 @@ namespace Apilane.Api.Component.Tests
 
             // Get user data invalid auth token
 
-            var getUserDataWithInvalidAuthToken = await ApilaneService.GetAccountUserDataAsync<UserItem>(Guid.NewGuid().ToString());
+            var getUserDataWithInvalidAuthToken = await ApilaneService.GetAccountUserDataAsync<UserItem>(AccountUserDataRequest.New()
+                .WithAuthToken(Guid.NewGuid().ToString()));
 
             getUserDataWithInvalidAuthToken.Match(success => throw new Exception("We should not be here"),
             error =>
@@ -284,7 +286,8 @@ namespace Apilane.Api.Component.Tests
 
             // Get user data valid auth token
 
-            var getUserDataWithValidAuthToken = await ApilaneService.GetAccountUserDataAsync<UserItem>(loginWithUsernameResult.Value.AuthToken);
+            var getUserDataWithValidAuthToken = await ApilaneService.GetAccountUserDataAsync<UserItem>(AccountUserDataRequest.New()
+                .WithAuthToken(loginWithUsernameResult.Value.AuthToken));
 
             getUserDataWithValidAuthToken.Match(success =>
             {
@@ -331,7 +334,8 @@ namespace Apilane.Api.Component.Tests
                     await ApilaneService.GetCustomEndpointAsync(CustomEndpointRequest.New(updateDiffPropertyEndpointName));
                 }
 
-                var getUserDataWithValidAuthToken2 = await ApilaneService.GetAccountUserDataAsync<UserItem>(loginWithUsernameResult.Value.AuthToken);
+                var getUserDataWithValidAuthToken2 = await ApilaneService.GetAccountUserDataAsync<UserItem>(AccountUserDataRequest.New()
+                    .WithAuthToken(loginWithUsernameResult.Value.AuthToken));
 
                 getUserDataWithValidAuthToken2.Match(success =>
                 {
@@ -354,7 +358,8 @@ namespace Apilane.Api.Component.Tests
 
             // Logout
 
-            var logoutResult = await ApilaneService.AccountLogoutAsync(loginWithUsernameResult.Value.AuthToken, true);
+            var logoutResult = await ApilaneService.AccountLogoutAsync(AccountLogoutRequest.New(true)
+                .WithAuthToken(loginWithUsernameResult.Value.AuthToken));
 
             logoutResult.Match(logoutCount =>
             {

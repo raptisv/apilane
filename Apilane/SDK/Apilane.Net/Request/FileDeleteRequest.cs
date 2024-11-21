@@ -3,7 +3,7 @@ using System.Collections.Specialized;
 
 namespace Apilane.Net.Request
 {
-    public class FileDeleteRequest : ApilaneRequestBase
+    public class FileDeleteRequest : ApilaneRequestBase<FileDeleteRequest>
     {
         public static FileDeleteRequest New() => new();
         public static FileDeleteRequest New(List<long> Ids) => new(Ids);
@@ -12,17 +12,12 @@ namespace Apilane.Net.Request
 
         private FileDeleteRequest() : base(null, "Files", "Delete")
         {
+
         }
 
         private FileDeleteRequest(List<long> Ids) : base(null, "Files", "Delete")
         {
             _Ids = Ids;
-        }
-
-        public FileDeleteRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         public FileDeleteRequest AddIdToDelete(long id)

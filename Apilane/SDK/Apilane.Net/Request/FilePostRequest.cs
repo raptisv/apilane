@@ -3,7 +3,7 @@ using System.Collections.Specialized;
 
 namespace Apilane.Net.Request
 {
-    public class FilePostRequest : ApilaneRequestBase
+    public class FilePostRequest : ApilaneRequestBase<FilePostRequest>
     {
         public static FilePostRequest New() => new();
 
@@ -14,12 +14,6 @@ namespace Apilane.Net.Request
         private FilePostRequest() : base(null, "Files", "Post")
         {
 
-        }
-
-        public FilePostRequest WithAuthToken(string authToken)
-        {
-            _authToken = authToken;
-            return this;
         }
 
         public string GetFileName()
