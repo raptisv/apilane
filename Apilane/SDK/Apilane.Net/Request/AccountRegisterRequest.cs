@@ -1,12 +1,17 @@
-﻿namespace Apilane.Net.Request
+﻿using Apilane.Net.Models.Account;
+
+namespace Apilane.Net.Request
 {
     public class AccountRegisterRequest : ApilaneRequestBase<AccountRegisterRequest>
     {
-        public static AccountRegisterRequest New() => new();
+        private IRegisterItem _registerItem;
+        public IRegisterItem RegisterItem => _registerItem;
 
-        private AccountRegisterRequest() : base(null, "Account", "Register")
+        public static AccountRegisterRequest New(IRegisterItem registerItem) => new(registerItem);
+
+        private AccountRegisterRequest(IRegisterItem registerItem) : base(null, "Account", "Register")
         {
-
+            _registerItem = registerItem;
         }
     }
 }

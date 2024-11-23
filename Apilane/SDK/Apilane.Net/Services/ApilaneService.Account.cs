@@ -111,14 +111,13 @@ namespace Apilane.Net.Services
         /// </summary>
         /// <returns></returns>
         public async Task<Either<long, ApilaneError>> AccountRegisterAsync(
-            IRegisterItem registerItem,
+            AccountRegisterRequest request,
             CancellationToken cancellationToken = default)
         {
-            var apiRequest = AccountRegisterRequest.New();
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, apiRequest.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                httpRequest.Content = new StringContent(JsonSerializer.Serialize((object)registerItem), Encoding.UTF8, "application/json");
-                var authorizationToken = await GetAuthTokenAsync(apiRequest);
+                httpRequest.Content = new StringContent(JsonSerializer.Serialize((object)request.RegisterItem), Encoding.UTF8, "application/json");
+                var authorizationToken = await GetAuthTokenAsync(request);
                 if (!string.IsNullOrWhiteSpace(authorizationToken))
                 {
                     httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
@@ -130,7 +129,7 @@ namespace Apilane.Net.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
-                    if (apiRequest.ShouldThrowExceptionOnError())
+                    if (request.ShouldThrowExceptionOnError())
                     {
                         throw new Exception(errorResponse.BuildErrorMessage());
                     }

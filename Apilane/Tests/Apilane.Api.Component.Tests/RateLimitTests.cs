@@ -487,12 +487,12 @@ namespace Apilane.Api.Component.Tests
 
         private async Task<long> RegisterUserAsync(string userEmail, string userPassword)
         {
-            var registerResult = await ApilaneService.AccountRegisterAsync(new RegisterItem()
+            var registerResult = await ApilaneService.AccountRegisterAsync(AccountRegisterRequest.New(new RegisterItem()
             {
                 Username = userEmail,
                 Email = userEmail,
                 Password = userPassword
-            });
+            }));
 
             return registerResult.Match(newUserId =>
             {

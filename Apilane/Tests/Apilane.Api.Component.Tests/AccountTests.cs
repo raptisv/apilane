@@ -113,7 +113,7 @@ namespace Apilane.Api.Component.Tests
 
             // Register with required first name
 
-            var registerResult = await ApilaneService.AccountRegisterAsync(new RegisterItem()
+            var registerResult = await ApilaneService.AccountRegisterAsync(AccountRegisterRequest.New(new RegisterItem()
             {
                 Username = userName,
                 Email = userEmail,
@@ -124,7 +124,7 @@ namespace Apilane.Api.Component.Tests
                 Custom_Decimal = user_Custom_Decimal,
                 Custom_Bool = user_Custom_Bool,
                 Custom_Date = user_Custom_Date
-            });
+            }));
 
             registerResult.Match(newUserId =>
             {
@@ -134,7 +134,7 @@ namespace Apilane.Api.Component.Tests
 
             // Register without required first name
 
-            var invalidRegisterResult = await ApilaneService.AccountRegisterAsync(new RegisterItem()
+            var invalidRegisterResult = await ApilaneService.AccountRegisterAsync(AccountRegisterRequest.New(new RegisterItem()
             {
                 Username = userName,
                 Email = userEmail,
@@ -145,7 +145,7 @@ namespace Apilane.Api.Component.Tests
                 Custom_Decimal = user_Custom_Decimal,
                 Custom_Bool = user_Custom_Bool,
                 Custom_Date = user_Custom_Date
-            });
+            }));
 
             invalidRegisterResult.Match(newUserId => throw new Exception("We should not be here"),
             error =>
@@ -156,7 +156,7 @@ namespace Apilane.Api.Component.Tests
 
             // Attempt register again to force error
 
-            var registerResult2 = await ApilaneService.AccountRegisterAsync(new RegisterItem()
+            var registerResult2 = await ApilaneService.AccountRegisterAsync(AccountRegisterRequest.New(new RegisterItem()
             {
                 Username = userName,
                 Email = userEmail,
@@ -167,7 +167,7 @@ namespace Apilane.Api.Component.Tests
                 Custom_Decimal = user_Custom_Decimal,
                 Custom_Bool = user_Custom_Bool,
                 Custom_Date = user_Custom_Date
-            });
+            }));
 
             registerResult2.Match(newUserId => throw new Exception("We should not be here"),
             error =>
