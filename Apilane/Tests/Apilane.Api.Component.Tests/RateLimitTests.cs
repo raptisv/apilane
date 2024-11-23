@@ -503,11 +503,11 @@ namespace Apilane.Api.Component.Tests
 
         private async Task<string> LoginUserAsync(string userEmail, string userPassword)
         {
-            var loginResult = await ApilaneService.AccountLoginAsync<UserItem>(new LoginItem()
+            var loginResult = await ApilaneService.AccountLoginAsync<UserItem>(AccountLoginRequest.New(new LoginItem()
             {
                 Email = userEmail,
                 Password = userPassword
-            });
+            }));
 
             return loginResult.Match(success =>
             {

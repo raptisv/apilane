@@ -1,12 +1,17 @@
-﻿namespace Apilane.Net.Request
+﻿using Apilane.Net.Models.Account;
+
+namespace Apilane.Net.Request
 {
     public class AccountLoginRequest : ApilaneRequestBase<AccountLoginRequest>
     {
-        public static AccountLoginRequest New() => new();
+        private LoginItem _loginItem;
+        public LoginItem LoginItem => _loginItem;
+        
+        public static AccountLoginRequest New(LoginItem loginItem) => new(loginItem);
 
-        private AccountLoginRequest() : base(null, "Account", "Login")
+        private AccountLoginRequest(LoginItem loginItem) : base(null, "Account", "Login")
         {
-
+            _loginItem = loginItem;
         }
     }
 }

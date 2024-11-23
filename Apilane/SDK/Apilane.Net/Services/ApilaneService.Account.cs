@@ -17,13 +17,12 @@ namespace Apilane.Net.Services
     public sealed partial class ApilaneService : IApilaneService
     {
         public async Task<Either<AccountLoginResponse<T>, ApilaneError>> AccountLoginAsync<T>(
-            LoginItem loginItem,
+            AccountLoginRequest request,
             CancellationToken cancellationToken = default) where T : IApiUser
         {
-            var apiRequest = AccountLoginRequest.New();
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, apiRequest.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                httpRequest.Content = new StringContent(JsonSerializer.Serialize(loginItem), Encoding.UTF8, "application/json");
+                httpRequest.Content = new StringContent(JsonSerializer.Serialize(request.LoginItem), Encoding.UTF8, "application/json");
 
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
@@ -32,7 +31,7 @@ namespace Apilane.Net.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
-                    if (apiRequest.ShouldThrowExceptionOnError())
+                    if (request.ShouldThrowExceptionOnError())
                     {
                         throw new Exception(errorResponse.BuildErrorMessage());
                     }

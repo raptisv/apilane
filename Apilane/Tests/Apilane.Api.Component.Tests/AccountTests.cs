@@ -83,11 +83,11 @@ namespace Apilane.Api.Component.Tests
 
             // Invalid login with email
 
-            var invalidLoginWithEmailResult = await ApilaneService.AccountLoginAsync<UserItem>(new LoginItem()
+            var invalidLoginWithEmailResult = await ApilaneService.AccountLoginAsync<UserItem>(AccountLoginRequest.New(new LoginItem()
             {
                 Email = userEmail,
                 Password = userPassword
-            });
+            }));
 
             invalidLoginWithEmailResult.Match(success => throw new Exception("We should not be here"),
             error =>
@@ -98,11 +98,11 @@ namespace Apilane.Api.Component.Tests
 
             // Invalid login with username
 
-            var invalidLoginWithUserNameResult = await ApilaneService.AccountLoginAsync<UserItem>(new LoginItem()
+            var invalidLoginWithUserNameResult = await ApilaneService.AccountLoginAsync<UserItem>(AccountLoginRequest.New(new LoginItem()
             {
                 Username = userName,
                 Password = userPassword
-            });
+            }));
 
             invalidLoginWithUserNameResult.Match(success => throw new Exception("We should not be here"),
             error =>
@@ -178,11 +178,11 @@ namespace Apilane.Api.Component.Tests
 
             // Login with email
 
-            var loginWithEmailResult = await ApilaneService.AccountLoginAsync<UserItem>(new LoginItem()
+            var loginWithEmailResult = await ApilaneService.AccountLoginAsync<UserItem>(AccountLoginRequest.New(new LoginItem()
             {
                 Email = userEmail,
                 Password = userPassword
-            });
+            }));
 
             loginWithEmailResult.Match(success =>
             {
@@ -204,11 +204,11 @@ namespace Apilane.Api.Component.Tests
 
             // Login with username
 
-            var loginWithUsernameResult = await ApilaneService.AccountLoginAsync<UserItem>(new LoginItem()
+            var loginWithUsernameResult = await ApilaneService.AccountLoginAsync<UserItem>(AccountLoginRequest.New(new LoginItem()
             {
                 Username = userName,
                 Password = userPassword
-            });
+            }));
 
             loginWithUsernameResult.Match(success =>
             {
@@ -248,11 +248,11 @@ namespace Apilane.Api.Component.Tests
 
             // Login with username again with new first name
 
-            var loginWithUsernameResult2 = await ApilaneService.AccountLoginAsync<UserItem>(new LoginItem()
+            var loginWithUsernameResult2 = await ApilaneService.AccountLoginAsync<UserItem>(AccountLoginRequest.New(new LoginItem()
             {
                 Username = userName,
                 Password = userPassword
-            });
+            }));
 
             loginWithUsernameResult2.Match(success =>
             {
