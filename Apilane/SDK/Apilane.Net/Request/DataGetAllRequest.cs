@@ -34,9 +34,9 @@ namespace Apilane.Net.Request
         /// <summary>
         /// Use this method to directly throw exception instead of checking for error on each request.
         /// </summary>
-        public DataGetAllRequest OnErrorThrowException()
+        public DataGetAllRequest OnErrorThrowException(bool throwOnError = false)
         {
-            _throwOnError = true;
+            _throwOnError = throwOnError;
             return this;
         }
 
