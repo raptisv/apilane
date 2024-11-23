@@ -51,9 +51,9 @@ namespace Apilane.Net.Request
         /// <summary>
         /// Use this method to directly throw exception instead of checking for error on each request.
         /// </summary>
-        public TBuilder OnErrorThrowException()
+        public TBuilder OnErrorThrowException(bool throwOnError = false)
         {
-            _throwOnError = true;
+            _throwOnError = throwOnError;
             return (TBuilder)this;
         }
 

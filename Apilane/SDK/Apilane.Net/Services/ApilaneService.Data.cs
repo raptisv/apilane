@@ -117,7 +117,8 @@ namespace Apilane.Net.Services
             var getListRequest = DataGetListRequest.New(apiRequest.Entity)
                 .WithPageIndex(pageIndex)
                 .WithPageSize(pageSize)
-                .WithTotal(false);
+                .WithTotal(false)
+                .OnErrorThrowException(apiRequest.ShouldThrowExceptionOnError());
 
             if (apiRequest.AuthToken is not null)
             {
@@ -137,11 +138,6 @@ namespace Apilane.Net.Services
             if (apiRequest.Properties is not null)
             {
                 getListRequest = getListRequest.WithProperties(apiRequest.Properties.ToArray());
-            }
-
-            if (apiRequest.ShouldThrowExceptionOnError())
-            {
-                getListRequest.OnErrorThrowException();
             }
 
             var result = new List<T>();
