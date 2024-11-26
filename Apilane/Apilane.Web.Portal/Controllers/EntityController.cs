@@ -15,7 +15,6 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using static Apilane.Common.Models.AggregateData;
 using static Apilane.Web.Portal.Controllers.ReportsController;
-using static Grpc.Core.Metadata;
 
 namespace Apilane.Web.Portal.Controllers
 {

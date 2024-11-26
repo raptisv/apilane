@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.2.0 (2024-11-26)
+- fix(api): Included get schema in application security
+
 ## 8.1.0 (2024-11-12)
 - fix(api): Refactor clear application cache
 

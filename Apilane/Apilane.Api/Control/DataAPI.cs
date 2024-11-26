@@ -4,6 +4,7 @@ using Apilane.Api.Exceptions;
 using Apilane.Api.Grains;
 using Apilane.Api.Models.AppModules.Authentication;
 using Apilane.Api.Services;
+using Apilane.Common;
 using Apilane.Common.Abstractions;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
@@ -11,6 +12,7 @@ using Apilane.Common.Models;
 using Orleans;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -380,6 +382,36 @@ namespace Apilane.Api
             }
 
             return result;
+        }
+
+        public async Task<bool> AllowGetSchemaAsync(
+            string appToken,
+            bool userHasFullAccess,
+            Users? appUser,
+            List<DBWS_Security> applicationSecurityList)
+        {
+            var userSecurity = userHasFullAccess
+                ? EntityAccess.GetFull(Globals.SCHEMA, Enumerable.Empty<DBWS_EntityProperty>().ToList(), SecurityActionType.get)
+                : EntityAccess.GetMaximum(appUser, applicationSecurityList, Globals.SCHEMA, SecurityTypes.Schema, SecurityActionType.get);
+
+            if (userSecurity.Count == 0)
+            {
+                throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: Globals.SCHEMA);
+            }
+
+            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
+            {
+                // Check rate limit
+                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), Globals.SCHEMA + appToken, SecurityActionType.get);
+                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
+                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
+                if (!rateLimitResult.IsRequestAllowed)
+                {
+                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, entity: Globals.SCHEMA, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
+                }
+            }
+
+            return true;
         }
     }
 }

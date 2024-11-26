@@ -3,10 +3,8 @@ using Apilane.Api.Abstractions.Metrics;
 using Apilane.Api.Enums;
 using Apilane.Api.Exceptions;
 using Apilane.Api.Models.AppModules.Files;
-using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Models;
-using Apilane.Common.Utilities;
 using Apilane.Web.Api.Filters;
 using Apilane.Web.Api.Models.ViewModels;
 using Apilane.Web.Api.Services;
@@ -281,19 +279,25 @@ namespace Apilane.Web.Api.Controllers
         [Produces("application/json")]
         [ProducesResponseType(typeof(ApplicationSchemaVm), (int)HttpStatusCode.OK)]
         [ProducesResponseType(typeof(ApiErrorVm), (int)HttpStatusCode.Unauthorized)]
-        public JsonResult Schema([BindRequired] string encryptionKey)
+        public async Task<JsonResult> Schema()
         {
             using var metricsTimer = _metricsService.RecordDataDuration("schema", string.Empty, Application.Token);
-            
-            if (!Application.EncryptionKey.Decrypt(Globals.EncryptionKey).Equals(encryptionKey))
+
+            var allowGetSchema = await _dataAPI.AllowGetSchemaAsync(
+                Application.Token,
+                UserHasFullAccess,
+                ApplicationUser,
+                Application.Security_List);
+
+            if (allowGetSchema)
             {
-                throw new ApilaneException(AppErrors.UNAUTHORIZED);
+                var schemaResult = ApplicationSchemaVm.GetFromApplication(Application);
+                return Json(schemaResult);
             }
-
-            var schemaResult = ApplicationSchemaVm.GetFromApplication(Application);
-
-            return Json(schemaResult);
-            
+            else
+            {
+                throw new ApilaneException(AppErrors.UNAUTHORIZED, "Unauthorized");
+            }
         }
     }
 }

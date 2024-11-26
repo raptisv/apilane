@@ -8,6 +8,9 @@ namespace Apilane.Common.Enums
         Entity = 0,
 
         [Display(Name = "Custom endpoint")]
-        CustomEndpoint = 1
+        CustomEndpoint = 1,
+
+        [Display(Name = "Schema")]
+        Schema = 2
     }
 }

@@ -15,15 +15,15 @@ namespace Apilane.Net.Services
     public sealed partial class ApilaneService : IApilaneService
     {
         public async Task<Either<DataResponse<T>, ApilaneError>> GetFilesAsync<T>(
-            FileGetListRequest apiRequest,
+            FileGetListRequest request,
             JsonSerializerOptions? customJsonSerializerOptions = null,
             CancellationToken cancellationToken = default)
         {
-            apiRequest.WithTotal(false);
+            request.WithTotal(false);
 
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, apiRequest.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(apiRequest);
+                var authorizationToken = await GetAuthTokenAsync(request);
                 if (!string.IsNullOrWhiteSpace(authorizationToken))
                 {
                     httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
@@ -34,7 +34,7 @@ namespace Apilane.Net.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
-                    if (apiRequest.ShouldThrowExceptionOnError())
+                    if (request.ShouldThrowExceptionOnError())
                     {
                         throw new Exception(errorResponse.BuildErrorMessage());
                     }
@@ -46,13 +46,13 @@ namespace Apilane.Net.Services
         }
 
         public async Task<Either<T, ApilaneError>> GetFileByIdAsync<T>(
-            FileGetByIdRequest apiRequest,
+            FileGetByIdRequest request,
             JsonSerializerOptions? customJsonSerializerOptions = null,
             CancellationToken cancellationToken = default)
         {
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, apiRequest.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(apiRequest);
+                var authorizationToken = await GetAuthTokenAsync(request);
                 if (!string.IsNullOrWhiteSpace(authorizationToken))
                 {
                     httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
@@ -63,7 +63,7 @@ namespace Apilane.Net.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
-                    if (apiRequest.ShouldThrowExceptionOnError())
+                    if (request.ShouldThrowExceptionOnError())
                     {
                         throw new Exception(errorResponse.BuildErrorMessage());
                     }
@@ -77,17 +77,17 @@ namespace Apilane.Net.Services
         /// <summary>
         /// Returns the newly created IDs
         /// </summary>
-        public async Task<Either<long?, ApilaneError>> PostFileAsync(FilePostRequest apiRequest, byte[] data, CancellationToken cancellationToken = default)
+        public async Task<Either<long?, ApilaneError>> PostFileAsync(FilePostRequest request, byte[] data, CancellationToken cancellationToken = default)
         {
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, apiRequest.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 var form = new MultipartFormDataContent();
                 var fileContent = new ByteArrayContent(data);
                 fileContent.Headers.ContentType = MediaTypeHeaderValue.Parse("multipart/form-data");
-                form.Add(fileContent, "FileUpload", apiRequest.GetFileName());
+                form.Add(fileContent, "FileUpload", request.GetFileName());
 
                 httpRequest.Content = form;
-                var authorizationToken = await GetAuthTokenAsync(apiRequest);
+                var authorizationToken = await GetAuthTokenAsync(request);
                 if (!string.IsNullOrWhiteSpace(authorizationToken))
                 {
                     httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
@@ -98,7 +98,7 @@ namespace Apilane.Net.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
-                    if (apiRequest.ShouldThrowExceptionOnError())
+                    if (request.ShouldThrowExceptionOnError())
                     {
                         throw new Exception(errorResponse.BuildErrorMessage());
                     }
@@ -110,12 +110,12 @@ namespace Apilane.Net.Services
         }
 
         public async Task<Either<long[], ApilaneError>> DeleteFileAsync(
-            FileDeleteRequest apiRequest,
+            FileDeleteRequest request,
             CancellationToken cancellationToken = default)
         {
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Delete, apiRequest.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = new HttpRequestMessage(HttpMethod.Delete, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(apiRequest);
+                var authorizationToken = await GetAuthTokenAsync(request);
                 if (!string.IsNullOrWhiteSpace(authorizationToken))
                 {
                     httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
@@ -126,7 +126,7 @@ namespace Apilane.Net.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
-                    if (apiRequest.ShouldThrowExceptionOnError())
+                    if (request.ShouldThrowExceptionOnError())
                     {
                         throw new Exception(errorResponse.BuildErrorMessage());
                     }

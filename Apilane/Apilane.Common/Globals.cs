@@ -28,6 +28,8 @@
 
         public const string AUTHENTICATED = "AUTHENTICATED";
 
+        public const string SCHEMA = "Schema";
+
         public const string GeneralError = "Something went wrong";
     }
 }

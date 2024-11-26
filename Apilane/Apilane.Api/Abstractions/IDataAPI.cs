@@ -15,5 +15,6 @@ namespace Apilane.Api.Abstractions
         Task<List<long>> PostAsync(string appToken, DBWS_Entity entity, bool userHasFullAccess, Users? appUser, List<DBWS_Security> applicationSecurityList, DatabaseType databaseType, string? differentiationEntity, string applicationEncryptionKey, object item);
         Task<long> PutAsync(string appToken, DBWS_Entity entity, bool userHasFullAccess, Users? appUser, List<DBWS_Security> applicationSecurityList, DatabaseType databaseType, string? differentiationEntity, string applicationEncryptionKey, object item);
         Task<OutTransactionData> TransactionAsync(DBWS_Application application, bool userHasFullAccess, Users? appUser, List<DBWS_Security> applicationSecurityList, DatabaseType databaseType, string? differentiationEntity, string applicationEncryptionKey, InTransactionData data);
+        Task<bool> AllowGetSchemaAsync(string appToken, bool userHasFullAccess, Users? appUser, List<DBWS_Security> applicationSecurityList);
     }
 }

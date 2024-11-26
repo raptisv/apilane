@@ -2,14 +2,12 @@
 using Apilane.Common.Models;
 using Microsoft.Extensions.Logging;
 using Orleans;
-using Orleans.Concurrency;
 using System.Threading.Tasks;
 
 namespace Apilane.Api.Grains
 {
     public interface IApplicationGrain : IGrainWithGuidKey
     {
-        [AlwaysInterleave]
         Task<DBWS_Application> GetAsync();
         Task ClearCacheAsync();
     }

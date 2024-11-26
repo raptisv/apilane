@@ -22,6 +22,17 @@
 
     var SecurityItems = new List<SecurityItem_DTO>();
 
+    // Add schema
+    SecurityItems.Add(new SecurityItem_DTO()
+    {
+        TypeID = SecurityTypes.Schema,
+        Name = Globals.SCHEMA,
+        Description = "The application schema",
+        IsReadOnly = true,
+        HasDifferentiationProperty = false,
+        Properties = new List<DBWS_EntityProperty>()
+    });
+
     // Add entities
     foreach (var item in Model.Entities.OrderByDescending(x => x.IsSystem).ThenBy(x => x.Name))
     {
@@ -479,22 +490,25 @@
                                     Entity/Endpoints authorization
                                 </h5>
                                 <h6 class="card-subtitle text-muted mb-3">Set specific level of access for each entity and custom endpoint</h6>
-                                @if (SecurityItems.Count == 0)
-                                {
-                                    <div>
-                                        <div class="alert alert-primary">
-                                            <strong>No entities found!</strong> Create your first entity <a class="alert-link" href="@Url.RouteUrl("AppRoute", new {controller = "Entity", action = "Create", appid = Html.GetAppToken() })">HERE</a>
-                                        </div>
-                                    </div>
-                                }
-                                else
-                                {
+                                
                                     <ul class="nav nav-pills mb-3" role="tablist">
                                         @for (int i = 0; i < SecurityItems.Count; i++)
                                         {
                                             SecurityItem_DTO ent = SecurityItems[i];
                                             string active = string.IsNullOrWhiteSpace(SelectedEntity) ? (i == 0 ? " active " : "") : (SelectedEntity.Equals($"{ent.TypeID}-{ent.Name}") ? " active " : "");
-                                            var tooltipHtml = ent.TypeID == SecurityTypes.Entity ? "Entity" + (ent.IsSystem ? " (system)" : "") : "Custom endpoint";
+                                            var tooltipHtml = string.Empty;
+                                            if (ent.TypeID == SecurityTypes.Entity)
+                                            {
+                                                tooltipHtml = "Entity" + (ent.IsSystem ? " (system)" : "");
+                                            }
+                                            else if (ent.TypeID == SecurityTypes.CustomEndpoint)
+                                            {
+                                                tooltipHtml =  "Custom endpoint";
+                                            }
+                                            else if (ent.TypeID == SecurityTypes.Schema)
+                                            {
+                                                tooltipHtml = "Application schema";
+                                            }
 
                                             <li class="nav-item" role="presentation"
                                                 data-bs-toggle="tooltip"
@@ -656,7 +670,6 @@
                                     <button type="button" class="btn_save btn btn-primary" title="Save">
                                         <i class="bi bi-floppy"></i>
                                     </button>
-                                }
 
                             </div>
                         </div>
