@@ -2,6 +2,7 @@
 using Apilane.Api.Configuration;
 using Apilane.Api.Enums;
 using Apilane.Api.Exceptions;
+using Apilane.Api.Grains;
 using Apilane.Common.Abstractions;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
@@ -111,8 +112,9 @@ namespace Apilane.Api
                 }
             }
 
-            // Clear cache
-            await _applicationService.ClearCacheAsync(application.Token);
+            // Clear grain cache
+            var grainRef = _clusterClient.GetGrain<IApplicationGrain>(new Guid(application.Token));
+            await grainRef.ResetStateAsync();
         }
 
         public async Task RenameEntityAsync(
@@ -240,8 +242,9 @@ namespace Apilane.Api
 
         public async Task ResetAppAsync(string appToken)
         {
-            // Clear cache
-            await _applicationService.ClearCacheAsync(appToken);
+            // Clear grain cache
+            var grainRef = _clusterClient.GetGrain<IApplicationGrain>(new Guid(appToken));
+            await grainRef.ResetStateAsync();
         }
 
         public double GetStorageUsedInMB(

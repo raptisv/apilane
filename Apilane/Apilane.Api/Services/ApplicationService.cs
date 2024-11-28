@@ -17,6 +17,8 @@ namespace Apilane.Api.Services
         private readonly IMemoryCache _memoryCache;
         private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
 
+        private IApplicationService _selfObserverReference;
+
         public ApplicationService(
             ILogger<ApplicationService> logger,
             IClusterClient clusterClient,
@@ -25,6 +27,8 @@ namespace Apilane.Api.Services
             _logger = logger;
             _clusterClient = clusterClient;
             _memoryCache = memoryCache;
+
+            _selfObserverReference = _clusterClient.CreateObjectReference<IApplicationService>(this);
         }
 
         public async Task<DBWS_Application> GetAsync(string appToken)
@@ -42,10 +46,10 @@ namespace Apilane.Api.Services
                         application is null)
                     {
                         var grainRef = _clusterClient.GetGrain<IApplicationGrain>(new Guid(appToken));
-                        application = await grainRef.GetAsync();
+                        application = await grainRef.SubscribeAndGetAsync(_selfObserverReference);
 
                         _memoryCache.Set(cacheKey, application, new MemoryCacheEntryOptions()
-                            .SetAbsoluteExpiration(DateTimeOffset.UtcNow.AddSeconds(5)));
+                            .SetAbsoluteExpiration(DateTimeOffset.UtcNow.AddSeconds(30)));
                     }
                 }
                 finally
@@ -57,15 +61,14 @@ namespace Apilane.Api.Services
             return application;
         }
 
-        public async Task ClearCacheAsync(string appToken)
+        public Task ApplicationChangedAsync(string appToken)
         {
+            _logger.LogInformation($"'{appToken}' | Observed application changed event");
+
             // Clear memory cache
             var cacheKey = appToken;
             _memoryCache.Remove(cacheKey);
-
-            // Clear grain cache
-            var grainRef = _clusterClient.GetGrain<IApplicationGrain>(new Guid(appToken));
-            await grainRef.ClearCacheAsync();
+            return Task.CompletedTask;
         }
     }
 }

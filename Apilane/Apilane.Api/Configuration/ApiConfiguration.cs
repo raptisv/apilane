@@ -15,6 +15,7 @@ namespace Apilane.Api.Configuration
         public int? MinThreads { get; set; }
         public List<string> InvalidFilesExtentions { get; set; }
         public OpenTelemetryConfiguration OpenTelemetry { get; set; }
+        public OrleansConfiguration Orleans { get; set; }
 
         public ApiConfiguration(IConfiguration configuration)
         {
@@ -26,6 +27,7 @@ namespace Apilane.Api.Configuration
             MinThreads = configuration.GetValue<int?>("MinThreads") ?? throw new ArgumentNullException(nameof(MinThreads));
             InvalidFilesExtentions = configuration.GetSection("InvalidFilesExtentions").Get<List<string>>() ?? throw new ArgumentNullException(nameof(InvalidFilesExtentions));
             OpenTelemetry = configuration.GetSection("OpenTelemetry").Get<OpenTelemetryConfiguration>() ?? throw new ArgumentNullException(nameof(OpenTelemetry));
+            Orleans = configuration.GetSection("Orleans").Get<OrleansConfiguration>() ?? throw new ArgumentNullException(nameof(Orleans));
         }
 
         public class OpenTelemetryConfiguration
@@ -43,6 +45,17 @@ namespace Apilane.Api.Configuration
             public class OpenTelemetryMetricsConfiguration
             {
                 public bool Enabled { get; set; } = false;
+            }
+        }
+
+        public class OrleansConfiguration
+        {
+            public ClusterConfiguration Cluster { get; set; } = null!;
+            public class ClusterConfiguration
+            {
+                public int SiloPort { get; set; } = 11111;
+                public int GatewayPort { get; set; } = 30000;
+                public int DashboardPort { get; set; } = 8080; 
             }
         }
     }

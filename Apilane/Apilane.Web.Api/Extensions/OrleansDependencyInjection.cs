@@ -18,6 +18,7 @@ using System.Data;
 using System.Data.SQLite;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Transactions;
@@ -61,6 +62,7 @@ namespace Apilane.Web.Api.Extensions
                 {
                     options.DefunctSiloCleanupPeriod = TimeSpan.FromHours(1);
                     options.DefunctSiloExpiration = TimeSpan.FromHours(1);
+                    options.IAmAliveTablePublishTimeout = TimeSpan.FromMinutes(1);
                 })
                 .Configure<DeploymentLoadPublisherOptions>(options =>
                 {
@@ -73,11 +75,16 @@ namespace Apilane.Web.Api.Extensions
                     // Max rate limit is 60 minutes so we can't drop the grain sooner
                     options.ClassSpecificCollectionAge[typeof(RateLimitSlidingWindowGrain).FullName!] = TimeSpan.FromMinutes(65);
                 })
+                .Configure<EndpointOptions>(options =>
+                {
+                    options.SiloPort = appConfig.Orleans.Cluster.SiloPort;
+                    options.GatewayPort = appConfig.Orleans.Cluster.GatewayPort;
+                })
                 .UseSQLiteClustering(appConfig.FilesPath)
                 .UseDashboard(options =>
                 {
                     options.CounterUpdateIntervalMs = 5000;
-                    options.Port = 8080;
+                    options.Port = appConfig.Orleans.Cluster.DashboardPort;
                 });
             });
 
