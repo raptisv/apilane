@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.3.0 (2024-11-29)
+- feat(api): Set ApplicationService to observe application grain for changes with IGrainObserver
+
 ## 8.2.0 (2024-11-26)
 - fix(api): Included get schema in application security
 
