@@ -103,7 +103,7 @@ namespace Apilane.Api.Component.Tests
             };
 
             AddCustomEndpoint(updateDiffPropertyEndpointName_1, customEndpointQuery_1); // Set company 1
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, updateDiffPropertyEndpointName_1, type: SecurityTypes.CustomEndpoint))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, updateDiffPropertyEndpointName_1, type: SecurityTypes.CustomEndpoint))
             {
                 await ApilaneService.GetCustomEndpointAsync(CustomEndpointRequest.New(updateDiffPropertyEndpointName_1));
             }
@@ -126,7 +126,7 @@ namespace Apilane.Api.Component.Tests
             };
 
             AddCustomEndpoint(updateDiffPropertyEndpointName_2, customEndpointQuery_2); // Set company 2
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, updateDiffPropertyEndpointName_2, type: SecurityTypes.CustomEndpoint))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, updateDiffPropertyEndpointName_2, type: SecurityTypes.CustomEndpoint))
             {
                 await ApilaneService.GetCustomEndpointAsync(CustomEndpointRequest.New(updateDiffPropertyEndpointName_2));
             }
@@ -149,7 +149,7 @@ namespace Apilane.Api.Component.Tests
 
             long postedDataId_Company_1 = 0;
             long postedDataId_Company_2 = 0;
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 actionType: SecurityActionType.post,
                 properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
@@ -165,7 +165,7 @@ namespace Apilane.Api.Component.Tests
             await GetData_Unauthorized_ShouldFail<CustomEntityLight>(loginResponseUserIdCompany_1.AuthToken);
             await GetData_Unauthorized_ShouldFail<CustomEntityLight>(loginResponseUserIdCompany_2.AuthToken);
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 actionType: SecurityActionType.get,
                 properties: new() { nameof(CustomEntityLight.Company_ID), nameof(CustomEntityLight.Owner), nameof(CustomEntityLight.Custom_String_Required) }))
@@ -185,7 +185,7 @@ namespace Apilane.Api.Component.Tests
             await GetData_Unauthorized_ShouldFail<CustomEntityLight>(loginResponseUserIdCompany_1.AuthToken);
             await GetData_Unauthorized_ShouldFail<CustomEntityLight>(loginResponseUserIdCompany_2.AuthToken);
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 actionType: SecurityActionType.get,
                 properties: new() { nameof(CustomEntityLight.Company_ID), nameof(CustomEntityLight.Owner), nameof(CustomEntityLight.Custom_String_Required) }))
@@ -205,7 +205,7 @@ namespace Apilane.Api.Component.Tests
             await PutData_Unauthorized_ShouldFail(loginResponseUserIdCompany_1.AuthToken, new CustomEntityLight());
             await PutData_Unauthorized_ShouldFail(loginResponseUserIdCompany_2.AuthToken, new CustomEntityLight());
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 actionType: SecurityActionType.put,
                 properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
@@ -229,7 +229,7 @@ namespace Apilane.Api.Component.Tests
             await DeleteData_Unauthorized_ShouldFail(loginResponseUserIdCompany_1.AuthToken, new List<long>() { postedDataId_Company_1 });
             await DeleteData_Unauthorized_ShouldFail(loginResponseUserIdCompany_2.AuthToken, new List<long>() { postedDataId_Company_2 });
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 actionType: SecurityActionType.delete))
             {

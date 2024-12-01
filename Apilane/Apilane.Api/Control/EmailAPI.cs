@@ -20,7 +20,7 @@ namespace Apilane.Api
 {
     public class EmailAPI : IEmailAPI
     {
-        private readonly ApiConfiguration _currentConfiguration;
+        private readonly ApiConfiguration _apiConfiguration;
         private readonly IApplicationDataService _appDataService;
         private readonly IApplicationHelperService _applicationHelperService;
         private readonly IApplicationDataStoreFactory _dataStore;
@@ -38,7 +38,7 @@ namespace Apilane.Api
             _applicationHelperService = applicationHelperService;
             _appEmailService = appEmailService;
             _appDataService = appDataService;
-            _currentConfiguration = currentConfiguration;
+            _apiConfiguration = currentConfiguration;
             _emailService = emailService;
             _dataStore = dataStore;
         }

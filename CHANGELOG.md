@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.0 (2024-12-01)
+- feat(api): Simplify ApplicationDataStoreFactory
+
 ## 8.3.0 (2024-11-29)
 - feat(api): Set ApplicationService to observe application grain for changes with IGrainObserver
 

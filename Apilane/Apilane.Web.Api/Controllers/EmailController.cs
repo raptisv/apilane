@@ -1,4 +1,5 @@
 ﻿using Apilane.Api.Abstractions;
+using Apilane.Api.Configuration;
 using Apilane.Api.Enums;
 using Apilane.Api.Exceptions;
 using Apilane.Common.Helpers;
@@ -17,8 +18,10 @@ namespace Apilane.Web.Api.Controllers
     {
         private readonly IEmailAPI _emailAPI;
 
-        public EmailController(IEmailAPI emailAPI,
-            IClusterClient clusterClient) : base(clusterClient)
+        public EmailController(
+            ApiConfiguration apiConfiguration, 
+            IEmailAPI emailAPI,
+            IClusterClient clusterClient) : base(apiConfiguration, clusterClient)
         {
             _emailAPI = emailAPI;
         }

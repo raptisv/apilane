@@ -1,10 +1,12 @@
 ﻿using Apilane.Api.Abstractions;
+using Apilane.Api.Configuration;
 using Apilane.Api.Enums;
 using Apilane.Api.Exceptions;
 using Apilane.Api.Grains;
 using Apilane.Api.Models.AppModules.Authentication;
 using Apilane.Common;
 using Apilane.Common.Enums;
+using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Web.Api.Filters;
 using Apilane.Web.Api.Services;
@@ -23,10 +25,14 @@ namespace Apilane.Web.Api.Controllers
     [Route("api/[controller]/[action]")]
     public class BaseApplicationApiController : Controller
     {
+        protected readonly ApiConfiguration ApiConfiguration;
         protected readonly IClusterClient ClusterClient;
 
-        public BaseApplicationApiController(IClusterClient clusterClient)
+        public BaseApplicationApiController(
+            ApiConfiguration apiConfiguration,
+            IClusterClient clusterClient)
         {
+            ApiConfiguration = apiConfiguration;
             ClusterClient = clusterClient;
         }
 
@@ -39,7 +45,7 @@ namespace Apilane.Web.Api.Controllers
             // On every call, validate user access to application
 
             // Validate token exists
-            var queryService = context.HttpContext.RequestServices.GetService<IQueryDataService>() ?? throw new Exception($"Invalid service IQueryDataService");
+            var queryService = context.HttpContext.RequestServices.GetRequiredService<IQueryDataService>();
 
             var applicationToken = queryService.AppToken;
             var authorizationToken = queryService.AuthToken;
@@ -50,13 +56,13 @@ namespace Apilane.Web.Api.Controllers
             }
 
             // Load the application
-            var applicationService = context.HttpContext.RequestServices.GetService<IApplicationService>() ?? throw new Exception($"Invalid service IApplicationService");
+            var applicationService = context.HttpContext.RequestServices.GetRequiredService<IApplicationService>();
             Application = await applicationService.GetAsync(applicationToken);
 
             UserHasFullAccess = false;
             if (queryService.IsPortalRequest)
             {
-                var portalInfoService = context.HttpContext.RequestServices.GetService<IPortalInfoService>() ?? throw new Exception($"Invalid service IPortalInfoService");
+                var portalInfoService = context.HttpContext.RequestServices.GetRequiredService<IPortalInfoService>();
                 UserHasFullAccess = await portalInfoService.UserOwnsApplicationAsync(authorizationToken, applicationToken);
             }
 
@@ -67,7 +73,7 @@ namespace Apilane.Web.Api.Controllers
                     Guid.TryParse(authorizationToken, out var guidAuthToken))
                 {
                     var grainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
-                    ApplicationUser = await grainRef.GetAsync(Application);
+                    ApplicationUser = await grainRef.GetAsync(Application.ToDbInfo(ApiConfiguration.FilesPath), Application.AuthTokenExpireMinutes);
                 }
 
                 // Check limitations only for non-portal owners

@@ -123,7 +123,7 @@ namespace Apilane.Api.Component.Tests
             // Get
             await GetData_Unauthorized_ShouldFail<CustomEntityLight>(authtoken);
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole))
             {
                 await GetData_ShouldSucceed<CustomEntityLight>(authtoken);
@@ -133,7 +133,7 @@ namespace Apilane.Api.Component.Tests
             await PostData_Unauthorized_ShouldFail(authtoken, new CustomEntityLight());
 
             long postedDataId = 0;
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 actionType: SecurityActionType.post,
                 properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
@@ -145,7 +145,7 @@ namespace Apilane.Api.Component.Tests
             // Put
             await PutData_Unauthorized_ShouldFail(authtoken, new CustomEntityLight());
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 actionType: SecurityActionType.put,
                 properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
@@ -157,7 +157,7 @@ namespace Apilane.Api.Component.Tests
             // Delete
             await DeleteData_Unauthorized_ShouldFail(authtoken, new List<long>() { postedDataId });
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 actionType: SecurityActionType.delete))
             {

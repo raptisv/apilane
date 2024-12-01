@@ -107,7 +107,7 @@ namespace Apilane.Api.Component.Tests
         {
             // Get custom endpoint
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, "test", type: SecurityTypes.CustomEndpoint,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "test", type: SecurityTypes.CustomEndpoint,
                 inRole: securityRole, rateLimit: rateLimit))
             {
                 await GetCustomEndpoint_ShouldSucceed<CustomEntityLight>(rateLimit, userId, authtoken);
@@ -115,7 +115,7 @@ namespace Apilane.Api.Component.Tests
 
             // Get
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole, rateLimit: rateLimit))
             {
                 await GetData_ShouldSucceed<CustomEntityLight>(rateLimit, userId, authtoken);
@@ -124,7 +124,7 @@ namespace Apilane.Api.Component.Tests
             // Post
 
             long postedDataId = 0;
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 rateLimit: rateLimit,
                 actionType: SecurityActionType.post,
@@ -136,7 +136,7 @@ namespace Apilane.Api.Component.Tests
 
             // Put
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 rateLimit: rateLimit,
                 actionType: SecurityActionType.put,
@@ -147,7 +147,7 @@ namespace Apilane.Api.Component.Tests
 
             // Delete
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole,
                 rateLimit: rateLimit,
                 actionType: SecurityActionType.delete))

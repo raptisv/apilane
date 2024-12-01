@@ -22,16 +22,14 @@ namespace Apilane.Web.Api.Controllers
     [ApplicationOwnerAuthorize]
     public class ApplicationController : BaseApplicationApiController
     {
-        private readonly ApiConfiguration _apiConfiguration;
         private readonly IApplicationAPI _applicationAPI;
 
         public ApplicationController(
             ApiConfiguration apiConfiguration,
             IApplicationAPI applicationAPI,
             IClusterClient clusterClient) 
-            : base(clusterClient)
+            : base(apiConfiguration, clusterClient)
         {
-            _apiConfiguration = apiConfiguration;
             _applicationAPI = applicationAPI;
         }
 
@@ -51,7 +49,7 @@ namespace Apilane.Web.Api.Controllers
         public Task Rebuild() => _applicationAPI.RebuildAsync(Application);
 
         [HttpGet]
-        public Task Degenerate() => _applicationAPI.DegenerateAsync(Application, (DatabaseType)Application.DatabaseType, Application.GetConnectionstring(_apiConfiguration.FilesPath));
+        public Task Degenerate() => _applicationAPI.DegenerateAsync(Application, (DatabaseType)Application.DatabaseType, Application.GetConnectionstring(ApiConfiguration.FilesPath));
 
         [HttpGet]
         public Task RenameEntity(long ID, string NewName) => _applicationAPI.RenameEntityAsync(Application, ID, NewName);
@@ -99,7 +97,7 @@ namespace Apilane.Web.Api.Controllers
         public IActionResult Export()
         {
             // Get folder that will be finally zipped
-            var directoryToZip = Path.Combine(_apiConfiguration.FilesPath, Application.Token);
+            var directoryToZip = Path.Combine(ApiConfiguration.FilesPath, Application.Token);
 
             // Hide application specifics
             Application.ID = 0;

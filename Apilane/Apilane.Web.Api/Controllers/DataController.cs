@@ -1,5 +1,6 @@
 ﻿using Apilane.Api.Abstractions;
 using Apilane.Api.Abstractions.Metrics;
+using Apilane.Api.Configuration;
 using Apilane.Api.Enums;
 using Apilane.Api.Exceptions;
 using Apilane.Api.Models.AppModules.Files;
@@ -28,10 +29,11 @@ namespace Apilane.Web.Api.Controllers
         private readonly IMetricsService _metricsService; 
 
         public DataController(
+            ApiConfiguration apiConfiguration,
             IDataAPI dataAPI,
             IEntityHistoryAPI entityHistoryAPI,
             IClusterClient clusterClient,
-            IMetricsService metricsService) : base(clusterClient)
+            IMetricsService metricsService) : base(apiConfiguration, clusterClient)
         {
             _dataAPI = dataAPI;
             _entityHistoryAPI = entityHistoryAPI;

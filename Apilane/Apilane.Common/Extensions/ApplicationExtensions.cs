@@ -1,5 +1,6 @@
 ﻿using Apilane.Common.Enums;
 using Apilane.Common.Models;
+using Apilane.Common.Models.Dto;
 using Apilane.Common.Utilities;
 using System;
 using System.Collections.Generic;
@@ -59,5 +60,12 @@ namespace Apilane.Common.Extensions
             data = data.OrderBy(x => x.Level).DistinctBy(x => new { x.ID, x.ParentID }).ToList();
             return (data.BuildTree(), data);
         }
+
+        public static ApplicationDbInfoDto ToDbInfo(this DBWS_Application application, string filesPath) => new ApplicationDbInfoDto()
+        {
+            DatabaseType = (DatabaseType)application.DatabaseType,
+            ConnectionString = application.GetConnectionstring(filesPath),
+            DifferentiationEntity = application.DifferentiationEntity
+        };
     }
 }

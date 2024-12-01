@@ -101,7 +101,7 @@ namespace Apilane.Api.Component.Tests
 
         private async Task FillEntityWithDataAsync(int dataCount)
         {
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: Globals.ANONYMOUS,
                 actionType: SecurityActionType.post,
                 properties: new() { nameof(CustomEntityLight.Custom_Integer_Required) }))
@@ -128,7 +128,7 @@ namespace Apilane.Api.Component.Tests
             // Distinct
             await DistinctData_Unauthorized_ShouldFail<object>(authtoken);
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole, properties: new List<string>() { nameof(CustomEntityLight.Custom_Integer_Required) }))
             {
                 var result = await DistinctData_ShouldSucceed<List<CustomEntityLight>>(authtoken);
@@ -138,7 +138,7 @@ namespace Apilane.Api.Component.Tests
             // Aggregate
             await AggregateData_Unauthorized_ShouldFail<object>(authtoken);
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: securityRole, properties: new List<string>() { nameof(CustomEntityLight.Custom_Integer_Required) }))
             {
                 await AggregateData_ShouldSucceed(authtoken, distinctRecords);

@@ -1,6 +1,8 @@
 ﻿using Apilane.Api.Abstractions;
+using Apilane.Api.Configuration;
 using Apilane.Common;
 using Apilane.Common.Enums;
+using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using FakeItEasy;
 using System;
@@ -11,11 +13,13 @@ namespace Apilane.Api.Component.Tests.Infrastructure
 {
     internal class WithSecurityAccess : IDisposable
     {
+        protected ApiConfiguration ApiConfiguration;
         private IApplicationService _applicationServiceMock;
         private DBWS_Application _testApplication;
         private DBWS_Security _security;
 
         public WithSecurityAccess(
+            ApiConfiguration apiConfiguration,
             IApplicationService applicationServiceMock,
             DBWS_Application testApplication,
             string entityOrEndpointName,
@@ -26,6 +30,7 @@ namespace Apilane.Api.Component.Tests.Infrastructure
             List<string>? properties = null,
             DBWS_Security.RateLimitItem? rateLimit = null)
         {
+            ApiConfiguration = apiConfiguration;
             _applicationServiceMock = applicationServiceMock;
             _testApplication = testApplication;
 
@@ -44,8 +49,7 @@ namespace Apilane.Api.Component.Tests.Infrastructure
             currentSecurity.Add(_security);
             _testApplication.Security = JsonSerializer.Serialize(currentSecurity);
 
-            A.CallTo(() => _applicationServiceMock.GetAsync(_testApplication.Token))
-                .Returns(_testApplication);
+            MockApplicationService(_testApplication);
         }
 
         public void Dispose()
@@ -59,8 +63,16 @@ namespace Apilane.Api.Component.Tests.Infrastructure
 
             _testApplication.Security = JsonSerializer.Serialize(currentSecurity);
 
-            A.CallTo(() => _applicationServiceMock.GetAsync(_testApplication.Token))
-                .Returns(_testApplication);
+            MockApplicationService(_testApplication);
+        }
+
+        private void MockApplicationService(DBWS_Application application)
+        {
+            A.CallTo(() => _applicationServiceMock.GetAsync(application.Token))
+                    .Returns(application);
+
+            A.CallTo(() => _applicationServiceMock.GetDbInfoAsync(application.Token))
+                .Returns(application.ToDbInfo(ApiConfiguration.FilesPath));
         }
     }
 }

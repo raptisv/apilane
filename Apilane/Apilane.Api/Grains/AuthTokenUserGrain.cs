@@ -5,6 +5,7 @@ using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Common.Models.AppModules.Authentication;
+using Apilane.Common.Models.Dto;
 using Apilane.Data.Repository.Factory;
 using Microsoft.Extensions.Logging;
 using Orleans;
@@ -17,8 +18,8 @@ namespace Apilane.Api.Grains
 {
     public interface IAuthTokenUserGrain : IGrainWithGuidKey
     {
-        Task<Users?> GetAsync(DBWS_Application application);
-        Task DeleteAsync(DBWS_Application application);
+        Task<Users?> GetAsync(ApplicationDbInfoDto applicationDbInfo, int authTokenExpireMinutes);
+        Task DeleteAsync(ApplicationDbInfoDto applicationDbInfo);
         Task ResetUserCacheAsync();
     }
 
@@ -38,9 +39,9 @@ namespace Apilane.Api.Grains
             _apiConfiguration = apiConfiguration;
         }
 
-        public async Task<Users?> GetAsync(DBWS_Application application)
+        public async Task<Users?> GetAsync(ApplicationDbInfoDto applicationDbInfo, int authTokenExpireMinutes)
         {
-            await LoadStateAsync(application);
+            await LoadStateAsync(applicationDbInfo);
 
             if (_authToken is not null)
             {
@@ -48,17 +49,17 @@ namespace Apilane.Api.Grains
                     ?? throw new Exception($"Could not convert to datetime | {_authToken.Created}");
 
                 // Validate token expiration
-                if ((DateTime.UtcNow - created).TotalMinutes >= application.AuthTokenExpireMinutes)
+                if ((DateTime.UtcNow - created).TotalMinutes >= authTokenExpireMinutes)
                 {
-                    await DeleteAsync(application);
+                    await DeleteAsync(applicationDbInfo);
                     return null;
                 }
 
                 // Update auth token to new expiration date
-                var hasAuthTokenPassed10Percentile = (DateTime.UtcNow - created).TotalMinutes / (application.AuthTokenExpireMinutes * 1.0) > 0.1;
+                var hasAuthTokenPassed10Percentile = (DateTime.UtcNow - created).TotalMinutes / (authTokenExpireMinutes * 1.0) > 0.1;
                 if (hasAuthTokenPassed10Percentile)
                 {
-                    await using (var dataStore = new ApplicationDataStoreFactory(_apiConfiguration.FilesPath, new Lazy<Task<DBWS_Application>>(Task.Run(() => application))))
+                    await using (var dataStore = new ApplicationDataStoreFactory(applicationDbInfo))
                     {
                         // Update is heavy so, do not update for the first 10% of the time passed.
                         await dataStore.UpdateDataAsync(
@@ -84,13 +85,13 @@ namespace Apilane.Api.Grains
             return Task.CompletedTask;
         }
 
-        public async Task DeleteAsync(DBWS_Application application)
+        public async Task DeleteAsync(ApplicationDbInfoDto applicationDbInfo)
         {
-            await LoadStateAsync(application);
+            await LoadStateAsync(applicationDbInfo);
 
             if (_authToken is not null)
             {
-                await using (var dataStore = new ApplicationDataStoreFactory(_apiConfiguration.FilesPath, new Lazy<Task<DBWS_Application>>(Task.Run(() => application))))
+                await using (var dataStore = new ApplicationDataStoreFactory(applicationDbInfo))
                 {
                     await dataStore.DeleteDataAsync(
                         nameof(AuthTokens),
@@ -101,14 +102,14 @@ namespace Apilane.Api.Grains
             DeactivateOnIdle();
         }
 
-        private async Task LoadStateAsync(DBWS_Application application)
+        private async Task LoadStateAsync(ApplicationDbInfoDto applicationDbInfo)
         {
             // Auth token
             if (_authToken is null)
             {
                 var authToken = this.GetPrimaryKey().ToString();
 
-                await using (var dataStore = new ApplicationDataStoreFactory(_apiConfiguration.FilesPath, new Lazy<Task<DBWS_Application>>(Task.Run(() => application))))
+                await using (var dataStore = new ApplicationDataStoreFactory(applicationDbInfo))
                 {
                     var authTokenRecord = (await dataStore.GetPagedDataAsync(
                         nameof(AuthTokens),
@@ -133,16 +134,16 @@ namespace Apilane.Api.Grains
             if (_user is null &&
                 _authToken is not null)
             {
-                await using (var dataStore = new ApplicationDataStoreFactory(_apiConfiguration.FilesPath, new Lazy<Task<DBWS_Application>>(Task.Run(() => application))))
+                await using (var dataStore = new ApplicationDataStoreFactory(applicationDbInfo))
                 {
                     var resultUser = await dataStore.GetDataByIdAsync(nameof(Users), _authToken.Owner, null);
 
                     if (resultUser is not null)
                     {
                         var diffPropertyValue = (long?)null;
-                        if (!string.IsNullOrWhiteSpace(application.DifferentiationEntity))
+                        if (!string.IsNullOrWhiteSpace(applicationDbInfo.DifferentiationEntity))
                         {
-                            var diffPropertyName = application.DifferentiationEntity.GetDifferentiationPropertyName();
+                            var diffPropertyName = applicationDbInfo.DifferentiationEntity.GetDifferentiationPropertyName();
                             diffPropertyValue = Utils.GetNullLong(resultUser[diffPropertyName]);
                         }
 

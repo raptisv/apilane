@@ -79,7 +79,7 @@ namespace Apilane.Api.Component.Tests
             // Get
             await GetFile_Unauthorized_ShouldFail<FileItem>(authtoken);
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, "Files",
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "Files",
                 inRole: securityRole))
             {
                 await GetFile_ShouldSucceed<FileItem>(authtoken);
@@ -89,7 +89,7 @@ namespace Apilane.Api.Component.Tests
             await PostFile_Unauthorized_ShouldFail(authtoken, new FileItem());
 
             long postedFileId = 0;
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, "Files",
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "Files",
                 inRole: securityRole,
                 actionType: SecurityActionType.post,
                 properties: new() { nameof(FileItem.Size), nameof(FileItem.Name), nameof(FileItem.Public), nameof(FileItem.UID) }))
@@ -101,7 +101,7 @@ namespace Apilane.Api.Component.Tests
             // Get by id
             await GetFileByID_Unauthorized_ShouldFail<FileItem>(authtoken, postedFileId);
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, "Files",
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "Files",
                 inRole: securityRole))
             {
                 await GetFileByID_ShouldSucceed<FileItem>(authtoken, postedFileId);
@@ -110,7 +110,7 @@ namespace Apilane.Api.Component.Tests
             // Delete
             await DeleteFile_Unauthorized_ShouldFail(authtoken, new List<long>() { postedFileId });
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, "Files",
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "Files",
                 inRole: securityRole,
                 actionType: SecurityActionType.delete))
             {

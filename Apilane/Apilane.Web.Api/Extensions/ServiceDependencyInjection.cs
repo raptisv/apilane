@@ -6,6 +6,7 @@ using Apilane.Api.Services;
 using Apilane.Api.Services.Metrics;
 using Apilane.Common.Abstractions;
 using Apilane.Common.Models;
+using Apilane.Common.Models.Dto;
 using Apilane.Common.Services;
 using Apilane.Data.Abstractions;
 using Apilane.Data.Helper;
@@ -62,10 +63,9 @@ namespace Apilane.Web.Api.Extensions
                     var queryDataService = serviceProvider.GetRequiredService<IQueryDataService>();
                     var optlTracer = apiConfiguration.OpenTelemetry.Tracing.Enabled ? serviceProvider.GetRequiredService<Tracer>() : null;
 
-                    var applicationTask = applicationService.GetAsync(queryDataService.AppToken);
+                    var applicationDbInfoTask = applicationService.GetDbInfoAsync(queryDataService.AppToken);
                     return new ApplicationDataStoreFactory(
-                        apiConfiguration.FilesPath,
-                        new Lazy<Task<DBWS_Application>>(applicationTask),
+                        new Lazy<ValueTask<ApplicationDbInfoDto>>(applicationDbInfoTask),
                         optlTracer);
                 })
                 // Filters

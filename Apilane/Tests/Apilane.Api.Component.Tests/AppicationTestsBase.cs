@@ -5,6 +5,7 @@ using Apilane.Api.Configuration;
 using Apilane.Api.Models.AppModules.Authentication;
 using Apilane.Common;
 using Apilane.Common.Enums;
+using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Common.Models.Dto;
 using Apilane.Common.Utilities;
@@ -136,8 +137,7 @@ namespace Apilane.Api.Component.Tests
 
             TestApplication.Entities.Add(newEntity);
 
-            A.CallTo(() => ApplicationServiceMock.GetAsync(TestApplication.Token))
-                .Returns(TestApplication);
+            MockApplicationService(TestApplication);
         }
 
         protected async Task AddBooleanPropertyAsync(
@@ -269,7 +269,7 @@ namespace Apilane.Api.Component.Tests
 
             AddCustomEndpoint("AddUserToRole", query);
 
-            using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, "AddUserToRole",
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "AddUserToRole",
                     type: SecurityTypes.CustomEndpoint))
             {
                 await ApilaneService.GetCustomEndpointAsync(CustomEndpointRequest.New("AddUserToRole"));
@@ -296,8 +296,7 @@ namespace Apilane.Api.Component.Tests
 
             TestApplication.CustomEndpoints.Add(customEndpoint);
 
-            A.CallTo(() => ApplicationServiceMock.GetAsync(TestApplication.Token))
-                .Returns(TestApplication);
+            MockApplicationService(TestApplication);
         }
 
         protected void AddSecurity(
@@ -322,8 +321,7 @@ namespace Apilane.Api.Component.Tests
             currentSecurity.Add(security);
             TestApplication.Security = JsonSerializer.Serialize(currentSecurity);
 
-            A.CallTo(() => ApplicationServiceMock.GetAsync(TestApplication.Token))
-                .Returns(TestApplication);
+            MockApplicationService(TestApplication);
         }
 
         protected void RemoveSecurity(
@@ -335,8 +333,7 @@ namespace Apilane.Api.Component.Tests
             currentSecurity.RemoveAll(x => x.Name.Equals(entityOrEndpointName) && x.Action == actionType.ToString().ToLower() && x.TypeID == (int)type);
             TestApplication.Security = JsonSerializer.Serialize(currentSecurity);
 
-            A.CallTo(() => ApplicationServiceMock.GetAsync(TestApplication.Token))
-                .Returns(TestApplication);
+            MockApplicationService(TestApplication);
         }
 
         private async Task AddPropertyInnerAsync(
@@ -356,8 +353,7 @@ namespace Apilane.Api.Component.Tests
 
             TestApplication.Entities.Single(x => x.Name.Equals(entityName)).Properties.Add(property);
 
-            A.CallTo(() => ApplicationServiceMock.GetAsync(TestApplication.Token))
-                .Returns(TestApplication);
+            MockApplicationService(TestApplication);
         }
 
         private async Task<DBWS_Application> GetInitialApplicationAsync(
@@ -409,8 +405,7 @@ namespace Apilane.Api.Component.Tests
             {
                 TestApplication = await GetInitialApplicationAsync(databaseType, connectionString, useDiffEntity);
 
-                A.CallTo(() => ApplicationServiceMock.GetAsync(TestApplication.Token))
-                    .Returns(TestApplication);
+                MockApplicationService(TestApplication);
 
                 // Try drop application (if exists)
                 var apiDegenerateResponse = await HttpClient.RequestAsync(HttpMethod.Get, $"/api/Application/Degenerate?appToken={TestApplication.Token}");
@@ -428,11 +423,19 @@ namespace Apilane.Api.Component.Tests
                     throw new Exception("Application not created succesfully");
                 }
 
-                A.CallTo(() => ApplicationServiceMock.GetAsync(TestApplication.Token))
-                    .Returns(TestApplication);
+                MockApplicationService(TestApplication);
 
                 return TestApplication;
             }
+        }
+
+        private void MockApplicationService(DBWS_Application application)
+        {
+            A.CallTo(() => ApplicationServiceMock.GetAsync(application.Token))
+                    .Returns(application);
+
+            A.CallTo(() => ApplicationServiceMock.GetDbInfoAsync(application.Token))
+                .Returns(application.ToDbInfo(ApiConfiguration.FilesPath));
         }
     }
 }

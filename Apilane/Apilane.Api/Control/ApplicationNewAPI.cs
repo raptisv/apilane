@@ -13,7 +13,6 @@ using Apilane.Data.Repository.Factory;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
-using System.Reflection;
 using System.Threading.Tasks;
 
 namespace Apilane.Api
@@ -86,7 +85,7 @@ namespace Apilane.Api
                     throw new NotImplementedException();
             }
 
-            var dataStoreFactory = new ApplicationDataStoreFactory(_apiConfiguration.FilesPath, new Lazy<Task<DBWS_Application>>(Task.Run(() => newApplication)));
+            var dataStoreFactory = new ApplicationDataStoreFactory(newApplication.ToDbInfo(_apiConfiguration.FilesPath));
 
             var applicationBuilder = new ApplicationBuilderService(
                 _apiConfiguration,

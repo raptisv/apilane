@@ -33,7 +33,7 @@ namespace Apilane.Api
         private readonly IApplicationDataStoreFactory _dataStore;
         private readonly IApplicationEmailService _appEmailService;
         private readonly IClusterClient _clusterClient; 
-        private readonly ApiConfiguration _currentConfiguration;
+        private readonly ApiConfiguration _apiConfiguration;
 
         public AccountAPI(
             ILogger<AccountAPI> logger,
@@ -48,7 +48,7 @@ namespace Apilane.Api
             _logger = logger;
             _dataStore = dataStore;
             _appEmailService = appEmailService;
-            _currentConfiguration = currentConfiguration;
+            _apiConfiguration = currentConfiguration;
             _applicationHelperService = applicationHelperService;
             _clusterClient = clusterClient;
         }
@@ -169,7 +169,7 @@ namespace Apilane.Api
                 if (Guid.TryParse(Utils.GetString(expiredAuthToken[nameof(AuthTokens.Token)]), out var guidAuthToken))
                 {
                     var authTokenGrainRef = _clusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
-                    await authTokenGrainRef.DeleteAsync(application);
+                    await authTokenGrainRef.DeleteAsync(application.ToDbInfo(_apiConfiguration.FilesPath));
                 }
             }
         }
@@ -403,7 +403,7 @@ namespace Apilane.Api
             // Do not delete the token, it might be requested again.
 
             var redirectToUrl = string.IsNullOrWhiteSpace(emailConfirmationRedirectUrl) ?
-                $"{_currentConfiguration.PortalUrl.Trim('/')}/Account/AppEmailConfirmed"
+                $"{_apiConfiguration.PortalUrl.Trim('/')}/Account/AppEmailConfirmed"
                 : emailConfirmationRedirectUrl;
 
             return redirectToUrl;

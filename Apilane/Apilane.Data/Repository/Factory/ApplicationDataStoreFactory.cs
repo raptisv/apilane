@@ -1,6 +1,6 @@
 ﻿using Apilane.Common.Enums;
-using Apilane.Common.Extensions;
 using Apilane.Common.Models;
+using Apilane.Common.Models.Dto;
 using Apilane.Data.Abstractions;
 using OpenTelemetry.Trace;
 using System;
@@ -12,17 +12,23 @@ namespace Apilane.Data.Repository.Factory
     public class ApplicationDataStoreFactory : IApplicationDataStoreFactory
     {
         private IDataStorageRepository? _dataStore = null;
-        private readonly string _filesPath;
-        private readonly Lazy<Task<DBWS_Application>> _loadApplicationTask;
+        private readonly ApplicationDbInfoDto? _applicationDbInfo;
+        private readonly Lazy<ValueTask<ApplicationDbInfoDto>>? _loadApplicationTask;
         private readonly Tracer? _tracer;
 
         public ApplicationDataStoreFactory(
-            string filesPath,
-            Lazy<Task<DBWS_Application>> loadApplicationTask,
+            Lazy<ValueTask<ApplicationDbInfoDto>> loadApplicationTask,
             Tracer? tracer = null)
         {
-            _filesPath = filesPath;
             _loadApplicationTask = loadApplicationTask;
+            _tracer = tracer;
+        }
+
+        public ApplicationDataStoreFactory(
+            ApplicationDbInfoDto applicationDbInfo,
+            Tracer? tracer = null)
+        {
+            _applicationDbInfo = applicationDbInfo;
             _tracer = tracer;
         }
 
@@ -30,18 +36,27 @@ namespace Apilane.Data.Repository.Factory
         {
             if (_dataStore is null)
             {
-                // Load the app
-                var currentApplication = await _loadApplicationTask.Value;
+                // Look for direct assignment
+                var applicationDbInfo = _applicationDbInfo;
 
-                // Build connection string
-                var connectionString = currentApplication.GetConnectionstring(_filesPath);
+                // If not direct value provided, fetch value from lazy task
+                if (applicationDbInfo is null && _loadApplicationTask is not null)
+                {
+                    applicationDbInfo = await _loadApplicationTask.Value;
+                }
+
+                // One of the two should have been provided, else throw
+                if (applicationDbInfo is null)
+                {
+                    throw new Exception("No application DB info provided");
+                }
 
                 // Initialize the datastore
-                _dataStore = (DatabaseType)currentApplication.DatabaseType switch
+                _dataStore = applicationDbInfo.DatabaseType switch
                 {
-                    DatabaseType.SQLServer => new SQLServerDataStorageRepository(connectionString),
-                    DatabaseType.MySQL => new MySQLDataStorageRepository(connectionString),
-                    DatabaseType.SQLLite => new SQLiteDataStorageRepository(connectionString),
+                    DatabaseType.SQLServer => new SQLServerDataStorageRepository(applicationDbInfo.ConnectionString),
+                    DatabaseType.MySQL => new MySQLDataStorageRepository(applicationDbInfo.ConnectionString),
+                    DatabaseType.SQLLite => new SQLiteDataStorageRepository(applicationDbInfo.ConnectionString),
                     _ => throw new NotImplementedException(),
                 };
             }

@@ -328,7 +328,7 @@ namespace Apilane.Api.Component.Tests
 
                 AddCustomEndpoint(updateDiffPropertyEndpointName, customEndpointQuery);
 
-                using (new WithSecurityAccess(ApplicationServiceMock, TestApplication, updateDiffPropertyEndpointName,
+                using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, updateDiffPropertyEndpointName,
                     type: SecurityTypes.CustomEndpoint))
                 {
                     await ApilaneService.GetCustomEndpointAsync(CustomEndpointRequest.New(updateDiffPropertyEndpointName));

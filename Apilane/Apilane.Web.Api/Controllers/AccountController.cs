@@ -1,10 +1,12 @@
 ﻿using Apilane.Api.Abstractions;
+using Apilane.Api.Configuration;
 using Apilane.Api.Enums;
 using Apilane.Api.Exceptions;
 using Apilane.Api.Grains;
 using Apilane.Api.Models.AppModules.Authentication;
 using Apilane.Common;
 using Apilane.Common.Enums;
+using Apilane.Common.Extensions;
 using Apilane.Common.Models.Dto;
 using Apilane.Web.Api.Filters;
 using Apilane.Web.Api.Models.ViewModels;
@@ -26,9 +28,10 @@ namespace Apilane.Web.Api.Controllers
         private readonly IQueryDataService _queryDataService;
 
         public AccountController(
+            ApiConfiguration apiConfiguration,
             IAccountAPI accountAPI,
             IQueryDataService queryDataService,
-            IClusterClient clusterClient) : base(clusterClient)
+            IClusterClient clusterClient) : base(apiConfiguration, clusterClient)
         {
             _accountAPI = accountAPI;
             _queryDataService = queryDataService;
@@ -216,7 +219,7 @@ namespace Apilane.Web.Api.Controllers
             if (Guid.TryParse(_queryDataService.AuthToken, out var guidAuthToken))
             {
                 var grainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
-                await grainRef.DeleteAsync(Application);
+                await grainRef.DeleteAsync(Application.ToDbInfo(ApiConfiguration.FilesPath));
             }
 
             return newAuthToken;
@@ -244,7 +247,7 @@ namespace Apilane.Web.Api.Controllers
                     if (Guid.TryParse(authToken, out var guidAuthToken))
                     {
                         var authTokenGrainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
-                        await authTokenGrainRef.DeleteAsync(Application);
+                        await authTokenGrainRef.DeleteAsync(Application.ToDbInfo(ApiConfiguration.FilesPath));
                     }
                 }
 
@@ -256,7 +259,7 @@ namespace Apilane.Web.Api.Controllers
                 if (Guid.TryParse(_queryDataService.AuthToken, out var guidAuthToken))
                 {
                     var grainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
-                    await grainRef.DeleteAsync(Application);
+                    await grainRef.DeleteAsync(Application.ToDbInfo(ApiConfiguration.FilesPath));
                 }
 
                 return 1;

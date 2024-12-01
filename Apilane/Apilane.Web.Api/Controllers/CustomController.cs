@@ -1,5 +1,6 @@
 ﻿using Apilane.Api.Abstractions;
 using Apilane.Api.Abstractions.Metrics;
+using Apilane.Api.Configuration;
 using Apilane.Api.Enums;
 using Apilane.Api.Exceptions;
 using Apilane.Common.Models;
@@ -25,10 +26,11 @@ namespace Apilane.Web.Api.Controllers
         private readonly IMetricsService _metricsService;
 
         public CustomController(
+            ApiConfiguration apiConfiguration,
             ICustomAPI customAPI,
             IQueryDataService queryDataService,
             IClusterClient clusterClient,
-            IMetricsService metricsService) : base(clusterClient)
+            IMetricsService metricsService) : base(apiConfiguration, clusterClient)
         {
             _customAPI = customAPI;
             _queryDataService = queryDataService;

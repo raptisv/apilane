@@ -1,4 +1,5 @@
 ﻿using Apilane.Api.Abstractions;
+using Apilane.Api.Configuration;
 using Apilane.Web.Api.Filters;
 using Apilane.Web.Api.Models.ViewModels;
 using Microsoft.AspNetCore.Mvc;
@@ -17,8 +18,9 @@ namespace Apilane.Web.Api.Controllers
         private readonly IEntityHistoryAPI _entityHistoryAPI;
 
         public EntityHistoryController(
+            ApiConfiguration apiConfiguration,
             IEntityHistoryAPI entityHistoryAPI,
-            IClusterClient clusterClient) : base(clusterClient)
+            IClusterClient clusterClient) : base(apiConfiguration, clusterClient)
         {
             _entityHistoryAPI = entityHistoryAPI;
         }

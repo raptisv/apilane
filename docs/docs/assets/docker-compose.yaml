@@ -3,7 +3,7 @@ services:
 
   # Portal
   apilanewebportal:
-    image: raptis/apilane:portal-8.2.0
+    image: raptis/apilane:portal-8.4.0
     restart: always
     networks:
       - apilane-backend
@@ -20,7 +20,7 @@ services:
 
   # Api
   apilanewebapi:
-    image: raptis/apilane:api-8.2.0
+    image: raptis/apilane:api-8.4.0
     restart: always
     networks:
       - apilane-backend

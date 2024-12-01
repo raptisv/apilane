@@ -1,5 +1,5 @@
 ﻿using Apilane.Api.Abstractions;
-using Apilane.Common.Enums;
+using Apilane.Api.Configuration;
 using Apilane.Common.Models.Dto;
 using Apilane.Web.Api.Filters;
 using Apilane.Web.Api.Models.ViewModels;
@@ -16,8 +16,9 @@ namespace Apilane.Web.Api.Controllers
         private readonly IStatsAPI _statsAPI;
 
         public StatsController(
+            ApiConfiguration apiConfiguration,
             IStatsAPI statsAPI,
-            IClusterClient clusterClient) : base(clusterClient)
+            IClusterClient clusterClient) : base(apiConfiguration, clusterClient)
         {
             _statsAPI = statsAPI;
         }

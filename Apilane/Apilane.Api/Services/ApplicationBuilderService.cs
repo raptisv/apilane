@@ -22,7 +22,7 @@ namespace Apilane.Api.Services
 {
     public class ApplicationBuilderService : IApplicationBuilderService
     {
-        private readonly ApiConfiguration _currentConfiguration;
+        private readonly ApiConfiguration _apiConfiguration;
         private readonly ILogger<ApplicationBuilderService> _logger;
         private readonly IApplicationDataStoreFactory _applicationDataStoreFactory;
 
@@ -32,7 +32,7 @@ namespace Apilane.Api.Services
             IApplicationDataStoreFactory applicationDataStoreFactory)
         {
             _logger = logger;
-            _currentConfiguration = currentConfiguration;
+            _apiConfiguration = currentConfiguration;
             _applicationDataStoreFactory = applicationDataStoreFactory;
         }
 
@@ -70,7 +70,7 @@ namespace Apilane.Api.Services
 
             // Delete files
 
-            var filesRootDirectoryInfo = application.Token.GetFilesRootDirectoryInfo(_currentConfiguration.FilesPath);
+            var filesRootDirectoryInfo = application.Token.GetFilesRootDirectoryInfo(_apiConfiguration.FilesPath);
             if (filesRootDirectoryInfo.Exists)
             {
                 filesRootDirectoryInfo.Delete(true);
@@ -80,7 +80,7 @@ namespace Apilane.Api.Services
             {
                 case DatabaseType.SQLLite:
                     {
-                        var mainDbFile = application.Token.GetApplicationFileInfo(_currentConfiguration.FilesPath);
+                        var mainDbFile = application.Token.GetApplicationFileInfo(_apiConfiguration.FilesPath);
                         if (mainDbFile.Exists)
                         {
                             try
