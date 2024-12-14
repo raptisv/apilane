@@ -16,8 +16,6 @@
 		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <UserSecretsId>7147d453-0d74-4c51-80c3-d85e5e394bd5</UserSecretsId>
-    <DockerfileContext>..\..</DockerfileContext>
 	</PropertyGroup>
 
 	<ItemGroup>

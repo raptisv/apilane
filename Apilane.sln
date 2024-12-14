@@ -16,10 +16,10 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{BE8EF20A-5557-451B-9E3C-B345B4CAEA87}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
-		..\CHANGELOG.md = ..\CHANGELOG.md
-		..\CONTRIBUTING.md = ..\CONTRIBUTING.md
-		..\LICENSE = ..\LICENSE
-		..\README.md = ..\README.md
+		CHANGELOG.md = CHANGELOG.md
+		CONTRIBUTING.md = CONTRIBUTING.md
+		LICENSE = LICENSE
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "sdk", "sdk", "{F729F015-1D46-41DB-B6A8-84E4FB976443}"
@@ -34,72 +34,72 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apilane.UnitTests", "tests\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{90423DC3-EC36-40C0-82C4-9620F34DD6B2}"
 	ProjectSection(SolutionItems) = preProject
-		..\docs\diagram.excalidraw = ..\docs\diagram.excalidraw
-		..\docs\mkdocs.yml = ..\docs\mkdocs.yml
+		docs\diagram.excalidraw = docs\diagram.excalidraw
+		docs\mkdocs.yml = docs\mkdocs.yml
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{B9A9401E-790D-4DAF-9433-9D49CF9263A3}"
 	ProjectSection(SolutionItems) = preProject
-		..\docs\docs\concepts.md = ..\docs\docs\concepts.md
-		..\docs\docs\deployment.md = ..\docs\docs\deployment.md
-		..\docs\docs\getting_started.md = ..\docs\docs\getting_started.md
-		..\docs\docs\index.md = ..\docs\docs\index.md
-		..\docs\docs\security_considerations.md = ..\docs\docs\security_considerations.md
+		docs\docs\concepts.md = docs\docs\concepts.md
+		docs\docs\deployment.md = docs\docs\deployment.md
+		docs\docs\getting_started.md = docs\docs\getting_started.md
+		docs\docs\index.md = docs\docs\index.md
+		docs\docs\security_considerations.md = docs\docs\security_considerations.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "assets", "assets", "{C2F03EFF-19F1-4C6B-9588-DBAEA4A559E1}"
 	ProjectSection(SolutionItems) = preProject
-		..\docs\docs\assets\allow_ip.png = ..\docs\docs\assets\allow_ip.png
-		..\docs\docs\assets\allow_register.png = ..\docs\docs\assets\allow_register.png
-		..\docs\docs\assets\apilane.png = ..\docs\docs\assets\apilane.png
-		..\docs\docs\assets\application_create.png = ..\docs\docs\assets\application_create.png
-		..\docs\docs\assets\custom_endpoints.png = ..\docs\docs\assets\custom_endpoints.png
-		..\docs\docs\assets\docker-compose.yaml = ..\docs\docs\assets\docker-compose.yaml
-		..\docs\docs\assets\email_confirm_land.png = ..\docs\docs\assets\email_confirm_land.png
-		..\docs\docs\assets\email_settings.png = ..\docs\docs\assets\email_settings.png
-		..\docs\docs\assets\email_templates.png = ..\docs\docs\assets\email_templates.png
-		..\docs\docs\assets\favicon.png = ..\docs\docs\assets\favicon.png
-		..\docs\docs\assets\overview.png = ..\docs\docs\assets\overview.png
-		..\docs\docs\assets\report_create.png = ..\docs\docs\assets\report_create.png
-		..\docs\docs\assets\report_grid.png = ..\docs\docs\assets\report_grid.png
-		..\docs\docs\assets\report_line.png = ..\docs\docs\assets\report_line.png
-		..\docs\docs\assets\report_pie.png = ..\docs\docs\assets\report_pie.png
-		..\docs\docs\assets\sample_setup_1.png = ..\docs\docs\assets\sample_setup_1.png
-		..\docs\docs\assets\sample_setup_2.png = ..\docs\docs\assets\sample_setup_2.png
-		..\docs\docs\assets\sample_setup_3.png = ..\docs\docs\assets\sample_setup_3.png
-		..\docs\docs\assets\security_access_1.png = ..\docs\docs\assets\security_access_1.png
-		..\docs\docs\assets\security_access_2.png = ..\docs\docs\assets\security_access_2.png
-		..\docs\docs\assets\security_access_3.png = ..\docs\docs\assets\security_access_3.png
-		..\docs\docs\assets\security_ipblock.png = ..\docs\docs\assets\security_ipblock.png
-		..\docs\docs\assets\security_register.png = ..\docs\docs\assets\security_register.png
-		..\docs\docs\assets\security_signin.png = ..\docs\docs\assets\security_signin.png
-		..\docs\docs\assets\server_create.png = ..\docs\docs\assets\server_create.png
-		..\docs\docs\assets\server_k8s.png = ..\docs\docs\assets\server_k8s.png
+		docs\docs\assets\allow_ip.png = docs\docs\assets\allow_ip.png
+		docs\docs\assets\allow_register.png = docs\docs\assets\allow_register.png
+		docs\docs\assets\apilane.png = docs\docs\assets\apilane.png
+		docs\docs\assets\application_create.png = docs\docs\assets\application_create.png
+		docs\docs\assets\custom_endpoints.png = docs\docs\assets\custom_endpoints.png
+		docs\docs\assets\docker-compose.yaml = docs\docs\assets\docker-compose.yaml
+		docs\docs\assets\email_confirm_land.png = docs\docs\assets\email_confirm_land.png
+		docs\docs\assets\email_settings.png = docs\docs\assets\email_settings.png
+		docs\docs\assets\email_templates.png = docs\docs\assets\email_templates.png
+		docs\docs\assets\favicon.png = docs\docs\assets\favicon.png
+		docs\docs\assets\overview.png = docs\docs\assets\overview.png
+		docs\docs\assets\report_create.png = docs\docs\assets\report_create.png
+		docs\docs\assets\report_grid.png = docs\docs\assets\report_grid.png
+		docs\docs\assets\report_line.png = docs\docs\assets\report_line.png
+		docs\docs\assets\report_pie.png = docs\docs\assets\report_pie.png
+		docs\docs\assets\sample_setup_1.png = docs\docs\assets\sample_setup_1.png
+		docs\docs\assets\sample_setup_2.png = docs\docs\assets\sample_setup_2.png
+		docs\docs\assets\sample_setup_3.png = docs\docs\assets\sample_setup_3.png
+		docs\docs\assets\security_access_1.png = docs\docs\assets\security_access_1.png
+		docs\docs\assets\security_access_2.png = docs\docs\assets\security_access_2.png
+		docs\docs\assets\security_access_3.png = docs\docs\assets\security_access_3.png
+		docs\docs\assets\security_ipblock.png = docs\docs\assets\security_ipblock.png
+		docs\docs\assets\security_register.png = docs\docs\assets\security_register.png
+		docs\docs\assets\security_signin.png = docs\docs\assets\security_signin.png
+		docs\docs\assets\server_create.png = docs\docs\assets\server_create.png
+		docs\docs\assets\server_k8s.png = docs\docs\assets\server_k8s.png
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "developer_guide", "developer_guide", "{C9EC0B0B-BD5A-4977-9A05-32A52F7177BF}"
 	ProjectSection(SolutionItems) = preProject
-		..\docs\docs\developer_guide\application.md = ..\docs\docs\developer_guide\application.md
-		..\docs\docs\developer_guide\custom_endpoints.md = ..\docs\docs\developer_guide\custom_endpoints.md
-		..\docs\docs\developer_guide\email_templates.md = ..\docs\docs\developer_guide\email_templates.md
-		..\docs\docs\developer_guide\reports.md = ..\docs\docs\developer_guide\reports.md
-		..\docs\docs\developer_guide\sdk.md = ..\docs\docs\developer_guide\sdk.md
-		..\docs\docs\developer_guide\security.md = ..\docs\docs\developer_guide\security.md
-		..\docs\docs\developer_guide\server_overview.md = ..\docs\docs\developer_guide\server_overview.md
-		..\docs\docs\developer_guide\storage_providers.md = ..\docs\docs\developer_guide\storage_providers.md
+		docs\docs\developer_guide\application.md = docs\docs\developer_guide\application.md
+		docs\docs\developer_guide\custom_endpoints.md = docs\docs\developer_guide\custom_endpoints.md
+		docs\docs\developer_guide\email_templates.md = docs\docs\developer_guide\email_templates.md
+		docs\docs\developer_guide\reports.md = docs\docs\developer_guide\reports.md
+		docs\docs\developer_guide\sdk.md = docs\docs\developer_guide\sdk.md
+		docs\docs\developer_guide\security.md = docs\docs\developer_guide\security.md
+		docs\docs\developer_guide\server_overview.md = docs\docs\developer_guide\server_overview.md
+		docs\docs\developer_guide\storage_providers.md = docs\docs\developer_guide\storage_providers.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "licenses", "licenses", "{996916D6-04A2-4416-A081-0C841E317CFD}"
 	ProjectSection(SolutionItems) = preProject
-		..\licenses\FakeItEasy-MIT = ..\licenses\FakeItEasy-MIT
-		..\licenses\LigerShark.WebOptimizer.Core-Apache-2.0 = ..\licenses\LigerShark.WebOptimizer.Core-Apache-2.0
-		..\licenses\MySqlConnector-MIT = ..\licenses\MySqlConnector-MIT
-		..\licenses\OpenTelemetry-Apache-2.0 = ..\licenses\OpenTelemetry-Apache-2.0
-		..\licenses\OrleansDashboard-MIT = ..\licenses\OrleansDashboard-MIT
-		..\licenses\Serilog-Apache-2.0 = ..\licenses\Serilog-Apache-2.0
-		..\licenses\Swashbuckle.AspNetCore-MIT = ..\licenses\Swashbuckle.AspNetCore-MIT
-		..\licenses\System.Data.SQLite.Core = ..\licenses\System.Data.SQLite.Core
-		..\licenses\xunit-Apache-2.0 = ..\licenses\xunit-Apache-2.0
+		licenses\FakeItEasy-MIT = licenses\FakeItEasy-MIT
+		licenses\LigerShark.WebOptimizer.Core-Apache-2.0 = licenses\LigerShark.WebOptimizer.Core-Apache-2.0
+		licenses\MySqlConnector-MIT = licenses\MySqlConnector-MIT
+		licenses\OpenTelemetry-Apache-2.0 = licenses\OpenTelemetry-Apache-2.0
+		licenses\OrleansDashboard-MIT = licenses\OrleansDashboard-MIT
+		licenses\Serilog-Apache-2.0 = licenses\Serilog-Apache-2.0
+		licenses\Swashbuckle.AspNetCore-MIT = licenses\Swashbuckle.AspNetCore-MIT
+		licenses\System.Data.SQLite.Core = licenses\System.Data.SQLite.Core
+		licenses\xunit-Apache-2.0 = licenses\xunit-Apache-2.0
 	EndProjectSection
 EndProject
 Global

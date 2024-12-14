@@ -1,5 +1,5 @@
-﻿using Apilane.Api.Abstractions;
-using Apilane.Api.Configuration;
+﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Configuration;
 using FakeItEasy;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,7 +10,7 @@ namespace CasinoService.ComponentTests.Infrastructure
 {
     public class SuiteContext : IDisposable
     {
-        public WebApplicationFactory<Apilane.Web.Api.Program> Factory { get; }
+        public WebApplicationFactory<Apilane.Api.Program> Factory { get; }
         public Fixture Fixture { get; }
         public HttpClient HttpClient { get; }
 
@@ -18,7 +18,7 @@ namespace CasinoService.ComponentTests.Infrastructure
         {
             Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development", EnvironmentVariableTarget.Process);
 
-            var factory = new WebApplicationFactory<Apilane.Web.Api.Program>();
+            var factory = new WebApplicationFactory<Apilane.Api.Program>();
 
             Factory = factory.WithWebHostBuilder(builder =>
             {

@@ -17,8 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Apilane.Common\Apilane.Common.csproj" />
     <ProjectReference Include="..\..\SDK\Apilane.Net\Apilane.Net.csproj" />
+    <ProjectReference Include="..\..\src\Apilane.Common\Apilane.Common.csproj" />
   </ItemGroup>
 
 </Project>

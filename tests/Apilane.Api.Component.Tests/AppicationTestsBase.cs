@@ -1,8 +1,8 @@
-﻿using Apilane.Api.Abstractions;
-using Apilane.Api.Component.Tests.Extensions;
+﻿using Apilane.Api.Component.Tests.Extensions;
 using Apilane.Api.Component.Tests.Infrastructure;
-using Apilane.Api.Configuration;
-using Apilane.Api.Models.AppModules.Authentication;
+using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Configuration;
+using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;

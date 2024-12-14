@@ -1,5 +1,5 @@
-﻿using Apilane.Api.Abstractions;
-using Apilane.Api.Configuration;
+﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Configuration;
 using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;

@@ -1,5 +1,5 @@
-﻿using Apilane.Api.Abstractions;
-using Apilane.Api.Configuration;
+﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using System;

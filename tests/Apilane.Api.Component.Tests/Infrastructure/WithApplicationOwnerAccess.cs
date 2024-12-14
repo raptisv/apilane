@@ -1,4 +1,4 @@
-﻿using Apilane.Api.Abstractions;
+﻿using Apilane.Api.Core.Abstractions;
 using FakeItEasy;
 using System;
 

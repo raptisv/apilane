@@ -23,8 +23,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Apilane.Web.Api\Apilane.Web.Api.csproj" />
     <ProjectReference Include="..\..\SDK\Apilane.Net\Apilane.Net.csproj" />
+    <ProjectReference Include="..\..\src\Apilane.Api\Apilane.Api.csproj" />
   </ItemGroup>
 
 </Project>

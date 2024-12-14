@@ -1,5 +1,5 @@
 ﻿using Apilane.Api.Component.Tests.Infrastructure;
-using Apilane.Api.Grains;
+using Apilane.Api.Core.Grains;
 using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
