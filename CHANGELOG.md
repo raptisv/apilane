@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.1 (2024-12-14)
+- fix(sln): Restructure solution
+
 ## 8.4.0 (2024-12-01)
 - feat(api): Simplify ApplicationDataStoreFactory
 
