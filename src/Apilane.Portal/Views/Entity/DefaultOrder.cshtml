@@ -1,0 +1,114 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common.Models;
+@model IEnumerable<SortData>
+
+@{
+    ViewBag.Title = "Default sorting";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    DBWS_Application Application = (DBWS_Application)ViewBag.Application;
+    DBWS_Entity Entity = (DBWS_Entity)ViewBag.Entity;
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Application.Token })">@Application.Name</a></li>
+                        <li class="breadcrumb-item active">@Entity.Name</li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="row clearfix">
+                <div class="col-12 col-xl-6">
+                    <div class="card">
+                        <h4 class="card-header">
+                            Edit default order
+                        </h4>
+                        <div class="card-body">
+                            @using (Html.BeginRouteForm("EntRoute", new { controller = "Entity", action = "DefaultOrderSave", appid = Html.GetAppToken(), entid = Entity.Name }, FormMethod.Post, true, new { role = "form" }))
+                            {
+                                <ul id="sortable" class="list-group">
+
+                                    @if (Model != null)
+                                    {
+                                        @foreach (var prop in Model.Where(m => Entity.Properties.Select(x => x.Name).Contains(m.Property)))
+                                        {
+                                            <li style="list-style: none;">
+                                                <div class="form-check">
+                                                    <input id="@prop.Property-@prop.Direction" checked="checked" class="chk-order-property form-check-input" type="checkbox" value="" id="chk-@prop.Direction-@prop.Property" name="chk-@prop.Direction-@prop.Property" data-name="@prop.Property" data-dir="@prop.Direction">
+                                                    <label class="form-check-label" for="@prop.Property-@prop.Direction">@prop.Property @(prop.Direction.Equals("asc") ? "ascending" : "descending")</label>
+                                                </div>
+                                            </li>
+                                        }
+                                    }
+
+                                    @foreach (var prop in Entity.Properties)
+                                    {
+                                        if (Model == null || !Model.Any(m => m.Property.Equals(prop.Name) && m.Direction == "asc"))
+                                        {
+                                            <li style="list-style: none;">
+                                                <div class="form-check">
+                                                    <input id="@prop.Name-asc" class="chk-order-property form-check-input" type="checkbox" value="" name="chk-asc-@prop.Name" data-name="@prop.Name" data-dir="asc">
+                                                    <label class="form-check-label" for="@prop.Name-asc">@prop.Name ascending</label>
+                                                </div>
+                                            </li>
+                                        }
+                                        if (Model == null || !Model.Any(m => m.Property.Equals(prop.Name) && m.Direction == "desc"))
+                                        {
+                                            <li style="list-style: none;">
+                                                <div class="form-check">
+                                                    <input id="@prop.Name-desc" class="chk-order-property form-check-input" type="checkbox" value="" name="chk-asc-@prop.Name" data-name="@prop.Name" data-dir="desc">
+                                                    <label class="form-check-label" for="@prop.Name-desc">@prop.Name descending</label>
+                                                </div>
+                                            </li>
+                                        }
+                                    }
+                                </ul>
+                                <br>
+                                <div class="form-group">
+                                    @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                </div>
+                            }
+                            <button type="submit" class="btn_save btn btn-primary ignore-default-submit" title="Save">
+                                <i class="bi bi-floppy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@section scripts {
+    <script>
+        $('#sortable').sortable();
+        $('#sortable').disableSelection();
+
+        $('.btn_save').click(function () {
+            var data = [];
+            $.each($('.chk-order-property'), function (i, element) {
+                var checked = $(element).is(':checked');
+                var prop = $(element).data().name;
+                var dir = $(element).data().dir;
+
+                if (checked) {
+                    data.push({
+                        Property: prop,
+                        Direction: dir
+                    });
+                }
+            });
+
+            var frm = $("form");
+            frm.addHidden('DefaultOrder', JSON.stringify(data));
+            frm.submit();
+        });
+    </script>
+}

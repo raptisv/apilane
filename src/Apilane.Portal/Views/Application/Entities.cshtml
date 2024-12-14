@@ -1,0 +1,62 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Models;
+@using Apilane.Common.Enums;
+@using Microsoft.AspNetCore.Authorization;
+@model DBWS_Application
+@{
+    ViewBag.Title = "Entities";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Model.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item active">@Model.Name</li>
+                    </ol>
+                </nav>
+            </div>
+
+            @{
+                await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Model);
+            }
+
+            <div class="mb-4">
+                <a href="@Url.RouteUrl("AppRoute", new { controller = "Application", action = "EntityCreate", appid = Html.GetAppToken() })" class="btn btn-primary"><span class="bi bi-plus me-1"></span>New entity</a>
+            </div>
+
+            <div class="card bg-transparent">
+                <h4 class="card-header">
+                    Custom entities
+                </h4>
+                <div class="card-body">
+                    @if (Model.Entities.Where(x => !x.IsSystem).Count() > 0)
+                    {
+                        await Html.RenderPartialAsync("~/Views/Entity/IndexPartial.cshtml", Model.Entities.Where(x => !x.IsSystem).ToList());
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted">
+                            No data
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card mt-4 bg-transparent">
+                <h4 class="card-header">System entities</h4>
+                <div class="card-body">
+                    @{
+                        await Html.RenderPartialAsync("~/Views/Entity/IndexPartial.cshtml", Model.Entities.Where(x => x.IsSystem).ToList());
+                    }
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>

@@ -1,0 +1,219 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Utilities;
+@using Apilane.Common.Models;
+@using Apilane.Common.Models.Dto;
+@using Apilane.Common.Enums;
+@using Microsoft.AspNetCore.Html;
+@model DBWS_ApplicationNew_Dto
+
+@{
+    ViewBag.Title = "Create";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    List<SelectListItem> DatabaseTypes = new List<SelectListItem>();
+    DatabaseTypes.Add(new SelectListItem() { Selected = true, Value = ((int)DatabaseType.SQLLite).ToString(), Text = "SQL Lite" });
+    DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.SQLServer).ToString(), Text = "SQL Server" });
+    DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.MySQL).ToString(), Text = "My SQL" });
+
+    List<SelectListItem> Servers = new List<SelectListItem>();
+
+    var availableServers = (List<DBWS_Server>)ViewBag.AvailableServers;
+    foreach (var s in availableServers)
+    {
+        Servers.Add(new SelectListItem()
+                {
+                    Value = s.ID.ToString(),
+                    Disabled = false,
+                    Selected = false,
+                    Text = s.Name
+                });
+    }
+
+    if (!Servers.Any())
+    {
+        Servers.Add(new SelectListItem()
+                {
+                    Value = null,
+                    Disabled = true,
+                    Selected = false,
+                    Text = "No available servers found"
+                });
+    }
+}
+
+<div class="row clearfix">
+    <div class="col-12 col-xl-6">
+        <div class="card">
+            <h4 class="card-header">
+                New application
+            </h4>
+            <div class="card-body">
+                @using (Html.BeginForm("Create", "Applications", new { }, FormMethod.Post, true, new { role = "form" }))
+                {
+                    <div class="form-group mb-3">
+                        <div class="form-line">
+                            @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Name", autofocus = "autofocus" })
+                        </div>
+                        @Html.ValidationMessageFor(m => m.Name, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="form-group mb-3">
+                        @Html.DropDownListFor(m => m.ServerID, Servers, null, new { @class = "form-select" })
+                        @Html.ValidationMessageFor(m => m.ServerID, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="form-group mb-3" id="DatabaseType-wrapper">
+                        @Html.DropDownListFor(m => m.DatabaseType, DatabaseTypes, null, new { id = "databaseType", @class = "form-select" })
+                        @Html.ValidationMessageFor(m => m.DatabaseType, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="form-group mb-3" id="databaseConnectionString" @(Model == null || Model.DatabaseType == (int)DatabaseType.SQLLite ? new HtmlString("style='display:none;'") : new HtmlString(""))>
+                        <div class="form-line">
+                            @Html.TextBoxFor(m => m.ConnectionString, new { @class = "form-control", placeholder = "Connection string" })
+                        </div>
+                        @Html.ValidationMessageFor(m => m.ConnectionString, "", new { @class = "text-danger" })
+                    </div>
+                    <div class="info-db-type info-db-type-@((int)DatabaseType.SQLServer)" @(Model == null || Model.DatabaseType != (int)DatabaseType.SQLServer ? new HtmlString("style='display:none;'") : new HtmlString(""))>
+                        <div class="alert alert-primary mt-3">
+                            The connection string must be pointing to an existing but empty database with the necessary access rights.
+                            The connection string will be validated as soon as you click on 'save'.
+                            <a target="_blank" href="https://www.connectionstrings.com/sql-server/">SQLServer connection string examples</a>
+                        </div>
+                        <div class="alert alert-warning mt-3">
+                            Remember to use <strong>TrustServerCertificate=true;</strong> in case there is no specific certificate used for the connection.                    
+                        </div>
+                    </div>
+                    <div class="info-db-type info-db-type-@((int)DatabaseType.MySQL)" @(Model == null || Model.DatabaseType != (int)DatabaseType.MySQL ? new HtmlString("style='display:none;'") : new HtmlString(""))>
+                        <div class="alert alert-primary mt-3">
+                            The connection string must be pointing to an existing but empty database with the necessary access rights.
+                            The connection string will be validated as soon as you click on 'save'.
+                            <a target="_blank" href="https://www.connectionstrings.com/mysql/">MySQL connection string examples</a>
+                        </div>
+                        <div class="alert alert-warning mt-3">
+                            Do not forget to use <strong>UseXaTransactions=false;</strong> to allow queries execute inside TransactionScope.
+                        </div>
+                    </div>
+                    <div class="form-group mb-3">
+                        <div class="form-line">
+                            @Html.TextBoxFor(m => m.DifferentiationEntity, new { @class = "form-control", placeholder = "Differentiation entity (optional)" })
+                        </div>
+                        @Html.ValidationMessageFor(m => m.DifferentiationEntity, "", new { @class = "text-danger" })
+                    </div>
+                    <br>
+                    <div class="form-group mb-3">
+                        @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                    </div>
+                }
+                <button type="submit" class="btn_save btn btn-primary" title="Save">
+                    <i class="bi bi-floppy"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xl-6 mt-4 mt-xl-0">
+        <div class="accordion p-6 custom-border" id="accordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingOne">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="false" aria-controls="collapse1">
+                        What is an appication?
+                    </button>
+                </h2>
+                <div id="collapse1" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordion">
+                    <div class="accordion-body">
+                        An application is the backend of your client application.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingTwo">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
+                        Can I change the application name later?
+                    </button>
+                </h2>
+                <div id="collapse2" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordion">
+                    <div class="accordion-body">
+                        Yes you can change the application name at any time.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingThree">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse3" aria-expanded="false" aria-controls="collapse3">
+                        Why do I have to select a server?
+                    </button>
+                </h2>
+                <div id="collapse3" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordion">
+                    <div class="accordion-body">
+                        Depending on your clients location, you may need to deploy your application to the server which is closest to them.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingThree">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse4" aria-expanded="false" aria-controls="collapse4">
+                        Can I change the server after I create the application?
+                    </button>
+                </h2>
+                <div id="collapse4" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordion">
+                    <div class="accordion-body">
+                        No, you cannot change the server later.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingThree">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse5" aria-expanded="false" aria-controls="collapse5">
+                        What is the differentiation entity?
+                    </button>
+                </h2>
+                <div id="collapse5" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordion">
+                    <div class="accordion-body">
+                        <p>
+                            A differentiation entity allows you to "split" database data on the application entities, depending on a system property on the base entity <b>Users</b>.
+                        </p>
+                        <p>
+                            The differentiation entity allows access to a record, only to users that share the same value on that property.
+                        </p>
+                        <p>
+                            For example, if you are building an application that is shared between multiple companies, you can set a differentiation entity named 'Company'. Then, each user will have access only on records of the company they are assigned to.
+                        </p>
+                        <p>
+                            It is the application's concern to decide how to assign values to that differentiation entity for each user. As a use case, in the example above, some administrator will have to assign the 'Company_ID' for each new user.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingThree">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse6" aria-expanded="false" aria-controls="collapse6">
+                        Can I change or remove the differentiation entity later?
+                    </button>
+                </h2>
+                <div id="collapse6" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordion">
+                    <div class="accordion-body">
+                        No, you cannot change or remove the differentiation entity later.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script type="text/javascript">
+
+        $('#databaseType').on('change', function () {
+            var selected = $(this).find("option:selected").val();
+            if (selected != @((int)DatabaseType.SQLLite)) {
+                $('#databaseConnectionString').show();
+                $('.info-db-type').hide();
+                $(`.info-db-type-${selected}`).show();
+            } else {
+                $('#databaseConnectionString, .info-db-type').hide();
+            }
+        });
+
+        setTimeout(function () {
+            $('#collapse_0').collapse('show');
+        }, 1000);
+    </script>
+}

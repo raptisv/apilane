@@ -1,0 +1,141 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Models;
+
+@using Apilane.Common.Enums;
+@model List<DBWS_Server>
+
+@{
+    ViewBag.Title = "Applications";
+    Layout = "~/Views/Shared/_Layout.cshtml";    
+    
+    var servers = (List<DBWS_Server>)ViewBag.AllServers;
+    var applications = (List<DBWS_Application>)ViewBag.AllApplications;
+}
+
+<div class="row clearfix">
+    <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+        <div class="card">
+            <h4 class="card-header">Applications</h4>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-borderless table-hover">
+                        <thead>
+                            <tr>
+                                <th class="text-nowrap">ID</th>
+                                <th class="text-nowrap">Created by</th>
+                                <th class="text-nowrap">App name</th>
+                                <th class="text-nowrap">Online</th>
+                                <th class="text-nowrap">Clear cache</th>
+                                <th class="text-nowrap">Server</th>
+                                <th class="text-nowrap">Token</th>
+                                <th class="text-nowrap">Storage provider</th>
+                                <th class="text-nowrap">Connection string</th>
+                                <th class="text-nowrap">Max allowed file size in KB</th>
+                                <th class="text-nowrap">Auth token expires in minutes</th>
+                                <th class="text-nowrap">Email confirmation redirect url</th>
+                                <th class="text-nowrap">Mail server</th>
+                                <th class="text-nowrap">Mail server port</th>
+                                <th class="text-nowrap">Mail from address</th>
+                                <th class="text-nowrap">Mail user name</th>
+                                <th class="text-nowrap">Mail password</th>
+                                <th class="text-nowrap">Mail from display name</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in applications)
+                            {
+                                <tr>
+                                    <td class="text-nowrap">@item.ID</td>
+                                    <td class="text-nowrap">@item.AdminEmail</td>
+                                    <td class="text-nowrap"><a href="@Url.Action("ApplicationData", "Admin", new { AppToken = item.Token })" class="iframe-link-popup">@item.Name</a></td>
+                                    <td class="text-nowrap">
+                                        @if (item.Online)
+                                        {
+                                            <i class="bi bi-check fs-4 text-success"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-x fs-4 text-danger"></i>
+                                        }    
+                                    </td>
+                                    <td class="text-nowrap"><a class="clear-cache" data-token="@item.Token" data-apiurl="@item.Server.ServerUrl" href="#">Clear cache</a></td>
+                                    <td class="text-nowrap">@item.Server.Name</td>
+                                    <td class="text-nowrap">@item.Token</td>
+                                    <td class="text-nowrap">@(((DatabaseType)item.DatabaseType).ToString())</td>
+                                    <td class="text-nowrap">@item.ConnectionString</td>
+                                    <td class="text-nowrap">@item.MaxAllowedFileSizeInKB</td>
+                                    <td class="text-nowrap">@item.AuthTokenExpireMinutes</td>
+                                    <td class="text-nowrap">@item.EmailConfirmationRedirectUrl</td>
+                                    <td class="text-nowrap">@item.MailServer</td>
+                                    <td class="text-nowrap">@item.MailServerPort</td>
+                                    <td class="text-nowrap">@item.MailFromAddress</td>
+                                    <td class="text-nowrap">@item.MailUserName</td>
+                                    <td class="text-nowrap">@item.MailPassword</td>
+                                    <td class="text-nowrap">@item.MailFromDisplayName</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@section scripts{
+    <script type="text/javascript">
+
+        $('.clear-cache').click(function () {
+            var appToken = $(this).data().token;
+            var appUrl = $(this).data().apiurl;
+
+             $.ajax({
+                url: appUrl + '/api/Application/ClearCache',
+                type: 'GET',
+                contentType: 'application/json',
+                beforeSend: function (request) {
+                    request.setRequestHeader('Authorization', 'Bearer @Html.GetPortalUserAuthToken(User.Identity!)');
+                    request.setRequestHeader('@Globals.ClientIdHeaderName', '@Globals.ClientIdHeaderValuePortal');
+                    request.setRequestHeader('@Globals.ApplicationTokenHeaderName', appToken);
+                },
+                success: function (response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: "Success",
+                        text: "Cache cleared",
+                        showCancelButton: false,
+                        showConfirmButton: true,
+                        confirmButtonText: "OK",
+                        allowOutsideClick: true,
+                        buttonsStyling: false,
+                        customClass: {
+                            confirmButton: 'btn btn-primary',
+                            cancelButton: 'btn'
+                        }
+                    });
+                },
+                error: function (e) {
+                    var js = getErrorJSON(e);
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: "Error",
+                        text: js.Message,
+                        showCancelButton: false,
+                        showConfirmButton: true,
+                        confirmButtonText: "OK",
+                        allowOutsideClick: true,
+                        buttonsStyling: false,
+                        customClass: {
+                            confirmButton: 'btn btn-primary',
+                            cancelButton: 'btn'
+                        }
+                    });
+                }
+            });
+        });
+
+    </script>
+}

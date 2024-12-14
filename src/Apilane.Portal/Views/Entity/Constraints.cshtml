@@ -1,0 +1,367 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common.Models;
+@using Apilane.Common.Enums;
+@using Apilane.Common.Utilities;
+@model List<EntityConstraint>
+
+@{
+    ViewBag.Title = "Constraints";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var isDarkTheme = Html.IsDarkTheme(Context.Request);
+
+    var application = (DBWS_Application)ViewBag.Application;
+    var entity = (DBWS_Entity)ViewBag.Entity;
+
+    // Non system integer properties can be FKs
+    var entityPropertiesThanCanBeFKs = entity.Properties.Where(x => !x.IsSystem && x.TypeID_Enum == PropertyType.Number && x.DecimalPlaces == 0);
+
+    // Encrypted properties cannot be unique due to the property length issue
+    var entityPropertiesThanCanBeUnique = entity.Properties.Where(x => !x.Encrypted);
+
+    var constraintTypes = EnumProvider<ConstraintType>.GetValues(ConstraintType.Unique).Select(x => new SelectListItem { Text = x.Value, Value = x.Key.ToString() }).ToList();
+
+    var availableFKEntities = application.Entities.Where(x => !x.Name.Equals("Files")).Select(x => x.Name).ToList();
+
+    var foreignKeyLogics = EnumProvider<ForeignKeyLogic>.GetValues(ForeignKeyLogic.ON_DELETE_CASCADE).Select(x => new { Key = ((ForeignKeyLogic)x.Key).ToString(), Text = x.Value }).ToList();
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = application.Token })">@application.Name</a></li>
+                        <li class="breadcrumb-item active">@entity.Name</li>
+                    </ol>
+                </nav>
+            </div>
+
+            @using (Html.BeginRouteForm("EntRoute", new { controller = "Entity", action = "Constraints", appid = Html.GetAppToken(), entid = entity.Name }, FormMethod.Post, true, new { role = "form" }))
+            {
+                <div class="row">
+                    <div class="col-12 col-xl-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    Existing constraints
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                @for (int i = 0; i < Model.Count - 1; i++)
+                                {
+                                    @Html.HiddenFor(m => m[i].IsSystem)
+
+                                    <div class="row">
+                                        <div class="col-12 col-md-3 col-lg-3 mt-3 mt-lg-0">
+                                            @if (Model[i].IsSystem)
+                                            {
+                                                @Html.DropDownListFor(m => m[i].TypeID, constraintTypes, null, new { @class = "form-select", data_id = i, disabled = "disabled" })
+                                                @Html.HiddenFor(m => m[i].TypeID)
+                                            }
+                                            else
+                                            {
+                                                @Html.DropDownListFor(m => m[i].TypeID, constraintTypes, null, new { @class = "form-select select-type", data_id = i })
+                                            }
+                                            @Html.ValidationMessageFor(m => m[i].TypeID, "", new { @class = "text-danger" })
+                                        </div>
+                                        <div class="col-12 col-md-7 col-lg-7 mt-3 mt-lg-0">
+                                            <div class="form-line">
+                                                @if (Model[i].IsSystem)
+                                                {
+                                                    @Html.TextBoxFor(m => m[i].Properties, new { @class = "form-control item-properties", data_id = i, placeholder = "No properties selected", @readonly = true })
+                                                    @Html.HiddenFor(m => m[i].Properties)
+                                                }
+                                                else
+                                                {
+                                                    @Html.TextBoxFor(m => m[i].Properties, new { @class = "form-control item-properties", data_id = i, placeholder = "No properties selected", @readonly = true })
+                                                }
+                                            </div>
+                                            @Html.ValidationMessageFor(m => m[i].Properties, "", new { @class = "text-danger" })
+                                        </div>
+                                        <div class="col-12 col-md-2 col-lg-2 mt-3 mt-lg-0">
+                                            @if (!Model[i].IsSystem)
+                                            {
+                                                <div class="d-flex justify-content-end align-items-center">
+                                                    <a href="#" class="btn btn-outline-primary select-properties" data-id="@i" title="Edit">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </a>
+                                                    <a href="#" class="btn btn-outline-danger clear-properties ms-2" data-id="@i" title="Clear">
+                                                        <i class="bi bi-x"></i>
+                                                    </a>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                    @if (i < Model.Count - 2)
+                                    {
+                                        <hr class="text-muted" />
+                                    }
+                                }
+                                <div class="form-group">&nbsp;</div>
+                                <button type="submit" class="btn_save btn btn-primary" title="Save">
+                                    <i class="bi bi-floppy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-12 col-xl-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    New constraint
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                    @for (int i = Model.Count - 1; i < Model.Count; i++)
+                                    {
+                                        @Html.HiddenFor(m => m[i].IsSystem)
+
+                                        <div class="row">
+                                        <div class="col-12 col-md-3 col-lg-3 mt-3 mt-lg-0">
+                                                @if (Model[i].IsSystem)
+                                                {
+                                                    @Html.DropDownListFor(m => m[i].TypeID, constraintTypes, null, new { @class = "form-select", data_id = i, disabled = "disabled" })
+                                                    @Html.HiddenFor(m => m[i].TypeID)
+                                                }
+                                                else
+                                                {
+                                                    @Html.DropDownListFor(m => m[i].TypeID, constraintTypes, null, new { @class = "form-select select-type", data_id = i })
+                                                }
+                                                @Html.ValidationMessageFor(m => m[i].TypeID, "", new { @class = "text-danger" })
+                                            </div>
+                                            <div class="col-12 col-md-7 col-lg-7 mt-3 mt-lg-0">
+                                                <div class="form-line">
+                                                    @if (Model[i].IsSystem)
+                                                    {
+                                                        @Html.TextBoxFor(m => m[i].Properties, new { @class = "form-control item-properties", data_id = i, placeholder = "No properties selected", @readonly = true })
+                                                        @Html.HiddenFor(m => m[i].Properties)
+                                                    }
+                                                    else
+                                                    {
+                                                        @Html.TextBoxFor(m => m[i].Properties, new { @class = "form-control item-properties", data_id = i, placeholder = "No properties selected", @readonly = true })
+                                                    }
+                                                </div>
+                                                @Html.ValidationMessageFor(m => m[i].Properties, "", new { @class = "text-danger" })
+                                            </div>
+                                            <div class="col-12 col-md-2 col-lg-2 mt-3 mt-lg-0">
+                                                @if (!Model[i].IsSystem)
+                                                {
+                                                <div class="d-flex justify-content-end align-items-center">
+                                                        <a href="#" class="btn btn-outline-primary select-properties" data-id="@i" title="Edit">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </a>
+                                                        <a href="#" class="btn btn-outline-danger clear-properties ms-2" data-id="@i" title="Clear">
+                                                            <i class="bi bi-x"></i>
+                                                        </a>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                <br>
+                                <div class="form-group">
+                                    @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                </div>
+                                <button type="submit" class="btn_save btn btn-primary" title="Save">
+                                    <i class="bi bi-floppy"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<script type="text/template" id="template-select-unique">
+    <ul id="sortable" class="list-group">
+    </ul>
+</script>
+
+<script type="text/template" id="template-select-foreignkeys">
+    <div class="row">
+        <div class="col-4">
+            <h4>Property</h4>
+            <ul id="radio-property" class="list-group"></ul>
+        </div>
+        <div class="col-4">
+            <h4>Foreign key to entity</h4>
+            <ul id="radio-entity" class="list-group"></ul>
+        </div>
+        <div class="col-4">
+            <h4>On delete/update</h4>
+            <ul id="radio-fklogic" class="list-group"></ul>
+        </div>
+    </div>  
+</script>
+
+@section scripts {
+
+    <script>
+        $('.select-type').change(function(){
+            var itemId = $(this).data().id;
+            $(`.item-properties[data-id="${itemId}"]`).val('');
+        });
+
+        $('.clear-properties').on('click', function(){
+            var itemId = $(this).data().id;
+            $(`.item-properties[data-id="${itemId}"]`).val('');
+        });
+
+        $('.select-properties').on('click', function () {
+            var itemId = $(this).data().id;
+            var typeId = $(`.select-type[data-id="${itemId}"]`).val();
+
+            if (typeId == @((int)ConstraintType.Unique)){
+                loadUniqueConstraintProperties(itemId);
+            } else if (typeId == @((int)ConstraintType.ForeignKey)) {
+                loadForeignKeyConstraintProperties(itemId);
+            }
+        });
+
+        function loadForeignKeyConstraintProperties(itemId) {
+            var availableProperties = @Html.Raw(Json.Serialize(entityPropertiesThanCanBeFKs.Select(x => x.Name)));
+            var properties = [];
+            $.each(availableProperties, function (i, prop) {
+                properties.push(`<li class="list-group-item">
+                                    <label class='custom-control custom-radio'>
+                                        <input type="radio" name="radio-select-property" value="${prop}" class="radio-property custom-control-input"/>
+                                        <span class='custom-control-label'>${prop}</span>
+                                    </label>
+                                </li>`);
+            });
+
+            var availableFKEntities = @Html.Raw(Json.Serialize(availableFKEntities));
+            var entities = [];
+            $.each(availableFKEntities, function (i, entity) {
+                entities.push(`<li class="list-group-item">
+                                    <label class='custom-control custom-radio'>
+                                        <input type="radio" name="radio-select-entity" value="${entity}" class="radio-entity custom-control-input"/>
+                                        <span class='custom-control-label'>${entity}</span>
+                                    </label>
+                                </li>`);
+            });
+
+            var availableFKLogics = @Html.Raw(Json.Serialize(foreignKeyLogics));
+            var fkLogics = [];
+            $.each(availableFKLogics, function (i, fkLogic) {
+                fkLogics.push(`<li class="list-group-item">
+                                    <label class='custom-control custom-radio'>
+                                        <input type="radio" name="radio-select-fklogic" value="${fkLogic.Key}" class="radio-fklogic custom-control-input"/>
+                                        <span class='custom-control-label'>${fkLogic.Text}</span>
+                                    </label>
+                                </li>`);
+            });
+
+            Swal.fire({
+                position: 'top',
+                title: '',
+                html: $('#template-select-foreignkeys').html(),
+                showCancelButton: true,
+                confirmButtonText: 'OK',
+                buttonsStyling: false,
+                customClass: {
+                    popup: 'swal-wide',
+                    confirmButton: 'btn btn-primary',
+                    cancelButton: 'btn'
+                }
+            }).then((submit) => {
+                if (submit.isConfirmed) {
+                    var selectedProperty = $('input[name=radio-select-property]:checked').val();
+                    var selectedEntity = $('input[name=radio-select-entity]:checked').val();
+                    var selectedFKLogic = $('input[name=radio-select-fklogic]:checked').val();
+
+                    var value = (selectedProperty != undefined && selectedEntity != undefined && selectedFKLogic != undefined)
+                        ? selectedProperty + ',' + selectedEntity + ',' + selectedFKLogic
+                        : '';
+
+                    $(`.item-properties[data-id="${itemId}"]`).val(value);
+                    swal.close();
+                }
+            });
+
+            $('#radio-property').html(properties.join(''));
+            $('#radio-entity').html(entities.join(''));
+            $('#radio-fklogic').html(fkLogics.join(''));
+        }
+
+        function loadUniqueConstraintProperties(itemId) {
+            var availableValues = @Html.Raw(Json.Serialize(entityPropertiesThanCanBeUnique.Select(x => x.Name)));
+            var properties = [];
+            $.each(availableValues, function (i, prop) {
+                var html = `<li class="list-group-item">
+                                <label class='custom-control custom-checkbox'>
+                                    <input type="checkbox" id="check-${prop}" class="check-property custom-control-input switcher-input" data-id="${prop}" data-sublist="sub-list-${prop}"/>
+                                    <span class='custom-control-label'>${prop}</span>
+                                </label>
+                            </li>`;
+
+                properties.push(html);
+            });
+
+            Swal.fire({
+                position: 'top',
+                title: 'Select properties',
+                html: $('#template-select-unique').html(),
+                showCancelButton: true,
+                confirmButtonText: 'OK',
+                buttonsStyling: false,
+                customClass: {
+                    confirmButton: 'btn btn-primary',
+                    cancelButton: 'btn'
+                }
+            }).then((submit) => {
+                if (submit.isConfirmed) {
+                    var txt = [];
+                    $.each($('.check-property:checked'), function (index, element) {
+                        var item = $(element).data().id;
+                        if (item != null && item.trim() != '')
+                            txt.push(item);
+                    });
+
+                    $(`.item-properties[data-id="${itemId}"]`).val(txt.join(','));
+                    swal.close();
+                }
+            });
+
+            $('#sortable').html(properties.join(''));
+        }
+    </script>
+}
+
+@section styles {
+    <style>
+
+        input#Properties,
+        input#GroupBy {
+            cursor: pointer;
+        }
+
+        .list-group {
+            height: 350px;
+            overflow: auto;
+        }
+
+        .list-group-item {
+            transition: unset !important;
+            text-align: left !important;
+            padding: 4px 0 0px 12px;
+        }
+
+        #Filter,
+        #Properties,
+        #GroupBy {
+            font-family: Consolas;
+        }
+
+        .swal-wide {
+            width: 50% !important;
+        }
+    </style>
+}

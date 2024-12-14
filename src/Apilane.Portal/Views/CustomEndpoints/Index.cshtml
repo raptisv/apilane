@@ -1,0 +1,100 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Models;
+@using Microsoft.AspNetCore.Html;
+@model DBWS_Application
+@{
+    ViewBag.Title = "Custom endpoints";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Model.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new { controller = "Application", action = "Entities", appid = Model.Token })">@Model.Name</a></li>
+                        <li class="breadcrumb-item active">Custom endpoints</li>
+                    </ol>
+                </nav>
+            </div>
+
+            @{
+                await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Model);
+            }
+
+            <div class="mb-4">
+                <a href="@Url.RouteUrl("AppRoute", new {controller = "CustomEndpoints", action = "Create", appid = Html.GetAppToken() })" class="btn btn-primary"><span class="bi bi-plus me-1"></span>New custom endpoint</a>
+            </div>
+
+            <div class="row">
+                <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                    @if (Model.CustomEndpoints.Count > 0)
+                    {
+                        <div class="table-responsive p-6 custom-border">
+                            <table class="table table-sm table-hover table-borderless">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Query</th>
+                                        <th></th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+
+                                    @{
+                                        foreach (var item in Model.CustomEndpoints)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <a class="app-grid-link text-decoration-none text-primary" target="_blank" href="@item.GetUrl(Model.Server.ServerUrl, Model.Token, true)">
+                                                        <strong class="text-primary">@item.Name</strong>
+                                                    </a>
+                                                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                                                    {
+                                                        <i class="bi bi-info-circle text-primary" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-original-title="@item.Description"></i>
+                                                    }
+                                                </td>
+                                                <td><textarea cols="100" rows="1" readonly="readonly" class="form-control" style="font-family: monospace;">@item.Query</textarea></td>
+                                                <td>
+                                                    <a href="@Url.RouteUrl("AppRoute", new { controller = "CustomEndpoints", action = "Edit", appid = Html.GetAppToken() })?ID=@item.ID" class="btn btn-default" title="Edit">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </a>
+                                                </td>
+                                                <td>
+                                                    <a href="@Url.RouteUrl("AppRoute", new { controller = "CustomEndpoints", action = "Delete", appid = Html.GetAppToken() })?ID=@item.ID" class="btn btn-danger" title="Delete">
+                                                        <i class="bi bi-trash"></i>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted">
+                            Create your first custom endpoint
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@section styles{
+    <style>
+        div.code-toolbar {
+            max-height: 100px;
+            overflow: auto;
+        }
+    </style>
+}

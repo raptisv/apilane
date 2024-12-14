@@ -20,7 +20,7 @@ jobs:
         image: raptis/apilane
         tags: api-${{ github.ref_name }}
         registry: docker.io
-        dockerfile: Apilane/Apilane.Web.Api/Dockerfile
+        dockerfile: src/Apilane.Api/Dockerfile
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
         buildArgs: |
@@ -32,7 +32,7 @@ jobs:
         image: raptis/apilane
         tags: portal-${{ github.ref_name }}
         registry: docker.io
-        dockerfile: Apilane/Apilane.Web.Portal/Dockerfile
+        dockerfile: src/Apilane.Portal/Dockerfile
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
         buildArgs: |

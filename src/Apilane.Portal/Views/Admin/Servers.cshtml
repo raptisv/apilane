@@ -1,0 +1,156 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common;
+
+@using Apilane.Common.Models;
+@{
+    ViewBag.Title = "Admin";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var servers = (List<DBWS_Server>)ViewBag.AllServers;
+}
+
+<div class="mb-4">
+    <a href="@Url.Action("ServerCreate", "Admin")" class="btn btn-primary"><span class="bi bi-plus me-1"></span>New server</a>
+</div>
+
+<div class="row">
+    @for (int i = 0; i < servers.Count; i++)
+    {
+        var item = servers[i];
+
+        <div class='col-12 col-xl-6'>
+            <div class="card mb-2">
+                <h4 class="card-header d-flex justify-content-between align-items-center">
+                    <a href="@item.ServerUrl/Health/Liveness" target="_blank" class="text-decoration-none">@item.Name</a>
+                    <div class="mr-4 online-indicator online-indicator-@item.ID">
+                        <span class="blink"></span>
+                    </div>
+                </h4>
+
+                <div class="card-body">
+                    <ul class="list-group list-group-flush bg-transparent border-0">
+                        <li class="list-group-item bg-transparent px-0">
+                            @item.ServerUrl
+                        </li>
+                        <li class="list-group-item bg-transparent px-0">
+                            Applications @item.Applications.Count
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="card-footer">
+                    <a href="@Url.Action("ServerEdit", "Admin", new { id = item.ID })" class="btn btn-sm btn-default" title="Edit">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <a href="@Url.Action("ServerDelete", "Admin", new { id = item.ID })" class="btn btn-sm btn-default" title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section scripts{
+<script type="text/javascript">
+
+    @foreach (var item in servers)
+    {
+        <text>
+
+        setInterval(function(){
+            healthCheckServer(@item.ID, '@item.ServerUrl');
+        }, 5000);
+
+        healthCheckServer(@item.ID, '@item.ServerUrl');
+
+         $('#btn-import-application-@item.ID').click(function () {
+            swal({
+                type: 'info',
+                title: "Select file to upload",
+                text: `<form action="/" class="dropzone needsclick text-center" id="dropzone-import-application" style="border: 1px dashed gray;">
+                            <div class="dz-message needsclick">
+                                Drop file here or click to upload
+                            </div>
+                            <div class="fallback">
+                                <input name="file" type="file">
+                            </div>
+                        </form>`,
+                showCancelButton: true,
+                confirmButtonColor: '#2b982b',
+                confirmButtonText: 'Import',
+                cancelButtonText: "Close",
+                closeOnConfirm: false,
+                showLoaderOnConfirm: true,
+                allowOutsideClick: true,
+                html: true
+            },
+            function (submit) {
+                if (importFilesDropZone.files.length == 0) {
+                    swal.showInputError('No file selected');
+                    return false;
+                } else {
+                    $('.swal2-confirm.btn.btn-primary').text('Importing application');
+                }
+
+                return new Promise(function (resolve) {
+
+                });// prevent close
+            });
+
+            const importFilesDropZone = new Dropzone('#dropzone-import-application', {
+                maxFiles: 1,
+                maxfilesexceeded: function (file) {
+                    this.removeAllFiles();
+                    this.addFile(file);
+                },
+                previewTemplate: `<div class="dz-preview dz-file-preview">
+                                        <div class="dz-details">
+                                        <div class="dz-filename"><span data-dz-name></span></div>
+                                        <div class="dz-size" data-dz-size></div>
+                                        </div>
+                                        <div class="dz-progress"><span class="dz-upload" data-dz-uploadprogress></span></div>
+                                    </div>`,
+                maxFilesize: 50000,
+                filesizeBase: 1000,
+                addRemoveLinks: true,
+                acceptedFiles: ".zip",
+                autoProcessQueue: false,
+                url: '@Url.Action("Import", "Admin", new { serverId = item.ID})',
+                init: function () {
+                    var fileDropzone = this;
+                    $(".sa-confirm-button-container .confirm").click(function (e) {
+                        e.preventDefault();
+                        fileDropzone.processQueue();
+                    });
+                    fileDropzone.on("addedfile", function (file) { 
+                    
+                    });
+                },
+                error: function (err) {
+                    if (err.accepted != null && !err.accepted) {
+                        swal.showInputError('This file is not accepted!');
+                    } else if (err && err.xhr && err.xhr.responseText) {
+                        swal.showInputError(err.xhr.responseText);
+                    }else {
+                        swal.showInputError('Something went wrong');
+                    }
+                },
+                success: function (file, response) {
+                    swal({
+                        type: 'info',
+                        title: 'Import result',
+                        text: 'Application imported succesfully!',
+                        showCancelButton: false,
+                        confirmButtonColor: '#2b982b',
+                        confirmButtonText: 'OK',
+                        closeOnConfirm: true,
+                        allowOutsideClick: true
+                    });
+                }
+            });
+        });
+
+        </text>
+    }
+</script>
+}

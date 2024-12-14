@@ -1,0 +1,1098 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Models;
+@using Apilane.Common.Enums;
+@using Microsoft.AspNetCore.Html;
+@model (DBWS_Application Application, DBWS_Entity Entity)
+
+@{
+    ViewBag.Title = Model.Entity.Name + " Data";
+    Layout = "~/Views/Shared/_LayoutData.cshtml";
+    string PrimaryKey = Model.Entity.Properties.Single(x => x.IsPrimaryKey).Name;
+
+    bool IsFiles = Model.Entity.Name.Equals("Files");
+
+    string NewRecordLabel = "New record";
+    string PostUrl = Model.Application.Server.ServerUrl + "/api/Data/Post?entity=" + Model.Entity.Name;
+    string PutUrl = Model.Application.Server.ServerUrl + "/api/Data/Put?entity=" + Model.Entity.Name;
+    if (Model.Entity.Name.Equals("Users"))
+    {
+        NewRecordLabel = "Register user";
+        PostUrl = Model.Application.Server.ServerUrl + "/api/Account/Register";
+    }
+    if (Model.Entity.Name.Equals("Files"))
+    {
+        NewRecordLabel = "Upload";
+        PostUrl = Model.Application.Server.ServerUrl + "/api/Files/Post";
+        PutUrl = Model.Application.Server.ServerUrl + "/api/Files/Put";
+    }
+}
+
+<div class="row clearfix entity-data-wrapper my-4">
+
+    <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+        <h6>@Model.Application.Name - @Model.Entity.Name</h6>
+    </div>
+
+    <hr />
+
+    <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+        <div class="entity-data-wrapper">
+            <div class="body">
+                <button id="btn-refresh-@Model.Entity.ID" type="button" class="btn btn-default" title="Refresh grid">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    <span>Refresh</span>
+                </button>
+                @if (Model.Entity.Name.Equals("Users") || Model.Entity.AllowPost())
+                {
+                    <button id="btn-create-@Model.Entity.ID" type="button" class="btn btn-default">
+                        <i class="bi bi-plus"></i>
+                        <span>@NewRecordLabel</span>
+                    </button>
+                }
+                <div class="btn-group data-more-options-group" role="group">
+                    <button type="button" class="btn btn-default dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <div class="dropdown-menu">
+                        @if (Model.Entity.RequireChangeTracking)
+                        {
+                            <a id="btn-clearallhistory-@Model.Entity.ID" href="#" class="dropdown-item" title="Clear all records history">
+                                Clear history
+                            </a>
+                        }
+                        <a id="btn-exportCSV-@Model.Entity.ID" href="#" class="dropdown-item" title="Export records in CSV file">
+                            Export CSV
+                        </a>
+                    </div>
+                </div>
+                <div class="open_new_tab btn" style="display:none;float:right;" title="Open in a new tab">
+                    <a href="@string.Format("{0}://{1}{2}{3}{4}", Context.Request.Scheme, Context.Request.Host, Context.Request.PathBase, Context.Request.Path, Context.Request.QueryString)" target="_blank"><i class="bi bi-box-arrow-in-up-right"></i></a>
+                </div>
+                <div class="datatable-wrapper mt-2">
+                    <div id="overlay"><div class="loader"></div></div>
+                    <table id="datatable" class="table table-condensed table-hover" style="width:100%">
+                        <thead>
+                            <tr class="header-row">
+                                <th style="width:110px;"></th>
+                                @foreach (var prop in Model.Entity.Properties)
+                                {
+                                    <th><div data-id="@prop.Name" class="sort-item" title="@Utils.GetString(prop.Description)"><span>@prop.Name</span></div></th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="filter-row">
+                                <td><button title="Clear filters" type="button" class="btn-clear-filters btn btn-sm btn-secondary "><i class="bi bi-x"></i></button></td>
+                                @foreach (var prop in Model.Entity.Properties)
+                                {
+                                    <td>
+                                        @switch (prop.TypeID_Enum)
+                                        {
+                                            case PropertyType.Boolean:
+                                                @: <select id="filter_@prop.Name" data-id="@prop.Name" class="boolean_filter"><option value="-1"></option><option value="1">True</option><option value="0">False</option></select>
+                                                break;
+                                            case PropertyType.Number:
+                                                @: <input id="filter_@prop.Name" data-id="@prop.Name" data-operator="equal" class="text_filter" type="number" step="1" @(Utils.GetInt(prop.DecimalPlaces, 0) == 0 ? Html.Raw("onkeypress='return event.charCode >= 48 && event.charCode <= 57'") : new HtmlString("")) />
+                                                break;
+                                            case PropertyType.Date:
+                                                @:<input id="filter_@prop.Name" data-id="@prop.Name" data-operator="equal" class="text_filter" type="text" />
+                                                break;
+                                            case PropertyType.String:
+                                            default:
+                                                @:<input id="filter_@prop.Name" data-id="@prop.Name" data-operator="@(prop.Encrypted ? "equal" : "contains")" class="text_filter" type="text" />
+                                                break;
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="paging-wrapper" class="d-flex justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <span class="me-2 text-nowrap">
+                            page size
+                        </span>
+                        <select id="paging-size" class="form-control form-control-sm">
+                            <option value="15">15</option>
+                            <option value="30">30</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="1000">1000</option>
+                        </select>
+                        <span class="ms-2 text-nowrap">
+                            total records <span id="text-total-records"></span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script type="text/template" id="template-detail-row">
+    <div class="datatable-details-wrapper" style="display:none;">
+        <div class="card rounded-3">
+            <div class="header">
+                <h5>
+                    Record history
+                </h5>
+            </div>
+            <div class="body">
+                <button type="button" class="btn-clear-record-history btn btn-default mb-2" title="Clear record history">
+                    <i class="bi bi-trash"></i>
+                    <span>Clear</span>
+                </button>
+                <table class="table table-condensed table-hover w-100">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Owner</th>
+                            @foreach (var prop in Model.Entity.Properties.Where(x => x.AllowEdit(Model.Application.DifferentiationEntity, Model.Entity.HasDifferentiationProperty)))
+                            {
+                                <th><div data-id="@prop.Name">@prop.Name</div></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</script>
+
+<script type="text/template" id="template-data">
+    <div class="add-table-wrapper">
+        <table class="table add-table">
+
+            @foreach (var prop in Model.Entity.Properties.Where(x => x.AllowEdit(Model.Application.DifferentiationEntity, Model.Entity.HasDifferentiationProperty)))
+            {
+                <tr>
+                    <td class="prop-label">
+                        @prop.Name
+                    </td>
+                    <td>
+                        @switch (prop.TypeID_Enum)
+                        {
+                            case PropertyType.Boolean:
+                                @:<div id="boolean-@prop.Name" class="input-data input-@prop.Name"></div>
+                                break;
+                            case PropertyType.Number:
+                                @:<input id="number-@prop.Name" class="text_input input-data input-@prop.Name" type="number" step="1" @(Utils.GetInt(prop.DecimalPlaces, 0) == 0 ? Html.Raw("onkeypress='return event.charCode >= 48 && event.charCode <= 57'") : new HtmlString("")) />
+                                break;
+                            case PropertyType.Date:
+                                @:<input id="date-@prop.Name" class="text_input input-data  input-@prop.Name" type="text" placeholder="yyyy-MM-dd HH:mm:ss.fff" />
+                                break;
+                            case PropertyType.String:
+                            default:
+                                @:<input id="string-@prop.Name" class="text_input input-data input-@prop.Name" type="text" />
+                                break;
+                        }
+                    </td>
+                </tr>
+            }
+            @if (Model.Entity.Name.Equals("Users"))
+            {
+                <tfoot class="data-post-info">
+                    <tr>
+                        <td colspan="@Model.Entity.Properties.Where(x => x.AllowEdit(Model.Application.DifferentiationEntity, Model.Entity.HasDifferentiationProperty)).Count()">
+                            <div class="alert alert-primary" role="alert">
+                                If the application is set to send a confirmation email on register, the new user will recieve an email in order confirm the email address.
+                                Visit application's <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Email", appid = Model.Application.Token })" target="_blank">Email section</a> for more info.
+                            </div>
+                        </td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+    </div>
+</script>
+
+<script type="text/template" id="template-files">
+    <div class="add-table-wrapper">
+        <table class="table add-table">
+            <tr>
+                <td class="prop-label">
+                    File
+                </td>
+                <td>
+                    <input id="file-upload" type="file" name="FileUpload" class="text_input">
+                </td>
+            </tr>
+            <tr>
+                <td class="prop-label">
+                    UID
+                </td>
+                <td>
+                    <input id="string-UID" class="text_input input-data input-UID" type="text" />
+                </td>
+            </tr>
+            <tr>
+                <td class="prop-label">
+                    Public
+                </td>
+                <td>
+                    <div id="select-file-Public">
+                        <select class="form-control">
+                            <option value="false">False</option>
+                            <option value="true">True</option>
+                        </select>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+</script>
+
+<script id="Refresh" type="text/x-jsrender">
+    <a class="e-toolbaricons e-icon refresh" />
+</script>
+
+<script type="text/x-kendo-template" id="detail_template">
+    <div class="tabstrip">
+        <ul>
+            <li class="k-state-active">
+                Record history
+            </li>
+        </ul>
+        <div>
+            <div class="gridHistory"></div>
+        </div>
+    </div>
+</script>
+
+@section scripts{
+
+    <script type="text/javascript">
+
+        var CurrentFileData = null;
+        var CurrentData = null;
+        var PageIndex = 1;
+        var PageSize = 15;
+        var IsFiles = @IsFiles.ToString().ToLower();
+
+        $.ajaxSetup({
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader('Authorization', 'Bearer @Html.GetPortalUserAuthToken(User.Identity!)');
+                xhr.setRequestHeader('@Globals.ClientIdHeaderName', '@Globals.ClientIdHeaderValuePortal');
+                xhr.setRequestHeader('@Globals.ApplicationTokenHeaderName', '@Model.Application.Token');
+            }
+        });
+
+        if (self !== top) {
+            // you're in an iframe
+            $('.open_new_tab').show();
+        }
+
+        $('#btn-create-@Model.Entity.ID').click(function () {
+            openAddEdit('CREATE');
+        });
+
+        $('#btn-refresh-@Model.Entity.ID').click(function () {
+            RefreshData();
+        });
+
+        $('#btn-select-all-records-@Model.Entity.ID').click(function () {
+            selectAllRecords();
+        });
+
+        $('#btn-exportCSV-@Model.Entity.ID').click(function () {
+            exportGridAsCsv();
+        });
+
+        $('#btn-clearallhistory-@Model.Entity.ID').click(function () {
+            swal({
+                type: 'error',
+                title: 'Confirm delete',
+                text: 'Clear history for entity @Model.Entity.Name?',
+                showCancelButton: true,
+                closeOnConfirm: false,
+                showLoaderOnConfirm: true,
+                confirmButtonText: 'Clear',
+                confirmButtonColor: '#fb483a'
+            }, function (submit) {
+                if (submit) {
+                    $.ajax({
+                        url: '@Model.Application.Server.ServerUrl/api/EntityHistory/Delete?&entity=@Model.Entity.Name',
+                        type: 'DELETE',
+                        success: function () {
+                            RefreshData();
+                            swal.close();
+                        },
+                        error: function (e) {
+                            handleDataError(e);
+                        }
+                    });
+                }
+                return true;
+            });
+        });
+
+        $('.btn-clear-filters').click(function () {
+            $.each($('.text_filter'), function (index, filterElement) {
+                if ($(filterElement).val() != '')
+                    $(filterElement).val('');
+            });
+
+            $.each($('.boolean_filter, .fk_filter'), function (index, filterElement) {
+                var value = $(filterElement).find('option:selected').val();
+                if (value >= 0)
+                    $(filterElement).find('option[value=-1]').prop('selected', true);
+            });
+
+            RefreshData();
+        });
+
+        $('#paging-size').change(function () {
+            PageIndex = 1;
+            PageSize = $('#paging-size option:selected').val();
+            RefreshData();
+        });
+
+        $('.text_filter').bind('input', function(){
+            PageIndex = 1;
+            RefreshData();
+        });
+
+        $('.boolean_filter, .fk_filter').on('change', function () {
+            PageIndex = 1;
+            RefreshData();
+        });
+
+        RefreshData();
+
+        $('.sort-item').click(function () {
+            var ascending = $(this).hasClass('asc');
+            var descending = $(this).hasClass('desc');
+
+            $('.sort-item').removeClass('asc');
+            $('.sort-item').removeClass('desc');
+            $('.sort-item i').remove();
+
+            if (ascending) {
+                $(this).addClass('desc');
+                $(this).append('<i class="bi bi-sort-down"></i>');
+            } else if (descending) {
+                // Do nothing
+            } else {
+                $(this).addClass('asc');
+                $(this).append('<i class="bi bi-sort-up"></i>');
+            }
+
+            RefreshData();
+        });
+
+        function selectAllRecords() {
+            $.each($('.btn-select-record'), function (index, element) {
+                $(element).checked = true;
+                $(element).attr("checked", "true");
+            });
+            if (typeof selectRecordCallback === "function") {
+                selectRecordCallback(-1, true);
+            } else {
+                console.error('Undefined function selectRecordCallback');
+            }
+        }
+
+        function deselectAllRecords() {
+            $.each($('.btn-select-record'), function (index, element) {
+                $(element).checked = false;
+                $(element).removeAttr("checked");
+            });
+            if (typeof selectRecordCallback === "function") {
+                selectRecordCallback(-1, false);
+            } else {
+                console.error('Undefined function selectRecordCallback');
+            }
+        }
+
+        function getSortString() {
+            var sort = null;
+            $.each($('.sort-item'), function (index, sortElement) {
+                var ascending = $(sortElement).hasClass('asc');
+                if (ascending) {
+                    if (sort == null) {
+                        sort = [];
+                    }
+
+                    sort.push({
+                        Property: $(this).data().id,
+                        Direction: "asc"
+                    });
+                }
+
+                var descending = $(sortElement).hasClass('desc');
+                if (descending) {
+                    if (sort == null) {
+                        sort = [];
+                    }
+
+                    sort.push({
+                        Property: $(this).data().id,
+                        Direction: "desc"
+                    });
+                }
+            });
+
+            return sort != null ? JSON.stringify(sort) : '';
+        }
+
+        function getfilterString() {
+            var filter = null;
+            $.each($('.text_filter'), function (index, filterElement) {
+                var value = $(filterElement).val();
+                if (value != null && value != '') {
+                    if (filter == null) {
+                        filter = {
+                            Logic: "and",
+                            Filters: []
+                        };
+                    }
+
+                    filter.Filters.push({
+                        Property: $(this).data().id,
+                        Operator: $(this).data().operator,
+                        Value: value
+                    });
+                }
+            });
+
+            $.each($('.boolean_filter, .fk_filter'), function (index, filterElement) {
+                var value = $(filterElement).find('option:selected').val();
+                if (value != null && value >= 0) {
+                    if (filter == null) {
+                        filter = {
+                            Logic: "and",
+                            Filters: []
+                        };
+                    }
+
+                    filter.Filters.push({
+                        Property: $(this).data().id,
+                        Operator: 'equal',
+                        Value: value
+                    });
+                }
+            });
+
+            if (filter != null) {
+                $('.btn-clear-filters').show();
+                return JSON.stringify(filter);
+            }
+
+            $('.btn-clear-filters').hide();
+            return '';
+        }
+
+        function RefreshData() {
+            $('#overlay').show();
+            $('#datatable').addClass('blurred');
+
+            var filter = getfilterString();
+            var sort = getSortString();
+
+            loadData(filter, sort, function (data) {
+                CurrentData = data;
+
+                // Clear any previous data
+                $('.data-row, .detail-row').remove();
+                $('#paging').remove();
+
+                // Hide overlay
+                $('#overlay').hide();
+
+                $('#datatable').removeClass('blurred');
+                if (data.Data.length == 0) {
+                    $('#datatable tbody').append('<tr class="data-row"><td colspan="@(Model.Entity.Properties.Count + 1)"><div style="text-align:center;color:gray;">No records found!<div></td></tr>');
+                    $('#paging-wrapper').removeClass('d-flex');
+                    $('#paging-wrapper').addClass('d-none');
+                } else {
+
+                    var html = '';
+                    $.each(data.Data, function (index, row) {
+                        html += '<tr class="data-row">';
+
+                        html += '<td>';
+
+                        @if (!IsFiles && Model.Entity.RequireChangeTracking)
+                        {
+                            @: html += '<button title="Record history" data-id="' + row.@PrimaryKey + '" type="button" class="btn-details btn btn-sm btn-outline-secondary my-1"><i class="bi bi-arrow-right-short"></i></button>';
+                        }
+
+                        @if (IsFiles)
+                        {
+                            @: html += '<button title="Download" data-id="' + row.ID + '" type="button" class="btn-download btn btn-sm btn-outline-secondary my-1"><i class="bi bi-download"></i></button>';
+                        }
+
+                        @if (Model.Entity.AllowPut())
+                        {
+                            @: html += '<button title="Edit" data-id="' + row.@PrimaryKey + '" type="button" class="btn-edit btn-edit-@Model.Entity.ID btn btn-sm btn-outline-info my-1"><i class="bi bi-pencil"></i></button>';
+                        }
+
+                        @if (Model.Entity.AllowDelete())
+                        {
+                            @: html += '<button title="Delete" data-id="' + row.@PrimaryKey + '" type="button" class="btn-delete btn-delete-@Model.Entity.ID btn btn-sm btn-outline-danger my-1"><i class="bi bi-trash"></i></button>';
+                        }
+
+                        html += '</td>';
+
+                        @foreach (var prop in Model.Entity.Properties)
+                        {
+                                switch (prop.TypeID_Enum)
+                                {
+                                    case PropertyType.Boolean:
+                                    @:html += row.@prop.Name != null ? '<td class="td-collapsed data-row-@prop.Name">' + row.@prop.Name + '</td>' : '<td><span class="null-value">null<span></td>'
+                                        break;
+                                    case PropertyType.Date:
+                                    @: html += '<td class="td-collapsed data-row-@prop.Name">' + (row.@prop.Name != null ? moment(row.@prop.Name)@(prop.IsOnUTC() ? "" : ".utc()").format('YYYY-MM-DD HH:mm:ss.SSS') : '<span class="null-value">null<span>') + '</td>';
+                                        break;
+                                case PropertyType.Number:
+                                case PropertyType.String:                                    
+                                default:@: html += '<td class="td-collapsed data-row-@prop.Name">' + (row.@prop.Name != null ? $('<div/>').text(row.@prop.Name).html() : '<span class="null-value">null<span>') + '</td>';
+                                    break;
+                            }
+                        }
+
+                        html += '</tr>';
+
+                        @if (Model.Entity.RequireChangeTracking)
+                        {
+                            @: html += '<tr data-id="' + row.@PrimaryKey + '" class="detail-row detail-row-' + row.@PrimaryKey + '"><td colspan="@(Model.Entity.Properties.Count + 1)"><div class="details-wrapper rounded-3"></div></td></tr>';
+                        }
+                    });
+
+                    $('#datatable tbody').append(html);
+
+                    $('#datatable tbody td .btn-select-record').click(function () {
+                        if (typeof selectRecordCallback === "function") {
+                            selectRecordCallback($(this).data().id, this.checked);
+                        } else {
+                            console.error('Undefined function selectRecordCallback');
+                        }
+                    });
+
+                    $('#datatable tbody td.td-collapsed').click(function () {
+                        $(this).toggleClass('td-collapsed');
+                    });
+
+                    $('.btn-edit-@Model.Entity.ID').click(function () {
+                        var itemID = $(this).data().id;
+                        openAddEdit('UPDATE', itemID);
+                    });
+
+                    $('.btn-download').click(function () {
+                        var fileID = $(this).data().id;
+                        var downloadUrl = '@Model.Application.Server.ServerUrl/api/Files/Download?AppToken=@Model.Application.Token&AuthToken=@Html.GetPortalUserAuthToken(User.Identity!)&fileID=' + fileID;
+                        console.log(downloadUrl);
+                        downloadDataUrlFromJavascript(name, downloadUrl);
+                    });
+
+                    $('.btn-delete-@Model.Entity.ID').click(function () {
+                        var itemID = $(this).data().id;
+                        openDelete(itemID);
+                    });
+
+                    $('.btn-details').click(function () {
+                        var itemID = $(this).data().id;
+                        var isVisible = $('.detail-row-' + itemID).hasClass('visible');
+                        var isAlreadyLoaded = $('.detail-row-' + itemID).hasClass('loaded');
+                        if (isVisible) {
+                            $('.detail-row-' + itemID).removeClass('visible');
+                            $(this).removeClass('open');
+                        }
+                        else {
+                            $('.detail-row-' + itemID).addClass('visible');
+                            $(this).addClass('open');
+
+                            // If not loaded previously
+                            if (isAlreadyLoaded == false) {
+                                $('.detail-row-' + itemID).addClass('loaded');
+                                loadRowDetails(itemID, $('.detail-row-' + itemID + ' .details-wrapper'));
+                            }
+                        }
+                    });
+
+                    // Draw paging
+                    var PageCount = Math.ceil(data.Total / PageSize);
+
+                    var htmlPage = `<div id="paging" class="d-flex align-items-center">
+                                    <button title="First page" data-id="1" type="button" class="btn-paging btn btn-default first ${(PageIndex > 1 ? 'enabled' : 'disabled')}"><i class="bi bi-chevron-double-left"></i></button>
+                                    <button title="Previous page" data-id="-1" type="button" class="mx-1 btn-paging btn btn-default page ${(PageIndex > 1 ? 'enabled' : 'disabled')}"><i class="bi bi-chevron-left"></i></button>
+                                    <span class="mx-2 text-muted">page ${PageIndex}/${PageCount}</span>
+                                    <button title="Next page" data-id="1" type="button" class="mx-1 btn-paging btn btn-default page ${(PageIndex < PageCount ? 'enabled' : 'disabled')}"><i class="bi bi-chevron-right"></i></button>
+                                    <button title="Last page" data-id="${PageCount}" type="button" class="btn-paging btn btn-default last ${(PageIndex < PageCount ? 'enabled' : 'disabled')}"><i class="bi bi-chevron-double-right"></i></button>
+                                </div>`;
+
+                    $('#paging-wrapper').prepend(htmlPage);
+                    $('#text-total-records').html(data.Total);
+
+                    $('#paging-wrapper').removeClass('d-none');
+                    $('#paging-wrapper').addClass('d-flex');
+
+                    $('.btn-paging.page.enabled').click(function () {
+                        var add = $(this).data().id;
+                        PageIndex += add;
+                        RefreshData();
+                    });
+
+                    $('.btn-paging.first.enabled, .btn-paging.last.enabled').click(function () {
+                        PageIndex = $(this).data().id;
+                        RefreshData();
+                    });
+                }
+
+            }, function (e) {
+                $('#overlay').hide();
+                $('#datatable').removeClass('blurred');
+                handleDataError(e);
+            });
+        }
+
+        function exportGridAsCsv() {
+
+            // Headers
+            var arrHeaders = [];
+            @foreach (var prop in Model.Entity.Properties)
+            {
+                @: arrHeaders.push('"@prop.Name"');
+            }
+
+            // Data
+            var arrDataRows = [];
+            var dataRows = $('.data-row');
+            $.each(dataRows, function(index, datarow){
+                var arrData = [];
+                @foreach (var prop in Model.Entity.Properties)
+                {
+                    @: arrData.push('"' + $(datarow).find('.data-row-@prop.Name').text().replace('"', '""') + '"');
+                }
+                arrDataRows.push(arrData.join(','));
+            });
+
+            var csvContent = 'data:text/csv;charset=utf-8,' + arrHeaders.join(',') + '\r\n' + arrDataRows.join('\r\n');
+
+            var encodedUri = encodeURI(csvContent);
+            var link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "@Model.Entity.Name" + "_" + moment(new Date()).format('YYYY_MM_DD_HH_mm_ss') + ".csv");
+            link.innerHTML= "";
+            document.body.appendChild(link); // Required for FF
+
+            link.click(); // This will download the data file named "my_data.csv".
+        }
+
+        //function getForeignKeyValue(FK_Entity_Data, FKID) {
+        //    var result = '<span class="null-value">null<span>';
+        //    $.each(FK_Entity_Data, function (index, value) {
+        //        if (value.value != '' && value.value == FKID) {
+        //            result = value.text;
+        //            return false;
+        //        }
+        //    });
+
+        //    return result;
+        //}
+
+        function loadRowDetails(itemID, $wrapper) {
+            $wrapper.html($('#template-detail-row').html());
+            var $tablewrapper = $wrapper.find('.datatable-details-wrapper');
+            var $tablebody = $wrapper.find('table tbody');
+
+            $.ajax({
+                url: '@Model.Application.Server.ServerUrl/api/EntityHistory/Get?entity=@Model.Entity.Name&pageIndex=1&pageSize=100&recordID=' + itemID,
+                type: 'GET',
+                dataType: 'json',
+                contentType: 'application/json; charset=utf-8',
+                success: function (data) {
+
+                    if (data.Data.length == 0) {
+                        $tablewrapper.html('<div class="no-records-found">No history records found</div>');
+                        $tablewrapper.fadeIn();
+                        return;
+                    }
+
+                    var html = '';
+
+                    $.each(data.Data, function (index, historyrow) {
+                        var row = JSON.parse(historyrow.Data);
+                        html += '<tr>';
+                        html += '<td>' + convertUnixDateToDateTime(historyrow.Created, false) + '</td>';
+                        html += '<td>' + historyrow.Owner + '</td>';
+                        @foreach (var prop in Model.Entity.Properties.Where(x => x.AllowEdit(Model.Application.DifferentiationEntity, Model.Entity.HasDifferentiationProperty)))
+                        {
+                            switch (prop.TypeID_Enum)
+                            {
+                                case PropertyType.Boolean:
+                                    @:html += row.@prop.Name != null ? '<td>' + row.@prop.Name + '</td>' : '<td><span class="null-value">null<span></td>'
+                                    break;
+                                case PropertyType.Date:
+                                    @: html += '<td>' + (row.@prop.Name != null ? moment(row.@prop.Name)@(prop.IsOnUTC() ? "" : ".utc()").format('YYYY-MM-DD HH:mm:ss.SSS') : '<span class="null-value">null<span>') + '</td>';
+                                    break;
+                                case PropertyType.Number:
+                                case PropertyType.String:
+                                default:
+                                    @: html += '<td>' + (row.@prop.Name != null ? row.@prop.Name : '<span class="null-value">null<span>') + '</td>';
+                                    break;
+                            }
+                        }
+                        html += '</tr>';
+                    });
+
+                    $tablebody.append(html);
+                    $tablewrapper.fadeIn();
+
+                    $tablewrapper.find('.btn-clear-record-history').click(function () {
+                        $.ajax({
+                            url: '@Model.Application.Server.ServerUrl/api/EntityHistory/Delete?entity=@Model.Entity.Name&recordID=' + itemID,
+                            type: 'DELETE',
+                            success: function (data) {
+                                loadRowDetails(itemID, $wrapper);
+                            },
+                            error: function (e) {
+                                handleDataError(e);
+                            }
+                        });
+                    });
+                },
+                error: function (e) {
+                    handleDataError(e);
+                }
+            });
+        }
+
+        function openDelete(itemID) {
+            swal({
+                type: 'error',
+                title: 'Confirm delete',
+                text: 'Delete record ' + itemID + '?',
+                showCancelButton: true,
+                closeOnConfirm: false,
+                showLoaderOnConfirm: true,
+                confirmButtonText: 'Delete',
+                confirmButtonColor: '#fb483a'
+            }, function (submit) {
+                if (submit) {
+                    $.ajax({
+                        url: '@Model.Application.Server.ServerUrl/api/@(IsFiles ? "Files" : "Data" )/Delete?@Html.Raw(IsFiles ? "" : "&entity=" + Model.Entity.Name)&ids=' + itemID,
+                        type: 'DELETE',
+                        dataType: 'json',
+                        contentType: 'application/json; charset=utf-8',
+                        success: function (data) {
+                            PageIndex = 1;
+                            RefreshData();
+                            swal.close();
+                        },
+                        error: function (e) {
+                            handleDataError(e);
+                        }
+                    });
+                }
+                return true;
+            });
+        }
+
+        function openAddEdit(action, itemID) {
+
+            CurrentFileData = null;
+
+            var title = '';
+            var btnTitle = '';
+
+            if (action == 'CREATE') {
+                title = 'New record for @Model.Entity.Name';
+                btnTitle = (IsFiles ? 'Upload' : 'Create');
+            } else { // UPDATE
+                title = 'Edit record ' + itemID;
+                btnTitle = 'Update';
+            }
+
+            swal({
+                title: title,
+                text: $(IsFiles ? '#template-files' : '#template-data').html(),
+                showCancelButton: true,
+                closeOnConfirm: false,
+                showLoaderOnConfirm: true,
+                html: true,
+                confirmButtonText: btnTitle,
+                confirmButtonColor: '#4CAF50'
+            }, function (submit) {
+                $('.inpIsPortalRequestHeaderNameIsPortalRequestHeaderNamet-data').removeClass('border-red');
+                if (submit) {
+                    var data = {
+                        @if (IsFiles)
+                        {
+                            <text>
+                            UID: $('#string-UID').val(),
+                            Public: $('#select-file-Public select option:selected').val()
+                            </text>
+                        }
+                        else
+                        {
+                            foreach (var prop in Model.Entity.Properties.Where(x => x.AllowEdit(Model.Application.DifferentiationEntity, Model.Entity.HasDifferentiationProperty)))
+                            {
+                                switch (prop.TypeID_Enum)
+                                {
+                                    case PropertyType.Boolean:
+                                        @: @prop.Name: $('#boolean-@prop.Name select option:selected').val() >= 0 ? $('#boolean-@prop.Name select option:selected').val() : null,
+                                        break;
+                                    case PropertyType.Number:
+                                        @: @prop.Name: $('#number-@prop.Name').val() != '' ? $('#number-@prop.Name').val() : null,
+                                        break;
+                                    case PropertyType.Date:
+                                        @: @prop.Name: $('#date-@prop.Name').val() != '' ? $('#date-@prop.Name').val() : null,
+                                        break;
+                                    case PropertyType.String:
+                                    default:
+                                        @: @prop.Name: $('#string-@prop.Name').val() != '' ? $('#string-@prop.Name').val() : null,
+                                        break;
+                                }
+                            }
+                        }
+                    };
+
+                    if (IsFiles && action == 'CREATE')
+                    {
+                        if (CurrentFileData != null) {
+
+                            $('#file-upload').fileupload('option', 'url', '@Html.Raw(PostUrl)?UID=' + data.UID + '&Public=' + data.Public);
+
+                            CurrentFileData.submit();
+
+                        } else {
+                            swal.showInputError('No file selected');
+                        }
+                    }
+                    else
+                    {
+                        var url = '';
+                        var method = '';
+                        if (action == 'CREATE') {
+                            method = 'POST';
+                            url = '@Html.Raw(PostUrl)';
+                        }
+                        else if (action == 'UPDATE') {
+                            data.@PrimaryKey = itemID;
+                            method = 'PUT';
+                            url = '@Html.Raw(PutUrl)';
+                        }
+
+                        $.ajax({
+                            url: url,
+                            type: method,
+                            data: JSON.stringify(data),
+                            dataType: 'json',
+                            contentType: 'application/json',
+                            success: function (data) {
+                                PageIndex = 1;
+                                RefreshData();
+                                swal.close();
+                            },
+                            error: function (e) {
+                                handleDataError(e);
+                            }
+                        });
+                    }
+                }
+
+                return true;
+            });
+
+            if (action == 'CREATE') {
+                $('.data-post-info').show();
+            } else { // UPDATE
+                $('.data-post-info').hide();
+            }
+
+            var ItemToEdit = null;
+
+            if (action == 'UPDATE') {
+                $.each(CurrentData.Data, function (index, item) {
+                    if (item.@PrimaryKey == itemID) {
+                        ItemToEdit = item;
+                        return false;
+                    }
+                });
+            }
+
+            if (IsFiles && action == 'CREATE')
+            {
+                $('#file-upload').fileupload({
+                    url: '',
+                        type: 'POST',
+                        autoUpload: false,
+                        sequentialUploads: true,
+                        replaceFileInput: false,
+                        fileInput: $("input:file"),
+                        done: function (e, data) {
+                        swal.close();
+                        RefreshData();
+                    },
+                        fail: function (e, data) {
+                            $('.file-progress').hide();
+                        if (data.errorThrown) {
+                            try {
+                                handleDataError({ xhr: { responseText: data.errorThrown } });
+                            } catch (err) {
+                                swal.showInputError(data.errorThrown);
+                            }
+                        } else {
+                            swal.showInputError('Error');
+                        }
+                    },
+                    add: function (e, data) {
+                        $('#file-upload-name').val(data.files[0].name);
+                        CurrentFileData = null;
+                        if (data.files[0].size > @(Model.Application.MaxAllowedFileSizeInKB * 1000)) {
+                            swal.showInputError('Maximum file size @Model.Application.MaxAllowedFileSizeInKB KB');
+                        } else {
+                            CurrentFileData = data;
+                            $('#string-Name').val(CurrentFileData.files[0].name);
+                        }
+                    },
+                        progressall: function (e, data) {
+                            $('.file-progress').show();
+                        var progress = parseInt(data.loaded / data.total * 100, 10);
+                            $('.file-progress .progress-bar').css('width', progress + '%');
+                    }
+                });
+            }
+            else
+            {
+                @foreach(var prop in Model.Entity.Properties.Where(x => x.AllowEdit(Model.Application.DifferentiationEntity, Model.Entity.HasDifferentiationProperty)))
+                {
+                    switch (prop.TypeID_Enum)
+                    {
+                        case PropertyType.Boolean:
+                            @: createSelectInput([{ value: null, text: '-- select --'}, { value: 1, text: 'true'}, { value: 0, text: 'false'}], ItemToEdit != null ? ItemToEdit.@prop.Name : null, $('#boolean-@prop.Name'));
+                            break;
+                        case PropertyType.Number:
+                            @: $('#number-@prop.Name').val(ItemToEdit != null ? ItemToEdit.@prop.Name : '');
+                            break;
+                        case PropertyType.Date:
+                            @: $('#date-@prop.Name').val(ItemToEdit != null ? convertUnixDateToDateTime(ItemToEdit.@prop.Name, true) : convertUnixDateToDateTime(new Date(), false));
+                            break;
+                        case PropertyType.String:
+                        default:
+                            @: $('#string-@prop.Name').val(ItemToEdit != null ? ItemToEdit.@prop.Name : '');
+                            break;
+                    }
+                }
+            }
+        }
+
+        function createSelectInput(FK_Entity_Data, FKID, $element) {
+            var html = '<select class="form-control">';
+            $.each(FK_Entity_Data, function (index, value) {
+                html += '<option value="' + value.value + '" ' + (value.value == FKID ? 'selected' : '') + '>' + value.text + '</option>';
+            });
+            html += '</select>';
+
+            $element.html(html);
+        }
+
+        function convertUnixDateToDateTime(unixDate, convertToLocal) {
+            if (unixDate == null || unixDate <= 0) {
+                return null;
+            }
+
+            if (convertToLocal == true) {
+                var momentObj = moment(new Date(unixDate)).utc();
+                return momentObj.format('YYYY-MM-DD HH:mm:ss.SSS');
+            }
+
+            var momentObj = moment(new Date(unixDate));
+            return moment(new Date(unixDate)).format('YYYY-MM-DD HH:mm:ss.SSS');
+        }
+
+        function loadData(Filter, Sort, callback, errorCallback) {
+            $.ajax({
+                url: '@Model.Application.Server.ServerUrl/api/' + (IsFiles ? 'Files' : 'Data') + '/Get?apptoken=@Model.Application.Token&properties=' + (IsFiles ? '' : '&entity=@Model.Entity.Name') + '&relationships=&pageIndex=' + PageIndex + '&pageSize=' + PageSize + '&filter=' + encodeURIComponent(Filter) + '&sort=' + Sort + '&getTotal=true',
+                type: 'GET',
+                dataType: 'json',
+                contentType: 'application/json; charset=utf-8',
+                success: function (data) {
+                    if (callback)
+                        callback(data);
+                },
+                error: function (e) {
+                    if (errorCallback)
+                        errorCallback(e);
+                    else
+                        handleDataError(e);
+                }
+            });
+        }
+
+        function downloadDataUrlFromJavascript(filename, dataUrl) {
+            // Construct the 'a' element
+            var link = document.createElement("a");
+            link.download = filename;
+            link.target = "_blank";
+
+            // Construct the URI
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+
+            // Cleanup the DOM
+            document.body.removeChild(link);
+            delete link;
+        }
+
+        function getErrorJSON(e) {
+            if (e.responseJSON) {
+                return e.responseJSON;
+            }
+            else if (e.xhr && e.xhr.responseText) {
+                return JSON.parse(e.xhr.responseText);
+            }
+
+            return null;
+        }
+
+        function handleDataError(e) {
+
+            if (e.readyState === 0)// If cancelled
+                return;
+
+            if (e.status != null && e.status == @((int)System.Net.HttpStatusCode.Unauthorized)) {
+                //location.href = '@Url.Action("Login", "Account", new { returnUrl = Context.Request.Path })';
+            } else {
+                var jsonerror = getErrorJSON(e);
+                if (jsonerror != null) {
+                    if (jsonerror.Property != null) {
+                        $('.input-' + jsonerror.Property).addClass('border-red');
+                    }
+                    displayErrorToUser(jsonerror.Message);
+                } else {
+                    if (e.xhr && e.xhr.responseText) {
+                        displayErrorToUser(e.xhr.responseText);
+                    }
+                    else if (e.responseText) {
+                        displayErrorToUser(e.responseText);
+                    }
+                    else if (e.statusText) {
+                        displayErrorToUser(e.statusText);
+                    }
+                }
+            }
+        }
+
+        function displayErrorToUser(msg) {
+            if ($(".sweet-alert.visible").length > 0) {
+                swal.showInputError(msg);
+            } else {
+                $('#datatable tbody').append('<tr class="data-row"><td colspan="@(Model.Entity.Properties.Count + 1)"><div style="text-align:center;color:red;">' + msg + '<div></td></tr>');
+            }
+        }
+
+        function convertUTCDateToLocalDate(date) {
+            var newDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+            var offsetHours = date.getTimezoneOffset() / 60;
+            return newDate;
+        }
+
+    </script>
+}

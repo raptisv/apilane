@@ -1,0 +1,169 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common.Models;
+@using Apilane.Common;
+@using Apilane.Common.Utilities;
+@using Apilane.Common.Enums;
+@using Apilane.Portal.Abstractions;
+@using Microsoft.AspNetCore.Http;
+@inject IPortalSettingsService _portalSettingsService;
+@{
+    string SelectedAppToken = Html.GetAppToken();
+    string SelectedEntity = Html.GetEntName();
+    string SelectedPropery = Html.GetPropName();
+    string Controller = Html.Controller();
+    string Action = Html.Action();
+
+    var Applications = (List<DBWS_Application>)ViewBag.Applications;
+    var isDarkTheme = Html.IsDarkTheme(Context.Request);
+    var isAdmin = User.IsInRole(Globals.AdminRoleName);
+    var settings = _portalSettingsService.Get();
+}
+
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="@(isDarkTheme ? "dark" : "light")">
+<head>
+    <title>@settings.InstanceTitle | @ViewBag.Title</title>
+    <meta name="robots" content="noindex">
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="IE=edge,chrome=1">
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico">
+    <link rel="stylesheet" href="~/site.min.css?v=@Html.AssemblyVersion()">
+    <link rel="stylesheet" href="~/assets/vendor/sweetalert/@(isDarkTheme ? "sweetalert2.dark.css" : "sweetalert2.css")?v=@Html.AssemblyVersion()">
+
+    @RenderSection("styles", required: false)
+</head>
+<body>
+    <div class="navbar navbar-expand-lg fixed-top">
+        <div class="container">
+            <img src="~/favicon.ico" class="me-3 app-logo" />
+            <a href="@Url.Action("Index", "Applications")" class="navbar-brand">@settings.InstanceTitle</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarResponsive">
+                <ul class="navbar-nav">
+                    @if (Applications.Any())
+                    {
+                        var groupedByServer = Applications.GroupBy(x => x.Server);
+
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" id="dropdown-apps">Applications</a>
+                            <div class="dropdown-menu" aria-labelledby="dropdown-apps">
+                                @for (int i = 0; i < groupedByServer.Count(); i++)
+                                {
+                                    if (i > 0 && i < groupedByServer.Count())
+                                    {
+                                        <hr />
+                                    }
+                                    if (groupedByServer.ElementAt(i).Count() > 0)
+                                    {
+                                        <b class="dropdown-item no-hover fw-bold pe-none">
+                                            @groupedByServer.ElementAt(i).Key.Name
+                                        </b>
+                                        @foreach (var app in groupedByServer.ElementAt(i))
+                                        {
+                                            <a class="dropdown-item" href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = app.Token })">@app.Name</a>
+                                        }
+                                    }
+                                }
+                            </div>
+                        </li>
+                    }
+                    @if (isAdmin)
+                    {
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" id="dropdown-admin">Admin</a>
+                            <div class="dropdown-menu" aria-labelledby="dropdown-admin">
+                                <a class="dropdown-item" href="@Url.Action("Servers", "Admin")"><i class="bi bi-hdd-rack me-2"></i>Servers</a>
+                                <a class="dropdown-item" href="@Url.Action("Users", "Admin")"><i class="bi bi-person me-2"></i>Users</a>
+                                <a class="dropdown-item" href="@Url.Action("UserApplications", "Admin")"><i class="bi bi-window me-2"></i>Applications</a>
+                                <a class="dropdown-item" href="@Url.Action("Settings", "Admin")"><i class="bi bi-gear me-2"></i>Settings</a>
+                                <hr />
+                                <a class="dropdown-item" href="@Url.Action("BackupDatabase",  "Admin")"><i class="bi bi-download me-2"></i>Backup database</a>
+                            </div>
+                        </li>
+                    }
+                </ul>
+                <ul class="navbar-nav ms-md-auto">
+                    <li class="nav-item me-2">
+                        <a class="nav-link d-flex align-items-center" href="https://github.com/raptisv/apilane" target="_blank">
+                            <span><i class="bi bi-github me-2"></i>@("v" + Html.AssemblyVersion())</span>
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown me-2">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="theme-menu" aria-expanded="false" data-bs-toggle="dropdown" data-bs-display="static" aria-label="Toggle theme">
+                            <i class="bi bi-circle-half"></i>
+                            <span class="d-lg-none ms-2">Toggle theme</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="light" aria-pressed="false">
+                                    <i class="bi bi-sun-fill"></i><span class="ms-2">Light</span>
+                                </button>
+                            </li>
+                            <li>
+                                <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="dark" aria-pressed="true">
+                                    <i class="bi bi-moon-stars-fill"></i><span class="ms-2">Dark</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" aria-expanded="false" data-bs-toggle="dropdown" data-bs-display="static">
+                            <i class="bi bi-person-circle"></i>
+                            <span class="d-lg-none ms-2">@User.Identity!.GetUserEmail()</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a href="@Url.Action("ChangePassword", "Manage")" class="dropdown-item d-flex align-items-center">
+                                    <i class="bi bi-key me-1"></i><span class="ms-2">Change password</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="@Url.Action("LogOff", "Account")" class="dropdown-item d-flex align-items-center">
+                                    <i class="bi bi-box-arrow-right me-1"></i><span class="ms-2">Sign out</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+
+        @RenderBody()
+
+        <footer id="footer">
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="pt-3">
+                        <a target="_blank" href="https://apilane.com" class="ms-2">Apilane © @DateTime.Now.Year</a>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script type="text/javascript" src="~/site.min.js?v=@Html.AssemblyVersion()"></script>
+    <script type="text/javascript">
+        var UrlSiteBase = '@(Context.Request.Scheme + "://" + Context.Request.Host + Context.Request.PathBase)';
+        @foreach (var app in Applications)
+        {
+            @:loadApplicationDisplayToken(@app.ID, '@app.Token', '@(app.EncryptionKey.Decrypt(Globals.EncryptionKey))');
+        }
+
+            jQuery.fn.addHidden = function (name, value) {
+                return this.each(function () {
+                    var input = $("<input>").attr("type", "hidden").attr("name", name).val(value);
+                    $(this).append($(input));
+                });
+            };
+    </script>
+    @RenderSection("scripts", required: false)
+    @Html.PageScripts()
+</body>
+</html>

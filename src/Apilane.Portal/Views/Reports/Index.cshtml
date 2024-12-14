@@ -1,0 +1,106 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common.Models;
+@model (DBWS_Application Application, List<DBWS_ReportItem> Reports)
+
+@{
+    ViewBag.Title = "Reports";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Model.Application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Model.Application.Token })">@Model.Application.Name</a></li>
+                        <li class="breadcrumb-item active">Reports</li>
+                    </ol>
+                </nav>
+            </div>
+
+            @{
+                await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Model.Application);
+            }
+
+            <div>
+                <a href="@Url.RouteUrl("AppRoute", new {controller = "Reports", action = "Create", appid = Html.GetAppToken() })" class="btn btn-primary"><i class="bi bi-plus me-1"></i>New report</a>
+            </div>
+
+            <div id="report-grid" class="report-grid row clearfix">
+                @foreach (var report in Model.Reports.OrderBy(x => x.Order))
+                {
+                    var entity = Model.Application.Entities.Single(e => e.Name.Equals(report.Entity));
+                    await Html.RenderPartialAsync("Report", (report, entity, Model.Application.Token, Model.Application.Server.ServerUrl));
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts{
+    <script type="text/javascript">
+
+        $("#report-grid").sortable({
+            connectWith: ".grid-report",
+            handle: ".card .card-header h5",
+            placeholder: "placeholder",
+            start: function (e, ui) {
+
+                var classes = ui.item.attr('class').split(/\s+/);
+                for(var x=0; x<classes.length;x++){
+                    if (classes[x].indexOf("col")>-1){
+                    ui.placeholder.addClass(classes[x]);
+                   }
+                 }
+
+                ui.placeholder.css({
+                  width: ui.item.innerWidth() - 30,
+                  height: ui.item.innerHeight() - 15,
+                  padding: ui.item.css("padding"),
+                  marginTop: 0
+                });
+
+                //ui.placeholder.width(ui.item.find('.card').width());
+                //ui.placeholder.height(ui.item.find('.card').height());
+                //ui.placeholder.addClass(ui.item.attr("class"));
+            },
+            stop : function(event, ui){
+                var IDs = $("#report-grid").sortable(
+                'toArray',
+                {
+                    attribute: 'id'
+                });
+
+                $.ajax({
+                    url: `/App/@(Model.Application.Token)/Reports/Reorder?reportsOrder=${(IDs.join())}`,
+                    type: 'GET',
+                    success: function (data) {
+
+                    },
+                    error: function (e) {
+                        // Do nothing?
+                    }
+                });
+            }
+        });
+        $("#report-grid").disableSelection();
+
+    </script>
+}
+
+<style>
+
+    .placeholder {
+        margin-top: 1.5rem !important;
+        margin-bottom: 15px !important;
+        margin-left: 0 !important;
+        border: 1px solid #ccc;
+        background-color: whitesmoke;
+        -webkit-box-shadow: 0px 0px 10px #888;
+        -moz-box-shadow: 0px 0px 10px #888;
+        box-shadow: 0px 0px 10px #888;
+    }
+</style>

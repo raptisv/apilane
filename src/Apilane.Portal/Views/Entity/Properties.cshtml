@@ -1,0 +1,79 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Models;
+@using Microsoft.AspNetCore.Http;
+@using Microsoft.AspNetCore.Authorization;
+@model List<DBWS_EntityProperty>
+@{
+    ViewBag.Title = "Properties";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    DBWS_Application Application = (DBWS_Application)ViewBag.Application;
+    DBWS_Entity Entity = ViewBag.Entity;
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = Application.Token })">@Application.Name</a></li>
+                        <li class="breadcrumb-item active">@Entity.Name</li>
+                    </ol>
+                </nav>
+            </div>
+
+            @{
+                await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Application);
+            }
+
+            <div class="d-flex justify-content-start align-items-center mb-4">
+                <a href="@(Entity.AllowAddProperties() ? Url.RouteUrl("EntRoute", new {controller = "Entity", action = "PropertyCreate", appid = Application.Token, entid = Entity.Name }) : "#")" class="btn btn-primary"><span class="bi bi-plus me-1"></span>New property</a>
+                <a title="@Entity.Name data" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Data", appid = Html.GetAppToken(), entid = Entity.Name, inFrame = true })" class="ms-2 btn btn-default iframe-link-popup"><i class="bi bi-database"></i></a>
+            </div>
+
+            <div class="row clearfix">
+                <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                    @if (Entity.AllowAddProperties())
+                    {
+                        <div class="card mb-4 bg-transparent">
+                            <h4 class="card-header d-flex">
+                                Custom properties
+                            </h4>
+                            <div class="card-body">
+                                @if (Model.Where(x => x.IsSystem == false).Count() > 0)
+                                {
+                                    await Html.RenderPartialAsync("~/Views/Property/IndexPartial.cshtml", Model.Where(x => x.IsSystem == false).ToList());
+                                }
+                                else
+                                {
+                                    <div class="text-center text-muted">
+                                        No data
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div class="card bg-transparent">
+                        <h4 class="card-header">
+                            System properties
+                        </h4>
+                        <div class="card-body">
+                            @{
+                                await Html.RenderPartialAsync("~/Views/Property/IndexPartial.cshtml", Model.Where(x => x.IsSystem).ToList());
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+

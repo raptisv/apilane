@@ -1,0 +1,610 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common.Extensions;
+@using Apilane.Common.Utilities;
+@using Apilane.Common.Enums;
+@using Apilane.Common.Models;
+@using Apilane.Common;
+@using Microsoft.AspNetCore.Http;
+@model (List<DBWS_Application> Applications, List<DBWS_Server> Servers)
+@{
+    ViewBag.Title = "Applications";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var isDarkTheme = Html.IsDarkTheme(Context.Request);
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+
+            <div class="mb-4">
+                <div class="btn-group" role="group" aria-label="Button group with nested dropdown">
+                    <a href="@Url.Action("Create", "Applications")" class="btn btn-primary"><i class="bi bi-plus me-1"></i>New application</a>
+
+                    <div class="btn-group" role="group">
+                        <button id="btnGroupDrop1" type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                        <div class="dropdown-menu" aria-labelledby="btnGroupDrop1" style="">
+                            <a href="@Url.Action("Import", "Applications")" class="dropdown-item"><i class="bi bi-upload me-2"></i>Import</a>
+                        </div>
+                    </div>
+                </div>                
+            </div>
+
+            @foreach (var server in Model.Servers)
+            {
+                if (Model.Applications.Any(x => x.ServerID == server.ID))
+                {
+                    <div class="mb-4 bg-body-tertiary d-flex justify-content-start align-items-center p-3 rounded-2">
+
+                        <div class="card-header d-flex align-items-center">
+                            <div class="online-indicator online-indicator-@server.ID">
+                                <span class="blink"></span>
+                            </div>
+                            <div class="ms-3">
+                                <a href="#" class="text-decoration-none btn-server-check-health" data-url="@(server.ServerUrl.ToLower().Trim('/'))">
+                                    <h6 class="mb-0">@server.Name</h6>
+                                </a>
+                                <span class="text-muted fs-sm">@server.ServerUrl</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row clearfix">
+                        @foreach (var app in Model.Applications.Where(x => x.ServerID == server.ID))
+                        {
+                            <div class='col-12 col-lg-4 col-md-6'>
+
+                                <div class="card mb-4">
+
+                                    <div class="card-header d-flex align-items-center">
+                                        <span class="avatar text-bg-primary avatar-lg fs-5">@app.Name.ToUpper().First()</span>
+                                        <div class="ms-3">
+                                            <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = app.Token })" class="text-decoration-none">
+                                                <h6 class="mb-0">@app.Name</h6>
+                                            </a>
+                                            <span class="text-muted fs-sm">
+                                                @(EnumProvider<DatabaseType>.GetDisplayValue(((DatabaseType)app.DatabaseType)))
+                                            </span>
+                                        </div>
+                                        <div class="dropstart ms-auto">
+                                            <button class="btn text-muted" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="i bi-three-dots-vertical"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <a href="#" class="dropdown-item swal-display-token-@app.ID">
+                                                        <i class="bi bi-info-circle me-2"></i>Info
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="@(app.Server.ServerUrl.ToLower().Trim('/'))/swagger/index.html" class="dropdown-item" target="_blank">
+                                                        <i class="bi bi-box-arrow-up-right me-2"></i>Swagger
+                                                    </a>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <a href="#" class="dropdown-item compare-application-@app.Token">
+                                                        <i class="bi bi-layout-split me-2"></i>Compare
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div class="card-body">                                        
+                                        <ul class="list-group list-group-flush bg-transparent border-0">
+                                            <li class="fs-sm list-group-item bg-transparent px-0">
+                                                @if (app.Online)
+                                                {
+                                                    <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "SetStatus", appid = app.Token })" class="text-success text-decoration-none">
+                                                        Online
+                                                    </a>
+                                                }
+                                                else
+                                                {
+                                                    <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "SetStatus", appid = app.Token })" class="text-danger text-decoration-none">
+                                                        Offline
+                                                    </a>
+                                                }
+                                            </li>
+                                            <li class="fs-sm list-group-item bg-transparent px-0">
+                                                Differentiation
+                                                @if (string.IsNullOrWhiteSpace(app.DifferentiationEntity))
+                                                {
+                                                    <span class="text-muted">none</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">@app.DifferentiationEntity</span>
+                                                }
+                                            </li>
+                                            <li class="fs-sm list-group-item bg-transparent px-0">
+                                                @if (app.UserID != User.Identity!.GetUserId())
+                                                {
+                                                    <text>
+                                                        Shared by @app.AdminEmail
+                                                    </text>
+                                                }
+                                                else
+                                                {
+                                                    <text>
+                                                        Shared with @app.Collaborates.Count
+                                                    </text>
+                                                }
+                                            </li>
+                                        </ul>
+                                    </div>                                    
+
+                                    <div class="card-footer d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = app.Token })" class="btn btn-sm btn-default" title="Entities">
+                                                <i class="bi bi-gear"></i>
+                                            </a>
+                                            <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Security", appid = app.Token })" class="btn btn-sm btn-default" title="Security">
+                                                <i class="bi bi-lock"></i>
+                                            </a>
+                                            <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "DataBrowser", appid = app.Token })" class="btn btn-sm btn-default" title="Data browser">
+                                                <i class="bi bi-database"></i>
+                                            </a>
+                                            <div class="btn-group">
+                                                <button class="btn btn-sm dropdown-toggle btn-default" type="button" data-bs-toggle="dropdown">
+                                                    <i class="bi bi-three-dots"></i>
+                                                </button>
+                                                <ul class="dropdown-menu">
+                                                    <li>
+                                                        <a href="@Url.RouteUrl("AppRoute", new {controller = "CustomEndpoints", action = "Index", appid = app.Token })" class="dropdown-item">
+                                                            <i class="bi bi-arrow-up-right-square me-2"></i>Custom
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Email", appid = app.Token })" class="dropdown-item">
+                                                            <i class="bi bi-envelope me-2"></i>Email
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="@Url.RouteUrl("AppRoute", new {controller = "Reports", action = "Index", appid = app.Token })" class="dropdown-item">
+                                                            <i class="bi bi-graph-up me-2"></i>Reports
+                                                        </a>
+                                                    </li>
+                                                    @if (app.UserID == User.Identity!.GetUserId())
+                                                    {
+                                                        <li>
+                                                            <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Collaborate", action = "Index" })" class="dropdown-item">
+                                                                <i class="bi bi-people me-2"></i>Share
+                                                            </a>
+                                                        </li>
+                                                    }
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li>
+                                                        <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Application", action = "Clone" })" class="dropdown-item">
+                                                            <i class="bi bi-copy me-2"></i>Clone
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Application", action = "Rebuild" })" class="dropdown-item">
+                                                            <i class="bi bi-wrench me-2"></i>Rebuild
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="#" class="dropdown-item export-application-@app.Token">
+                                                            <i class="bi bi-cloud-arrow-down me-2"></i>Export
+                                                        </a>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li>
+                                                        <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Edit", appid = app.Token })" class="dropdown-item">
+                                                            <i class="bi bi-pen me-2"></i>Edit
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "SetStatus", appid = app.Token })" class="dropdown-item">
+                                                            <i class="@(app.Online ? "bi bi-lightbulb" : "bi bi-lightbulb-off") me-2"></i>@(app.Online ? "Go offline" : "Go online")
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Application", action = "Delete" })" class="dropdown-item">
+                                                            <i class="bi bi-trash me-2"></i>Delete
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="list-group-item storage_@app.ID" id="storage_@app.ID" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-original-title="Size on disk">
+                                            <div class="spinner-border spinner-border-sm">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="modal-application-compare" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Application comparison</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div id="modal-application-compare-body" class="modal-body">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-subtle" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+@section scripts {
+    <script type="text/javascript">
+
+        function bindExportBtn(appToken, serverUrl) {
+            $(`.export-application-${appToken}`).click(function () {
+                $.ajax({
+                    url: serverUrl + '/api/Application/Export',
+                    type: 'GET',
+                    beforeSend: function (request) {
+                        request.setRequestHeader('Authorization', 'Bearer @Html.GetPortalUserAuthToken(User.Identity!)');
+                        request.setRequestHeader('@Globals.ClientIdHeaderName', '@Globals.ClientIdHeaderValuePortal');
+                        request.setRequestHeader('@Globals.ApplicationTokenHeaderName', appToken);
+                    },
+                    xhrFields: {
+                        responseType: 'blob'
+                    },
+                    success: function (data) {
+                        var a = document.createElement('a');
+                        var url = window.URL.createObjectURL(data);
+                        a.href = url;
+                        a.download = `${appToken}.zip`;
+                        document.body.append(a);
+                        a.click();
+                        a.remove();
+                        window.URL.revokeObjectURL(url);
+                    }
+                });
+            });
+        }
+
+        function bindCompareBtn(appToken, appName) {
+            $(`.compare-application-${appToken}`).click(function () {
+
+                var allApps = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Servers.ToDictionary(k => k.Name, v => Model.Applications.Where(x => x.ServerID == v.ID).ToDictionary(k => k.Token, v => v.Name))));
+
+                Swal.fire({
+                    html: `Select application to compare to<br/><b>${appName}</b>`,
+                    input: "select",
+                    inputOptions: allApps,
+                    inputPlaceholder: "Select application",
+                    showCancelButton: true,
+                    confirmButtonText: 'Compare',
+                    buttonsStyling: false,
+                    customClass: {
+                        confirmButton: 'btn btn-primary',
+                        cancelButton: 'btn',
+                        input: 'form-control mx-auto my-8 w-75'
+                    },
+                    inputValidator: (value) => {
+                        return new Promise((resolve) => {
+
+                            if (value.trim() == ''){
+                                resolve("Select an application to compare to");
+                                return;
+                            }
+
+                            if (value.trim() == appToken){
+                                resolve("Cannot compare to self");
+                                return;
+                            }
+
+                            compareApplications(appToken, value.trim(), function (comparison) {
+
+                                var htmlChanges = '';
+
+                                $.each(comparison.Entities.Added, function(index, value){
+                                    htmlChanges += `<div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-entity-add-${index}">
+                                                        <i class="bi bi-plus-square text-success fs-4 me-4"></i> Added entity <b class='ms-1'>${value.Name}</b>
+                                                    </button>
+                                                </h2>
+                                                <div id="collapse-entity-add-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
+                                                    <div class="accordion-body">
+                                                        <ul>
+                                                            ${(value.Properties.map(function (property) { return `<li>${property.Name} - ${property.Type}</li>`; }).join(''))}
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            </div>`;
+                                });
+
+                                $.each(comparison.Entities.Removed, function (index, value) {
+                                    htmlChanges += `<div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-entity-remove-${index}">
+                                                        <i class="bi bi-dash-square text-danger fs-4 me-4"></i> Removed entity <b class='ms-1'>${value.Name}</b>
+                                                    </button>
+                                                </h2>
+                                                <div id="collapse-entity-remove-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
+                                                    <div class="accordion-body">
+                                                        <ul>
+                                                            ${(value.Properties.map(function (property) { return `<li>${property.Name} - ${property.Type}</li>`; }).join(''))}
+                                                        </ul>                                                     
+                                                    </div>
+                                                </div>
+                                            </div>`;
+                                });
+
+                                $.each(comparison.Entities.Changed, function (index, value) {
+                                    htmlChanges += `<div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-entity-change-${index}">
+                                                        <i class="bi bi-slash-square text-warning fs-4 me-4"></i> Changed entity <b class='ms-1'>${value.Name}</b>
+                                                    </button>
+                                                </h2>
+                                                <div id="collapse-entity-change-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
+                                                    <div class="accordion-body">
+                                                        <ul>
+                                                            ${(value.PropertiesAdded.map(function (property) { return `<li>Added ${property.Name} - ${property.Type}</li>`; }).join(''))}
+                                                            ${(value.PropertiesRemoved.map(function (property) { return `<li>Removed ${property.Name} - ${property.Type}</li>`; }).join(''))}
+                                                        </ul>                                                   
+                                                    </div>
+                                                </div>
+                                            </div>`;
+                                });
+
+                                $.each(comparison.CustomEndpoints.Added, function (index, value) {
+                                    htmlChanges += `<div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-custom-add-${index}">
+                                                        <i class="bi bi-plus-square text-success fs-4 me-4"></i> Added custom <b class='ms-1'>${value.Name}</b>
+                                                    </button>
+                                                </h2>
+                                                <div id="collapse-custom-add-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
+                                                    <div class="accordion-body">
+                                                        <div class="card p-6 font-monospace">${value.Query}</div>
+                                                    </div>
+                                                </div>
+                                            </div>`;
+                                });
+
+                                $.each(comparison.CustomEndpoints.Removed, function (index, value) {
+                                    htmlChanges += `<div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-custom-removed-${index}">
+                                                        <i class="bi bi-dash-square text-danger fs-4 me-4"></i> Removed custom <b class='ms-1'>${value.Name}</b>
+                                                    </button>
+                                                </h2>
+                                                <div id="collapse-custom-removed-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
+                                                    <div class="accordion-body">
+                                                        <div class="card p-6 font-monospace">${value.Query}</div>
+                                                    </div>
+                                                </div>
+                                            </div>`;
+                                });
+
+                                $.each(comparison.CustomEndpoints.Changed, function (index, value) {
+                                    htmlChanges += `<div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-custom-changed-${index}">
+                                                        <i class="bi bi-slash-square text-warning fs-4 me-4"></i> Changed custom <b class='ms-1'>${value.Name}</b>
+                                                    </button>
+                                                </h2>
+                                                <div id="collapse-custom-changed-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
+                                                    <div class="accordion-body">
+                                                        <div class='row px-4'>
+                                                            <div class="col-12 col-md-6 px-6 ps-0">
+                                                                <div class="card">
+                                                                    <div class="card-body">
+                                                                        <h5 class="card-title">Before</h5>
+                                                                        <div class='font-monospace'>${value.QueryBefore}</div>
+                                                                    </div>
+                                                                </div>
+                                                                </div>
+                                                            <div class="col-12 col-md-6 px-6 pe-0">
+                                                                <div class="card">
+                                                                    <div class="card-body font-monospace">
+                                                                        <h5 class="card-title">After</h5>
+                                                                                <div class='font-monospace'>${value.QueryAfter}</div>
+                                                                    </div>
+                                                                </div>
+                                                                </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>`;
+                                });
+
+                                $.each(comparison.Security.Added, function (index, value) {
+                                    htmlChanges += `<div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-security-add-${index}">
+                                                        <i class="bi bi-plus-square text-success fs-4 me-4"></i> Added security <b class='ms-1'>${value.Name}</b>
+                                                    </button>
+                                                </h2>
+                                                <div id="collapse-security-add-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
+                                                    <div class="accordion-body">
+                                                        Action: ${value.Action} ${value.Record} <br/>Role: ${value.Role} <br/>RateLimit: ${value.RateLimit} <br/>Properties: ${value.Properties}
+                                                    </div>
+                                                </div>
+                                            </div>`;
+                                });
+
+                                $.each(comparison.Security.Removed, function (index, value) {
+                                    htmlChanges += `<div class="accordion-item">
+                                                <h2 class="accordion-header">
+                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-security-removed-${index}">
+                                                        <i class="bi bi-dash-square text-danger fs-4 me-4"></i> Removed security <b class='ms-1'>${value.Name}</b>
+                                                    </button>
+                                                </h2>
+                                                <div id="collapse-security-removed-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
+                                                    <div class="accordion-body">
+                                                        Action: ${value.Action} ${value.Record} <br/>Role: ${value.Role} <br/>RateLimit: ${value.RateLimit} <br/>Properties: ${value.Properties}
+                                                    </div>
+                                                </div>
+                                            </div>`;
+                                });
+
+                                $.each(comparison.Security.Changed, function (index, value) {
+                                    htmlChanges += `<div class="accordion-item">
+                                                    <h2 class="accordion-header">
+                                                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-security-changed-${index}">
+                                                            <i class="bi bi-slash-square text-warning fs-4 me-4"></i> Changed security <b class='ms-1'>${value.Name}</b>
+                                                        </button>
+                                                    </h2>
+                                                    <div id="collapse-security-changed-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
+                                                        <div class="accordion-body">
+                                                            <div class='row px-4'>
+                                                                <div class="col-12 col-md-6 px-6 ps-0">
+                                                                    <div class="card">
+                                                                        <div class="card-body">
+                                                                            <h5 class="card-title">Before</h5>
+                                                                            Action: ${value.SecurityBefore.Action} ${value.SecurityBefore.Record} <br/>Role: ${value.SecurityBefore.Role} <br/>RateLimit: ${value.SecurityBefore.RateLimit} <br/>Properties: ${value.SecurityBefore.Properties}
+                                                                        </div>
+                                                                    </div>
+                                                                    </div>
+                                                                <div class="col-12 col-md-6 px-6 pe-0">
+                                                                    <div class="card">
+                                                                        <div class="card-body">
+                                                                            <h5 class="card-title">After</h5>
+                                                                            Action: ${value.SecurityAfter.Action} ${value.SecurityAfter.Record} <br/>Role: ${value.SecurityAfter.Role} <br/>RateLimit: ${value.SecurityAfter.RateLimit} <br/>Properties: ${value.SecurityAfter.Properties}
+                                                                        </div>
+                                                                    </div>
+                                                                    </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>`;
+                                });
+
+                                if (htmlChanges == ''){
+                                    htmlChanges = '<div class="py-6">No changes found</div>';
+                                }
+
+                                $('#modal-application-compare-body').html(`
+                                    <div class='card p-6 mb-6'><div>Source: <b>${comparison.ApplicationSource}</b></div><div>Target: <b>${comparison.ApplicationTarget}</b></div></div>
+                                    <div class='custom-border px-6 mb-6'><div class="accordion" id="accordion-compare">${htmlChanges}</div></div>`);
+
+                                $('#modal-application-compare').modal('show');
+                                resolve();
+                            });
+                        });
+                    }
+                });                
+            });
+        }
+
+        function compareApplications(appTokenSource, appTokenTarget, callback) {
+            $.ajax({
+                url: `@Url.Action("CompareApplications", "Applications")?appTokenSource=${appTokenSource}&appTokenTarget=${appTokenTarget}`,
+                type: 'GET',
+                dataType: 'json',
+                contentType: 'application/json; charset=utf-8',
+                success: function (data) {                                    
+                    if (callback){
+                        callback(data);
+                    }
+                },
+                error: function (e) {
+                    handleCustomError(e);
+                }
+            });
+        }
+
+        function loadApplicationStorageUsed(appId, appToken, serverUrl) {
+            $.ajax({
+                url: serverUrl + '/api/Application/GetStorageUsed',
+                type: 'GET',
+                beforeSend: function (request) {
+                    request.setRequestHeader('Authorization', 'Bearer @Html.GetPortalUserAuthToken(User.Identity!)');
+                    request.setRequestHeader('@Globals.ClientIdHeaderName', '@Globals.ClientIdHeaderValuePortal');
+                    request.setRequestHeader('@Globals.ApplicationTokenHeaderName', appToken);
+                },
+                success: function (storageUsed) {
+                    $('.storage_' + appId).show();
+                    $('#storage_' + appId).html(getValueAsMBorGB(storageUsed));
+                },
+                error: function (e) {
+                    $('.storage_' + appId).show();
+                    var js = getErrorJSON(e);
+                    var message = js !== null && js.Message && js.Message !== null
+                        ? js.Message
+                        : 'Error';
+                    $('#storage_' + appId).html('<div style="color:red;">' + message + '</div>');
+                }
+            });
+        }
+
+        function bindServerHealthLink() {
+
+            $('.btn-server-check-health').click(function(){
+                var url = $(this).data().url;
+
+                Swal.fire({
+                    icon: "info",
+                    title: "Checking server...",
+                    text: url,
+                    confirmButtonText: 'OK',
+                    showCancelButton: false,
+                    buttonsStyling: false,
+                    customClass: {
+                        confirmButton: 'btn btn-primary',
+                        cancelButton: 'btn'
+                    },
+                    didOpen: () => {
+                        Swal.showLoading();
+                        $.ajax({
+                            url: `${url}/Health/Liveness`,
+                            type: 'GET',
+                            dataType: 'json',
+                            contentType: 'application/json; charset=utf-8',
+                            success: function (stats) {
+                                Swal.hideLoading();
+                                Swal.update({
+                                    icon: 'success',
+                                    title: "Server is healthy",
+                                })
+                            },
+                            error: function (e) {
+                                Swal.hideLoading();
+                                Swal.update({
+                                    icon: 'error',
+                                    title: "Server is not healthy",
+                                })
+                            }
+                        });
+                    }
+                });                
+            });              
+        }
+
+        @foreach (var server in Model.Servers)
+        {
+            if (Model.Applications.Any(x => x.ServerID == server.ID))
+            {
+                foreach (var app in Model.Applications.Where(x => x.ServerID == server.ID))
+                {
+                    <text>
+                        loadApplicationStorageUsed(@app.ID, '@app.Token', '@app.Server.ServerUrl');
+                        bindExportBtn('@app.Token', '@app.Server.ServerUrl');
+                        bindCompareBtn('@app.Token', '@app.Name');
+                    </text>
+                }
+            }
+
+            <text>
+                setInterval(function(){
+                    healthCheckServer(@server.ID, '@server.ServerUrl.Trim('/')');
+                }, 5000);
+                healthCheckServer(@server.ID, '@server.ServerUrl.Trim('/')');
+            </text>
+        }
+
+        bindServerHealthLink();
+    </script>
+}

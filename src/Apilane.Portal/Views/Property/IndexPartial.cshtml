@@ -1,0 +1,75 @@
+﻿@using Apilane.Portal.Models;
+@using Apilane.Common;
+@using Apilane.Common.Models;
+@using Microsoft.AspNetCore.Http;
+@model List<DBWS_EntityProperty>
+
+@{
+    var isDarkTheme = Html.IsDarkTheme(Context.Request);
+}
+
+<div class="table-responsive">
+    <table class="table table-sm table-borderless table-hover m-0">
+        <thead>
+            <tr>
+                <th>Property</th>
+                <th>Type</th>
+                <th>Constraints</th>
+                @if (Model.Any(x => !x.IsSystem))
+                {
+                    <th style="width:1px;">Options</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.OrderByDescending(x => x.IsPrimaryKey).ThenBy(x => x.IsSystem).ThenBy(x => x.Name))
+            {
+                var df = item.Descr().Select(x => Html.Raw(x.Replace("'", "&#39;")));
+                string descr = string.Join("", df.Select(x => $"<div class='badge {(isDarkTheme ? "text-bg-dark" : "text-bg-light")} me-1'>{x}</div>"));
+                <tr>
+                    <td>
+                        <strong class="text-primary">@item.Name</strong>
+                        @if (!string.IsNullOrWhiteSpace(item.Description))
+                        {
+                            <i class="bi bi-info-circle text-primary" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-original-title="@item.Description"></i>
+                        }
+                    </td>
+                    <td><div class="badge @(isDarkTheme ? "text-bg-dark" : "text-bg-light")">@item.TypeID_Enum.ToString()</div></td>
+                    <td>@Html.Raw(descr)</td>
+                    
+                    @if (Model.Any(x => !x.IsSystem))
+                    {
+                        <td>
+                            @if (item.IsSystem == false)
+                            {
+                                <div class="btn-group position-static">
+                                    <button class="btn btn-sm dropdown-toggle btn-default" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-three-dots"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li>
+                                            <a class="dropdown-item" href="@Url.RouteUrl("PropRoute", new { controller = "Property", action = "Edit", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = item.Name })" title="Edit">
+                                                Edit
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a class="dropdown-item @(item.IsSystem ? "disabled" : "")" title="@(item.IsSystem ? "Cannot rename system Properties" : "")" href="@(item.IsSystem ? "#" : Url.RouteUrl("PropRoute", new { controller = "Property", action = "Rename", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = item.Name }))">
+                                                Rename
+                                            </a>
+                                        </li>
+                                        <li><div class="dropdown-divider"></div></li>
+                                        <li>
+                                            <a class="dropdown-item" href="@Url.RouteUrl("PropRoute", new { controller = "Property", action = "Delete", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = item.Name })" title="Delete">
+                                                Delete
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            }
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

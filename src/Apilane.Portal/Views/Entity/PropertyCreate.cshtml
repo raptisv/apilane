@@ -1,0 +1,176 @@
+﻿@using Apilane.Portal.Models;
+@using System.Linq;
+@using Apilane.Common.Utilities;
+@using Apilane.Common.Enums;
+@using Apilane.Common.Models;
+@model DBWS_EntityProperty
+
+@{
+    ViewBag.Title = "Create";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var application = (DBWS_Application)ViewBag.Application;
+    var entity = (DBWS_Entity)ViewBag.Entity;
+
+    List<SelectListItem> AvailableDecimalPlaces = new List<SelectListItem>();
+    AvailableDecimalPlaces.Add(new SelectListItem() { Text = "-- Decimal places --", Value = "" });
+    for (int i = 0; i <= 8; i++)
+    {
+        AvailableDecimalPlaces.Add(new SelectListItem() { Text = i.ToString(), Value = i.ToString() });
+    }
+
+    List<SelectListItem> PropertyTypes = EnumProvider<PropertyType>.GetValues(PropertyType.String)
+        .Where(x => x.Key != 100) // 100 is the old FK
+        .Select(x => new SelectListItem { Text = x.Value, Value = x.Key.ToString() }).ToList();
+
+    PropertyTypes.Insert(0, new SelectListItem() { Selected = true, Value = "", Text = "-- Select data type --" });
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@application.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Entities", appid = application.Token })">@application.Name</a></li>
+                        <li class="breadcrumb-item active"><a href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Properties", appid = application.Token, entid = entity.Name })">@entity.Name</a></li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="row clearfix">
+                <div class="col-12 col-xl-6">
+                    <div class="card">
+                        <h4 class="card-header">
+                            Create new property
+                        </h4>
+                        <div class="card-body">
+                            @using (Html.BeginRouteForm("EntRoute", new { controller = "Entity", action = "PropertyCreate", appid = Html.GetAppToken(), entid = Html.GetEntName(), ReturnUrl = ViewBag.ReturnUrl }, FormMethod.Post, true, new { role = "form" }))
+                            {
+                                <div class="form-group mb-3">
+                                    <div class="form-line">
+                                        @Html.TextBoxFor(m => m.Name, new { @class = "form-control", placeholder = "Name", autofocus = "autofocus" })
+                                    </div>
+                                    @Html.ValidationMessageFor(m => m.Name, "", new { @class = "text-danger" })
+                                </div>
+                                <div class="form-group mb-3">
+                                    <div class="form-line">
+                                        @Html.TextBoxFor(m => m.Description, new { @class = "form-control", placeholder = "Description (optional)" })
+                                    </div>
+                                    @Html.ValidationMessageFor(m => m.Description, "", new { @class = "text-danger" })
+                                </div>
+                                <div class="form-group mb-3">
+                                    @Html.DropDownList("TypeID", PropertyTypes, null, new { @class = "form-control" })
+                                    @Html.ValidationMessageFor(m => m.TypeID, "", new { @class = "text-danger" })
+                                </div>
+                                <div class="form-group mb-3">
+                                    <div class="form-line">
+                                        @Html.TextBoxFor(m => m.ValidationRegex, new { @class = "form-control", placeholder = "Validation regex (optional)" })
+                                    </div>
+                                    @Html.ValidationMessageFor(m => m.ValidationRegex, "", new { @class = "text-danger" })
+                                </div>
+                                <div class="form-group mb-3" id="decimalPlaces">
+                                    @Html.DropDownListFor(m => m.DecimalPlaces, AvailableDecimalPlaces, null, new { @class = "form-select" })
+                                    @Html.ValidationMessageFor(m => m.DecimalPlaces, "", new { @class = "text-danger" })
+                                </div>
+                                <div class="form-group mb-3">
+                                    <div class="form-line">
+                                        @Html.TextBoxFor(m => m.Minimum, new { @class = "form-control", type = "number", placeholder = "Min (optional)" })
+                                    </div>
+                                    @Html.ValidationMessageFor(m => m.Minimum, "", new { @class = "text-danger" })
+                                </div>
+                                <div class="form-group mb-3">
+                                    <div class="form-line">
+                                        @Html.TextBoxFor(m => m.Maximum, new { @class = "form-control", type = "number", placeholder = "Max (optional)" })
+
+                                        @if (application.DatabaseType == (int)DatabaseType.MySQL)
+                                        {
+                                            <div class="alert alert-warning mt-2 string-alert" role="alert">
+                                                In MySql maximum string length is 16383. If you need more than that leave this empty.
+                                                Keep in mind that large strings cannot be used in unique constraints.
+                                            </div>
+                                        }
+                                        @if (application.DatabaseType == (int)DatabaseType.SQLServer)
+                                        {
+                                            <div class="alert alert-warning mt-2 string-alert" role="alert">
+                                                In SqlServer maximum string length is 4000. If you need more than that leave this empty.
+                                                Keep in mind that strings bigger than 4000 characters cannot be used in unique constraints.
+                                            </div>
+                                        }
+                                    </div>
+                                    @Html.ValidationMessageFor(m => m.Maximum, "", new { @class = "text-danger" })
+                                </div>
+                                <div class="form-group mb-3">
+                                    <div class="form-check form-switch">
+                                        @Html.CheckBoxFor(m => m.Encrypted, new { @class = "form-check-input" })
+                                        <label class="form-check-label" for="Encrypted">
+                                            @Html.LabelFor(m => m.Encrypted)
+                                        </label>
+                                    </div>
+                                    @if (application.DatabaseType == (int)DatabaseType.MySQL || application.DatabaseType == (int)DatabaseType.SQLServer)
+                                    {
+                                        <div class="alert alert-warning mt-2 string-alert" role="alert">
+                                            Keep in mind that encrypted strings require more characters than the original string so make sure string maxmimum length is sufficient.
+                                        </div>
+                                    }
+                                    @Html.ValidationMessageFor(m => m.Encrypted, "", new { @class = "text-danger" })
+                                </div>
+                                <div class="form-group mb-3">
+                                    <div class="form-check form-switch">
+                                        @Html.CheckBoxFor(m => m.Required, new { @class = "form-check-input" })
+                                        <label class="form-check-label" for="Required">
+                                            @Html.LabelFor(m => m.Required)
+                                        </label>
+                                    </div>
+                                    @Html.ValidationMessageFor(m => m.Required, "", new { @class = "text-danger" })
+                                </div>
+                                <br>
+                                <div class="form-group mb-3">
+                                    @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
+                                </div>
+                            }
+                            <button type="submit" class="btn_save btn btn-primary" title="Save">
+                                <i class="bi bi-floppy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@section scripts{
+    <script type="text/javascript">
+
+        $('#@nameof(DBWS_EntityProperty.TypeID)').on('change', function () {
+            showhide();
+        });
+
+        showhide();
+
+        function showhide() {
+            $('.string-alert').fadeOut();
+            $('#@nameof(DBWS_EntityProperty.Minimum)').parent().fadeOut();
+            $('#@nameof(DBWS_EntityProperty.Maximum)').parent().fadeOut();
+            $('#@nameof(DBWS_EntityProperty.Encrypted)').parent().fadeOut();
+            $('#@nameof(DBWS_EntityProperty.ValidationRegex)').parent().fadeOut();
+            $('#decimalPlaces').fadeOut();
+
+            var selected = $('#@nameof(DBWS_EntityProperty.TypeID)').find("option:selected").val();
+            if (selected == @((int)PropertyType.String)) {
+                $('.string-alert').fadeIn();
+                $('#@nameof(DBWS_EntityProperty.Minimum)').parent().fadeIn();
+                $('#@nameof(DBWS_EntityProperty.Maximum)').parent().fadeIn();
+                $('#@nameof(DBWS_EntityProperty.Encrypted)').parent().fadeIn();
+                $('#@nameof(DBWS_EntityProperty.ValidationRegex)').parent().fadeIn();
+            } else if (selected == @((int)PropertyType.Number)) {
+                $('#@nameof(DBWS_EntityProperty.Minimum)').parent().fadeIn();
+                $('#@nameof(DBWS_EntityProperty.Maximum)').parent().fadeIn();
+                $('#decimalPlaces').fadeIn();
+            }
+        }
+    </script>
+}
