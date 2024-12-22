@@ -49,6 +49,8 @@ dlldata.c
 BenchmarkDotNet.Artifacts/
 
 DatabaseFiles/
+DatabaseFiles/Files/
+*orleans_apilane_api.db
 
 # .NET Core
 project.lock.json

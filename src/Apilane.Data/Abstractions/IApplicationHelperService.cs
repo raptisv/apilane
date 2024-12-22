@@ -8,7 +8,6 @@ namespace Apilane.Data.Abstractions
     public interface IApplicationHelperService
     {
         Task<string> EnsureHelperDatabaseAsync(string appToken);
-        Task<bool> EmailConfirmationTokensForUserIdExistAsync(string appToken, long userId, uint inTheLastMinutes);
         Task<List<EmailTemplateDto>> GetEmailsAsync(string appToken, long? templateId);
         Task<EmailTemplateDto?> GetEmailAsync(string appToken, EmailEventsCodes eventCode);
         Task UpdateEmailAsync(string appToken, EmailTemplateDto template);

@@ -2,15 +2,18 @@
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
+using Apilane.Api.Core.Grains;
 using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Common;
 using Apilane.Common.Abstractions;
 using Apilane.Common.Enums;
+using Apilane.Common.Extensions;
 using Apilane.Common.Helpers;
 using Apilane.Common.Models;
 using Apilane.Common.Models.Dto;
 using Apilane.Common.Utilities;
 using Apilane.Data.Abstractions;
+using Orleans;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,6 +29,7 @@ namespace Apilane.Api.Core
         private readonly IApplicationDataStoreFactory _dataStore;
         private readonly IApplicationEmailService _appEmailService;
         private readonly IEmailService _emailService;
+        private readonly IClusterClient _clusterClient;
 
         public EmailAPI(
             ApiConfiguration currentConfiguration,
@@ -33,7 +37,8 @@ namespace Apilane.Api.Core
             IApplicationDataService appDataService,
             IApplicationEmailService appEmailService,
             IEmailService emailService,
-            IApplicationDataStoreFactory dataStore)
+            IApplicationDataStoreFactory dataStore,
+            IClusterClient clusterClient)
         {
             _applicationHelperService = applicationHelperService;
             _appEmailService = appEmailService;
@@ -41,6 +46,7 @@ namespace Apilane.Api.Core
             _apiConfiguration = currentConfiguration;
             _emailService = emailService;
             _dataStore = dataStore;
+            _clusterClient = clusterClient;
         }
 
         public async Task RequestConfirmationAsync(
@@ -57,6 +63,15 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.VALIDATION, "Invalid Email", "Email");
             }
 
+            // Check rate limit
+            var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(1, TimeSpan.FromMinutes(5), email.Trim().ToLower(), $"email:confirmation", SecurityActionType.get);
+            var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(application.Token), rateLimitGrainKeyExt, null);
+            var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
+            if (!rateLimitResult.IsRequestAllowed)
+            {
+                throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
+            }
+
             var userThatAcceptsTheEmail = await GetUserByEmailAsync(application, email);
 
             // Do not show that we did not find the user
@@ -69,22 +84,6 @@ namespace Apilane.Api.Core
 
                 if (!isEmailConfirmed)
                 {
-                    var userId = userThatAcceptsTheEmail[nameof(Users.ID)];
-
-                    if (userId is null)
-                    {
-                        throw new Exception("User id is null");
-                    }
-
-                    // Do not create new token within the same minute.
-                    var emailConfirmationTokensForUserIdExist = await _applicationHelperService
-                        .EmailConfirmationTokensForUserIdExistAsync(application.Token, Utils.GetLong(userId), 1);
-
-                    if (emailConfirmationTokensForUserIdExist)
-                    {
-                        throw new ApilaneException(AppErrors.ERROR, "Too many requests, please try again in a minute.", "Email");
-                    }
-
                     // Send the email
                     await _appEmailService.SendEmailFromApplicationAsync(
                         application.Token,
@@ -109,6 +108,15 @@ namespace Apilane.Api.Core
             if (!Utils.IsValidEmail(email))
             {
                 throw new ApilaneException(AppErrors.VALIDATION, "Invalid Email", "Email");
+            }
+
+            // Check rate limit
+            var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(1, TimeSpan.FromMinutes(5), email.Trim().ToLower(), $"email:forgot:password", SecurityActionType.get);
+            var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(application.Token), rateLimitGrainKeyExt, null);
+            var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
+            if (!rateLimitResult.IsRequestAllowed)
+            {
+                throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
             }
 
             var userThatAcceptsTheEmail = await GetUserByEmailAsync(application, email);

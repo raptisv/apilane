@@ -29,17 +29,6 @@ namespace Apilane.Data.Helper
             _filesPath = filesPath;
         }
 
-        public async Task<bool> EmailConfirmationTokensForUserIdExistAsync(string appToken, long userId, uint inTheLastMinutes)
-        {
-            var cmd = $@"SELECT * FROM [{nameof(H_Auth_Email_Confirmation_Tokens)}] 
-                        WHERE [{nameof(H_Auth_Email_Confirmation_Tokens.Owner)}] = {userId} 
-                        AND [{nameof(H_Auth_Email_Confirmation_Tokens.Created)}] >= {Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow.AddMinutes(-inTheLastMinutes))}";
-
-            var dt = await ExecuteAsync(appToken, cmd);
-
-            return dt.Rows.Count > 0;
-        }
-
         public async Task<List<EmailTemplateDto>> GetEmailsAsync(string appToken, long? templateId)
         {
             var cmd = templateId.HasValue

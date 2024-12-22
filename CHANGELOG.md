@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.2 (2024-12-22)
+- feat(api): Rate limit email endpoints
+
 ## 8.4.1 (2024-12-14)
 - fix(sln): Restructure solution
 
