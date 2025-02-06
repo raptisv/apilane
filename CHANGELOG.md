@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.3 (2025-02-06)
+- feat(api): Fix entites tree level
+
 ## 8.4.2 (2024-12-22)
 - feat(api): Rate limit email endpoints
 
