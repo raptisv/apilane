@@ -42,7 +42,11 @@ namespace Apilane.Common.Extensions
             if (source.ContainsKey(node.ID))
             {
                 node.Children = source[node.ID];
-                node.Level = level;
+                // Prevent re-setting a higher level.
+                if (node.Level == int.MaxValue || node.Level < level)
+                {
+                    node.Level = level;
+                }
                 for (int i = 0; i < node.Children.Count; i++)
                     AddChildren(node.Children[i], source, (level + 1));
             }
