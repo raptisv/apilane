@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.4 (2025-02-06)
+- feat(api): Fix string property max db length
+
 ## 8.4.3 (2025-02-06)
 - feat(api): Fix entites tree level
 

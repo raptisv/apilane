@@ -299,13 +299,17 @@ namespace Apilane.Api.Core.Services
                     throw new ApilaneException(AppErrors.ERROR, property: property.Name, entity: entityName, message: $"Property {property.Name} already exists");
                 }
 
+                // Encrypted string properties require more characters in database so, we proceed without limit in the database layer.
+                var maximum = property.TypeID_Enum == PropertyType.String && property.Encrypted
+                    ? null : property.Maximum;
+
                 await _applicationDataStoreFactory.CreateColumnAsync(
                     entityName,
                     property.Name,
                     property.TypeID_Enum,
                     property.Required,
                     property.DecimalPlaces,
-                    property.Maximum);
+                    maximum);
             }
         }
 
