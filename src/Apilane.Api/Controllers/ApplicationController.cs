@@ -70,7 +70,7 @@ namespace Apilane.Api.Controllers
         public Task DegenerateProperty(long ID) => _applicationAPI.DegeneratePropertyAsync(Application, ID);
 
         [HttpPost]
-        public Task GenerateConstraints([FromBody] List<EntityConstraint> Item, [FromQuery] string Entity) => _applicationAPI.GenerateContraintsAsync(Application, Item, Entity);
+        public Task GenerateConstraints([FromBody] List<EntityConstraint> Item, [FromQuery] string Entity) => _applicationAPI.GenerateConstraintsAsync(Application, Item, Entity);
 
         [HttpPost]
         public async Task<JsonResult> ImportData([FromBody] List<Dictionary<string, object?>> Data, [FromQuery] string Entity)

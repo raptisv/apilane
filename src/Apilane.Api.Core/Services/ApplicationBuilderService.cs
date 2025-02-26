@@ -280,7 +280,7 @@ namespace Apilane.Api.Core.Services
                     property);
             }
 
-            // Generate contraints after having created the properties
+            // Generate constraints after having created the properties
             await GenerateConstraintsAsync(
                 entity,
                 entity.Constraints,

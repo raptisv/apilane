@@ -108,12 +108,6 @@
                                             @Html.LabelFor(m => m.Encrypted)
                                         </label>
                                     </div>
-                                    @if (application.DatabaseType == (int)DatabaseType.MySQL || application.DatabaseType == (int)DatabaseType.SQLServer)
-                                    {
-                                        <div class="alert alert-warning mt-2 string-alert" role="alert">
-                                            Keep in mind that encrypted strings require more characters than the original string so make sure string maxmimum length is sufficient.
-                                        </div>
-                                    }
                                     @Html.ValidationMessageFor(m => m.Encrypted, "", new { @class = "text-danger" })
                                 </div>
                                 <div class="form-group mb-3">

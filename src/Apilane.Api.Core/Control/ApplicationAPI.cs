@@ -205,16 +205,16 @@ namespace Apilane.Api.Core
             await ResetAppAsync(application.Token);
         }
 
-        public async Task GenerateContraintsAsync(
+        public async Task GenerateConstraintsAsync(
             DBWS_Application application,
-            List<EntityConstraint> incomingContraints,
+            List<EntityConstraint> incomingConstraints,
             string entityName)
         {
             var entity = application.Entities.Single(x => x.Name.Equals(entityName));
 
             using (var scope = _transactionScopeService.OpenTransactionScope())
             {
-                await _applicationBuilder.GenerateConstraintsAsync(entity, incomingContraints, entity.Constraints);
+                await _applicationBuilder.GenerateConstraintsAsync(entity, incomingConstraints, entity.Constraints);
 
                 scope.Complete();
             }

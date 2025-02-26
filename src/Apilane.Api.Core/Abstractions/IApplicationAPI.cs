@@ -10,7 +10,7 @@ namespace Apilane.Api.Core.Abstractions
         Task DegenerateAsync(DBWS_Application application, DatabaseType databaseType, string connectionString);
         Task DegenerateEntityAsync(DBWS_Application application, string entityName);
         Task DegeneratePropertyAsync(DBWS_Application application, long propertyID);
-        Task GenerateContraintsAsync(DBWS_Application application, List<EntityConstraint> incomingContraints, string entityName);
+        Task GenerateConstraintsAsync(DBWS_Application application, List<EntityConstraint> incomingConstraints, string entityName);
         Task<List<long>> ImportDataAsync(DBWS_Application application, List<Dictionary<string, object?>> data, string entityName);
         Task GenerateEntityAsync(DBWS_Application application, DBWS_Entity entity);
         Task GeneratePropertyAsync(string appToken, DatabaseType databaseType, DBWS_EntityProperty property, string entityName);
