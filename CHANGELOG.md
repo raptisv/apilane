@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.5 (2025-06-24)
+- fix(seo): Add robots meta tag with noindex, nofollow to prevent search engine indexing
+
 ## 8.4.4 (2025-02-06)
 - feat(api): Fix string property max db length
 
