@@ -12,22 +12,44 @@ namespace Microsoft.Extensions.DependencyInjection
             string applicationApiUrl,
             string applicationToken,
             HttpClient? httpClient = null,
-            IApilaneAuthTokenProvider? apilaneAuthTokenProvider = null)
+            IApilaneAuthTokenProvider? apilaneAuthTokenProvider = null,
+            string? serviceKey = null)
         {
-            services.AddSingleton<IApilaneService>((serviceProvider) =>
+            if (string.IsNullOrWhiteSpace(serviceKey))
             {
-                // Optional global auth token provider
-                var authTokenProvider = apilaneAuthTokenProvider ?? serviceProvider.GetService<IApilaneAuthTokenProvider>();
+                services.AddSingleton<IApilaneService>((serviceProvider) =>
+                {
+                    // Optional global auth token provider
+                    var authTokenProvider = apilaneAuthTokenProvider ?? serviceProvider.GetService<IApilaneAuthTokenProvider>();
 
-                return new ApilaneService(
-                    httpClient ?? new HttpClient(),
-                    new ApilaneConfiguration()
-                    {
-                        ApplicationApiUrl = applicationApiUrl,
-                        ApplicationToken = applicationToken
-                    },
-                    authTokenProvider);
-            });
+                    return new ApilaneService(
+                        httpClient ?? new HttpClient(),
+                        new ApilaneConfiguration()
+                        {
+                            ApplicationApiUrl = applicationApiUrl,
+                            ApplicationToken = applicationToken
+                        },
+                        authTokenProvider);
+                });
+            }
+            else
+            {
+                // Keyed registration
+                services.AddKeyedSingleton<IApilaneService>(serviceKey, (serviceProvider, key) =>
+                {
+                    // Optional global auth token provider
+                    var authTokenProvider = apilaneAuthTokenProvider ?? serviceProvider.GetService<IApilaneAuthTokenProvider>();
+
+                    return new ApilaneService(
+                        httpClient ?? new HttpClient(),
+                        new ApilaneConfiguration
+                        {
+                            ApplicationApiUrl = applicationApiUrl,
+                            ApplicationToken = applicationToken
+                        },
+                        authTokenProvider);
+                });
+            }
 
             return services;
         }
