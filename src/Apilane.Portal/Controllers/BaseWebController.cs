@@ -97,7 +97,10 @@ namespace Apilane.Portal.Controllers
         private List<DBWS_Application> GetUserApplications(ApplicationUser user)
         {
             // Get shared app Ids
-            var userCollaborates = DBContext.Collaborations.Where(x => x.UserEmail == user.Email).ToList();
+            var userCollaborateAppIds = DBContext.Collaborations
+                .Where(x => x.UserEmail == user.Email)
+                .Select(c => c.AppID)
+                .ToList();
 
             // Get user and shared apps
             var userApplications = DBContext.Applications
@@ -106,8 +109,9 @@ namespace Apilane.Portal.Controllers
                 .Include(a => a.Server)
                 .Include(a => a.Entities)
                 .ThenInclude(e => e.Properties)
+                .AsSplitQuery()
                 .ToList()
-                .Where(x => x.UserID == user.Id || userCollaborates.Select(c => c.AppID).Contains(x.ID))
+                .Where(x => x.UserID == user.Id || userCollaborateAppIds.Contains(x.ID))
                 .ToList();
 
             return userApplications;

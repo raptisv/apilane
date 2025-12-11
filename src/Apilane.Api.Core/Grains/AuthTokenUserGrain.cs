@@ -1,5 +1,4 @@
-﻿using Apilane.Api.Core.Configuration;
-using Apilane.Api.Core.Models.AppModules.Authentication;
+﻿using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
@@ -26,17 +25,13 @@ namespace Apilane.Api.Core.Grains
     public class AuthTokenUserGrain : Grain, IAuthTokenUserGrain
     {
         private readonly ILogger<AuthTokenUserGrain> _logger;
-        private readonly ApiConfiguration _apiConfiguration;
 
         private Users? _user;
         private AuthTokens? _authToken;
 
-        public AuthTokenUserGrain(
-            ILogger<AuthTokenUserGrain> logger,
-            ApiConfiguration apiConfiguration)
+        public AuthTokenUserGrain(ILogger<AuthTokenUserGrain> logger)
         {
             _logger = logger;
-            _apiConfiguration = apiConfiguration;
         }
 
         public async Task<Users?> GetAsync(ApplicationDbInfoDto applicationDbInfo, int authTokenExpireMinutes)
