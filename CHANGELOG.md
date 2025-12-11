@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.6 (2025-12-12)
+- fix(portal): Optimize application loading
+
 ## 8.4.5 (2025-06-24)
 - fix(seo): Add robots meta tag with noindex, nofollow to prevent search engine indexing
 
