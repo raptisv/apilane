@@ -273,14 +273,34 @@
 
         function bindCompareBtn(appToken, appName) {
             $(`.compare-application-${appToken}`).click(function () {
+                // Build grouped options server-side (empty servers already excluded),
+                // then strip the source app token from the list in JS.
+                var allApps = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                    Model.Servers
+                        .Where(s => Model.Applications.Any(x => x.ServerID == s.ID))
+                        .ToDictionary(
+                            k => k.Name,
+                            v => Model.Applications
+                                .Where(x => x.ServerID == v.ID)
+                                .ToDictionary(k => k.Token, v => v.Name))));
 
-                var allApps = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Servers.ToDictionary(k => k.Name, v => Model.Applications.Where(x => x.ServerID == v.ID).ToDictionary(k => k.Token, v => v.Name))));
-
+                var filteredApps = {};
+                Object.keys(allApps).forEach(function (serverName) {
+                    var serverApps = {};
+                    Object.keys(allApps[serverName]).forEach(function (token) {
+                        if (token !== appToken) {
+                            serverApps[token] = allApps[serverName][token];
+                        }
+                    });
+                    if (Object.keys(serverApps).length > 0) {
+                        filteredApps[serverName] = serverApps;
+                    }
+                });
                 Swal.fire({
-                    html: `Select application to compare to<br/><b>${appName}</b>`,
-                    input: "select",
-                    inputOptions: allApps,
-                    inputPlaceholder: "Select application",
+                    html: `Compare <b>${appName}</b> to:`,
+                    input: 'select',
+                    inputOptions: filteredApps,
+                    inputPlaceholder: 'Select application',
                     showCancelButton: true,
                     confirmButtonText: 'Compare',
                     buttonsStyling: false,
@@ -289,229 +309,152 @@
                         cancelButton: 'btn',
                         input: 'form-control mx-auto my-8 w-75'
                     },
-                    inputValidator: (value) => {
-                        return new Promise((resolve) => {
-
-                            if (value.trim() == ''){
-                                resolve("Select an application to compare to");
-                                return;
-                            }
-
-                            if (value.trim() == appToken){
-                                resolve("Cannot compare to self");
-                                return;
-                            }
-
-                            compareApplications(appToken, value.trim(), function (comparison) {
-
-                                var htmlChanges = '';
-
-                                $.each(comparison.Entities.Added, function(index, value){
-                                    htmlChanges += `<div class="accordion-item">
-                                                <h2 class="accordion-header">
-                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-entity-add-${index}">
-                                                        <i class="bi bi-plus-square text-success fs-4 me-4"></i> Added entity <b class='ms-1'>${value.Name}</b>
-                                                    </button>
-                                                </h2>
-                                                <div id="collapse-entity-add-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
-                                                    <div class="accordion-body">
-                                                        <ul>
-                                                            ${(value.Properties.map(function (property) { return `<li>${property.Name} - ${property.Type}</li>`; }).join(''))}
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                            </div>`;
-                                });
-
-                                $.each(comparison.Entities.Removed, function (index, value) {
-                                    htmlChanges += `<div class="accordion-item">
-                                                <h2 class="accordion-header">
-                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-entity-remove-${index}">
-                                                        <i class="bi bi-dash-square text-danger fs-4 me-4"></i> Removed entity <b class='ms-1'>${value.Name}</b>
-                                                    </button>
-                                                </h2>
-                                                <div id="collapse-entity-remove-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
-                                                    <div class="accordion-body">
-                                                        <ul>
-                                                            ${(value.Properties.map(function (property) { return `<li>${property.Name} - ${property.Type}</li>`; }).join(''))}
-                                                        </ul>                                                     
-                                                    </div>
-                                                </div>
-                                            </div>`;
-                                });
-
-                                $.each(comparison.Entities.Changed, function (index, value) {
-                                    htmlChanges += `<div class="accordion-item">
-                                                <h2 class="accordion-header">
-                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-entity-change-${index}">
-                                                        <i class="bi bi-slash-square text-warning fs-4 me-4"></i> Changed entity <b class='ms-1'>${value.Name}</b>
-                                                    </button>
-                                                </h2>
-                                                <div id="collapse-entity-change-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
-                                                    <div class="accordion-body">
-                                                        <ul>
-                                                            ${(value.PropertiesAdded.map(function (property) { return `<li>Added ${property.Name} - ${property.Type}</li>`; }).join(''))}
-                                                            ${(value.PropertiesRemoved.map(function (property) { return `<li>Removed ${property.Name} - ${property.Type}</li>`; }).join(''))}
-                                                        </ul>                                                   
-                                                    </div>
-                                                </div>
-                                            </div>`;
-                                });
-
-                                $.each(comparison.CustomEndpoints.Added, function (index, value) {
-                                    htmlChanges += `<div class="accordion-item">
-                                                <h2 class="accordion-header">
-                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-custom-add-${index}">
-                                                        <i class="bi bi-plus-square text-success fs-4 me-4"></i> Added custom <b class='ms-1'>${value.Name}</b>
-                                                    </button>
-                                                </h2>
-                                                <div id="collapse-custom-add-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
-                                                    <div class="accordion-body">
-                                                        <div class="card p-6 font-monospace">${value.Query}</div>
-                                                    </div>
-                                                </div>
-                                            </div>`;
-                                });
-
-                                $.each(comparison.CustomEndpoints.Removed, function (index, value) {
-                                    htmlChanges += `<div class="accordion-item">
-                                                <h2 class="accordion-header">
-                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-custom-removed-${index}">
-                                                        <i class="bi bi-dash-square text-danger fs-4 me-4"></i> Removed custom <b class='ms-1'>${value.Name}</b>
-                                                    </button>
-                                                </h2>
-                                                <div id="collapse-custom-removed-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
-                                                    <div class="accordion-body">
-                                                        <div class="card p-6 font-monospace">${value.Query}</div>
-                                                    </div>
-                                                </div>
-                                            </div>`;
-                                });
-
-                                $.each(comparison.CustomEndpoints.Changed, function (index, value) {
-                                    htmlChanges += `<div class="accordion-item">
-                                                <h2 class="accordion-header">
-                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-custom-changed-${index}">
-                                                        <i class="bi bi-slash-square text-warning fs-4 me-4"></i> Changed custom <b class='ms-1'>${value.Name}</b>
-                                                    </button>
-                                                </h2>
-                                                <div id="collapse-custom-changed-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
-                                                    <div class="accordion-body">
-                                                        <div class='row px-4'>
-                                                            <div class="col-12 col-md-6 px-6 ps-0">
-                                                                <div class="card">
-                                                                    <div class="card-body">
-                                                                        <h5 class="card-title">Before</h5>
-                                                                        <div class='font-monospace'>${value.QueryBefore}</div>
-                                                                    </div>
-                                                                </div>
-                                                                </div>
-                                                            <div class="col-12 col-md-6 px-6 pe-0">
-                                                                <div class="card">
-                                                                    <div class="card-body font-monospace">
-                                                                        <h5 class="card-title">After</h5>
-                                                                                <div class='font-monospace'>${value.QueryAfter}</div>
-                                                                    </div>
-                                                                </div>
-                                                                </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>`;
-                                });
-
-                                $.each(comparison.Security.Added, function (index, value) {
-                                    htmlChanges += `<div class="accordion-item">
-                                                <h2 class="accordion-header">
-                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-security-add-${index}">
-                                                        <i class="bi bi-plus-square text-success fs-4 me-4"></i> Added security <b class='ms-1'>${value.Name}</b>
-                                                    </button>
-                                                </h2>
-                                                <div id="collapse-security-add-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
-                                                    <div class="accordion-body">
-                                                        Action: ${value.Action} ${value.Record} <br/>Role: ${value.Role} <br/>RateLimit: ${value.RateLimit} <br/>Properties: ${value.Properties}
-                                                    </div>
-                                                </div>
-                                            </div>`;
-                                });
-
-                                $.each(comparison.Security.Removed, function (index, value) {
-                                    htmlChanges += `<div class="accordion-item">
-                                                <h2 class="accordion-header">
-                                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-security-removed-${index}">
-                                                        <i class="bi bi-dash-square text-danger fs-4 me-4"></i> Removed security <b class='ms-1'>${value.Name}</b>
-                                                    </button>
-                                                </h2>
-                                                <div id="collapse-security-removed-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
-                                                    <div class="accordion-body">
-                                                        Action: ${value.Action} ${value.Record} <br/>Role: ${value.Role} <br/>RateLimit: ${value.RateLimit} <br/>Properties: ${value.Properties}
-                                                    </div>
-                                                </div>
-                                            </div>`;
-                                });
-
-                                $.each(comparison.Security.Changed, function (index, value) {
-                                    htmlChanges += `<div class="accordion-item">
-                                                    <h2 class="accordion-header">
-                                                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-security-changed-${index}">
-                                                            <i class="bi bi-slash-square text-warning fs-4 me-4"></i> Changed security <b class='ms-1'>${value.Name}</b>
-                                                        </button>
-                                                    </h2>
-                                                    <div id="collapse-security-changed-${index}" class="accordion-collapse collapse" data-bs-parent="#accordion-compare">
-                                                        <div class="accordion-body">
-                                                            <div class='row px-4'>
-                                                                <div class="col-12 col-md-6 px-6 ps-0">
-                                                                    <div class="card">
-                                                                        <div class="card-body">
-                                                                            <h5 class="card-title">Before</h5>
-                                                                            Action: ${value.SecurityBefore.Action} ${value.SecurityBefore.Record} <br/>Role: ${value.SecurityBefore.Role} <br/>RateLimit: ${value.SecurityBefore.RateLimit} <br/>Properties: ${value.SecurityBefore.Properties}
-                                                                        </div>
-                                                                    </div>
-                                                                    </div>
-                                                                <div class="col-12 col-md-6 px-6 pe-0">
-                                                                    <div class="card">
-                                                                        <div class="card-body">
-                                                                            <h5 class="card-title">After</h5>
-                                                                            Action: ${value.SecurityAfter.Action} ${value.SecurityAfter.Record} <br/>Role: ${value.SecurityAfter.Role} <br/>RateLimit: ${value.SecurityAfter.RateLimit} <br/>Properties: ${value.SecurityAfter.Properties}
-                                                                        </div>
-                                                                    </div>
-                                                                    </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>`;
-                                });
-
-                                if (htmlChanges == ''){
-                                    htmlChanges = '<div class="py-6">No changes found</div>';
-                                }
-
-                                $('#modal-application-compare-body').html(`
-                                    <div class='card p-6 mb-6'><div>Source: <b>${comparison.ApplicationSource}</b></div><div>Target: <b>${comparison.ApplicationTarget}</b></div></div>
-                                    <div class='custom-border px-6 mb-6'><div class="accordion" id="accordion-compare">${htmlChanges}</div></div>`);
-
-                                $('#modal-application-compare').modal('show');
-                                resolve();
+                    inputValidator: function (value) {
+                        if (!value) return 'Please select an application to compare to';
+                    },
+                    preConfirm: function (value) {
+                        return new Promise(function (resolve) {
+                            compareApplications(appToken, value, resolve, function () {
+                                Swal.showValidationMessage('Failed to load comparison data');
                             });
                         });
                     }
-                });                
+                }).then(function (result) {
+                    if (result.isConfirmed && result.value) {
+                        $('#modal-application-compare-body').html(buildDiffHtml(result.value));
+                        $('#modal-application-compare').modal('show');
+                    }
+                });
             });
         }
 
-        function compareApplications(appTokenSource, appTokenTarget, callback) {
+        // Renders the comparison result into clean, scannable HTML.
+        function buildDiffHtml(comparison) {
+            var header = `<div class="d-flex align-items-center gap-2 mb-4 p-3 rounded-2 bg-body-tertiary">
+                <span class="fw-semibold">${comparison.ApplicationSource}</span>
+                <i class="bi bi-arrow-right text-muted"></i>
+                <span class="fw-semibold">${comparison.ApplicationTarget}</span>
+            </div>`;
+
+            var entSection = buildDiffSection(
+                'grid-3x3', 'Entities',
+                comparison.Entities.Added   || [],
+                comparison.Entities.Removed || [],
+                comparison.Entities.Changed || [],
+                function (e) {
+                    var props = (e.Properties || []).map(function (p) {
+                        return `<span class="badge text-bg-secondary fw-normal">${p.Name} <span class="opacity-75">${p.Type}</span></span>`;
+                    }).join('');
+                    return `<div class="py-1"><span class="fw-semibold">${e.Name}</span>${props ? `<div class="mt-1 d-flex flex-wrap gap-1">${props}</div>` : ''}</div>`;
+                },
+                function (e) {
+                    return `<div class="py-1"><span class="fw-semibold">${e.Name}</span></div>`;
+                },
+                function (e) {
+                    var added   = (e.PropertiesAdded   || []).map(function (p) { return `<span class="badge bg-success-subtle text-success fw-normal">+ ${p.Name}</span>`; }).join('');
+                    var removed = (e.PropertiesRemoved || []).map(function (p) { return `<span class="badge bg-danger-subtle  text-danger  fw-normal">- ${p.Name}</span>`; }).join('');
+                    return `<div class="py-1"><span class="fw-semibold">${e.Name}</span>${(added || removed) ? `<div class="mt-1 d-flex flex-wrap gap-1">${added}${removed}</div>` : ''}</div>`;
+                }
+            );
+
+            var ceSection = buildDiffSection(
+                'arrow-up-right-square', 'Custom Endpoints',
+                comparison.CustomEndpoints.Added   || [],
+                comparison.CustomEndpoints.Removed || [],
+                comparison.CustomEndpoints.Changed || [],
+                function (ce) { return `<div class="py-1"><span class="fw-semibold">${ce.Name}</span></div>`; },
+                function (ce) { return `<div class="py-1"><span class="fw-semibold">${ce.Name}</span></div>`; },
+                function (ce) { return `<div class="py-1"><span class="fw-semibold">${ce.Name}</span></div>`; }
+            );
+
+            function secItem(s) {
+                var meta = [s.Role, s.Action, s.Record].filter(Boolean).join(' &middot; ');
+                if (s.RateLimit && s.RateLimit !== 'none') meta += ' &middot; limit: ' + s.RateLimit;
+                return `<div class="py-1"><span class="fw-semibold">${s.Name}</span><span class="text-muted small ms-2">${meta}</span></div>`;
+            }
+
+            function secChangedItem(s) {
+                function diff(label, before, after) {
+                    return before !== after
+                        ? `${label}: <span class="text-danger">${before}</span>&nbsp;&rarr;&nbsp;<span class="text-success">${after}</span>`
+                        : null;
+                }
+                var diffs = [
+                    diff('Role',       s.SecurityBefore.Role,       s.SecurityAfter.Role),
+                    diff('Action',     s.SecurityBefore.Action,     s.SecurityAfter.Action),
+                    diff('Record',     s.SecurityBefore.Record,     s.SecurityAfter.Record),
+                    diff('RateLimit',  s.SecurityBefore.RateLimit,  s.SecurityAfter.RateLimit),
+                    diff('Properties', s.SecurityBefore.Properties, s.SecurityAfter.Properties)
+                ].filter(Boolean);
+                return `<div class="py-1"><span class="fw-semibold">${s.Name}</span>${diffs.length ? `<div class="text-muted small mt-1">${diffs.join(' &bull; ')}</div>` : ''}</div>`;
+            }
+
+            var secSection = buildDiffSection(
+                'lock', 'Security',
+                comparison.Security.Added   || [],
+                comparison.Security.Removed || [],
+                comparison.Security.Changed || [],
+                secItem, secItem, secChangedItem
+            );
+
+            var sections = (entSection || '') + (ceSection || '') + (secSection || '');
+
+            if (!sections) {
+                return header + '<div class="text-center py-4 text-muted">' +
+                    '<i class="bi bi-check-circle fs-3 d-block mb-2 text-success"></i>' +
+                    'Applications are identical</div>';
+            }
+
+            return header + sections;
+        }
+
+        // Builds one section (Entities / Custom Endpoints / Security) of the diff view.
+        function buildDiffSection(icon, title, added, removed, changed, addedFn, removedFn, changedFn) {
+            if (!added.length && !removed.length && !changed.length) return '';
+
+            var html = '<div class="mb-4">' +
+                '<div class="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom">' +
+                    `<i class="bi bi-${icon} text-muted"></i>` +
+                    `<span class="fw-semibold">${title}</span>` +
+                '</div>';
+
+            if (added.length) {
+                html += '<div class="mb-2">' +
+                    `<span class="small fw-semibold text-success"><i class="bi bi-plus-circle me-1"></i>Added (${added.length})</span>` +
+                    `<div class="ps-3 border-start border-2 border-success mt-1">${added.map(addedFn).join('')}</div>` +
+                    '</div>';
+            }
+
+            if (removed.length) {
+                html += '<div class="mb-2">' +
+                    `<span class="small fw-semibold text-danger"><i class="bi bi-dash-circle me-1"></i>Removed (${removed.length})</span>` +
+                    `<div class="ps-3 border-start border-2 border-danger mt-1">${removed.map(removedFn).join('')}</div>` +
+                    '</div>';
+            }
+
+            if (changed.length) {
+                html += '<div class="mb-2">' +
+                    `<span class="small fw-semibold text-warning"><i class="bi bi-pencil me-1"></i>Changed (${changed.length})</span>` +
+                    `<div class="ps-3 border-start border-2 border-warning mt-1">${changed.map(changedFn).join('')}</div>` +
+                    '</div>';
+            }
+
+            html += '</div>';
+            return html;
+        }
+
+        function compareApplications(appTokenSource, appTokenTarget, callback, errorCallback) {
             $.ajax({
                 url: `@Url.Action("CompareApplications", "Applications")?appTokenSource=${appTokenSource}&appTokenTarget=${appTokenTarget}`,
                 type: 'GET',
                 dataType: 'json',
                 contentType: 'application/json; charset=utf-8',
-                success: function (data) {                                    
-                    if (callback){
-                        callback(data);
-                    }
+                success: function (data) {
+                    if (callback) callback(data);
                 },
                 error: function (e) {
-                    handleCustomError(e);
+                    if (errorCallback) errorCallback(e);
+                    else handleCustomError(e);
                 }
             });
         }
