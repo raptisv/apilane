@@ -1,0 +1,318 @@
+@using Apilane.Portal.Models;
+@using Apilane.Common.Models;
+@model DBWS_Application
+
+@{
+    ViewBag.Title = "Import";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">@Model.Server.Name</li>
+                        <li class="breadcrumb-item"><a href="@Url.Action("Index", "Applications")">Applications</a></li>
+                        <li class="breadcrumb-item"><a href="@Url.RouteUrl("AppRoute", new { controller = "Application", action = "Entities", appid = Model.Token })">@Model.Name</a></li>
+                        <li class="breadcrumb-item active">Import schema</li>
+                    </ol>
+                </nav>
+            </div>
+
+            @{
+                await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Model);
+            }
+
+            <div class="row clearfix">
+                <div class="col-12 col-xl-8">
+                    <div class="card">
+                        <h4 class="card-header">
+                            Import schema
+                        </h4>
+                        <div class="card-body">
+
+                            <div class="alert alert-primary" role="alert">
+                                <div class="d-flex gap-4">
+                                    <span><i class="bi bi-info-circle-fill"></i></span>
+                                    <ul class="mb-0">
+                                        <li>Paste a JSON object describing the entities, properties, constraints and security rules to import.</li>
+                                        <li>Entities are processed in FK-dependency order. Referenced entities must either already exist or appear in the same payload.</li>
+                                        <li>If an entity or property already exists, its metadata is validated against the payload. Import is aborted on any mismatch.</li>
+                                        <li>Security rules are identified by <code>TypeID + Name + RoleID + Action</code>. Identical entries are skipped; differing ones cause an error.</li>
+                                        <li>Property <code>TypeID</code> values: 1&nbsp;=&nbsp;String, 2&nbsp;=&nbsp;Number, 3&nbsp;=&nbsp;Boolean, 4&nbsp;=&nbsp;Date.</li>
+                                        <li>Constraint <code>TypeID</code> values: 1&nbsp;=&nbsp;Unique, 2&nbsp;=&nbsp;Foreign key (Properties format: <code>LocalColumn,FKEntity</code>).</li>
+                                        <li>Security <code>TypeID</code> values: 0&nbsp;=&nbsp;Entity, 1&nbsp;=&nbsp;Custom endpoint, 2&nbsp;=&nbsp;Schema.</li>
+                                        <li>Security <code>RoleID</code>: <code>ANONYMOUS</code>, <code>AUTHENTICATED</code>, or a custom role name.</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="card mb-3">
+                                <h5 class="card-header">Load from another application</h5>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-3">
+                                        Select an application to compute what it has that the current application does not.
+                                        The result will be pre-filled in the JSON payload area below, ready to import.
+                                    </p>
+                                    @if (ViewBag.OtherApplications != null && ((List<Apilane.Common.Models.DBWS_Application>)ViewBag.OtherApplications).Any())
+                                    {
+                                        <div class="d-flex gap-2 align-items-center flex-wrap">
+                                            <select id="diffAppSelect" class="form-select" style="max-width:320px;">
+                                                <option value="">&mdash; select an application &mdash;</option>
+                                                @{
+                                                    var groupedApps = ((List<Apilane.Common.Models.DBWS_Application>)ViewBag.OtherApplications)
+                                                        .GroupBy(a => a.Server.Name)
+                                                        .OrderBy(g => g.Key);
+                                                }
+                                                @foreach (var serverGroup in groupedApps)
+                                                {
+                                                    <optgroup label="@serverGroup.Key">
+                                                        @foreach (var app in serverGroup.OrderBy(a => a.Name))
+                                                        {
+                                                            <option value="@app.Token">@app.Name</option>
+                                                        }
+                                                    </optgroup>
+                                                }
+                                            </select>
+                                            <button id="btnLoadDiff" type="button" class="btn btn-outline-secondary">
+                                                <i class="bi bi-cloud-download me-1"></i>Load diff
+                                            </button>
+                                        </div>
+                                        <div id="diffResult" class="mt-2" style="display:none;"></div>
+                                    }
+                                    else
+                                    {
+                                        <p class="text-muted mb-0"><em>No other applications accessible.</em></p>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="form-group mb-3">
+                                <label class="form-label fw-semibold">JSON payload</label>
+                                <textarea id="importJson" class="form-control font-monospace" rows="20" placeholder='{"Entities": [], "Security": []}'></textarea>
+                            </div>
+
+                            <div id="importResult" class="mb-3" style="display:none;"></div>
+
+                            <button id="btnImport" type="button" class="btn btn-primary">
+                                <i class="bi bi-upload me-1"></i>Import
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card mt-4 bg-transparent">
+                        <h4 class="card-header">Example payload</h4>
+                        <div class="card-body">
+                            <pre class="mb-0"><code id="examplePayload"></code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+<script type="text/javascript">
+
+    var examplePayload = {
+        "Entities": [
+            {
+                "Name": "Product",
+                "Description": "Product catalog",
+                "RequireChangeTracking": false,
+                "HasDifferentiationProperty": false,
+                "Properties": [
+                    {
+                        "Name": "Title",
+                        "TypeID": 1,
+                        "Required": true,
+                        "Minimum": null,
+                        "Maximum": 200,
+                        "DecimalPlaces": null,
+                        "Encrypted": false,
+                        "ValidationRegex": null,
+                        "Description": null
+                    },
+                    {
+                        "Name": "Price",
+                        "TypeID": 2,
+                        "Required": true,
+                        "Minimum": 0,
+                        "Maximum": null,
+                        "DecimalPlaces": 2,
+                        "Encrypted": false,
+                        "ValidationRegex": null,
+                        "Description": null
+                    }
+                ],
+                "Constraints": []
+            },
+            {
+                "Name": "OrderItem",
+                "Description": "Line item in an order",
+                "RequireChangeTracking": false,
+                "HasDifferentiationProperty": false,
+                "Properties": [
+                    {
+                        "Name": "Product_ID",
+                        "TypeID": 2,
+                        "Required": true,
+                        "Minimum": null,
+                        "Maximum": null,
+                        "DecimalPlaces": 0,
+                        "Encrypted": false,
+                        "ValidationRegex": null,
+                        "Description": null
+                    }
+                ],
+                "Constraints": [
+                    {
+                        "TypeID": 2,
+                        "Properties": "Product_ID,Product"
+                    }
+                ]
+            }
+        ],
+        "Security": [
+            {
+                "Name": "Product",
+                "TypeID": 0,
+                "RoleID": "ANONYMOUS",
+                "Action": "get",
+                "Record": 0,
+                "Properties": null,
+                "RateLimit": null
+            }
+        ]
+    };
+
+    document.getElementById('examplePayload').textContent = JSON.stringify(examplePayload, null, 2);
+
+    document.getElementById('btnImport').addEventListener('click', function () {
+
+        var jsonText = document.getElementById('importJson').value.trim();
+        var resultDiv = document.getElementById('importResult');
+
+        if (!jsonText) {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="alert alert-warning">Please paste a JSON payload before importing.</div>';
+            return;
+        }
+
+        var payload;
+        try {
+            payload = JSON.parse(jsonText);
+        } catch (e) {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="alert alert-danger"><strong>Invalid JSON:</strong> ' + e.message + '</div>';
+            return;
+        }
+
+        var btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Importing&hellip;';
+        resultDiv.style.display = 'none';
+
+        var importUrl = '@Url.RouteUrl("AppRoute", new { controller = "Import", action = "Index", appid = Model.Token })';
+
+        fetch(importUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]') != null
+                    ? document.querySelector('input[name="__RequestVerificationToken"]').value
+                    : ''
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (result) {
+
+            resultDiv.style.display = 'block';
+
+            if (result.Success) {
+                var warningHtml = '';
+                if (result.Warnings && result.Warnings.length > 0) {
+                    warningHtml = '<ul class="mb-0 mt-2">'
+                        + result.Warnings.map(function (w) { return '<li>' + w + '</li>'; }).join('')
+                        + '</ul>';
+                }
+                resultDiv.innerHTML = '<div class="alert alert-success">'
+                    + '<strong>Import completed successfully.</strong>'
+                    + warningHtml
+                    + '</div>';
+            } else {
+                resultDiv.innerHTML = '<div class="alert alert-danger">'
+                    + '<strong>Import failed:</strong> ' + (result.Error || 'Unknown error.')
+                    + '</div>';
+            }
+        })
+        .catch(function (err) {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="alert alert-danger"><strong>Request failed:</strong> ' + err.message + '</div>';
+        })
+        .finally(function () {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-upload me-1"></i>Import';
+        });
+    });
+
+
+    var btnLoadDiff = document.getElementById('btnLoadDiff');
+    if (btnLoadDiff) {
+        btnLoadDiff.addEventListener('click', function () {
+
+            var select = document.getElementById('diffAppSelect');
+            var diffResultDiv = document.getElementById('diffResult');
+            var sourceToken = select ? select.value : '';
+
+            if (!sourceToken) {
+                diffResultDiv.style.display = 'block';
+                diffResultDiv.innerHTML = '<div class="alert alert-warning">Please select an application first.</div>';
+                return;
+            }
+
+            var btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Loading&hellip;';
+            diffResultDiv.style.display = 'none';
+
+            var diffUrl = '@Url.RouteUrl("AppRoute", new { controller = "Import", action = "GetImportFromDiff", appid = Model.Token })'
+                + '?sourceAppToken=' + encodeURIComponent(sourceToken);
+
+            fetch(diffUrl, { method: 'GET' })
+            .then(function (response) {
+                if (!response.ok) {
+                    return response.text().then(function (t) { throw new Error(t || response.statusText); });
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                var hasEntities = data.Entities && data.Entities.length > 0;
+                var hasSecurity = data.Security && data.Security.length > 0;
+
+                diffResultDiv.style.display = 'block';
+
+                if (!hasEntities && !hasSecurity) {
+                    diffResultDiv.innerHTML = '<div class="alert alert-info">No differences found — both applications are identical.</div>';
+                } else {
+                    document.getElementById('importJson').value = JSON.stringify(data, null, 2);
+                    diffResultDiv.innerHTML = '<div class="alert alert-success">Diff loaded into the payload area. Review and click <strong>Import</strong> when ready.</div>';
+                }
+            })
+            .catch(function (err) {
+                diffResultDiv.style.display = 'block';
+                diffResultDiv.innerHTML = '<div class="alert alert-danger"><strong>Failed to load diff:</strong> ' + err.message + '</div>';
+            })
+            .finally(function () {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-cloud-download me-1"></i>Load diff';
+            });
+        });
+    }
+
+</script>
+}
