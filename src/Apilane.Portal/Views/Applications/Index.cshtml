@@ -330,53 +330,200 @@
 
         // Renders the comparison result into clean, scannable HTML.
         function buildDiffHtml(comparison) {
+
+            function esc(str) {
+                return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+            function constraintTypeName(id) {
+                return ({ 1: 'Unique', 2: 'Foreign Key' })[id] || ('Type ' + id);
+            }
+
             var header = `<div class="d-flex align-items-center gap-2 mb-4 p-3 rounded-2 bg-body-tertiary">
-                <span class="fw-semibold">${comparison.ApplicationSource}</span>
+                <span class="fw-semibold">${esc(comparison.ApplicationSource)}</span>
                 <i class="bi bi-arrow-right text-muted"></i>
-                <span class="fw-semibold">${comparison.ApplicationTarget}</span>
+                <span class="fw-semibold">${esc(comparison.ApplicationTarget)}</span>
             </div>`;
 
-            var entSection = buildDiffSection(
-                'grid-3x3', 'Entities',
-                comparison.Entities.Added   || [],
-                comparison.Entities.Removed || [],
-                comparison.Entities.Changed || [],
-                function (e) {
-                    var props = (e.Properties || []).map(function (p) {
-                        return `<span class="badge text-bg-secondary fw-normal">${p.Name} <span class="opacity-75">${p.Type}</span></span>`;
-                    }).join('');
-                    return `<div class="py-1"><span class="fw-semibold">${e.Name}</span>${props ? `<div class="mt-1 d-flex flex-wrap gap-1">${props}</div>` : ''}</div>`;
-                },
-                function (e) {
-                    return `<div class="py-1"><span class="fw-semibold">${e.Name}</span></div>`;
-                },
-                function (e) {
-                    var added   = (e.PropertiesAdded   || []).map(function (p) { return `<span class="badge bg-success-subtle text-success fw-normal">+ ${p.Name}</span>`; }).join('');
-                    var removed = (e.PropertiesRemoved || []).map(function (p) { return `<span class="badge bg-danger-subtle  text-danger  fw-normal">- ${p.Name}</span>`; }).join('');
-                    return `<div class="py-1"><span class="fw-semibold">${e.Name}</span>${(added || removed) ? `<div class="mt-1 d-flex flex-wrap gap-1">${added}${removed}</div>` : ''}</div>`;
+            // Full entity card (used for Added and Removed)
+            function entityFullCard(e) {
+                var html = '<div class="card mb-2">';
+                html += '<div class="card-header d-flex align-items-center gap-2">';
+                html += '<span class="fw-semibold">' + esc(e.Name) + '</span>';
+                if (e.Description) html += ' <span class="text-muted small">' + esc(e.Description) + '</span>';
+                if (e.RequireChangeTracking)      html += ' <span class="badge bg-secondary">change tracking</span>';
+                if (e.HasDifferentiationProperty) html += ' <span class="badge bg-info">differentiation</span>';
+                html += '</div><div class="card-body p-0">';
+
+                var props = e.Properties || [];
+                var cons  = e.Constraints || [];
+
+                if (props.length) {
+                    html += '<table class="table table-sm mb-0">';
+                    html += '<thead class="table-light"><tr><th>Property</th><th>Type</th><th>Required</th><th>Min</th><th>Max</th><th>Decimals</th><th>Encrypted</th><th>Regex</th><th>Description</th></tr></thead><tbody>';
+                    props.forEach(function (p) {
+                        html += '<tr>';
+                        html += '<td class="fw-semibold">' + esc(p.Name) + '</td>';
+                        html += '<td><span class="badge bg-secondary">' + esc(p.TypeLabel || p.Type || '') + '</span></td>';
+                        html += '<td>' + (p.Required  ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.Minimum  != null ? p.Minimum  : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.Maximum  != null ? p.Maximum  : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.DecimalPlaces != null ? p.DecimalPlaces : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.Encrypted ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.ValidationRegex ? '<code>' + esc(p.ValidationRegex) + '</code>' : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.Description ? esc(p.Description) : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
                 }
-            );
 
-            var ceSection = buildDiffSection(
-                'arrow-up-right-square', 'Custom Endpoints',
-                comparison.CustomEndpoints.Added   || [],
-                comparison.CustomEndpoints.Removed || [],
-                comparison.CustomEndpoints.Changed || [],
-                function (ce) { return `<div class="py-1"><span class="fw-semibold">${ce.Name}</span></div>`; },
-                function (ce) { return `<div class="py-1"><span class="fw-semibold">${ce.Name}</span></div>`; },
-                function (ce) { return `<div class="py-1"><span class="fw-semibold">${ce.Name}</span></div>`; }
-            );
+                if (cons.length) {
+                    html += '<table class="table table-sm mb-0 border-top">';
+                    html += '<thead class="table-light"><tr><th>Constraint</th><th>Properties</th></tr></thead><tbody>';
+                    cons.forEach(function (c) {
+                        html += '<tr><td><span class="badge bg-warning text-dark">' + constraintTypeName(c.TypeID) + '</span></td>';
+                        html += '<td><code>' + esc(c.Properties || '') + '</code></td></tr>';
+                    });
+                    html += '</tbody></table>';
+                }
 
+                if (!props.length && !cons.length) {
+                    html += '<div class="px-3 py-2 text-muted small">No user properties or constraints.</div>';
+                }
+
+                html += '</div></div>';
+                return html;
+            }
+
+            // Changed entity card (properties/constraints added, removed, or field-level updates)
+            function entityChangedCard(e) {
+                var meta     = e.MetadataChanges   || [];
+                var added    = e.PropertiesAdded   || [];
+                var changed  = e.PropertiesChanged || [];
+                var removed  = e.PropertiesRemoved || [];
+                var cAdded   = e.ConstraintsAdded  || [];
+                var cRemoved = e.ConstraintsRemoved || [];
+                var html = '<div class="card mb-2"><div class="card-header fw-semibold">' + esc(e.Name) + '</div><div class="card-body p-0">';
+                var hasPrev = false;
+
+                // --- Entity metadata changes
+                if (meta.length) {
+                    html += '<div class="px-3 pt-2 pb-2"><span class="small fw-semibold text-warning"><i class="bi bi-pencil me-1"></i>Entity metadata changed</span>';
+                    html += '<table class="table table-sm mt-1 mb-0"><thead class="table-light"><tr><th>Field</th><th>Before</th><th>After</th></tr></thead><tbody>';
+                    meta.forEach(function (m) {
+                        html += '<tr><td class="fw-semibold">' + esc(m.Field) + '</td>';
+                        html += '<td><span class="text-danger">' + (m.Before != null ? esc(m.Before) : '<em class="text-muted">empty</em>') + '</span></td>';
+                        html += '<td><span class="text-success">' + (m.After  != null ? esc(m.After)  : '<em class="text-muted">empty</em>') + '</span></td></tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    hasPrev = true;
+                }
+
+                // --- Properties added
+                if (added.length) {
+                    html += '<div class="px-3 pt-2 pb-1' + (hasPrev ? ' border-top' : '') + '"><span class="small fw-semibold text-success"><i class="bi bi-plus-circle me-1"></i>Properties added (' + added.length + ')</span></div>';
+                    html += '<table class="table table-sm mb-0"><thead class="table-light"><tr><th>Property</th><th>Type</th><th>Required</th><th>Min</th><th>Max</th><th>Decimals</th><th>Encrypted</th><th>Regex</th><th>Description</th></tr></thead><tbody>';
+                    added.forEach(function (p) {
+                        html += '<tr>';
+                        html += '<td class="fw-semibold">' + esc(p.Name) + '</td>';
+                        html += '<td><span class="badge bg-secondary">' + esc(p.TypeLabel || p.Type || '') + '</span></td>';
+                        html += '<td>' + (p.Required  ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.Minimum  != null ? p.Minimum  : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.Maximum  != null ? p.Maximum  : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.DecimalPlaces != null ? p.DecimalPlaces : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.Encrypted ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.ValidationRegex ? '<code>' + esc(p.ValidationRegex) + '</code>' : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '<td>' + (p.Description ? esc(p.Description) : '<span class="text-muted">&mdash;</span>') + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    hasPrev = true;
+                }
+
+                // --- Property field-level changes
+                if (changed.length) {
+                    html += '<div class="px-3 pt-2 pb-1' + (hasPrev ? ' border-top' : '') + '"><span class="small fw-semibold text-warning"><i class="bi bi-pencil me-1"></i>Properties updated (' + changed.length + ')</span></div>';
+                    changed.forEach(function (p) {
+                        html += '<div class="px-3 pb-1 small fw-semibold">' + esc(p.Name) + '</div>';
+                        html += '<table class="table table-sm mb-0"><thead class="table-light"><tr><th>Field</th><th>Before</th><th>After</th></tr></thead><tbody>';
+                        (p.Changes || []).forEach(function (ch) {
+                            html += '<tr><td class="fw-semibold">' + esc(ch.Field) + '</td>';
+                            html += '<td><span class="text-danger">' + (ch.Before != null ? esc(ch.Before) : '<em class="text-muted">empty</em>') + '</span></td>';
+                            html += '<td><span class="text-success">' + (ch.After  != null ? esc(ch.After)  : '<em class="text-muted">empty</em>') + '</span></td></tr>';
+                        });
+                        html += '</tbody></table>';
+                    });
+                    hasPrev = true;
+                }
+
+                // --- Properties removed
+                if (removed.length) {
+                    html += '<div class="px-3 pt-2 pb-1' + (hasPrev ? ' border-top' : '') + '"><span class="small fw-semibold text-danger"><i class="bi bi-dash-circle me-1"></i>Properties removed (' + removed.length + ')</span></div>';
+                    html += '<div class="px-3 pb-2 d-flex flex-wrap gap-1">';
+                    removed.forEach(function (p) {
+                        html += '<span class="badge bg-danger-subtle text-danger fw-normal">' + esc(p.Name) + ' <span class="opacity-75">' + esc(p.TypeLabel || p.Type || '') + '</span></span>';
+                    });
+                    html += '</div>';
+                    hasPrev = true;
+                }
+
+                // --- Constraints added
+                if (cAdded.length) {
+                    html += '<div class="px-3 pt-2 pb-1' + (hasPrev ? ' border-top' : '') + '"><span class="small fw-semibold text-success"><i class="bi bi-plus-circle me-1"></i>Constraints added</span></div>';
+                    html += '<table class="table table-sm mb-0"><thead class="table-light"><tr><th>Constraint</th><th>Properties</th></tr></thead><tbody>';
+                    cAdded.forEach(function (c) {
+                        html += '<tr><td><span class="badge bg-warning text-dark">' + constraintTypeName(c.TypeID) + '</span></td><td><code>' + esc(c.Properties || '') + '</code></td></tr>';
+                    });
+                    html += '</tbody></table>';
+                    hasPrev = true;
+                }
+
+                // --- Constraints removed
+                if (cRemoved.length) {
+                    html += '<div class="px-3 pt-2 pb-1' + (hasPrev ? ' border-top' : '') + '"><span class="small fw-semibold text-danger"><i class="bi bi-dash-circle me-1"></i>Constraints removed</span></div>';
+                    html += '<table class="table table-sm mb-0"><thead class="table-light"><tr><th>Constraint</th><th>Properties</th></tr></thead><tbody>';
+                    cRemoved.forEach(function (c) {
+                        html += '<tr><td><span class="badge bg-warning text-dark">' + constraintTypeName(c.TypeID) + '</span></td><td><code>' + esc(c.Properties || '') + '</code></td></tr>';
+                    });
+                    html += '</tbody></table>';
+                }
+
+                html += '</div></div>';
+                return html;
+            }
+
+            // Custom endpoint cards
+            function ceCard(ce) {
+                var html = '<div class="py-2">';
+                html += '<span class="fw-semibold">' + esc(ce.Name) + '</span>';
+                if (ce.Description) html += ' <span class="text-muted small">' + esc(ce.Description) + '</span>';
+                html += '<div class="mt-1"><code class="text-wrap">' + esc(ce.Query) + '</code></div>';
+                html += '</div>';
+                return html;
+            }
+            function ceChangedCard(ce) {
+                var html = '<div class="py-2"><span class="fw-semibold">' + esc(ce.Name) + '</span><div class="mt-1 small">';
+                if (ce.DescriptionBefore !== ce.DescriptionAfter) {
+                    html += '<div><span class="fw-semibold">Description:</span> <span class="text-danger">' + (ce.DescriptionBefore ? esc(ce.DescriptionBefore) : '<em class="text-muted">empty</em>') + '</span>';
+                    html += ' &rarr; <span class="text-success">' + (ce.DescriptionAfter ? esc(ce.DescriptionAfter) : '<em class="text-muted">empty</em>') + '</span></div>';
+                }
+                if (ce.QueryBefore !== ce.QueryAfter) {
+                    html += '<div><span class="fw-semibold">Query before:</span> <code>' + esc(ce.QueryBefore) + '</code></div>';
+                    html += '<div><span class="fw-semibold">Query after:</span> <code>' + esc(ce.QueryAfter) + '</code></div>';
+                }
+                html += '</div></div>';
+                return html;
+            }
+
+            // Security items
             function secItem(s) {
                 var meta = [s.Role, s.Action, s.Record].filter(Boolean).join(' &middot; ');
                 if (s.RateLimit && s.RateLimit !== 'none') meta += ' &middot; limit: ' + s.RateLimit;
-                return `<div class="py-1"><span class="fw-semibold">${s.Name}</span><span class="text-muted small ms-2">${meta}</span></div>`;
+                return '<div class="py-1"><span class="fw-semibold">' + esc(s.Name) + '</span><span class="text-muted small ms-2">' + meta + '</span></div>';
             }
-
             function secChangedItem(s) {
                 function diff(label, before, after) {
                     return before !== after
-                        ? `${label}: <span class="text-danger">${before}</span>&nbsp;&rarr;&nbsp;<span class="text-success">${after}</span>`
+                        ? label + ': <span class="text-danger">' + esc(before) + '</span>&nbsp;&rarr;&nbsp;<span class="text-success">' + esc(after) + '</span>'
                         : null;
                 }
                 var diffs = [
@@ -386,8 +533,24 @@
                     diff('RateLimit',  s.SecurityBefore.RateLimit,  s.SecurityAfter.RateLimit),
                     diff('Properties', s.SecurityBefore.Properties, s.SecurityAfter.Properties)
                 ].filter(Boolean);
-                return `<div class="py-1"><span class="fw-semibold">${s.Name}</span>${diffs.length ? `<div class="text-muted small mt-1">${diffs.join(' &bull; ')}</div>` : ''}</div>`;
+                return '<div class="py-1"><span class="fw-semibold">' + esc(s.Name) + '</span>' + (diffs.length ? '<div class="text-muted small mt-1">' + diffs.join(' &bull; ') + '</div>' : '') + '</div>';
             }
+
+            var entSection = buildDiffSection(
+                'grid-3x3', 'Entities',
+                comparison.Entities.Added   || [],
+                comparison.Entities.Removed || [],
+                comparison.Entities.Changed || [],
+                entityFullCard, entityFullCard, entityChangedCard
+            );
+
+            var ceSection = buildDiffSection(
+                'arrow-up-right-square', 'Custom Endpoints',
+                comparison.CustomEndpoints.Added   || [],
+                comparison.CustomEndpoints.Removed || [],
+                comparison.CustomEndpoints.Changed || [],
+                ceCard, ceCard, ceChangedCard
+            );
 
             var secSection = buildDiffSection(
                 'lock', 'Security',
@@ -414,28 +577,28 @@
 
             var html = '<div class="mb-4">' +
                 '<div class="d-flex align-items-center gap-2 mb-2 pb-1 border-bottom">' +
-                    `<i class="bi bi-${icon} text-muted"></i>` +
-                    `<span class="fw-semibold">${title}</span>` +
+                    '<i class="bi bi-' + icon + ' text-muted"></i>' +
+                    '<span class="fw-semibold">' + title + '</span>' +
                 '</div>';
 
             if (added.length) {
                 html += '<div class="mb-2">' +
-                    `<span class="small fw-semibold text-success"><i class="bi bi-plus-circle me-1"></i>Added (${added.length})</span>` +
-                    `<div class="ps-3 border-start border-2 border-success mt-1">${added.map(addedFn).join('')}</div>` +
+                    '<span class="small fw-semibold text-success"><i class="bi bi-plus-circle me-1"></i>Added (' + added.length + ')</span>' +
+                    '<div class="ps-3 border-start border-2 border-success mt-1">' + added.map(addedFn).join('') + '</div>' +
                     '</div>';
             }
 
             if (removed.length) {
                 html += '<div class="mb-2">' +
-                    `<span class="small fw-semibold text-danger"><i class="bi bi-dash-circle me-1"></i>Removed (${removed.length})</span>` +
-                    `<div class="ps-3 border-start border-2 border-danger mt-1">${removed.map(removedFn).join('')}</div>` +
+                    '<span class="small fw-semibold text-danger"><i class="bi bi-dash-circle me-1"></i>Removed (' + removed.length + ')</span>' +
+                    '<div class="ps-3 border-start border-2 border-danger mt-1">' + removed.map(removedFn).join('') + '</div>' +
                     '</div>';
             }
 
             if (changed.length) {
                 html += '<div class="mb-2">' +
-                    `<span class="small fw-semibold text-warning"><i class="bi bi-pencil me-1"></i>Changed (${changed.length})</span>` +
-                    `<div class="ps-3 border-start border-2 border-warning mt-1">${changed.map(changedFn).join('')}</div>` +
+                    '<span class="small fw-semibold text-warning"><i class="bi bi-pencil me-1"></i>Changed (' + changed.length + ')</span>' +
+                    '<div class="ps-3 border-start border-2 border-warning mt-1">' + changed.map(changedFn).join('') + '</div>' +
                     '</div>';
             }
 
