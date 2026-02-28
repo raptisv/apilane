@@ -122,7 +122,7 @@ namespace Apilane.Portal.Controllers
                     EntConstraints = e.Constraints.Any()
                         ? JsonSerializer.Serialize(e.Constraints)
                         : null,
-                    Properties = new List<DBWS_EntityProperty>()
+                    Properties = new()
                 }).ToList()
             };
 
@@ -174,8 +174,7 @@ namespace Apilane.Portal.Controllers
 
                 // Retrieve the system properties and initial constraints from the API server.
                 var sysPropsResponse = await ApiHttpService.GetAsync(
-                    $"{Application.Server.ServerUrl}/api/Application/GetSystemPropertiesAndConstraints" +
-                    $"?entityHasDifferentiationProperty={importEntity.HasDifferentiationProperty}",
+                    $"{Application.Server.ServerUrl}/api/Application/GetSystemPropertiesAndConstraints?entityHasDifferentiationProperty={importEntity.HasDifferentiationProperty}",
                     Application.Token,
                     PortalUserAuthToken);
 
@@ -551,9 +550,9 @@ namespace Apilane.Portal.Controllers
                         .ToHashSet();
 
                     var newConstraints = srcEntity.Constraints
-                        .Where(c => !string.IsNullOrWhiteSpace(c.Properties)
-                            && !tgtConstraintKeys.Contains(
-                                $"{c.TypeID}|{c.Properties?.Trim().ToLowerInvariant()}"))
+                        .Where(c => !c.IsSystem 
+                            && !string.IsNullOrWhiteSpace(c.Properties)
+                            && !tgtConstraintKeys.Contains($"{c.TypeID}|{c.Properties?.Trim().ToLowerInvariant()}"))
                         .ToList();
 
                     if (newProperties.Any() || newConstraints.Any())
