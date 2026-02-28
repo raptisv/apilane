@@ -7,6 +7,7 @@ namespace Apilane.Portal.Models
     {
         public List<ImportEntityItem> Entities { get; set; } = new();
         public List<DBWS_Security> Security { get; set; } = new();
+        public List<ImportCustomEndpointItem> CustomEndpoints { get; set; } = new();
     }
 
     public class ImportEntityItem
@@ -15,6 +16,8 @@ namespace Apilane.Portal.Models
         public string? Description { get; set; }
         public bool RequireChangeTracking { get; set; }
         public bool HasDifferentiationProperty { get; set; }
+        /// <summary>True when the entity does not exist in the target application at all.</summary>
+        public bool IsNew { get; set; }
         public List<ImportPropertyItem> Properties { get; set; } = new();
         public List<EntityConstraint> Constraints { get; set; } = new();
     }
@@ -30,5 +33,12 @@ namespace Apilane.Portal.Models
         public bool Encrypted { get; set; }
         public string? ValidationRegex { get; set; }
         public string? Description { get; set; }
+    }
+
+    public class ImportCustomEndpointItem
+    {
+        public string Name { get; set; } = null!;
+        public string? Description { get; set; }
+        public string Query { get; set; } = null!;
     }
 }

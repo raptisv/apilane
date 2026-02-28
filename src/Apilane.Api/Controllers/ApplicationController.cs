@@ -1,10 +1,10 @@
 ﻿using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
+using Apilane.Api.Filters;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Common.Models.Dto;
-using Apilane.Api.Filters;
 using Microsoft.AspNetCore.Mvc;
 using Orleans;
 using System.Collections.Generic;
@@ -36,7 +36,7 @@ namespace Apilane.Api.Controllers
         [HttpGet]
         public JsonResult GetSystemPropertiesAndConstraints(bool entityHasDifferentiationProperty)
         {
-            var data = Apilane.Api.Core.AppModules.Modules.NewEntityPropertiesConstraints(Application.DifferentiationEntity, entityHasDifferentiationProperty);
+            var data = Core.AppModules.Modules.NewEntityPropertiesConstraints(Application.DifferentiationEntity, entityHasDifferentiationProperty);
 
             return Json(new EntityPropertiesConstrainsDto()
             {

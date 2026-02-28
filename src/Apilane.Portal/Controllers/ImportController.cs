@@ -103,12 +103,16 @@ namespace Apilane.Portal.Controllers
                 await ProcessSecurityAsync(request.Security, warnings);
             }
 
+            if (request.CustomEndpoints != null && request.CustomEndpoints.Any())
+            {
+                await ProcessCustomEndpointsAsync(request.CustomEndpoints, warnings);
+            }
+
             // Reset the API's cached application state so changes are reflected immediately.
             await ResetAppAsync(Application.Server.ServerUrl, Application.Token, PortalUserAuthToken);
 
             return warnings;
         }
-
         private async Task ProcessEntitiesAsync(List<ImportEntityItem> entities, List<string> warnings)
         {
             // Build a synthetic application from the import request in order to reuse
@@ -429,6 +433,34 @@ namespace Apilane.Portal.Controllers
             await DBContext.SaveChangesAsync();
         }
 
+        private async Task ProcessCustomEndpointsAsync(List<ImportCustomEndpointItem> customEndpoints, List<string> warnings)
+        {
+            foreach (var importCe in customEndpoints)
+            {
+                var existing = await DBContext.CustomEndpoints
+                    .FirstOrDefaultAsync(ce => ce.AppID == Application.ID
+                        && ce.Name.ToLower() == importCe.Name.ToLower());
+
+                if (existing != null)
+                {
+                    warnings.Add($"Custom endpoint '{importCe.Name}' already exists — skipped creation.");
+                    continue;
+                }
+
+                var newCe = new DBWS_CustomEndpoint
+                {
+                    AppID = Application.ID,
+                    Name = importCe.Name,
+                    Description = importCe.Description,
+                    Query = importCe.Query,
+                    ID = 0
+                };
+
+                DBContext.CustomEndpoints.Add(newCe);
+                await DBContext.SaveChangesAsync();
+            }
+        }
+
         private async Task ProcessSecurityAsync(List<DBWS_Security> importSecurities, List<string> warnings)
         {
             var currentSecurity = Application.Security_List;
@@ -501,6 +533,7 @@ namespace Apilane.Portal.Controllers
                         Description = srcEntity.Description,
                         RequireChangeTracking = srcEntity.RequireChangeTracking,
                         HasDifferentiationProperty = srcEntity.HasDifferentiationProperty,
+                        IsNew = true,
                         Properties = srcEntity.Properties
                             .Where(p => !p.IsSystem && !p.IsPrimaryKey)
                             .Select(p => new ImportPropertyItem
@@ -517,7 +550,7 @@ namespace Apilane.Portal.Controllers
                             })
                             .ToList(),
                         Constraints = srcEntity.Constraints
-                            .Where(c => !string.IsNullOrWhiteSpace(c.Properties))
+                            .Where(c => !c.IsSystem && !string.IsNullOrWhiteSpace(c.Properties))
                             .ToList()
                     };
 
@@ -563,6 +596,7 @@ namespace Apilane.Portal.Controllers
                             Description = srcEntity.Description,
                             RequireChangeTracking = srcEntity.RequireChangeTracking,
                             HasDifferentiationProperty = srcEntity.HasDifferentiationProperty,
+                            IsNew = false,
                             Properties = newProperties,
                             Constraints = newConstraints
                         });
@@ -592,8 +626,24 @@ namespace Apilane.Portal.Controllers
                 result.Security.Add(srcSec);
             }
 
-            return result;
+            // -- Custom Endpoints -------------------------------------------------------
+            foreach (var srcCe in source.CustomEndpoints)
+            {
+                var alreadyInTarget = target.CustomEndpoints
+                    .Any(ce => ce.Name.Equals(srcCe.Name, StringComparison.OrdinalIgnoreCase));
 
+                if (!alreadyInTarget)
+                {
+                    result.CustomEndpoints.Add(new ImportCustomEndpointItem
+                    {
+                        Name = srcCe.Name,
+                        Description = srcCe.Description,
+                        Query = srcCe.Query
+                    });
+                }
+            }
+
+            return result;
             static bool SecurityItemExistsInSource(DBWS_Application app, DBWS_Security sec)
             {
                 if (sec.TypeID_Enum == SecurityTypes.Entity)

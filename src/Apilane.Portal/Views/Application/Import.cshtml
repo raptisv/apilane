@@ -295,14 +295,15 @@
             .then(function (data) {
                 var hasEntities = data.Entities && data.Entities.length > 0;
                 var hasSecurity = data.Security && data.Security.length > 0;
+                var hasEndpoints = data.CustomEndpoints && data.CustomEndpoints.length > 0;
 
                 diffResultDiv.style.display = 'block';
 
-                if (!hasEntities && !hasSecurity) {
+                if (!hasEntities && !hasSecurity && !hasEndpoints) {
                     diffResultDiv.innerHTML = '<div class="alert alert-info">No differences found — both applications are identical.</div>';
                 } else {
                     document.getElementById('importJson').value = JSON.stringify(data, null, 2);
-                    diffResultDiv.innerHTML = '<div class="alert alert-success">Diff loaded into the payload area. Review and click <strong>Import</strong> when ready.</div>';
+                    diffResultDiv.innerHTML = buildDiffHtml(data);
                 }
             })
             .catch(function (err) {
@@ -314,6 +315,31 @@
                 btn.innerHTML = '<i class="bi bi-cloud-download me-1"></i>Load diff';
             });
         });
+    }
+
+    // ── Diff rendering helpers ──────────────────────────────────────────────────
+
+    function buildDiffHtml(data) {
+        var newEntities     = (data.Entities || []).filter(function (e) { return e.IsNew; });
+        var changedEntities = (data.Entities || []).filter(function (e) { return !e.IsNew; });
+        var security        = data.Security || [];
+        var endpoints       = data.CustomEndpoints || [];
+        var html = '';
+
+        // Summary strip
+        html += '<div class="d-flex gap-2 flex-wrap align-items-center mb-3">';
+        if (newEntities.length)     html += diffBadge(newEntities.length,     newEntities.length     === 1 ? 'new entity'       : 'new entities',       'primary');
+        if (changedEntities.length) html += diffBadge(changedEntities.length, changedEntities.length === 1 ? 'entity updated'   : 'entities updated',   'secondary');
+        if (security.length)        html += diffBadge(security.length,        security.length        === 1 ? 'security rule'    : 'security rules',     'success');
+        if (endpoints.length)       html += diffBadge(endpoints.length,       endpoints.length       === 1 ? 'custom endpoint'  : 'custom endpoints',   'info');
+        html += '</div>';
+        html += '<p class="text-muted small mb-3">Diff loaded into the payload area. Review and click <strong>Import</strong> when ready.</p>';
+
+        return html;
+    }
+
+    function diffBadge(count, label, color) {
+        return '<span class="badge bg-' + color + ' fs-6">' + count + ' ' + label + '</span>';
     }
 
 </script>
