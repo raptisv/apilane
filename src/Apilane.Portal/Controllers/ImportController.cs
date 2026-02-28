@@ -595,7 +595,6 @@ namespace Apilane.Portal.Controllers
 
             return result;
 
-            // Local helper - mirrors SecurityItemExists from CompareApplications.
             static bool SecurityItemExistsInSource(DBWS_Application app, DBWS_Security sec)
             {
                 if (sec.TypeID_Enum == SecurityTypes.Entity)

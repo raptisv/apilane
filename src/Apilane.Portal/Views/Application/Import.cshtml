@@ -33,22 +33,6 @@
                         </h4>
                         <div class="card-body">
 
-                            <div class="alert alert-primary" role="alert">
-                                <div class="d-flex gap-4">
-                                    <span><i class="bi bi-info-circle-fill"></i></span>
-                                    <ul class="mb-0">
-                                        <li>Paste a JSON object describing the entities, properties, constraints and security rules to import.</li>
-                                        <li>Entities are processed in FK-dependency order. Referenced entities must either already exist or appear in the same payload.</li>
-                                        <li>If an entity or property already exists, its metadata is validated against the payload. Import is aborted on any mismatch.</li>
-                                        <li>Security rules are identified by <code>TypeID + Name + RoleID + Action</code>. Identical entries are skipped; differing ones cause an error.</li>
-                                        <li>Property <code>TypeID</code> values: 1&nbsp;=&nbsp;String, 2&nbsp;=&nbsp;Number, 3&nbsp;=&nbsp;Boolean, 4&nbsp;=&nbsp;Date.</li>
-                                        <li>Constraint <code>TypeID</code> values: 1&nbsp;=&nbsp;Unique, 2&nbsp;=&nbsp;Foreign key (Properties format: <code>LocalColumn,FKEntity</code>).</li>
-                                        <li>Security <code>TypeID</code> values: 0&nbsp;=&nbsp;Entity, 1&nbsp;=&nbsp;Custom endpoint, 2&nbsp;=&nbsp;Schema.</li>
-                                        <li>Security <code>RoleID</code>: <code>ANONYMOUS</code>, <code>AUTHENTICATED</code>, or a custom role name.</li>
-                                    </ul>
-                                </div>
-                            </div>
-
                             <div class="card mb-3">
                                 <h5 class="card-header">Load from another application</h5>
                                 <div class="card-body">
@@ -101,8 +85,26 @@
                             </button>
                         </div>
                     </div>
+                </div>
 
-                    <div class="card mt-4 bg-transparent">
+                <div class="col-12 col-xl-4 mt-3 mt-xl-0">
+                    <div class="alert alert-primary" role="alert">
+                        <div class="d-flex gap-4">
+                            <span><i class="bi bi-info-circle-fill"></i></span>
+                            <ul class="mb-0">
+                                <li>Paste a JSON object describing the entities, properties, constraints and security rules to import.</li>
+                                <li>Entities are processed in FK-dependency order. Referenced entities must either already exist or appear in the same payload.</li>
+                                <li>If an entity or property already exists, its metadata is validated against the payload. Import is aborted on any mismatch.</li>
+                                <li>Security rules are identified by <code>TypeID + Name + RoleID + Action</code>. Identical entries are skipped; differing ones cause an error.</li>
+                                <li>Property <code>TypeID</code> values: 1&nbsp;=&nbsp;String, 2&nbsp;=&nbsp;Number, 3&nbsp;=&nbsp;Boolean, 4&nbsp;=&nbsp;Date.</li>
+                                <li>Constraint <code>TypeID</code> values: 1&nbsp;=&nbsp;Unique, 2&nbsp;=&nbsp;Foreign key (Properties format: <code>LocalColumn,FKEntity</code>).</li>
+                                <li>Security <code>TypeID</code> values: 0&nbsp;=&nbsp;Entity, 1&nbsp;=&nbsp;Custom endpoint, 2&nbsp;=&nbsp;Schema.</li>
+                                <li>Security <code>RoleID</code>: <code>ANONYMOUS</code>, <code>AUTHENTICATED</code>, or a custom role name.</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="card mt-3 bg-transparent">
                         <h4 class="card-header">Example payload</h4>
                         <div class="card-body">
                             <pre class="mb-0"><code id="examplePayload"></code></pre>
