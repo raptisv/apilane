@@ -326,24 +326,92 @@ namespace Apilane.Portal.Controllers
                 var entity2 = application_2.Entities.SingleOrDefault(e2 => e2.Name.Equals(entity1.Name));
                 if (entity2 is not null)
                 {
-                    var propertiesAdded = entity2.Properties.Where(p => !entity1.Properties.Select(x => x.Name).Contains(p.Name));
-                    var propertiesRemoved = entity1.Properties.Where(p => !entity2.Properties.Select(x => x.Name).Contains(p.Name));
+                    var propertiesAdded   = entity2.Properties.Where(p => !p.IsSystem && !p.IsPrimaryKey && !entity1.Properties.Select(x => x.Name).Contains(p.Name)).ToList();
+                    var propertiesRemoved = entity1.Properties.Where(p => !p.IsSystem && !p.IsPrimaryKey && !entity2.Properties.Select(x => x.Name).Contains(p.Name)).ToList();
 
-                    if (propertiesAdded.Any() || propertiesRemoved.Any())
+                    // Field-level changes for properties that exist in both apps
+                    var propertiesChanged = new List<object>();
+                    foreach (var prop1 in entity1.Properties.Where(p => !p.IsSystem && !p.IsPrimaryKey))
+                    {
+                        var prop2 = entity2.Properties.FirstOrDefault(p =>
+                            p.Name.Equals(prop1.Name, StringComparison.OrdinalIgnoreCase)
+                            && !p.IsSystem && !p.IsPrimaryKey);
+                        if (prop2 is null) continue;
+
+                        var fieldChanges = new List<object>();
+                        if (prop1.TypeID != prop2.TypeID)
+                            fieldChanges.Add(new { Field = "Type", Before = prop1.TypeID_Enum.ToString(), After = prop2.TypeID_Enum.ToString() });
+                        if (prop1.Required != prop2.Required)
+                            fieldChanges.Add(new { Field = "Required", Before = prop1.Required.ToString(), After = prop2.Required.ToString() });
+                        if (prop1.Minimum != prop2.Minimum)
+                            fieldChanges.Add(new { Field = "Minimum", Before = prop1.Minimum?.ToString(), After = prop2.Minimum?.ToString() });
+                        if (prop1.Maximum != prop2.Maximum)
+                            fieldChanges.Add(new { Field = "Maximum", Before = prop1.Maximum?.ToString(), After = prop2.Maximum?.ToString() });
+                        if (prop1.DecimalPlaces != prop2.DecimalPlaces)
+                            fieldChanges.Add(new { Field = "DecimalPlaces", Before = prop1.DecimalPlaces?.ToString(), After = prop2.DecimalPlaces?.ToString() });
+                        if (prop1.Encrypted != prop2.Encrypted)
+                            fieldChanges.Add(new { Field = "Encrypted", Before = prop1.Encrypted.ToString(), After = prop2.Encrypted.ToString() });
+                        if (!string.Equals(prop1.ValidationRegex, prop2.ValidationRegex, StringComparison.Ordinal))
+                            fieldChanges.Add(new { Field = "ValidationRegex", Before = prop1.ValidationRegex, After = prop2.ValidationRegex });
+                        if (!string.Equals(prop1.Description, prop2.Description, StringComparison.Ordinal))
+                            fieldChanges.Add(new { Field = "Description", Before = prop1.Description, After = prop2.Description });
+
+                        if (fieldChanges.Any())
+                            propertiesChanged.Add(new { prop1.Name, Changes = fieldChanges });
+                    }
+
+                    // Entity metadata changes
+                    var metadataChanges = new List<object>();
+                    if (!string.Equals(entity1.Description, entity2.Description, StringComparison.Ordinal))
+                        metadataChanges.Add(new { Field = "Description", Before = entity1.Description, After = entity2.Description });
+                    if (entity1.RequireChangeTracking != entity2.RequireChangeTracking)
+                        metadataChanges.Add(new { Field = "RequireChangeTracking", Before = entity1.RequireChangeTracking.ToString(), After = entity2.RequireChangeTracking.ToString() });
+                    if (entity1.HasDifferentiationProperty != entity2.HasDifferentiationProperty)
+                        metadataChanges.Add(new { Field = "HasDifferentiationProperty", Before = entity1.HasDifferentiationProperty.ToString(), After = entity2.HasDifferentiationProperty.ToString() });
+
+                    var e1ConstraintKeys = entity1.Constraints
+                        .Select(c => $"{c.TypeID}|{c.Properties?.Trim().ToLowerInvariant()}")
+                        .ToHashSet();
+                    var e2ConstraintKeys = entity2.Constraints
+                        .Select(c => $"{c.TypeID}|{c.Properties?.Trim().ToLowerInvariant()}")
+                        .ToHashSet();
+                    var constraintsAdded   = entity2.Constraints
+                        .Where(c => !c.IsSystem && !string.IsNullOrWhiteSpace(c.Properties)
+                            && !e1ConstraintKeys.Contains($"{c.TypeID}|{c.Properties?.Trim().ToLowerInvariant()}"))
+                        .ToList();
+                    var constraintsRemoved = entity1.Constraints
+                        .Where(c => !c.IsSystem && !string.IsNullOrWhiteSpace(c.Properties)
+                            && !e2ConstraintKeys.Contains($"{c.TypeID}|{c.Properties?.Trim().ToLowerInvariant()}"))
+                        .ToList();
+
+                    if (propertiesAdded.Any() || propertiesRemoved.Any() || propertiesChanged.Any() ||
+                        constraintsAdded.Any() || constraintsRemoved.Any() || metadataChanges.Any())
                     {
                         entitesChanged.Add(new
                         {
                             Name = entity1.Name,
-                            PropertiesAdded = propertiesAdded.Select(p => new
+                            MetadataChanges   = metadataChanges,
+                            PropertiesAdded   = propertiesAdded.Select(p => new
                             {
                                 p.Name,
-                                Type = p.TypeID_Enum.ToString()
+                                TypeLabel = p.TypeID_Enum.ToString(),
+                                p.TypeID,
+                                p.Required,
+                                p.Minimum,
+                                p.Maximum,
+                                p.DecimalPlaces,
+                                p.Encrypted,
+                                p.ValidationRegex,
+                                p.Description
                             }),
+                            PropertiesChanged = propertiesChanged,
                             PropertiesRemoved = propertiesRemoved.Select(p => new
                             {
                                 p.Name,
-                                Type = p.TypeID_Enum.ToString()
-                            })
+                                TypeLabel = p.TypeID_Enum.ToString()
+                            }),
+                            ConstraintsAdded   = constraintsAdded.Select(c => new { c.TypeID, c.Properties }),
+                            ConstraintsRemoved = constraintsRemoved.Select(c => new { c.TypeID, c.Properties })
                         });
                     }
                 }
@@ -360,13 +428,17 @@ namespace Apilane.Portal.Controllers
                 var customEndpoint2 = application_2.CustomEndpoints.SingleOrDefault(e2 => e2.Name.Equals(customEndpoint1.Name));
                 if (customEndpoint2 is not null)
                 {
-                    if (!customEndpoint1.Query.Equals(customEndpoint2.Query))
+                    var queryChanged       = !customEndpoint1.Query.Equals(customEndpoint2.Query);
+                    var descriptionChanged = !string.Equals(customEndpoint1.Description, customEndpoint2.Description, StringComparison.Ordinal);
+                    if (queryChanged || descriptionChanged)
                     {
                         customEndpointsChanged.Add(new
                         {
-                            Name = customEndpoint1.Name,
-                            QueryBefore = customEndpoint1.Query,
-                            QueryAfter = customEndpoint2.Query
+                            Name              = customEndpoint1.Name,
+                            DescriptionBefore = customEndpoint1.Description,
+                            DescriptionAfter  = customEndpoint2.Description,
+                            QueryBefore       = customEndpoint1.Query,
+                            QueryAfter        = customEndpoint2.Query
                         });
                     }
                 }
@@ -449,20 +521,52 @@ namespace Apilane.Portal.Controllers
                     Added = entitiesAdded.Select(e => new
                     {
                         e.Name,
-                        Properties = e.Properties.Select(p => new
-                        {
-                            p.Name,
-                            Type = p.TypeID_Enum.ToString()
-                        })
+                        e.Description,
+                        e.RequireChangeTracking,
+                        e.HasDifferentiationProperty,
+                        Properties = e.Properties
+                            .Where(p => !p.IsSystem && !p.IsPrimaryKey)
+                            .Select(p => new
+                            {
+                                p.Name,
+                                TypeLabel = p.TypeID_Enum.ToString(),
+                                p.TypeID,
+                                p.Required,
+                                p.Minimum,
+                                p.Maximum,
+                                p.DecimalPlaces,
+                                p.Encrypted,
+                                p.ValidationRegex,
+                                p.Description
+                            }),
+                        Constraints = e.Constraints
+                            .Where(c => !c.IsSystem && !string.IsNullOrWhiteSpace(c.Properties))
+                            .Select(c => new { c.TypeID, c.Properties })
                     }),
                     Removed = entitiesRemoved.Select(e => new
                     {
                         e.Name,
-                        Properties = e.Properties.Select(p => new
-                        {
-                            p.Name,
-                            Type = p.TypeID_Enum.ToString()
-                        })
+                        e.Description,
+                        e.RequireChangeTracking,
+                        e.HasDifferentiationProperty,
+                        Properties = e.Properties
+                            .Where(p => !p.IsSystem && !p.IsPrimaryKey)
+                            .Select(p => new
+                            {
+                                p.Name,
+                                TypeLabel = p.TypeID_Enum.ToString(),
+                                p.TypeID,
+                                p.Required,
+                                p.Minimum,
+                                p.Maximum,
+                                p.DecimalPlaces,
+                                p.Encrypted,
+                                p.ValidationRegex,
+                                p.Description
+                            }),
+                        Constraints = e.Constraints
+                            .Where(c => !c.IsSystem && !string.IsNullOrWhiteSpace(c.Properties))
+                            .Select(c => new { c.TypeID, c.Properties })
                     }),
                     Changed = entitesChanged
                 },
@@ -471,11 +575,13 @@ namespace Apilane.Portal.Controllers
                     Added = customEndpointsAdded.Select(ce => new
                     {
                         ce.Name,
+                        ce.Description,
                         ce.Query
                     }),
                     Removed = customEndpointsRemoved.Select(ce => new
                     {
                         ce.Name,
+                        ce.Description,
                         ce.Query
                     }),
                     Changed = customEndpointsChanged

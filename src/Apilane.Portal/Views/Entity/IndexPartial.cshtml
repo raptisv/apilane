@@ -104,8 +104,19 @@
                                 }
                             </td>
                             <td>
-                                @Html.Raw(string.Join("", entity.Constraints.Where(x => x.TypeID == (int)ConstraintType.Unique && !string.IsNullOrWhiteSpace(x.Properties)).Select(x => $"<div class='badge {(isDarkTheme ? "text-bg-dark" : "text-bg-light")} me-1' title='Unique'>{x.Properties}</div>")))
-                                @Html.Raw(string.Join("", entity.Constraints.Where(x => x.TypeID == (int)ConstraintType.ForeignKey && !string.IsNullOrWhiteSpace(x.Properties)).Select(x => $"<div class='badge {(isDarkTheme ? "text-bg-dark" : "text-bg-light")} me-1' title='Foreign key'>{x.GetForeignKeyProperties().FKEntity}({x.GetForeignKeyProperties().Property})</div>")))
+                                @foreach (var c in entity.Constraints.Where(x => x.TypeID == (int)ConstraintType.Unique && !string.IsNullOrWhiteSpace(x.Properties)))
+                                {
+                                    <span class="badge bg-info-subtle text-info fw-normal me-1" title="Unique: @c.Properties">
+                                        <i class="bi bi-check2-all me-1"></i>@c.Properties
+                                    </span>
+                                }
+                                @foreach (var c in entity.Constraints.Where(x => x.TypeID == (int)ConstraintType.ForeignKey && !string.IsNullOrWhiteSpace(x.Properties)))
+                                {
+                                    var fk = c.GetForeignKeyProperties();
+                                    <span class="badge bg-warning-subtle text-warning-emphasis fw-normal me-1" title="Foreign key: @c.Properties">
+                                        <i class="bi bi-link me-1"></i>@fk.Property &rarr; @fk.FKEntity
+                                    </span>
+                                }
                             </td>
                             @if (!string.IsNullOrWhiteSpace(Application.DifferentiationEntity))
                             {
