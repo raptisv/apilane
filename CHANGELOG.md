@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.7 (2026-03-01)
+- feat(import): Introduced import entities,properties,cusotmendpoints,security functionality + enhanced application comparison
+
 ## 8.4.6 (2025-12-12)
 - fix(portal): Optimize application loading
 
