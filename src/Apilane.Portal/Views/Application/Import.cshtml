@@ -300,7 +300,7 @@
                 diffResultDiv.style.display = 'block';
 
                 if (!hasEntities && !hasSecurity && !hasEndpoints) {
-                    diffResultDiv.innerHTML = '<div class="alert alert-info">No differences found — both applications are identical.</div>';
+                    diffResultDiv.innerHTML = '<div class="alert alert-info">No elements missing to import.</div>';
                 } else {
                     document.getElementById('importJson').value = JSON.stringify(data, null, 2);
                     diffResultDiv.innerHTML = buildDiffHtml(data);
