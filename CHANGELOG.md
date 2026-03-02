@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.8 (2026-03-02)
+- feat(data_api + sdk): Introduced transaction operations + Apilane.Net 8.4.8
+
 ## 8.4.7 (2026-03-01)
 - feat(import): Introduced import entities,properties,cusotmendpoints,security functionality + enhanced application comparison
 
