@@ -40,6 +40,7 @@ namespace Apilane.Net.Abstractions
         Task<Either<long?, ApilaneError>> PostFileAsync(FilePostRequest request, byte[] data, CancellationToken cancellationToken = default);
         Task<Either<int, ApilaneError>> PutDataAsync(DataPutRequest request, object data, CancellationToken cancellationToken = default);
         Task<Either<OutTransactionData, ApilaneError>> TransactionDataAsync(DataTransactionRequest request, InTransactionData data, CancellationToken cancellationToken = default);
+        Task<Either<OutTransactionOperationData, ApilaneError>> TransactionOperationsAsync(DataTransactionOperationsRequest request, InTransactionOperationData data, CancellationToken cancellationToken = default);
         string UrlFor_Account_Manage_ForgotPassword();
         string UrlFor_Email_ForgotPassword(string email);
         string UrlFor_Email_RequestConfirmation(string email);

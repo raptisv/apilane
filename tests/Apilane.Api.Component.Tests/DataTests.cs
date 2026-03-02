@@ -56,6 +56,13 @@ namespace Apilane.Api.Component.Tests
             public string Custom_String_Required { get; set; } = null!;
         }
 
+        private class CustomEntityChild : DataItem
+        {
+            public const string EntityName = "CustomEntityChild";
+            public string Custom_String_Required { get; set; } = null!;
+            public long ParentId { get; set; }
+        }
+
         //private class CustomEntityFull : DataItem
         //{
         //    public const string EntityName = "CustomEntityFull";
@@ -115,6 +122,177 @@ namespace Apilane.Api.Component.Tests
             foreach (var role in roles)
             {
                 await Assert_CRUD_With_AuthToken_Security_Async(authToken, role);
+            }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task Transaction_Legacy_Should_Work(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
+
+            // Add custom entity and property
+            await AddEntityAsync(CustomEntityLight.EntityName);
+            await AddStringPropertyAsync(CustomEntityLight.EntityName, nameof(CustomEntityLight.Custom_String_Required), required: true);
+
+            // Set up security for all CRUD operations
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.put,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.delete))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) },
+                actionType: SecurityActionType.get))
+            {
+                // POST 2 records outside the transaction to get known IDs
+                var postResult1 = await ApilaneService.PostDataAsync(DataPostRequest.New(CustomEntityLight.EntityName), new { Custom_String_Required = "record1" });
+                var id1 = postResult1.Match(r => r.Single(), e => throw new Exception($"Post1 failed | {e.Code} | {e.Message}"));
+
+                var postResult2 = await ApilaneService.PostDataAsync(DataPostRequest.New(CustomEntityLight.EntityName), new { Custom_String_Required = "record2" });
+                var id2 = postResult2.Match(r => r.Single(), e => throw new Exception($"Post2 failed | {e.Code} | {e.Message}"));
+
+                // Call Transaction: POST 1 new record, PUT record #1, DELETE record #2
+                var transactionData = new InTransactionData()
+                {
+                    Post = new List<InTransactionData.InTransactionSet>()
+                    {
+                        new InTransactionData.InTransactionSet() { Entity = CustomEntityLight.EntityName, Data = new { Custom_String_Required = "newrecord" } }
+                    },
+                    Put = new List<InTransactionData.InTransactionSet>()
+                    {
+                        new InTransactionData.InTransactionSet() { Entity = CustomEntityLight.EntityName, Data = new { ID = id1, Custom_String_Required = "updated1" } }
+                    },
+                    Delete = new List<InTransactionData.InTransactionDelete>()
+                    {
+                        new InTransactionData.InTransactionDelete() { Entity = CustomEntityLight.EntityName, Ids = id2.ToString() }
+                    }
+                };
+
+                var transResult = await ApilaneService.TransactionDataAsync(DataTransactionRequest.New(), transactionData);
+                var response = transResult.Match(
+                    r => r,
+                    e => throw new Exception($"Transaction failed | {e.Code} | {e.Message}"));
+
+                // Assert transaction results
+                Assert.NotNull(response.Post);
+                Assert.Single(response.Post);
+                var newId = response.Post.Single();
+                Assert.True(newId > 0);
+                Assert.Equal(1, response.Put);
+                Assert.NotNull(response.Delete);
+                Assert.Single(response.Delete);
+                Assert.Equal(id2, response.Delete.Single());
+
+                // Verify: record #1 was updated
+                var getResult1 = await ApilaneService.GetDataByIdAsync<CustomEntityLight>(DataGetByIdRequest.New(CustomEntityLight.EntityName, id1));
+                var record1 = getResult1.Match(r => r, e => throw new Exception($"GetById1 failed | {e.Code} | {e.Message}"));
+                Assert.Equal("updated1", record1.Custom_String_Required);
+
+                // Verify: new record exists
+                var getResultNew = await ApilaneService.GetDataByIdAsync<CustomEntityLight>(DataGetByIdRequest.New(CustomEntityLight.EntityName, newId));
+                var recordNew = getResultNew.Match(r => r, e => throw new Exception($"GetByIdNew failed | {e.Code} | {e.Message}"));
+                Assert.Equal("newrecord", recordNew.Custom_String_Required);
+
+                // Verify: record #2 was deleted (should fail to get)
+                var getResult2 = await ApilaneService.GetDataByIdAsync<CustomEntityLight>(DataGetByIdRequest.New(CustomEntityLight.EntityName, id2));
+                getResult2.Match(
+                    r => throw new Exception("Record should have been deleted"),
+                    e => Assert.NotNull(e));
+            }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task TransactionOperations_WithRefs_Should_Work(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
+
+            // Add parent entity and properties
+            await AddEntityAsync(CustomEntityLight.EntityName);
+            await AddStringPropertyAsync(CustomEntityLight.EntityName, nameof(CustomEntityLight.Custom_String_Required), required: true);
+
+            // Add child entity and properties
+            await AddEntityAsync(CustomEntityChild.EntityName);
+            await AddStringPropertyAsync(CustomEntityChild.EntityName, nameof(CustomEntityChild.Custom_String_Required), required: true);
+            await AddNumberPropertyAsync(CustomEntityChild.EntityName, nameof(CustomEntityChild.ParentId), required: true);
+
+            // Set up security for post and get on both entities, put on parent
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.put,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) },
+                actionType: SecurityActionType.get))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityChild.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(CustomEntityChild.Custom_String_Required), nameof(CustomEntityChild.ParentId) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityChild.EntityName,
+                inRole: Globals.ANONYMOUS,
+                properties: new() { nameof(CustomEntityChild.Custom_String_Required), nameof(CustomEntityChild.ParentId) },
+                actionType: SecurityActionType.get))
+            {
+                // Build transaction with $ref: cross-references
+                var transaction = new TransactionBuilder()
+                    .Post(CustomEntityLight.EntityName, new { Custom_String_Required = "parent" }, out var parentRef)
+                    .Post(CustomEntityChild.EntityName, new { Custom_String_Required = "child", ParentId = parentRef.Id() })
+                    .Put(CustomEntityLight.EntityName, new { ID = parentRef.Id(), Custom_String_Required = "updated" })
+                    .Build();
+
+                var transResult = await ApilaneService.TransactionOperationsAsync(DataTransactionOperationsRequest.New(), transaction);
+                var response = transResult.Match(
+                    r => r,
+                    e => throw new Exception($"TransactionOperations failed | {e.Code} | {e.Message}"));
+
+                // Assert: 3 results
+                Assert.NotNull(response.Results);
+                Assert.Equal(3, response.Results.Count);
+
+                // Result[0]: Post parent
+                Assert.Equal(TransactionAction.Post, response.Results[0].Action);
+                Assert.Equal(CustomEntityLight.EntityName, response.Results[0].Entity);
+                Assert.NotNull(response.Results[0].Created);
+                Assert.Single(response.Results[0].Created!);
+                var parentId = response.Results[0].Created!.Single();
+                Assert.True(parentId > 0);
+
+                // Result[1]: Post child
+                Assert.Equal(TransactionAction.Post, response.Results[1].Action);
+                Assert.Equal(CustomEntityChild.EntityName, response.Results[1].Entity);
+                Assert.NotNull(response.Results[1].Created);
+                Assert.Single(response.Results[1].Created!);
+                var childId = response.Results[1].Created!.Single();
+                Assert.True(childId > 0);
+
+                // Result[2]: Put parent
+                Assert.Equal(TransactionAction.Put, response.Results[2].Action);
+                Assert.Equal(CustomEntityLight.EntityName, response.Results[2].Entity);
+                Assert.Equal(1, response.Results[2].Affected);
+
+                // Verify: child's ParentId matches parent's ID ($ref: was resolved)
+                var getChildResult = await ApilaneService.GetDataByIdAsync<CustomEntityChild>(DataGetByIdRequest.New(CustomEntityChild.EntityName, childId));
+                var childRecord = getChildResult.Match(r => r, e => throw new Exception($"GetChild failed | {e.Code} | {e.Message}"));
+                Assert.Equal(parentId, childRecord.ParentId);
+                Assert.Equal("child", childRecord.Custom_String_Required);
+
+                // Verify: parent was updated
+                var getParentResult = await ApilaneService.GetDataByIdAsync<CustomEntityLight>(DataGetByIdRequest.New(CustomEntityLight.EntityName, parentId));
+                var parentRecord = getParentResult.Match(r => r, e => throw new Exception($"GetParent failed | {e.Code} | {e.Message}"));
+                Assert.Equal("updated", parentRecord.Custom_String_Required);
             }
         }
 

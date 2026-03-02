@@ -1,4 +1,4 @@
-﻿using Apilane.Api.Core.Abstractions;
+﻿﻿using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Core.Grains;
@@ -14,6 +14,9 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Apilane.Api.Core
@@ -383,6 +386,197 @@ namespace Apilane.Api.Core
 
             return result;
         }
+
+        public async Task<OutTransactionOperationData> TransactionOperationsAsync(
+            DBWS_Application application,
+            bool userHasFullAccess,
+            Users? appUser,
+            List<DBWS_Security> applicationSecurityList,
+            DatabaseType databaseType,
+            string? differentiationEntity,
+            string applicationEncryptionKey,
+            InTransactionOperationData data)
+        {
+            DBWS_Entity GetEntity(string entityName)
+            {
+                return application.Entities.SingleOrDefault(x => x.Name.Equals(entityName, StringComparison.OrdinalIgnoreCase))
+                    ?? throw new ApilaneException(AppErrors.ERROR, $"Entity {entityName} does not exist");
+            }
+
+            if (data.Operations == null || data.Operations.Count == 0)
+            {
+                throw new ApilaneException(AppErrors.ERROR, "At least one operation is required");
+            }
+
+            var result = new OutTransactionOperationData();
+            var resolvedResults = new Dictionary<string, List<long>>();
+
+            using (var scope = _transactionScopeService.OpenTransactionScope(
+                System.Transactions.TransactionScopeOption.Required,
+                System.Transactions.IsolationLevel.ReadCommitted,
+                TimeSpan.FromSeconds(20)))
+            {
+                foreach (var op in data.Operations)
+                {
+                    var opResult = new OutTransactionOperationResult
+                    {
+                        Action = op.Action,
+                        Entity = op.Entity
+                    };
+
+                    switch (op.Action)
+                    {
+                        case TransactionAction.Post:
+                        {
+                            var resolvedData = op.Data != null
+                                ? ResolveReferences(op.Data, resolvedResults)
+                                : throw new ApilaneException(AppErrors.ERROR, "Post operation requires Data");
+
+                            var ids = await PostAsync(
+                                application.Token,
+                                GetEntity(op.Entity),
+                                userHasFullAccess,
+                                appUser,
+                                applicationSecurityList,
+                                databaseType,
+                                differentiationEntity,
+                                applicationEncryptionKey,
+                                resolvedData);
+
+                            opResult.Created = ids;
+
+                            if (!string.IsNullOrEmpty(op.Id))
+                            {
+                                resolvedResults[op.Id] = ids;
+                            }
+
+                            break;
+                        }
+                        case TransactionAction.Put:
+                        {
+                            var resolvedData = op.Data != null
+                                ? ResolveReferences(op.Data, resolvedResults)
+                                : throw new ApilaneException(AppErrors.ERROR, "Put operation requires Data");
+
+                            var affected = await PutAsync(
+                                application.Token,
+                                GetEntity(op.Entity),
+                                userHasFullAccess,
+                                appUser,
+                                applicationSecurityList,
+                                databaseType,
+                                differentiationEntity,
+                                applicationEncryptionKey,
+                                resolvedData);
+
+                            opResult.Affected = affected;
+
+                            break;
+                        }
+                        case TransactionAction.Delete:
+                        {
+                            var idsString = op.Ids
+                                ?? throw new ApilaneException(AppErrors.ERROR, "Delete operation requires Ids");
+
+                            var deleted = await DeleteAsync(
+                                application.Token,
+                                GetEntity(op.Entity),
+                                userHasFullAccess,
+                                appUser,
+                                applicationSecurityList,
+                                differentiationEntity,
+                                applicationEncryptionKey,
+                                idsString);
+
+                            opResult.Deleted = deleted;
+
+                            break;
+                        }
+                        default:
+                            throw new ApilaneException(AppErrors.ERROR, $"Unknown transaction action '{op.Action}'");
+                    }
+
+                    result.Results.Add(opResult);
+                }
+
+                scope.Complete();
+            }
+
+            return result;
+        }
+
+        private static readonly Regex RefPattern = new(@"^\$ref:(.+)$", RegexOptions.Compiled);
+
+        private static object ResolveReferences(object data, Dictionary<string, List<long>> resolvedResults)
+        {
+            var json = JsonSerializer.Serialize(data);
+            var node = JsonNode.Parse(json);
+            if (node != null)
+            {
+                ResolveReferencesInNode(node, resolvedResults);
+                return node;
+            }
+            return data;
+        }
+
+        private static void ResolveReferencesInNode(JsonNode node, Dictionary<string, List<long>> resolvedResults)
+        {
+            if (node is JsonObject obj)
+            {
+                foreach (var prop in obj.ToList())
+                {
+                    if (prop.Value is JsonValue val && val.TryGetValue<string>(out var str))
+                    {
+                        var match = RefPattern.Match(str);
+                        if (match.Success)
+                        {
+                            var refId = match.Groups[1].Value;
+                            if (resolvedResults.TryGetValue(refId, out var ids) && ids.Count > 0)
+                            {
+                                obj[prop.Key] = ids[0];
+                            }
+                            else
+                            {
+                                throw new ApilaneException(AppErrors.ERROR,
+                                    $"Referenced operation '{refId}' has no results or does not exist");
+                            }
+                        }
+                    }
+                    else if (prop.Value is JsonObject or JsonArray)
+                    {
+                        ResolveReferencesInNode(prop.Value, resolvedResults);
+                    }
+                }
+            }
+            else if (node is JsonArray arr)
+            {
+                for (int i = 0; i < arr.Count; i++)
+                {
+                    if (arr[i] is JsonValue val && val.TryGetValue<string>(out var str))
+                    {
+                        var match = RefPattern.Match(str);
+                        if (match.Success)
+                        {
+                            var refId = match.Groups[1].Value;
+                            if (resolvedResults.TryGetValue(refId, out var ids) && ids.Count > 0)
+                            {
+                                arr[i] = ids[0];
+                            }
+                            else
+                            {
+                                throw new ApilaneException(AppErrors.ERROR,
+                                    $"Referenced operation '{refId}' has no results or does not exist");
+                            }
+                        }
+                    }
+                    else if (arr[i] is JsonObject or JsonArray)
+                    {
+                        ResolveReferencesInNode(arr[i]!, resolvedResults);
+                    }
+                }
+            }
+        }
+
 
         public async Task<bool> AllowGetSchemaAsync(
             string appToken,

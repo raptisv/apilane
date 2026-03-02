@@ -236,6 +236,41 @@ namespace Apilane.Net.Services
         }
 
         /// <summary>
+        /// Executes ordered operations inside a transaction scope with support for cross-referencing
+        /// results from earlier operations using "$ref:{OperationId}" placeholders.
+        /// Returns per-operation results.
+        /// </summary>
+        public async Task<Either<OutTransactionOperationData, ApilaneError>> TransactionOperationsAsync(
+            DataTransactionOperationsRequest request,
+            InTransactionOperationData data,
+            CancellationToken cancellationToken = default)
+        {
+            using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.GetUrl(_config.ApplicationApiUrl)))
+            {
+                httpRequest.Content = new StringContent(JsonSerializer.Serialize(data), Encoding.UTF8, "application/json");
+                var authorizationToken = await GetAuthTokenAsync(request);
+                if (!string.IsNullOrWhiteSpace(authorizationToken))
+                {
+                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
+                }
+                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var jsonString = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    if (request.ShouldThrowExceptionOnError())
+                    {
+                        throw new Exception(errorResponse.BuildErrorMessage());
+                    }
+                    return errorResponse;
+                }
+
+                return JsonSerializer.Deserialize<OutTransactionOperationData>(jsonString, JsonDeserializerSettings)!;
+            }
+        }
+
+        /// <summary>
         /// Returns the newly created IDs
         /// </summary>
         public async Task<Either<long[], ApilaneError>> PostDataAsync(

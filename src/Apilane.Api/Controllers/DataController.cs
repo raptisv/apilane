@@ -4,11 +4,11 @@ using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Core.Models.AppModules.Files;
-using Apilane.Common.Enums;
-using Apilane.Common.Models;
 using Apilane.Api.Filters;
 using Apilane.Api.Models.ViewModels;
 using Apilane.Api.Services;
+using Apilane.Common.Enums;
+using Apilane.Common.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -273,10 +273,33 @@ namespace Apilane.Api.Controllers
         }
 
         /// <summary>
+        /// Use this endpoint to create/update/delete multiple records inside a transaction scope.
+        /// Operations are executed in declared order and support cross-referencing results from earlier operations
+        /// using the "$ref:{OperationId}" placeholder syntax.
+        /// </summary>
+        [HttpPost]
+        [Produces("application/json")]
+        [ProducesResponseType(typeof(OutTransactionOperationData), (int)HttpStatusCode.OK)]
+        [ProducesResponseType(typeof(ApiErrorVm), (int)HttpStatusCode.Unauthorized)]
+        public async Task<OutTransactionOperationData> TransactionOperations(
+            [FromBody] InTransactionOperationData transactionData)
+        {
+            using var metricsTimer = _metricsService.RecordDataDuration("transactionoperations", string.Empty, Application.Token);
+
+            return await _dataAPI.TransactionOperationsAsync(
+                Application,
+                UserHasFullAccess,
+                ApplicationUser,
+                Application.Security_List,
+                (DatabaseType)Application.DatabaseType,
+                Application.DifferentiationEntity,
+                Application.EncryptionKey,
+                transactionData);
+        }
+
+        /// <summary>
         /// Use this endpoint to retrieve the application schema.
         /// </summary>
-        /// <param name="encryptionKey">The application encryption key</param>
-        /// <returns></returns>
         [HttpGet]
         [Produces("application/json")]
         [ProducesResponseType(typeof(ApplicationSchemaVm), (int)HttpStatusCode.OK)]
