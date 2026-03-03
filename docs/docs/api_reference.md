@@ -3,15 +3,17 @@
 All API endpoints follow the pattern:
 
 ```
-https://{api-host}/api/{Controller}/{Action}?appToken={appToken}&{params}
+https://{api-host}/api/{Controller}/{Action}?{params}
 ```
 
 The **Application Token** is required on every request, passed as either:
 
+```
 - Query parameter: `?appToken={token}`
 - Header: `x-application-token: {token}`
+```
 
-Authenticated endpoints require the user's **AuthToken** via the `Authorization` header.
+Authenticated endpoints additionally require the user's **AuthToken** via the `Authorization` header.
 
 ---
 
@@ -22,7 +24,8 @@ Authenticated endpoints require the user's **AuthToken** via the `Authorization`
 Authenticate a user and receive an auth token.
 
 ```
-POST /api/Account/Login?appToken={appToken}
+POST /api/Account/Login
+x-application-token: {appToken}
 ```
 
 **Body:**
@@ -45,7 +48,8 @@ You can use `Email` or `Username` to log in (or both).
 Create a new application user.
 
 ```
-POST /api/Account/Register?appToken={appToken}
+POST /api/Account/Register
+x-application-token: {appToken}
 ```
 
 **Body:**
@@ -62,7 +66,8 @@ You can include any custom properties defined on the `Users` entity.
 Retrieve the authenticated user's profile and security rules.
 
 ```
-GET /api/Account/UserData?appToken={appToken}
+GET /api/Account/UserData
+x-application-token: {appToken}
 Authorization: Bearer {authToken}
 ```
 
@@ -71,7 +76,8 @@ Authorization: Bearer {authToken}
 Update the authenticated user's custom properties. System properties (Email, Username, Password, Roles) cannot be updated from this endpoint.
 
 ```
-PUT /api/Account/Update?appToken={appToken}
+PUT /api/Account/Update
+x-application-token: {appToken}
 Authorization: Bearer {authToken}
 ```
 
@@ -83,7 +89,8 @@ Authorization: Bearer {authToken}
 ### Change Password
 
 ```
-PUT /api/Account/ChangePassword?appToken={appToken}
+PUT /api/Account/ChangePassword
+x-application-token: {appToken}
 Authorization: Bearer {authToken}
 ```
 
@@ -97,7 +104,8 @@ Authorization: Bearer {authToken}
 Replace the current token with a new one. The old token is invalidated.
 
 ```
-GET /api/Account/RenewAuthToken?appToken={appToken}
+GET /api/Account/RenewAuthToken
+x-application-token: {appToken}
 Authorization: Bearer {authToken}
 ```
 
@@ -108,7 +116,8 @@ Authorization: Bearer {authToken}
 Invalidate the current auth token.
 
 ```
-GET /api/Account/Logout?appToken={appToken}&everywhere=false
+GET /api/Account/Logout?everywhere=false
+x-application-token: {appToken}
 Authorization: Bearer {authToken}
 ```
 
@@ -127,7 +136,8 @@ Authorization: Bearer {authToken}
 Retrieve a paginated list of records from an entity.
 
 ```
-GET /api/Data/Get?appToken={appToken}&entity={entity}
+GET /api/Data/Get?entity={entity}
+x-application-token: {appToken}
 ```
 
 | Parameter | Required | Default | Description |
@@ -153,7 +163,8 @@ GET /api/Data/Get?appToken={appToken}&entity={entity}
 ### Get Record by ID
 
 ```
-GET /api/Data/GetByID?appToken={appToken}&entity={entity}&id={id}
+GET /api/Data/GetByID?entity={entity}&id={id}
+x-application-token: {appToken}
 ```
 
 | Parameter | Required | Description |
@@ -167,7 +178,8 @@ GET /api/Data/GetByID?appToken={appToken}&entity={entity}&id={id}
 Retrieve historical versions of a record (requires [change tracking](developer_guide/entities_properties.md#change-tracking) to be enabled).
 
 ```
-GET /api/Data/GetHistoryByID?appToken={appToken}&entity={entity}&id={id}
+GET /api/Data/GetHistoryByID?entity={entity}&id={id}
+x-application-token: {appToken}
 ```
 
 | Parameter | Required | Default | Description |
@@ -180,7 +192,8 @@ GET /api/Data/GetHistoryByID?appToken={appToken}&entity={entity}&id={id}
 ### Create Records
 
 ```
-POST /api/Data/Post?appToken={appToken}&entity={entity}
+POST /api/Data/Post?entity={entity}
+x-application-token: {appToken}
 Content-Type: application/json
 ```
 
@@ -195,7 +208,8 @@ Content-Type: application/json
 ### Update Records
 
 ```
-PUT /api/Data/Put?appToken={appToken}&entity={entity}
+PUT /api/Data/Put?entity={entity}
+x-application-token: {appToken}
 Content-Type: application/json
 ```
 
@@ -210,7 +224,8 @@ Content-Type: application/json
 ### Delete Records
 
 ```
-DELETE /api/Data/Delete?appToken={appToken}&entity={entity}&ids=1,2,3
+DELETE /api/Data/Delete?entity={entity}&ids=1,2,3
+x-application-token: {appToken}
 ```
 
 | Parameter | Required | Description |
@@ -225,7 +240,8 @@ DELETE /api/Data/Delete?appToken={appToken}&entity={entity}&ids=1,2,3
 Retrieve the full application schema including all entities, properties, and configuration.
 
 ```
-GET /api/Data/Schema?appToken={appToken}
+GET /api/Data/Schema
+x-application-token: {appToken}
 ```
 
 **Response:**
@@ -260,7 +276,8 @@ GET /api/Data/Schema?appToken={appToken}
 Execute multiple create/update/delete operations atomically. See [Transactions](developer_guide/transactions.md).
 
 ```
-POST /api/Data/Transaction?appToken={appToken}
+POST /api/Data/Transaction
+x-application-token: {appToken}
 ```
 
 ### TransactionOperations (Ordered)
@@ -268,7 +285,8 @@ POST /api/Data/Transaction?appToken={appToken}
 Execute ordered operations with cross-referencing. See [Transactions](developer_guide/transactions.md#transactionoperations-ordered-with-cross-referencing).
 
 ```
-POST /api/Data/TransactionOperations?appToken={appToken}
+POST /api/Data/TransactionOperations
+x-application-token: {appToken}
 ```
 
 ---
@@ -280,7 +298,8 @@ Files are managed separately from regular entities. See [Files](developer_guide/
 ### Upload File
 
 ```
-POST /api/Files/Post?appToken={appToken}
+POST /api/Files/Post
+x-application-token: {appToken}
 Content-Type: multipart/form-data
 ```
 
@@ -294,8 +313,13 @@ Content-Type: multipart/form-data
 ### Download File
 
 ```
-GET /api/Files/Download?appToken={appToken}&fileID={id}
-GET /api/Files/Download?appToken={appToken}&fileUID={uid}
+GET /api/Files/Download?fileID={id}
+x-application-token: {appToken}
+```
+
+```
+GET /api/Files/Download?fileUID={uid}
+x-application-token: {appToken}
 ```
 
 Returns the raw file binary. Can be used directly in `<img>` tags.
@@ -303,7 +327,8 @@ Returns the raw file binary. Can be used directly in `<img>` tags.
 ### List File Records
 
 ```
-GET /api/Files/Get?appToken={appToken}
+GET /api/Files/Get
+x-application-token: {appToken}
 ```
 
 Supports the same `pageIndex`, `pageSize`, `filter`, `sort`, `properties`, and `getTotal` parameters as Data/Get.
@@ -311,13 +336,15 @@ Supports the same `pageIndex`, `pageSize`, `filter`, `sort`, `properties`, and `
 ### Get File Record by ID
 
 ```
-GET /api/Files/GetByID?appToken={appToken}&id={id}
+GET /api/Files/GetByID?id={id}
+x-application-token: {appToken}
 ```
 
 ### Delete Files
 
 ```
-DELETE /api/Files/Delete?appToken={appToken}&ids=1,2,3
+DELETE /api/Files/Delete?ids=1,2,3
+x-application-token: {appToken}
 ```
 
 ---
@@ -329,7 +356,8 @@ DELETE /api/Files/Delete?appToken={appToken}&ids=1,2,3
 Run aggregate functions against an entity's data.
 
 ```
-GET /api/Stats/Aggregate?appToken={appToken}&entity={entity}&properties={props}
+GET /api/Stats/Aggregate?entity={entity}&properties={props}
+x-application-token: {appToken}
 ```
 
 | Parameter | Required | Default | Description |
@@ -347,7 +375,8 @@ GET /api/Stats/Aggregate?appToken={appToken}&entity={entity}&properties={props}
 **Example:**
 
 ```
-GET /api/Stats/Aggregate?appToken={appToken}&entity=Orders&properties=Total.Sum,Total.Avg,ID.Count&groupBy=Status
+GET /api/Stats/Aggregate?entity=Orders&properties=Total.Sum,Total.Avg,ID.Count&groupBy=Status
+x-application-token: {appToken}
 ```
 
 ### Distinct
@@ -355,7 +384,8 @@ GET /api/Stats/Aggregate?appToken={appToken}&entity=Orders&properties=Total.Sum,
 Get distinct values of a property.
 
 ```
-GET /api/Stats/Distinct?appToken={appToken}&entity={entity}&property={property}
+GET /api/Stats/Distinct?entity={entity}&property={property}
+x-application-token: {appToken}
 ```
 
 | Parameter | Required | Description |
@@ -371,7 +401,8 @@ GET /api/Stats/Distinct?appToken={appToken}&entity={entity}&property={property}
 Call a custom SQL endpoint by name.
 
 ```
-GET /api/Custom/{name}?appToken={appToken}&{params}
+GET /api/Custom/{name}?{params}
+x-application-token: {appToken}
 ```
 
 Parameters wrapped in `{braces}` in the custom endpoint's SQL query are automatically bound from query parameters. For example, a query `SELECT * FROM Users WHERE ID = {UserID}` is called with `?UserID=42`.
@@ -388,7 +419,8 @@ Parameters wrapped in `{braces}` in the custom endpoint's SQL query are automati
 Send (or re-send) a confirmation email to the user.
 
 ```
-GET /api/Email/RequestConfirmation?appToken={appToken}&email={email}
+GET /api/Email/RequestConfirmation?email={email}
+x-application-token: {appToken}
 ```
 
 ### Forgot Password Email
@@ -396,7 +428,8 @@ GET /api/Email/RequestConfirmation?appToken={appToken}&email={email}
 Send a password reset email to the user.
 
 ```
-GET /api/Email/ForgotPassword?appToken={appToken}&email={email}
+GET /api/Email/ForgotPassword?email={email}
+x-application-token: {appToken}
 ```
 
 !!!info "Note"

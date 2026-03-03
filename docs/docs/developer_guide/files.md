@@ -14,7 +14,8 @@ Apilane provides built-in file storage for your applications. Files are stored o
 Upload a file using a `multipart/form-data` POST request:
 
 ```
-POST https://my.api.server/api/Files/Post?appToken={appToken}
+POST https://my.api.server/api/Files/Post
+x-application-token: {appToken}
 Content-Type: multipart/form-data
 
 fileUpload: (binary file data)
@@ -37,11 +38,13 @@ fileUpload: (binary file data)
 Download a file by its **ID** or **UID**:
 
 ```
-GET https://my.api.server/api/Files/Download?appToken={appToken}&fileID={id}
+GET https://my.api.server/api/Files/Download?fileID={id}
+x-application-token: {appToken}
 ```
 
 ```
-GET https://my.api.server/api/Files/Download?appToken={appToken}&fileUID={uid}
+GET https://my.api.server/api/Files/Download?fileUID={uid}
+x-application-token: {appToken}
 ```
 
 The response is the raw file binary with a `Content-Type` of `application/octet-stream`. Client caching is set to 60 minutes.
@@ -54,7 +57,8 @@ The response is the raw file binary with a `Content-Type` of `application/octet-
 Retrieve file metadata records (not the actual file content):
 
 ```
-GET https://my.api.server/api/Files/Get?appToken={appToken}
+GET https://my.api.server/api/Files/Get
+x-application-token: {appToken}
 ```
 
 This endpoint supports the same [filtering, sorting, and paging](filtering_sorting.md) parameters as the Data endpoints.
@@ -73,7 +77,8 @@ This endpoint supports the same [filtering, sorting, and paging](filtering_sorti
 Retrieve metadata for a specific file by its ID:
 
 ```
-GET https://my.api.server/api/Files/GetByID?appToken={appToken}&id={id}
+GET https://my.api.server/api/Files/GetByID?id={id}
+x-application-token: {appToken}
 ```
 
 ## Deleting Files
@@ -81,7 +86,8 @@ GET https://my.api.server/api/Files/GetByID?appToken={appToken}&id={id}
 Delete one or more files by their IDs:
 
 ```
-DELETE https://my.api.server/api/Files/Delete?appToken={appToken}&ids=1,2,3
+DELETE https://my.api.server/api/Files/Delete?ids=1,2,3
+x-application-token: {appToken}
 ```
 
 **Response:** An array of the deleted file IDs.

@@ -81,7 +81,8 @@ This translates to: `Country = 'US' AND (Role = 'admin' OR Role = 'manager')`
 Since filters are passed as a query parameter, the JSON must be URL-encoded:
 
 ```
-GET https://my.api.server/api/Data/Get?appToken={appToken}&entity=Products&filter=%7B%22Property%22%3A%22Price%22%2C%22Operator%22%3A%22less%22%2C%22Value%22%3A100%7D
+GET https://my.api.server/api/Data/Get?entity=Products&filter=%7B%22Property%22%3A%22Price%22%2C%22Operator%22%3A%22less%22%2C%22Value%22%3A100%7D
+x-application-token: {appToken}
 ```
 
 !!!info "Tip"
@@ -110,7 +111,8 @@ The `sort` query parameter accepts a JSON object that specifies the property and
 Get products sorted by price ascending:
 
 ```
-GET https://my.api.server/api/Data/Get?appToken={appToken}&entity=Products&sort={"Property":"Price","Direction":"ASC"}
+GET https://my.api.server/api/Data/Get?entity=Products&sort={"Property":"Price","Direction":"ASC"}
+x-application-token: {appToken}
 ```
 
 ## Paging
@@ -149,7 +151,8 @@ Set `getTotal=true` to include the total record count in the response. This is u
 Use the `properties` parameter to fetch only specific properties. This reduces bandwidth and improves performance.
 
 ```
-GET https://my.api.server/api/Data/Get?appToken={appToken}&entity=Products&properties=ID,Name,Price
+GET https://my.api.server/api/Data/Get?entity=Products&properties=ID,Name,Price
+x-application-token: {appToken}
 ```
 
 When omitted, all properties accessible to the user are returned.

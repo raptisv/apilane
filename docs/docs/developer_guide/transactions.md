@@ -26,7 +26,8 @@ Groups operations into `Post`, `Put`, and `Delete` arrays. All operations execut
 ### Request
 
 ```
-POST https://my.api.server/api/Data/Transaction?appToken={appToken}
+POST https://my.api.server/api/Data/Transaction
+x-application-token: {appToken}
 Content-Type: application/json
 Authorization: Bearer {authToken}
 ```
@@ -69,7 +70,8 @@ Defines an ordered list of operations that execute sequentially. This is the mor
 ### Request
 
 ```
-POST https://my.api.server/api/Data/TransactionOperations?appToken={appToken}
+POST https://my.api.server/api/Data/TransactionOperations
+x-application-token: {appToken}
 Content-Type: application/json
 Authorization: Bearer {authToken}
 ```

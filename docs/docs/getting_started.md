@@ -52,7 +52,8 @@ With your entity created, you can start making API calls. Replace `{appToken}` w
 **Create a record:**
 
 ```bash
-curl -X POST "http://localhost:5001/api/Data/Post?appToken={appToken}&entity=Products" \
+curl -X POST "http://localhost:5001/api/Data/Post?entity=Products" \
+  -H "x-application-token: {appToken}" \
   -H "Content-Type: application/json" \
   -d '{"Name": "Widget", "Price": 9.99, "InStock": true}'
 ```
@@ -62,7 +63,8 @@ curl -X POST "http://localhost:5001/api/Data/Post?appToken={appToken}&entity=Pro
 **Read records:**
 
 ```bash
-curl "http://localhost:5001/api/Data/Get?appToken={appToken}&entity=Products"
+curl "http://localhost:5001/api/Data/Get?entity=Products" \
+  -H "x-application-token: {appToken}"
 ```
 
 **Response:**
@@ -77,7 +79,8 @@ curl "http://localhost:5001/api/Data/Get?appToken={appToken}&entity=Products"
 **Update a record:**
 
 ```bash
-curl -X PUT "http://localhost:5001/api/Data/Put?appToken={appToken}&entity=Products" \
+curl -X PUT "http://localhost:5001/api/Data/Put?entity=Products" \
+  -H "x-application-token: {appToken}" \
   -H "Content-Type: application/json" \
   -d '{"ID": 1, "Price": 12.99}'
 ```
@@ -85,7 +88,8 @@ curl -X PUT "http://localhost:5001/api/Data/Put?appToken={appToken}&entity=Produ
 **Delete a record:**
 
 ```bash
-curl -X DELETE "http://localhost:5001/api/Data/Delete?appToken={appToken}&entity=Products&ids=1"
+curl -X DELETE "http://localhost:5001/api/Data/Delete?entity=Products&ids=1" \
+  -H "x-application-token: {appToken}"
 ```
 
 ## 6. Register a User
@@ -93,7 +97,8 @@ curl -X DELETE "http://localhost:5001/api/Data/Delete?appToken={appToken}&entity
 To use authenticated endpoints, first allow user registration in the Portal under **Security**, then:
 
 ```bash
-curl -X POST "http://localhost:5001/api/Account/Register?appToken={appToken}" \
+curl -X POST "http://localhost:5001/api/Account/Register" \
+  -H "x-application-token: {appToken}" \
   -H "Content-Type: application/json" \
   -d '{"Email": "user@example.com", "Username": "john", "Password": "SecurePass123!"}'
 ```
@@ -101,7 +106,8 @@ curl -X POST "http://localhost:5001/api/Account/Register?appToken={appToken}" \
 **Login and get an auth token:**
 
 ```bash
-curl -X POST "http://localhost:5001/api/Account/Login?appToken={appToken}" \
+curl -X POST "http://localhost:5001/api/Account/Login" \
+  -H "x-application-token: {appToken}" \
   -H "Content-Type: application/json" \
   -d '{"Email": "user@example.com", "Password": "SecurePass123!"}'
 ```
@@ -117,7 +123,8 @@ curl -X POST "http://localhost:5001/api/Account/Login?appToken={appToken}" \
 Use the `AuthToken` in subsequent requests via the `Authorization` header:
 
 ```bash
-curl "http://localhost:5001/api/Data/Get?appToken={appToken}&entity=Products" \
+curl "http://localhost:5001/api/Data/Get?entity=Products" \
+  -H "x-application-token: {appToken}" \
   -H "Authorization: Bearer a1b2c3d4-..."
 ```
 

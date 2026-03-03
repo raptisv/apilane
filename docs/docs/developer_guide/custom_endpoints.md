@@ -8,7 +8,7 @@ Custom endpoints offer an easy and direct way to expose complex functionality fo
 2. **Write the SQL query** to execute against the storage provider — e.g., `SELECT [Email], [Username] FROM [Users] WHERE [ID] = {UserID}`
 3. **Define parameters** by wrapping names in curly braces — e.g., `{UserID}` becomes a query parameter
 4. **Configure access** through the [Security](security.md) settings
-5. **Call the endpoint** — `GET https://my.api.server/api/Custom/GetActiveUsers?appToken={appToken}&UserID=42`
+5. **Call the endpoint** — `GET https://my.api.server/api/Custom/GetActiveUsers?UserID=42` (with `x-application-token` header)
 
 ![Apilane](../assets/custom_endpoints.png)
 
@@ -25,7 +25,8 @@ SELECT [Name], [Price] FROM [Products] WHERE [CategoryID] = {CategoryID} AND [ID
 **API call:**
 
 ```
-GET https://my.api.server/api/Custom/GetProducts?appToken={appToken}&CategoryID=5&MinID=100
+GET https://my.api.server/api/Custom/GetProducts?CategoryID=5&MinID=100
+x-application-token: {appToken}
 ```
 
 !!!warning "Type restriction"
