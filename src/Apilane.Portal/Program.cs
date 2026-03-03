@@ -59,6 +59,8 @@ namespace Apilane.Portal
                 //options.ConfigureWarnings(x => x.Ignore(RelationalEventId.AmbientTransactionWarning));
             });
 
+            builder.Services.AddHttpContextAccessor();
+
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddRoles<IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -142,6 +144,21 @@ namespace Apilane.Portal
                 var listOfQueries = new List<string>()
                 {
                     // Add any migration queries here
+
+                    // Audit logs table
+                    @"CREATE TABLE IF NOT EXISTS [AuditLogs] (
+                        [ID] INTEGER PRIMARY KEY AUTOINCREMENT,
+                        [Timestamp] TEXT NOT NULL,
+                        [UserId] TEXT NOT NULL,
+                        [UserEmail] TEXT NOT NULL,
+                        [AppID] INTEGER NULL,
+                        [EntityType] TEXT NOT NULL,
+                        [EntityIdentifier] TEXT NOT NULL,
+                        [Action] TEXT NOT NULL,
+                        [Changes] TEXT NULL
+                    )",
+                    @"CREATE INDEX IF NOT EXISTS [IX_AuditLogs_AppID] ON [AuditLogs] ([AppID])",
+                    @"CREATE INDEX IF NOT EXISTS [IX_AuditLogs_Timestamp] ON [AuditLogs] ([Timestamp])"
                 };
 
                 foreach(var item in listOfQueries)

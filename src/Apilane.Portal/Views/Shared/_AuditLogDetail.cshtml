@@ -1,0 +1,73 @@
+﻿@using Apilane.Portal.Models;
+@using System.Text.Json;
+@model PortalAuditLog
+@{
+    var changes = new List<AuditPropertyChange>();
+    if (!string.IsNullOrWhiteSpace(Model.Changes))
+    {
+        try
+        {
+            changes = JsonSerializer.Deserialize<List<AuditPropertyChange>>(Model.Changes) ?? new List<AuditPropertyChange>();
+        }
+        catch { }
+    }
+}
+
+<div class="p-3 bg-body-secondary">
+    @if (changes.Any())
+    {
+        <table class="table table-sm table-bordered mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Property</th>
+                    @if (Model.Action == "Modified")
+                    {
+                        <th style="width: 37.5%;">Old Value</th>
+                        <th style="width: 37.5%;">New Value</th>
+                    }
+                    else if (Model.Action == "Created")
+                    {
+                        <th>Value</th>
+                    }
+                    else
+                    {
+                        <th>Previous Value</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var change in changes)
+                {
+                    <tr>
+                        <td><code>@change.Property</code></td>
+                        @if (Model.Action == "Modified")
+                        {
+                            <td>
+                                <small class="text-muted text-break" style="word-break: break-all;">@(change.OldValue ?? "<null>")</small>
+                            </td>
+                            <td>
+                                <small class="text-break" style="word-break: break-all;">@(change.NewValue ?? "<null>")</small>
+                            </td>
+                        }
+                        else if (Model.Action == "Created")
+                        {
+                            <td>
+                                <small class="text-break" style="word-break: break-all;">@(change.NewValue ?? "<null>")</small>
+                            </td>
+                        }
+                        else
+                        {
+                            <td>
+                                <small class="text-muted text-break" style="word-break: break-all;">@(change.OldValue ?? "<null>")</small>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <span class="text-muted">No detail available.</span>
+    }
+</div>

@@ -457,6 +457,26 @@ namespace Apilane.Portal.Controllers
         }
 
         [HttpGet]
+        public IActionResult AuditLog(int page = 1, int pageSize = 50)
+        {
+            var query = DBContext.AuditLogs
+                .Where(x => x.AppID == Application.ID)
+                .OrderByDescending(x => x.Timestamp);
+
+            var totalCount = query.Count();
+            var logs = query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            ViewBag.Page = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+
+            return View(logs);
+        }
+
+        [HttpGet]
         public ActionResult Email()
         {
             return View(Application);

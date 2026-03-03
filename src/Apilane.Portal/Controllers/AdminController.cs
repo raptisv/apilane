@@ -291,6 +291,26 @@ namespace Apilane.Portal.Controllers
             }
         }
 
+        [HttpGet]
+        public IActionResult AuditLog(int page = 1, int pageSize = 50)
+        {
+            var query = DBContext.AuditLogs
+                .Where(x => x.AppID == null)
+                .OrderByDescending(x => x.Timestamp);
+
+            var totalCount = query.Count();
+            var logs = query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            ViewBag.Page = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.TotalCount = totalCount;
+
+            return View(logs);
+        }
+
         private DBWS_Application GetApplication(string token)
         {
             return DBContext.Applications.Single(x => x.Token == token);
