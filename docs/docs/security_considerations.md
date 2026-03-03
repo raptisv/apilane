@@ -37,7 +37,7 @@ Every API request requires an **application token** — a GUID that identifies w
 
 When a user logs in, they receive an authentication token. This token:
 
-- Expires after a configurable duration (`AuthTokenExpireMinutes`, set per application)
+- Expires after a configurable period of **inactivity** (`AuthTokenExpireMinutes`, set per application) — every authenticated request resets the expiration timer
 - Can be renewed via the `RenewAuthToken` endpoint before expiration
 - Can optionally enforce single-session login (`ForceSingleLogin`) — each new login invalidates all previous tokens
 

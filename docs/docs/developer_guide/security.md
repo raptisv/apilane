@@ -13,7 +13,7 @@ If this option is enabled, each new user login forces logout from any previous l
 If this option is enabled, all users can login regardless of whether their email is confirmed or not. Disabling this requires that users have confirmed their email before being able to login and retrieve an authentication token.
 
 #### Auth token expiration
-Each application defines how long authentication tokens remain valid (in minutes). After expiration, the user must log in again or renew the token via the `RenewAuthToken` endpoint.
+Each application defines how long authentication tokens remain valid after the last authenticated request (in minutes). The expiration timer resets on every authenticated API call, so tokens only expire after a period of **inactivity**. Once expired, the user must log in again or renew the token beforehand via the `RenewAuthToken` endpoint.
 
 ![Apilane](../assets/security_signin.png)
 

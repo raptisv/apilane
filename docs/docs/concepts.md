@@ -69,7 +69,7 @@ Apilane uses token-based authentication:
 1. A user registers or logs in via the [Account endpoints](api_reference.md#authentication)
 2. On successful login, an **AuthToken** (GUID) is returned
 3. The client includes this token in subsequent requests via the `Authorization` header
-4. Tokens expire after a configurable period (default: 60 minutes)
+4. Tokens expire after a configurable period of **inactivity** (default: 60 minutes) — each authenticated request resets the timer
 5. Tokens can be renewed without re-authenticating
 
 ## API Access Pattern

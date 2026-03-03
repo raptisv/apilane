@@ -31,7 +31,7 @@ After creating an application, you can configure these settings from the Portal:
 
 | Setting | Default | Description |
 |---|---|---|
-| **Auth token expiration** | varies | How long (in minutes) an authentication token remains valid. Range: 1 to 2,147,483,647 |
+| **Auth token expiration** | varies | Minutes of **inactivity** before an authentication token expires. Each authenticated request resets the timer. Range: 1 to 2,147,483,647 |
 | **Force single login** | `false` | If enabled, each new login invalidates all previous auth tokens for that user |
 | **Allow unconfirmed email login** | `true` | If disabled, users must confirm their email before they can log in |
 | **Allow new user registration** | `true` | If disabled, no new users can register via the API |
