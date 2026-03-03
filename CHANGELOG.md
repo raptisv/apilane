@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.9 (2026-03-03)
+- feat(audit): Introduced audit logs for applications and admin
+
 ## 8.4.8 (2026-03-02)
 - feat(data_api + sdk): Introduced transaction operations + Apilane.Net 8.4.8
 
