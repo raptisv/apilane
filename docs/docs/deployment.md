@@ -126,7 +126,7 @@ The API service supports OpenTelemetry for metrics and distributed tracing:
 
 ### Orleans Dashboard
 
-The API uses [Microsoft Orleans](https://learn.microsoft.com/en-us/dotnet/orleans/) for distributed actor state management. The Orleans cluster exposes a dashboard (default port `8080`) that can be useful for debugging in development environments.
+The API uses [Microsoft Orleans](https://github.com/dotnet/orleans) for distributed actor state management. The Orleans cluster exposes a dashboard (default port `8080`) that can be useful for debugging in development environments.
 
 | Orleans Setting | Default | Description |
 |---|---|---|

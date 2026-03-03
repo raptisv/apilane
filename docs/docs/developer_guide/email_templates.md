@@ -91,6 +91,28 @@ The Team
 
 When a user registers and email confirmation is enabled:
 
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API as Apilane API
+    participant DB as Database
+    participant SMTP as Mail Server
+    participant User as User Inbox
+
+    Client->>API: POST /Account/Register
+    API->>DB: Create user record
+    API->>DB: Generate confirmation token
+    API->>API: Build confirmation URL<br/>{ServerUrl}/api/Account/Confirm?apptoken=...&token=...
+    API->>API: Replace {confirmation_url} in template
+    API->>SMTP: Send confirmation email
+    SMTP->>User: Deliver email
+    API-->>Client: Registration success
+    Note over User: User opens email
+    User->>API: GET /api/Account/Confirm?apptoken=...&token=...
+    API->>DB: Mark email as confirmed
+    API-->>User: Redirect to Email confirmation redirect URL
+```
+
 1. User registers via `POST /Account/Register`
 2. Apilane generates a unique confirmation token
 3. The confirmation URL is built as: `{ServerUrl}/api/Account/Confirm?apptoken={token}&token={confirmationToken}`
@@ -107,6 +129,30 @@ When a user registers and email confirmation is enabled:
 ## Password reset flow
 
 When a user requests a password reset:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API as Apilane API
+    participant DB as Database
+    participant SMTP as Mail Server
+    participant User as User Inbox
+
+    Client->>API: GET /Email/ForgotPassword?email={email}
+    API->>DB: Look up user by email
+    API->>DB: Generate reset token
+    API->>API: Build reset URL<br/>{ServerUrl}/App/{appToken}/Account/Manage/ResetPassword?Token=...
+    API->>API: Replace {reset_password_url} in template
+    API->>SMTP: Send password reset email
+    SMTP->>User: Deliver email
+    API-->>Client: OK (always, even if email not found)
+    Note over User: User opens email
+    User->>API: Follow reset link
+    API-->>User: Show password reset form
+    User->>API: Submit new password
+    API->>DB: Update password
+    API-->>User: Password changed confirmation
+```
 
 1. Client calls `GET /Email/ForgotPassword?email={email}`
 2. Apilane generates a unique reset token

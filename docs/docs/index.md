@@ -28,7 +28,7 @@ It offers features such as database management, user authentication, file storag
 
 * **Rapid Development** — Pre-built backend services (authentication, data management, file storage) let you focus on your frontend.
 
-* **Scalability** — Built on [Microsoft Orleans](https://learn.microsoft.com/en-us/dotnet/orleans/) for distributed state management, ensuring your application remains responsive as it grows.
+* **Scalability** — Built on [Microsoft Orleans](https://github.com/dotnet/orleans) for distributed state management, ensuring your application remains responsive as it grows.
 
 * **Simplicity** — Easy-to-use REST API and Portal UI. No backend expertise required.
 
