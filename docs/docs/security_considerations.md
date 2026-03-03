@@ -5,7 +5,7 @@ An Apilane Instance consists of 2 deployments, the `Apilane Portal` and the `Api
 !!!warning "Malicious traffic"
     Apilane does not offer facilities for identifying malicious traffic towards the server such as DDoS attacks. This is a developer concern and should be taken into account for applications open to the internet.
 
-    What Apilane offers is rate limiting management per entity and action. Visit [rate limiting](/developer_guide/security/#rate-limiting) for more info.
+    What Apilane offers is rate limiting management per entity and action. Visit [rate limiting](developer_guide/security.md#rate-limiting) for more info.
 
 ---
 
@@ -43,7 +43,7 @@ When a user logs in, they receive an authentication token. This token:
 
 ### IP allow/block
 
-Any client application, web or mobile, should have access to the Apilane API, thus most of the times, the Apilane API server is publicly accessible. Depending on the nature of the client application, you can restrict access to the server by IP address on Application level. For more information visit [application IP allow/block](/developer_guide/security/#ip-allowblock).
+Any client application, web or mobile, should have access to the Apilane API, thus most of the times, the Apilane API server is publicly accessible. Depending on the nature of the client application, you can restrict access to the server by IP address on Application level. For more information visit [application IP allow/block](developer_guide/security.md#ip-allowblock).
 
 ![Apilane](assets/allow_ip.png)
 
@@ -59,7 +59,7 @@ Two modes are available:
 
 ### Rate limiting
 
-Navigate to the [rate limiting section](/developer_guide/security/#rate-limiting) for more information on how rate limiting may increase application security.
+Navigate to the [rate limiting section](developer_guide/security.md#rate-limiting) for more information on how rate limiting may increase application security.
 
 ### Data encryption
 

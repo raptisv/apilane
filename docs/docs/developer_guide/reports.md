@@ -16,7 +16,7 @@ To create a report, navigate to the **Reports** section of your application in t
 | **Group By** | Yes | The property to group results by |
 | **Report type** | Yes | How to visualize the data: Grid, Pie chart, or Line chart |
 | **Max records** | Yes | Maximum number of rows to return (1–1,000) |
-| **Filter** | No | Optional [filter](/developer_guide/filtering_sorting) to narrow down the data |
+| **Filter** | No | Optional [filter](filtering_sorting.md) to narrow down the data |
 | **Panel width** | No | Controls the display width of the report panel |
 | **Order** | No | Controls the display order of reports |
 
@@ -48,7 +48,7 @@ Displays aggregated data as a line graph. Best for showing trends over time or o
 
 ## How reports work
 
-Reports are powered by the [Stats/Aggregate](/api_reference/#aggregate) API endpoint under the hood. When you view a report in the Portal, it makes a request like:
+Reports are powered by the [Stats/Aggregate](../api_reference.md#aggregate) API endpoint under the hood. When you view a report in the Portal, it makes a request like:
 
 ```
 GET /Stats/Aggregate?Entity={entity}&Properties={properties}&Filter={filter}&Sort=Desc&GroupBy={groupBy}&PageIndex=1&PageSize={maxRecords}
@@ -62,5 +62,5 @@ This means reports have the same capabilities and respect the same security rule
 
 - **Use filters** to focus reports on specific subsets of data (e.g., records created in the last 30 days)
 - **Group by date properties** (like `Created`) for time-series analysis using line charts
-- **Combine with distinct values** — use the [Stats/Distinct](/api_reference/#distinct) endpoint to discover available grouping values
+- **Combine with distinct values** — use the [Stats/Distinct](../api_reference.md#distinct) endpoint to discover available grouping values
 - **Multiple reports** can be created for the same entity with different configurations to provide different views of the data

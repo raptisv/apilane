@@ -9,8 +9,8 @@ To create a new Application you need to define:
 | Setting | Required | Description |
 |---|---|---|
 | **Name** | Yes | Display name (4–100 characters, e.g., "MyApp") |
-| **Server** | Yes | The [Server](/developer_guide/server_overview) where the application will be deployed |
-| **Storage provider** | Yes | Database type — see [Storage providers](/developer_guide/storage_providers) |
+| **Server** | Yes | The [Server](server_overview.md) where the application will be deployed |
+| **Storage provider** | Yes | Database type — see [Storage providers](storage_providers.md) |
 | **Differentiation entity** | No | Optional multi-tenant data isolation — see [below](#differentiation-entity) |
 
 ![Apilane](../assets/application_create.png)
@@ -44,7 +44,7 @@ After creating an application, you can configure these settings from the Portal:
 
 ### Email
 
-SMTP settings for sending confirmation and password reset emails. See [Email Templates](/developer_guide/email_templates) for details.
+SMTP settings for sending confirmation and password reset emails. See [Email Templates](email_templates.md) for details.
 
 | Setting | Description |
 |---|---|
@@ -60,7 +60,7 @@ SMTP settings for sending confirmation and password reset emails. See [Email Tem
 | Setting | Description |
 |---|---|
 | **Online** | Whether the application is currently accepting API requests |
-| **IP allow/block** | Restrict access by IP address — see [Security](/developer_guide/security/#ip-allowblock) |
+| **IP allow/block** | Restrict access by IP address — see [Security](security.md#ip-allowblock) |
 
 ### Advanced
 
@@ -92,7 +92,7 @@ When a differentiation entity is set:
 3. Every subsequent entity you create has the option to include a differentiation property
 4. On every API call, Apilane automatically appends a filter based on the user's differentiation value
 
-It is a client application concern to decide how to assign values to that differentiation entity property for each user. For example, the application developer can use a [Custom endpoint](/developer_guide/custom_endpoints) to assign the proper differentiation property value to a new user, depending on application needs.
+It is a client application concern to decide how to assign values to that differentiation entity property for each user. For example, the application developer can use a [Custom endpoint](custom_endpoints.md) to assign the proper differentiation property value to a new user, depending on application needs.
 
 ### Example
 

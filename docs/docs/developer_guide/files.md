@@ -6,7 +6,7 @@ Apilane provides built-in file storage for your applications. Files are stored o
 
 - Files are uploaded via the **Files** controller (not the Data controller)
 - Each file gets a metadata record in the `Files` entity with properties like `Name`, `Size`, `UID`, and `Public`
-- File access is governed by the same [security rules](/developer_guide/security) as any other entity
+- File access is governed by the same [security rules](security.md) as any other entity
 - The maximum allowed file size is configurable per application
 
 ## Uploading Files
@@ -57,7 +57,7 @@ Retrieve file metadata records (not the actual file content):
 GET https://my.api.server/api/Files/Get?appToken={appToken}
 ```
 
-This endpoint supports the same [filtering, sorting, and paging](/developer_guide/filtering_sorting) parameters as the Data endpoints.
+This endpoint supports the same [filtering, sorting, and paging](filtering_sorting.md) parameters as the Data endpoints.
 
 | Parameter | Default | Description |
 |---|---|---|

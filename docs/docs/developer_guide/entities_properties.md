@@ -13,7 +13,7 @@ Every application is created with the following system entities:
 | Entity | Purpose |
 |---|---|
 | **Users** | Stores application user accounts (email, username, password, roles, etc.) |
-| **Files** | Stores file metadata (name, size, UID, public flag). Managed via the [Files](/developer_guide/files) endpoints. |
+| **Files** | Stores file metadata (name, size, UID, public flag). Managed via the [Files](files.md) endpoints. |
 
 System entities cannot be deleted. You can add custom properties to them just like any other entity.
 
@@ -25,7 +25,7 @@ Each entity can optionally have **change tracking** enabled. When enabled, Apila
 - Audit who changed what and when
 - Retrieve previous versions of a record
 
-Change tracking data can be accessed via the [GetHistoryByID](/api_reference/#get-record-history) endpoint.
+Change tracking data can be accessed via the [GetHistoryByID](../api_reference.md#get-record-history) endpoint.
 
 !!!info "Storage consideration"
     Change tracking increases storage usage since every update creates a history entry. Enable it only on entities where auditing is required.
@@ -95,4 +95,4 @@ Links a property to the `ID` column of another entity, enforcing referential int
 
 ## Differentiation Entity
 
-A differentiation entity is a special system feature that partitions data across your application. See [Application > Differentiation Entity](/developer_guide/application/#differentiation-entity) for details.
+A differentiation entity is a special system feature that partitions data across your application. See [Application > Differentiation Entity](application.md#differentiation-entity) for details.

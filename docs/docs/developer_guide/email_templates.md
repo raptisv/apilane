@@ -97,7 +97,7 @@ When a user registers and email confirmation is enabled:
 4. The `{confirmation_url}` placeholder is replaced with this URL in the email template
 5. The email is sent to the user
 6. When the user clicks the link, their email is marked as confirmed
-7. The browser redirects to the **Email confirmation redirect URL** (configurable in [Application settings](/developer_guide/application/#application-settings))
+7. The browser redirects to the **Email confirmation redirect URL** (configurable in [Application settings](application.md#application-settings))
 
 !!!info "Re-sending confirmation"
     If a user loses their initial confirmation email, they can request a new one via the `Email/RequestConfirmation` API endpoint.

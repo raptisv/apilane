@@ -8,7 +8,7 @@ An `Apilane Instance` consists of 2 services that can be deployed in any environ
 | **Apilane API** | `raptis/apilane:api-8.4.9` | `5001` | REST API server that client applications connect to |
 
 !!!info "Environment variables"
-    Please visit [environment variables](/getting_started/#environment-variables) section for a description of the available environment variables.
+    Please visit [environment variables](getting_started.md#environment-variables) section for a description of the available environment variables.
 
 ---
 
@@ -60,7 +60,7 @@ Apilane can be deployed to Kubernetes, on premise or in any cloud provider. Ther
 
 ### Multi-server setup
 
-An Apilane Instance can consist of more than one API server. For example, you might have separate servers for testing and production. Visit the [Server](/developer_guide/server_overview) page for more details on this concept.
+An Apilane Instance can consist of more than one API server. For example, you might have separate servers for testing and production. Visit the [Server](developer_guide/server_overview.md) page for more details on this concept.
 
 ---
 

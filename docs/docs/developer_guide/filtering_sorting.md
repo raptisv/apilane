@@ -85,7 +85,7 @@ GET https://my.api.server/api/Data/Get?appToken={appToken}&entity=Products&filte
 ```
 
 !!!info "Tip"
-    Use the [.NET SDK](/developer_guide/sdk) to build filters with a type-safe builder pattern instead of constructing JSON manually.
+    Use the [.NET SDK](sdk.md) to build filters with a type-safe builder pattern instead of constructing JSON manually.
 
 ## Sorting
 
