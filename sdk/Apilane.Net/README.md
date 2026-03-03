@@ -13,10 +13,10 @@ dotnet add package Apilane.Net
 ### 1. Register the service
 
 ```csharp
-using Apilane.Net.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 
-services.AddApilaneService(
-    serverUrl: "https://my.api.server",
+services.UseApilane(
+    applicationApiUrl: "https://my.api.server",
     applicationToken: "your-app-token"
 );
 ```
@@ -36,18 +36,19 @@ public class MyService
     public async Task Example()
     {
         // Login
-        var loginResult = await _apilane.LoginAsync(
-            new LoginRequest("user@example.com", "password"));
+        var loginResult = await _apilane.AccountLoginAsync<MyUser>(
+            new AccountLoginRequest("user@example.com", "password"));
 
-        // Set the auth token
-        _apilane.SetAuthToken(loginResult.AuthToken);
-
-        // Get data
-        var data = await _apilane.GetDataAsync(
-            new GetDataRequest("Products"));
+        // Get data using the auth token from login
+        var data = await _apilane.GetDataAsync<MyProduct>(
+            new DataGetListRequest("Products")
+                .WithAuthToken(loginResult.Result.AuthToken));
     }
 }
 ```
+
+Auth tokens can be provided per-request via `.WithAuthToken()` on any request builder,
+or globally by implementing `IApilaneAuthTokenProvider` and registering it in DI.
 
 ## Features
 
