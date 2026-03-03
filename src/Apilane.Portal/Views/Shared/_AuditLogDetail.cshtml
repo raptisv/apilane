@@ -1,0 +1,204 @@
+﻿@using Apilane.Portal.Models;
+@using System.Text.Json;
+@model PortalAuditLog
+@{
+    var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+
+    var changes = new List<AuditPropertyChange>();
+    if (!string.IsNullOrWhiteSpace(Model.Changes))
+    {
+        try
+        {
+            changes = JsonSerializer.Deserialize<List<AuditPropertyChange>>(Model.Changes) ?? new List<AuditPropertyChange>();
+        }
+        catch { }
+    }
+
+    var jsonProperties = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Security", "EntConstraints", "EntDefaultOrder" };
+    bool isJsonProperty(string name) => jsonProperties.Contains(name);
+
+    List<JsonElement> parseJsonArray(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new List<JsonElement>();
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                return doc.RootElement.EnumerateArray().Select(e => e.Clone()).ToList();
+            }
+        }
+        catch { }
+        return new List<JsonElement>();
+    }
+
+    string getElementLabel(JsonElement elem)
+    {
+        var parts = new List<string>();
+        if (elem.TryGetProperty("Name", out var name) && name.ValueKind == JsonValueKind.String)
+            parts.Add(name.GetString()!);
+        if (elem.TryGetProperty("Property", out var prop) && prop.ValueKind == JsonValueKind.String)
+            parts.Add(prop.GetString()!);
+        if (elem.TryGetProperty("RoleID", out var role) && role.ValueKind == JsonValueKind.String)
+            parts.Add(role.GetString()!);
+        if (elem.TryGetProperty("Action", out var action) && action.ValueKind == JsonValueKind.String)
+            parts.Add(action.GetString()!);
+        if (elem.TryGetProperty("Direction", out var dir) && dir.ValueKind == JsonValueKind.String)
+            parts.Add(dir.GetString()!);
+        if (elem.TryGetProperty("Properties", out var props) && props.ValueKind == JsonValueKind.String)
+        {
+            var propsStr = props.GetString();
+            if (!string.IsNullOrEmpty(propsStr)) parts.Add(propsStr);
+        }
+        if (parts.Count == 0 && elem.TryGetProperty("TypeID", out var typeId))
+            parts.Add("Type:" + typeId);
+        return parts.Count > 0 ? string.Join(" ", parts) : "(item)";
+    }
+
+    string formatJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return "";
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(doc.RootElement, jsonOptions);
+        }
+        catch { return json; }
+    }
+}
+
+<div class="p-3 bg-body-secondary">
+    @if (changes.Any())
+    {
+        <table class="table table-sm table-bordered mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Property</th>
+                    @if (Model.Action == "Modified")
+                    {
+                        <th style="width: 37.5%;">Old Value</th>
+                        <th style="width: 37.5%;">New Value</th>
+                    }
+                    else if (Model.Action == "Created")
+                    {
+                        <th>Value</th>
+                    }
+                    else
+                    {
+                        <th>Previous Value</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var change in changes)
+                {
+                    var isJson = isJsonProperty(change.Property);
+
+                    <tr>
+                        <td><code>@change.Property</code></td>
+
+                        @if (isJson && Model.Action == "Modified")
+                        {
+                            @* --- JSON diff as badges --- *@
+                            var oldItems = parseJsonArray(change.OldValue);
+                            var newItems = parseJsonArray(change.NewValue);
+                            var oldSet = new HashSet<string>(oldItems.Select(e => e.GetRawText()));
+                            var newSet = new HashSet<string>(newItems.Select(e => e.GetRawText()));
+                            var added = newItems.Where(e => !oldSet.Contains(e.GetRawText())).ToList();
+                            var removed = oldItems.Where(e => !newSet.Contains(e.GetRawText())).ToList();
+
+                            <td colspan="2">
+                                @if (added.Count == 0 && removed.Count == 0)
+                                {
+                                    <span class="text-muted"><small>No structural changes</small></span>
+                                }
+                                else
+                                {
+                                    @foreach (var item in added)
+                                    {
+                                        <span class="badge bg-success me-1 mb-1">+ @getElementLabel(item)</span>
+                                    }
+                                    @foreach (var item in removed)
+                                    {
+                                        <span class="badge bg-danger me-1 mb-1">- @getElementLabel(item)</span>
+                                    }
+                                }
+                            </td>
+                        }
+                        else if (isJson && (Model.Action == "Created" || Model.Action == "Deleted"))
+                        {
+                            @* --- JSON link → modal popup --- *@
+                            var jsonValue = Model.Action == "Created" ? change.NewValue : change.OldValue;
+                            var itemCount = parseJsonArray(jsonValue).Count;
+                            var modalId = "json-modal-" + Model.ID + "-" + change.Property;
+
+                            <td>
+                                @if (itemCount > 0)
+                                {
+                                    <a href="#" data-bs-toggle="modal" data-bs-target="#@modalId">
+                                        View JSON (@itemCount @(itemCount == 1 ? "item" : "items"))
+                                    </a>
+                                }
+                                else
+                                {
+                                    <small class="text-muted">(empty)</small>
+                                }
+                            </td>
+                        }
+                        else if (Model.Action == "Modified")
+                        {
+                            @* --- Regular modified row --- *@
+                            <td>
+                                <small class="text-muted text-break" style="word-break: break-all;">@(change.OldValue ?? "<null>")</small>
+                            </td>
+                            <td>
+                                <small class="text-break" style="word-break: break-all;">@(change.NewValue ?? "<null>")</small>
+                            </td>
+                        }
+                        else if (Model.Action == "Created")
+                        {
+                            <td>
+                                <small class="text-break" style="word-break: break-all;">@(change.NewValue ?? "<null>")</small>
+                            </td>
+                        }
+                        else
+                        {
+                            <td>
+                                <small class="text-muted text-break" style="word-break: break-all;">@(change.OldValue ?? "<null>")</small>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        @* --- Modals for JSON popups (Created / Deleted) --- *@
+        @foreach (var change in changes.Where(c => isJsonProperty(c.Property) && (Model.Action == "Created" || Model.Action == "Deleted")))
+        {
+            var jsonValue = Model.Action == "Created" ? change.NewValue : change.OldValue;
+            if (parseJsonArray(jsonValue).Count == 0) { continue; }
+            var modalId = "json-modal-" + Model.ID + "-" + change.Property;
+
+            <div class="modal fade" id="@modalId" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">@change.Property</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <pre class="mb-0"><code>@formatJson(jsonValue)</code></pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <span class="text-muted">No detail available.</span>
+    }
+</div>

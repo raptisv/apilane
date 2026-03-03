@@ -1,0 +1,111 @@
+﻿@using Apilane.Portal.Models;
+@model List<PortalAuditLog>
+@{
+    ViewBag.Title = "Admin Audit Log";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    int page = (int)ViewBag.Page;
+    int pageSize = (int)ViewBag.PageSize;
+    int totalCount = (int)ViewBag.TotalCount;
+    int totalPages = totalCount > 0 ? (int)Math.Ceiling((double)totalCount / pageSize) : 1;
+}
+
+<div class="clearfix">
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="page-header">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item">Admin</li>
+                        <li class="breadcrumb-item active">Audit Log</li>
+                    </ol>
+                </nav>
+            </div>
+
+            <div class="card bg-transparent">
+                <h4 class="card-header">
+                    <i class="bi bi-clock-history me-2"></i>Admin Audit Log
+                    <span class="badge bg-secondary ms-2">@totalCount</span>
+                </h4>
+                <div class="card-body">
+                    @if (Model.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 170px;">Timestamp (UTC)</th>
+                                        <th>User</th>
+                                        <th>Action</th>
+                                        <th>Type</th>
+                                        <th>Target</th>
+                                        <th style="width: 50px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (int i = 0; i < Model.Count; i++)
+                                    {
+                                        var log = Model[i];
+                                        var rowId = $"audit-detail-{i}";
+                                        var actionClass = log.Action switch
+                                        {
+                                            "Created" => "text-success",
+                                            "Deleted" => "text-danger",
+                                            _ => "text-warning"
+                                        };
+                                        var actionIcon = log.Action switch
+                                        {
+                                            "Created" => "bi-plus-circle",
+                                            "Deleted" => "bi-trash",
+                                            _ => "bi-pencil"
+                                        };
+                                        <tr style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#@rowId" aria-expanded="false">
+                                            <td><small>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</small></td>
+                                            <td><small>@log.UserEmail</small></td>
+                                            <td><span class="@actionClass"><i class="bi @actionIcon me-1"></i>@log.Action</span></td>
+                                            <td>@log.EntityType</td>
+                                            <td><strong>@log.EntityIdentifier</strong></td>
+                                            <td class="text-end"><i class="bi bi-chevron-down"></i></td>
+                                        </tr>
+                                        <tr class="collapse" id="@rowId">
+                                            <td colspan="6" class="p-0">
+                                                @await Html.PartialAsync("~/Views/Shared/_AuditLogDetail.cshtml", log)
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @* Pagination *@
+                        @if (totalPages > 1)
+                        {
+                            <nav aria-label="Audit log pagination">
+                                <ul class="pagination justify-content-center mb-0">
+                                    <li class="page-item @(page <= 1 ? "disabled" : "")">
+                                        <a class="page-link" href="@Url.Action("AuditLog", "Admin", new { page = page - 1 })">Previous</a>
+                                    </li>
+                                    @for (int p = Math.Max(1, page - 3); p <= Math.Min(totalPages, page + 3); p++)
+                                    {
+                                        <li class="page-item @(p == page ? "active" : "")">
+                                            <a class="page-link" href="@Url.Action("AuditLog", "Admin", new { page = p })">@p</a>
+                                        </li>
+                                    }
+                                    <li class="page-item @(page >= totalPages ? "disabled" : "")">
+                                        <a class="page-link" href="@Url.Action("AuditLog", "Admin", new { page = page + 1 })">Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        }
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted">
+                            No audit log entries found.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -18,7 +18,6 @@ using Microsoft.Extensions.Hosting;
 using Serilog;
 using Serilog.Settings.Configuration;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -58,6 +57,8 @@ namespace Apilane.Portal
                 options.EnableSensitiveDataLogging(true);
                 //options.ConfigureWarnings(x => x.Ignore(RelationalEventId.AmbientTransactionWarning));
             });
+
+            builder.Services.AddHttpContextAccessor();
 
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
             .AddRoles<IdentityRole>()
@@ -134,28 +135,12 @@ namespace Apilane.Portal
             using (var serviceScope = app.Services.GetService<IServiceScopeFactory>()!.CreateScope())
             {
                 var context = serviceScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                
-                // Ensure database creation
+
+                // Create database and seed data for new installations
                 context.Database.EnsureCreated();
 
-                // Execute migration queries
-                var listOfQueries = new List<string>()
-                {
-                    // Add any migration queries here
-                };
-
-                foreach(var item in listOfQueries)
-                {
-                    try
-                    {
-                        context.Database.ExecuteSqlRaw(item);
-                        context.SaveChanges();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error executing query '{item}' | {ex.Message}");
-                    }
-                }
+                // Apply schema updates for existing databases (new tables, indexes)
+                context.EnsureSchemaUpdated();
             }
 
             if (environment == Common.Enums.HostingEnvironment.Development)
