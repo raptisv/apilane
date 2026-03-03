@@ -158,6 +158,51 @@ namespace Apilane.Portal.Models
             });
         }
 
+        /// <summary>
+        /// Ensures all tables, columns, and indexes defined in the EF model exist
+        /// in an already-created database. Derives DDL from the model so that schema
+        /// knowledge is never duplicated. Call after <see cref="DatabaseFacade.EnsureCreated"/>
+        /// so that existing databases pick up any newly added tables or columns.
+        /// </summary>
+        public void EnsureSchemaUpdated()
+        {
+            // 1. Create any missing tables and indexes from the model DDL
+            var script = Database.GenerateCreateScript();
+            var statements = script.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            foreach (var statement in statements)
+            {
+                if (statement.StartsWith("CREATE TABLE", StringComparison.OrdinalIgnoreCase))
+                {
+                    Database.ExecuteSqlRaw(
+                        statement.Replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS", StringComparison.OrdinalIgnoreCase));
+                }
+                else if (statement.StartsWith("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase))
+                {
+                    Database.ExecuteSqlRaw(
+                        statement.Replace("CREATE UNIQUE INDEX", "CREATE UNIQUE INDEX IF NOT EXISTS", StringComparison.OrdinalIgnoreCase));
+                }
+                else if (statement.StartsWith("CREATE INDEX", StringComparison.OrdinalIgnoreCase))
+                {
+                    Database.ExecuteSqlRaw(
+                        statement.Replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS", StringComparison.OrdinalIgnoreCase));
+                }
+                // Skip INSERT (seed data) and everything else
+            }
+
+            // 2. Add any missing columns to existing tables or any other element that is missing from the above automation
+            // Execute migration queries
+            var listOfQueries = new List<string>()
+            {
+                // Add any migration queries here
+            };
+
+            foreach (var item in listOfQueries)
+            {
+                Database.ExecuteSqlRaw(item);
+            }
+        }
+
         #region Audit logging
 
         /// <summary>

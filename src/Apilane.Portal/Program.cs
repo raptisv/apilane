@@ -18,7 +18,6 @@ using Microsoft.Extensions.Hosting;
 using Serilog;
 using Serilog.Settings.Configuration;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -136,43 +135,12 @@ namespace Apilane.Portal
             using (var serviceScope = app.Services.GetService<IServiceScopeFactory>()!.CreateScope())
             {
                 var context = serviceScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                
-                // Ensure database creation
+
+                // Create database and seed data for new installations
                 context.Database.EnsureCreated();
 
-                // Execute migration queries
-                var listOfQueries = new List<string>()
-                {
-                    // Add any migration queries here
-
-                    // Audit logs table
-                    @"CREATE TABLE IF NOT EXISTS [AuditLogs] (
-                        [ID] INTEGER PRIMARY KEY AUTOINCREMENT,
-                        [Timestamp] TEXT NOT NULL,
-                        [UserId] TEXT NOT NULL,
-                        [UserEmail] TEXT NOT NULL,
-                        [AppID] INTEGER NULL,
-                        [EntityType] TEXT NOT NULL,
-                        [EntityIdentifier] TEXT NOT NULL,
-                        [Action] TEXT NOT NULL,
-                        [Changes] TEXT NULL
-                    )",
-                    @"CREATE INDEX IF NOT EXISTS [IX_AuditLogs_AppID] ON [AuditLogs] ([AppID])",
-                    @"CREATE INDEX IF NOT EXISTS [IX_AuditLogs_Timestamp] ON [AuditLogs] ([Timestamp])"
-                };
-
-                foreach(var item in listOfQueries)
-                {
-                    try
-                    {
-                        context.Database.ExecuteSqlRaw(item);
-                        context.SaveChanges();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error executing query '{item}' | {ex.Message}");
-                    }
-                }
+                // Apply schema updates for existing databases (new tables, indexes)
+                context.EnsureSchemaUpdated();
             }
 
             if (environment == Common.Enums.HostingEnvironment.Development)
