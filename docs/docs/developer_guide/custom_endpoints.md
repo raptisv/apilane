@@ -1,18 +1,80 @@
-# Custom endpoints
+# Custom Endpoints
 
-Custom endpoints offer an easy and direct way to expose complex functionality for your application. The logic is simple.
+Custom endpoints offer an easy and direct way to expose complex functionality for your application by running SQL queries as API endpoints.
 
-- You provide a name for the custom endpoint e.g. `MyCustomEndpoint`.
-- You write the query to be executed against the storage provider (most probably an SQL query) e.g. `select [Email] from [Users] where [ID] = {ID}`.
-- Your query may accept inputs as query parameters, which are automatically binded, if you wrap your parameter withs brackets, e.g. the `{ID}` on the above example.
-- You provide access to the custom endpoint through [security](/developer_guide/security) management .
-- You can now call this endpoint, providing any required parameters e.g. `GET https://my.api.com/api/Custom/MyCustomEndpoint?ID={ID}`.
+## How It Works
 
-
-!!!info "Note"
-    Parameters can only be of type big integer (long) to avoid sql injection vulnerabilities.
-    
-!!!info "Note"
-    All custom endpoints are plain http GET requests.
+1. **Name** your endpoint — e.g., `GetActiveUsers`
+2. **Write the SQL query** to execute against the storage provider — e.g., `SELECT [Email], [Username] FROM [Users] WHERE [ID] = {UserID}`
+3. **Define parameters** by wrapping names in curly braces — e.g., `{UserID}` becomes a query parameter
+4. **Configure access** through the [Security](security.md) settings
+5. **Call the endpoint** — `GET https://my.api.server/api/Custom/GetActiveUsers?UserID=42` (with `x-application-token` header)
 
 ![Apilane](../assets/custom_endpoints.png)
+
+## Parameters
+
+Parameters in your SQL query are wrapped in `{braces}` and are automatically bound from the request's query string.
+
+**Example query:**
+
+```sql
+SELECT [Name], [Price] FROM [Products] WHERE [CategoryID] = {CategoryID} AND [ID] > {MinID}
+```
+
+**API call:**
+
+```
+GET https://my.api.server/api/Custom/GetProducts?CategoryID=5&MinID=100
+x-application-token: {appToken}
+```
+
+!!!warning "Type restriction"
+    Parameters can only be of type **big integer (long)** to prevent SQL injection vulnerabilities. String parameters are not supported.
+
+!!!info "HTTP method"
+    All custom endpoints are plain HTTP **GET** requests.
+
+## Multiple Result Sets
+
+A custom endpoint can contain multiple SQL statements separated by semicolons. Each statement returns a separate result set:
+
+```sql
+SELECT [ID], [Name] FROM [Categories] WHERE [ID] = {CatID};
+SELECT [ID], [Name], [Price] FROM [Products] WHERE [CategoryID] = {CatID}
+```
+
+The response is a nested array — one array per result set:
+
+```json
+[
+  [{ "ID": 5, "Name": "Electronics" }],
+  [
+    { "ID": 1, "Name": "Widget", "Price": 9.99 },
+    { "ID": 2, "Name": "Gadget", "Price": 19.99 }
+  ]
+]
+```
+
+## Security
+
+Custom endpoint access is managed separately from entity security. Navigate to **Security** in the Portal and configure which roles can access each custom endpoint.
+
+See [Security > Custom endpoints](security.md#custom-endpoints) for more details.
+
+## SDK Usage
+
+```csharp
+// Single result set
+var result = await _apilaneService.GetCustomEndpointAsync<List<Product>>(
+    CustomEndpointRequest.New("GetProducts")
+        .WithAuthToken(authToken)
+        .WithParameter("CategoryID", 5));
+
+// Multiple result sets
+var (categories, products) = await _apilaneService
+    .GetCustomEndpointAsync<List<Category>, List<Product>>(
+        CustomEndpointRequest.New("GetCategoryWithProducts")
+            .WithAuthToken(authToken)
+            .WithParameter("CatID", 5));
+```
