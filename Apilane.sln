@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.32014.148
+# Visual Studio Version 18
+VisualStudioVersion = 18.4.11519.219 insiders
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apilane.Common", "src\Apilane.Common\Apilane.Common.csproj", "{7AFACB37-9024-474D-B3DE-5C9447D2B961}"
 EndProject
@@ -35,11 +35,12 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{90423DC3-EC36-40C0-82C4-9620F34DD6B2}"
 	ProjectSection(SolutionItems) = preProject
 		docs\diagram.excalidraw = docs\diagram.excalidraw
-		docs\mkdocs.yml = docs\mkdocs.yml
+		docs\zensical.toml = docs\zensical.toml
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{B9A9401E-790D-4DAF-9433-9D49CF9263A3}"
 	ProjectSection(SolutionItems) = preProject
+		docs\docs\api_reference.md = docs\docs\api_reference.md
 		docs\docs\concepts.md = docs\docs\concepts.md
 		docs\docs\deployment.md = docs\docs\deployment.md
 		docs\docs\getting_started.md = docs\docs\getting_started.md
@@ -82,11 +83,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "developer_guide", "develope
 		docs\docs\developer_guide\application.md = docs\docs\developer_guide\application.md
 		docs\docs\developer_guide\custom_endpoints.md = docs\docs\developer_guide\custom_endpoints.md
 		docs\docs\developer_guide\email_templates.md = docs\docs\developer_guide\email_templates.md
+		docs\docs\developer_guide\entities_properties.md = docs\docs\developer_guide\entities_properties.md
+		docs\docs\developer_guide\files.md = docs\docs\developer_guide\files.md
+		docs\docs\developer_guide\filtering_sorting.md = docs\docs\developer_guide\filtering_sorting.md
 		docs\docs\developer_guide\reports.md = docs\docs\developer_guide\reports.md
 		docs\docs\developer_guide\sdk.md = docs\docs\developer_guide\sdk.md
 		docs\docs\developer_guide\security.md = docs\docs\developer_guide\security.md
 		docs\docs\developer_guide\server_overview.md = docs\docs\developer_guide\server_overview.md
 		docs\docs\developer_guide\storage_providers.md = docs\docs\developer_guide\storage_providers.md
+		docs\docs\developer_guide\transactions.md = docs\docs\developer_guide\transactions.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "licenses", "licenses", "{996916D6-04A2-4416-A081-0C841E317CFD}"

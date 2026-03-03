@@ -1,0 +1,72 @@
+[project]
+site_name = "Apilane"
+site_url = "https://docs.apilane.com"
+repo_url = "https://github.com/raptisv/apilane"
+site_description = "Apilane — Backend-as-a-Service platform for web and mobile applications"
+site_author = "Apilane"
+
+nav = [
+    { "Overview" = "index.md" },
+    { "Concepts" = "concepts.md" },
+    { "Getting Started" = "getting_started.md" },
+    { "Deployment" = "deployment.md" },
+    { "Security Considerations" = "security_considerations.md" },
+    { "Developer Guide" = [
+        { "Server" = "developer_guide/server_overview.md" },
+        { "Application" = "developer_guide/application.md" },
+        { "Entities & Properties" = "developer_guide/entities_properties.md" },
+        { "Storage Providers" = "developer_guide/storage_providers.md" },
+        { "Files" = "developer_guide/files.md" },
+        { "Filtering & Sorting" = "developer_guide/filtering_sorting.md" },
+        { "Transactions" = "developer_guide/transactions.md" },
+        { "Security" = "developer_guide/security.md" },
+        { "Custom Endpoints" = "developer_guide/custom_endpoints.md" },
+        { "Email Templates" = "developer_guide/email_templates.md" },
+        { "Reports" = "developer_guide/reports.md" },
+    ] },
+    { "REST API Reference" = "api_reference.md" },
+    { "SDK (.NET)" = "developer_guide/sdk.md" },
+]
+
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.superfences]
+[project.markdown_extensions.pymdownx.highlight]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+
+[project.theme]
+favicon = "assets/favicon.png"
+logo = "assets/favicon.png"
+features = [
+    "content.code.copy",
+    "navigation.top",
+    "navigation.path",
+    "search.highlight",
+]
+
+[project.theme.font]
+text = "Work Sans"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+primary = "blue"
+scheme = "default"
+
+[project.theme.palette.toggle]
+icon = "material/brightness-7"
+name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+primary = "blue"
+scheme = "slate"
+
+[project.theme.palette.toggle]
+icon = "material/brightness-4"
+name = "Switch to light mode"
