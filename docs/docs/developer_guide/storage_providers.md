@@ -1,21 +1,62 @@
-# Storage providers
+# Storage Providers
 
-Apilane provides out-of-the-box support for Sqlite, SqlServer and MySql. That means that each application data can be stored in any of the supported storage providers.
+Apilane supports three storage providers out of the box. Each application can use a different provider, and the choice is made when creating the application.
 
-!!!info "Note"
-    On storage provider level, Apilane handles creating, renaming or deleting entities (tables) and properties (columns). It also handles unique and foreign key constaints. It does not provide any tools further than that like index management.
+!!!info "What Apilane manages"
+    On the storage provider level, Apilane handles creating, renaming, and deleting entities (tables) and properties (columns). It also manages unique and foreign key constraints. It does not provide tools beyond that, such as index management or manual query optimization.
 
-### Sqlite
+## SQLite
 
-For Sqlite there is no further configuration required. A new Sqlite database file will be generated to store your application data.
+**Best for:** Getting started, prototyping, small-to-medium applications.
 
-!!!info "Note"
-    Sqlite can support requirements for most applications. It is perfect for developing a quick PoC, a test application but is can also support production applications if the requirements are not very high. You can start with Sqlite and migrate to another storage provider at a later stage.
+No additional configuration is required. Apilane creates a SQLite database file automatically in the API's configured `FilesPath`.
 
-### SqlServer
+| Pros | Cons |
+|---|---|
+| Zero configuration | Not ideal for high-concurrency workloads |
+| Included with the API server | Single-file storage may limit scalability |
+| Perfect for PoC and development | |
+| Can support production for moderate workloads | |
 
-For SqlServer you will need to provide a connection string to an existing empty database. Apilane API service should be able to access the SqlServer instance. It will attempt to connect and create the system entites/properties. Database management regarding resources and availability is a developer concern.
+!!!info "Migration path"
+    You can start with SQLite and migrate to SQL Server or MySQL later as your application grows.
 
-### MySql
+## SQL Server
 
-For MySql you will need to provide a connection string to an existing empty database. Apilane API service should be able to access the MySql instance. It will attempt to connect and create the system entites/properties. Database management regarding resources and availability is a developer concern.
+**Best for:** Enterprise applications, high-concurrency workloads.
+
+You need to provide a connection string to an **existing empty database**. The Apilane API service must be able to reach the SQL Server instance. On first use, Apilane creates all required system tables and columns.
+
+**Example connection string:**
+
+```
+Server=myserver.database.windows.net;Database=myapp_db;User Id=myuser;Password=mypassword;
+```
+
+!!!warning "Your responsibility"
+    Database management (backups, scaling, availability, index optimization) is a developer concern. Apilane handles schema management only.
+
+## MySQL
+
+**Best for:** Open-source stacks, Linux-based deployments, cost-sensitive projects.
+
+Same setup as SQL Server — provide a connection string to an existing empty database. Apilane creates all system tables on first use.
+
+**Example connection string:**
+
+```
+Server=myserver;Database=myapp_db;User=myuser;Password=mypassword;
+```
+
+!!!warning "Your responsibility"
+    Database management (backups, scaling, availability, index optimization) is a developer concern. Apilane handles schema management only.
+
+## Choosing a Provider
+
+| Criteria | SQLite | SQL Server | MySQL |
+|---|---|---|---|
+| Setup complexity | None | Moderate | Moderate |
+| Cost | Free | Licensed / Cloud | Free / Cloud |
+| Concurrent users | Low-Medium | High | High |
+| Hosting | Bundled with API | Separate server | Separate server |
+| Best for | Dev / Small apps | Enterprise | Open-source stacks |

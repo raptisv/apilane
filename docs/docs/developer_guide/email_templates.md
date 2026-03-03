@@ -1,21 +1,127 @@
 # Email templates
 
-Each application can be customized to send an email to users upon registration or to facilitate the "forget password" mechanism.
+Apilane supports sending emails to users for account-related events such as registration confirmation and password recovery. Each application can be configured with its own SMTP settings and customizable email templates.
 
-Visit the Email section of the application and update the SMTP settings.
+---
+
+## SMTP configuration
+
+Before emails can be sent, you must configure the SMTP settings for your application. Navigate to the **Email** section of your application in the Portal.
+
+| Setting | Description |
+|---|---|
+| **Mail server** | SMTP server hostname (e.g., `smtp.gmail.com`) |
+| **Mail server port** | SMTP port — typically `587` (TLS) or `465` (SSL) |
+| **Mail from address** | The "From" email address shown to recipients |
+| **Mail from display name** | The display name shown alongside the from address |
+| **Mail username** | SMTP authentication username |
+| **Mail password** | SMTP authentication password |
 
 ![Apilane](../assets/email_settings.png)
 
-Enable/disable and edit the body and topic of the available email templates.
+!!!warning "Required for email features"
+    All SMTP fields must be configured for email functionality to work. If any field is missing, email operations will fail with a "Missing application SMTP settings" error.
 
-- **Email confirmation**
-	- If that template is enabled, an email is sent to the user after registration. The email is usually a welcome message and usually contains a url to confirm the user email. The actual url is generated from Apilane and there is a predefined placeholder string to be set wherever you like inside the email body.
-- **Reset password**
-	- If that template is enabled, an email is sent to the user upon request to reset password. The email should contain the url to that the user should follow to reset the password. The actual url is generated from Apilane and there is a predefined placeholder string to be set wherever you like inside the email body.
+---
+
+## Available templates
+
+Apilane provides two built-in email templates. Each can be individually enabled or disabled, and both the subject and body can be fully customized.
+
+### Email confirmation
+
+Sent to the user after registration. Typically contains a welcome message and a link to confirm the user's email address.
+
+- **Event code**: `UserRegisterConfirmation`
+- **Default subject**: `Welcome!`
+- **Default body**: `Thank you for creating an account. Please click on this link to confirm your email address`
+
+### Reset password
+
+Sent to the user when they request a password reset via the `ForgotPassword` API endpoint.
+
+- **Event code**: `UserForgotPassword`
+- **Default subject**: `Reset Password`
+- **Default body**: `Please click on this link to reset your password`
 
 ![Apilane](../assets/email_templates.png)
 
-After a user confirms the email by following the url provided on the email, the browser should eventually land somewhere. There is a default landing page for each application. This landing page can be configured to a url of your choice.
+---
+
+## Template placeholders
+
+Customize your email templates using placeholders. Apilane replaces these with actual values when sending the email.
+
+### User placeholders
+
+These placeholders are available in **all** email templates:
+
+| Placeholder | Description |
+|---|---|
+| `{Users.ID}` | The user's ID |
+| `{Users.Username}` | The user's username |
+| `{Users.Email}` | The user's email address |
+
+### Event-specific placeholders
+
+Each email event has its own special placeholder:
+
+| Event | Placeholder | Description |
+|---|---|---|
+| Email confirmation | `{confirmation_url}` | The URL the user must follow to confirm their email address |
+| Reset password | `{reset_password_url}` | The URL the user must follow to reset their password |
+
+### Example template
+
+```html
+Hello {Users.Username},
+
+Thank you for joining our platform!
+
+Please click on this <a href="{confirmation_url}">link</a> to confirm 
+your email address.
+
+Best regards,
+The Team
+```
+
+---
+
+## Confirmation flow
+
+When a user registers and email confirmation is enabled:
+
+1. User registers via `POST /Account/Register`
+2. Apilane generates a unique confirmation token
+3. The confirmation URL is built as: `{ServerUrl}/api/Account/Confirm?apptoken={token}&token={confirmationToken}`
+4. The `{confirmation_url}` placeholder is replaced with this URL in the email template
+5. The email is sent to the user
+6. When the user clicks the link, their email is marked as confirmed
+7. The browser redirects to the **Email confirmation redirect URL** (configurable in [Application settings](/developer_guide/application/#application-settings))
+
+!!!info "Re-sending confirmation"
+    If a user loses their initial confirmation email, they can request a new one via the `Email/RequestConfirmation` API endpoint.
+
+---
+
+## Password reset flow
+
+When a user requests a password reset:
+
+1. Client calls `GET /Email/ForgotPassword?email={email}`
+2. Apilane generates a unique reset token
+3. The reset URL is built as: `{ServerUrl}/App/{appToken}/Account/Manage/ResetPassword?Token={resetToken}`
+4. The `{reset_password_url}` placeholder is replaced in the email template
+5. The email is sent to the user
+6. The user follows the link to set a new password
+
+!!!info "Security note"
+    Both `RequestConfirmation` and `ForgotPassword` endpoints return success even if the email does not exist in the system. This prevents email enumeration attacks.
+
+---
+
+## Confirmation landing page
+
+After a user confirms their email by following the URL provided in the email, the browser eventually lands on a page. There is a default landing page for each application. This landing page can be configured to a URL of your choice.
 
 ![Apilane](../assets/email_confirm_land.png)
-
