@@ -47,18 +47,17 @@ Use this setting to allow only specific IP addresses to access your application.
 
 ## Roles
 
-Apilane uses a role-based access control (RBAC) system with the following built-in roles:
+Apilane uses a role-based access control (RBAC) system with two built-in roles:
 
 | Role | Description | Scope |
 |---|---|---|
-| **Anonymous** | Unauthenticated users (no auth token) | Public-facing endpoints |
-| **Authenticated** | Any logged-in user with a valid auth token | General user operations |
-| **Admin** | Full access to all entities and properties | Administrative operations |
+| **ANONYMOUS** | Any request without an authentication token | Public-facing endpoints |
+| **AUTHENTICATED** | Any request with a valid authentication token | Logged-in user operations |
 
-Custom roles can be created and assigned to users. A user can have multiple roles, and permissions are evaluated across all applicable roles.
+You can create **custom roles** (e.g., `admin`, `manager`, `editor`) and assign them to application users. A user can have multiple roles (comma-separated), and permissions are evaluated across all applicable roles.
 
-!!!info "Role hierarchy"
-    A user assigned the `admin` role inherits all the permissions of an `authenticated` user, granting them broader access to various functionalities. However, the `authenticated` role is governed by its own distinct access rules.
+!!!info "How role evaluation works"
+    When evaluating security rules, Apilane takes the user's custom roles (from their `Roles` property) and automatically adds `ANONYMOUS` and `AUTHENTICATED`. All matching security rules are then applied. This means an authenticated user with a custom `admin` role will match rules targeting `ANONYMOUS`, `AUTHENTICATED`, and `admin`.
 
 ---
 
@@ -105,9 +104,9 @@ For each role and action, you can specify which properties are accessible. This 
 !!!info "Note"
     Apilane implements a robust role-based access control (RBAC) system that allows for granular access to endpoints based on user roles. This system is designed to accommodate overlapping roles to ensure flexibility and precision in permission management.
 
-    For instance, a user assigned the 'admin' role inherits all the permissions of an 'authorized user,' granting them broader access to various functionalities. However, the 'authorized user' role is governed by its own distinct access rules, tailored to specific operational requirements.
+    For instance, a user assigned a custom `admin` role will also match rules for `AUTHENTICATED`, granting them broader access to various functionalities. However, the `AUTHENTICATED` role is governed by its own distinct access rules, tailored to specific operational requirements.
 
-    This means that while both roles can access certain endpoints, the 'admin' user may have additional capabilities such as modifying data, whereas the 'authorized user' may be limited to read-only access.
+    This means that while both roles can access certain endpoints, the custom `admin` user may have additional capabilities such as modifying data, whereas the `AUTHENTICATED` role may be limited to read-only access.
 
 <figure markdown="span">
   ![Apilane](../assets/security_access_1.png)

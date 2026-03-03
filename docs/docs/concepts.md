@@ -53,15 +53,14 @@ Both services share an **Installation Key** to authorize their internal communic
 
 ### Built-in Roles
 
-Every Application has three built-in access levels used in [security rules](developer_guide/security.md):
+Every Application has two built-in access levels used in [security rules](developer_guide/security.md):
 
 | Role | Description |
 |---|---|
 | **ANONYMOUS** | Any request without an authentication token |
 | **AUTHENTICATED** | Any request with a valid authentication token |
-| **Admin** | Application users assigned the `Admin` role |
 
-You can create custom roles (e.g., `manager`, `editor`) and assign them to users. Security rules can target any combination of roles.
+You can create custom roles (e.g., `admin`, `manager`, `editor`) and assign them to users. Security rules can target any combination of built-in and custom roles.
 
 ## Authentication
 
