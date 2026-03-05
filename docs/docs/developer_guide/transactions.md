@@ -9,6 +9,7 @@ Transactions are useful when you need to:
 - Create related records that must all succeed together (e.g., an order and its line items)
 - Update multiple entities in a single atomic operation
 - Ensure data consistency across related changes
+- Create a record and immediately pass its ID to a [custom endpoint](custom_endpoints.md) for additional processing
 
 ## Transaction Types
 
@@ -65,7 +66,7 @@ Authorization: Bearer {authToken}
 
 ## TransactionOperations (Ordered with Cross-Referencing)
 
-Defines an ordered list of operations that execute sequentially. This is the more powerful option because operations can **reference results from earlier operations** using the `$ref:{OperationId}` syntax.
+Defines an ordered list of operations that execute sequentially. This is the more powerful option because operations can **reference results from earlier operations** using the `$ref:{OperationId}` syntax. In addition to Post, Put, and Delete, this endpoint also supports calling **Custom endpoints**.
 
 ### Request
 
@@ -99,6 +100,11 @@ Authorization: Bearer {authToken}
       "Action": "Put",
       "Entity": "Orders",
       "Data": { "ID": "$ref:createOrder", "Status": "Active" }
+    },
+    {
+      "Action": "Custom",
+      "Entity": "NotifyOrderCreated",
+      "Data": { "orderId": "$ref:createOrder" }
     }
   ]
 }
@@ -109,6 +115,7 @@ In the example above:
 1. An order is created and assigned the operation ID `createOrder`
 2. Two order items are created, both referencing the order's ID via `$ref:createOrder`
 3. The order's status is updated using the same reference
+4. A custom endpoint `NotifyOrderCreated` is called, receiving the order's ID as a parameter
 
 ### Cross-Reference Syntax
 
@@ -120,6 +127,15 @@ In the example above:
 - `$ref` values are resolved server-side before the operation executes
 - References can only point to operations declared **earlier** in the list
 
+### Supported Actions
+
+| Action | Entity field | Data field | Ids field |
+|---|---|---|---|
+| `Post` | Entity name | Record data | — |
+| `Put` | Entity name | Record data (must include ID) | — |
+| `Delete` | Entity name | — | Comma-separated IDs |
+| `Custom` | Custom endpoint name | Key-value parameters for the endpoint | — |
+
 ### Response
 
 ```json
@@ -128,7 +144,8 @@ In the example above:
     { "Action": "Post", "Entity": "Orders", "Created": [42] },
     { "Action": "Post", "Entity": "OrderItems", "Created": [101] },
     { "Action": "Post", "Entity": "OrderItems", "Created": [102] },
-    { "Action": "Put", "Entity": "Orders", "Affected": 1 }
+    { "Action": "Put", "Entity": "Orders", "Affected": 1 },
+    { "Action": "Custom", "Entity": "NotifyOrderCreated", "CustomResult": [[{ "Status": "sent" }]] }
   ]
 }
 ```
@@ -140,6 +157,7 @@ Each result includes:
 | `Created` | Post | Array of newly created IDs |
 | `Affected` | Put | Count of updated records |
 | `Deleted` | Delete | Array of deleted IDs |
+| `CustomResult` | Custom | Nested array of result sets from the custom endpoint (same format as [custom endpoint responses](custom_endpoints.md#multiple-result-sets)) |
 
 ## SDK Usage
 
@@ -180,14 +198,29 @@ var transaction = new TransactionBuilder()
     .Post("OrderItems", new { OrderId = orderRef.Id(), Product = "Gadget", Qty = 1 })
     .Put("Orders", new { ID = orderRef.Id(), Status = "Active" })
     .Delete("TempRecords", "10,11,12")
+    .Custom("NotifyOrderCreated", new { orderId = orderRef.Id() })
     .Build();
 
 var result = await _apilaneService.TransactionOperationsAsync(
     DataTransactionOperationsRequest.New().WithAuthToken(authToken),
     transaction);
+
+// Access custom endpoint result
+var customResult = result.Match(
+    r => r.Results.Last().CustomResult,
+    e => throw new Exception(e.Message));
 ```
 
 The `out var orderRef` captures a `TransactionRef` object. Calling `orderRef.Id()` returns the `$ref:auto_0` placeholder that the server resolves to the actual created ID.
+
+### Custom Endpoints in Transactions
+
+The `.Custom(endpointName, data)` method calls a [custom endpoint](custom_endpoints.md) as part of the transaction. This is useful for triggering server-side logic (e.g., computed queries, notifications, or aggregations) that depends on records created or modified earlier in the same transaction.
+
+- The `endpointName` must match a custom endpoint configured in the Portal
+- The `data` object provides parameter values — use `orderRef.Id()` to pass IDs from prior operations via `$ref` resolution
+- The custom endpoint's security rules still apply — the calling user must have `get` access to the endpoint
+- Custom endpoint parameters follow the same [type restriction](custom_endpoints.md#parameters) (big integer / long values only)
 
 !!!info "Atomicity"
     Both transaction types are fully atomic. If any individual operation fails validation or encounters an error, the entire transaction is rolled back and no changes are persisted.
