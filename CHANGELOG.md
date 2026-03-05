@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.11 (2026-03-05)
+- feat(portal): Simplified and optimized security view
+
 ## 8.4.10 (2026-03-05)
 - feat(nuget): Microsoft.Data.SqlClient 6.1.4 + Opentelemetry 1.9.0
 - feat(data_api + sdk): Introduced custom ednpoints on transaction operations + Apilane.Net 8.4.10
