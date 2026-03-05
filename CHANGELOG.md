@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.4.10 (2026-03-05)
+- feat(nuget): Microsoft.Data.SqlClient 6.1.4 + Opentelemetry 1.9.0
+- feat(data_api + sdk): Introduced custom ednpoints on transaction operations + Apilane.Net 8.4.10
+- feat(docs): Added docs action
+- feat(docs): Improved documentation
+
 ## 8.4.9 (2026-03-03)
 - feat(audit): Introduced audit logs for applications and admin
 
