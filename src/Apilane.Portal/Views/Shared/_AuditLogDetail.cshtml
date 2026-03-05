@@ -50,9 +50,80 @@
             var propsStr = props.GetString();
             if (!string.IsNullOrEmpty(propsStr)) parts.Add(propsStr);
         }
+        if (elem.TryGetProperty("Record", out var record) && record.ValueKind == JsonValueKind.Number)
+        {
+            var recordVal = record.GetInt32();
+            parts.Add(recordVal == 1 ? "Record:Owned" : "Record:All");
+        }
+        if (elem.TryGetProperty("RateLimit", out var rateLimit) && rateLimit.ValueKind == JsonValueKind.Object)
+        {
+            var maxReq = rateLimit.TryGetProperty("MaxRequests", out var mr) ? mr.GetInt32() : 0;
+            var twType = rateLimit.TryGetProperty("TimeWindowType", out var tw) ? tw.GetInt32() : 0;
+            var twLabel = twType switch { 1 => "/sec", 2 => "/min", 3 => "/hr", _ => "" };
+            parts.Add($"Rate:{maxReq}{twLabel}");
+        }
         if (parts.Count == 0 && elem.TryGetProperty("TypeID", out var typeId))
             parts.Add("Type:" + typeId);
         return parts.Count > 0 ? string.Join(" ", parts) : "(item)";
+    }
+
+    // --- Security-specific helpers ---
+
+    string getSecurityKey(JsonElement elem)
+    {
+        var n = elem.TryGetProperty("Name", out var v1) ? v1.GetString() ?? "" : "";
+        var t = elem.TryGetProperty("TypeID", out var v2) ? v2.GetInt32().ToString() : "";
+        var r = elem.TryGetProperty("RoleID", out var v3) ? v3.GetString() ?? "" : "";
+        var a = elem.TryGetProperty("Action", out var v4) ? v4.GetString() ?? "" : "";
+        return $"{n}|{t}|{r}|{a}";
+    }
+
+    string getSecurityLabel(JsonElement elem)
+    {
+        var n = elem.TryGetProperty("Name", out var v1) ? v1.GetString() ?? "" : "";
+        var r = elem.TryGetProperty("RoleID", out var v2) ? v2.GetString() ?? "" : "";
+        var a = elem.TryGetProperty("Action", out var v3) ? v3.GetString() ?? "" : "";
+        return $"{n} \u00b7 {r} \u00b7 {a}";
+    }
+
+    string formatRecord(JsonElement elem)
+    {
+        if (!elem.TryGetProperty("Record", out var r) || r.ValueKind != JsonValueKind.Number) return "All";
+        return r.GetInt32() == 1 ? "Owned" : "All";
+    }
+
+    string formatRateLimit(JsonElement elem)
+    {
+        if (!elem.TryGetProperty("RateLimit", out var rl) || rl.ValueKind != JsonValueKind.Object) return "None";
+        var max = rl.TryGetProperty("MaxRequests", out var mr) ? mr.GetInt32() : 0;
+        var tw = rl.TryGetProperty("TimeWindowType", out var t) ? t.GetInt32() : 0;
+        var label = tw switch { 1 => "/sec", 2 => "/min", 3 => "/hr", _ => "" };
+        return $"{max}{label}";
+    }
+
+    string formatProperties(JsonElement elem)
+    {
+        if (!elem.TryGetProperty("Properties", out var p) || p.ValueKind != JsonValueKind.String) return "(none)";
+        var s = p.GetString();
+        return string.IsNullOrWhiteSpace(s) ? "(none)" : s;
+    }
+
+    List<(string field, string oldVal, string newVal)> getSecurityFieldDiffs(JsonElement oldElem, JsonElement newElem)
+    {
+        var diffs = new List<(string field, string oldVal, string newVal)>();
+        var oldRecord = formatRecord(oldElem);
+        var newRecord = formatRecord(newElem);
+        if (oldRecord != newRecord) diffs.Add(("Record", oldRecord, newRecord));
+        var oldPropSet = formatProperties(oldElem).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var newPropSet = formatProperties(newElem).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var propsAdded = newPropSet.Where(p => !oldPropSet.Contains(p)).OrderBy(p => p).ToList();
+        var propsRemoved = oldPropSet.Where(p => !newPropSet.Contains(p)).OrderBy(p => p).ToList();
+        if (propsRemoved.Count > 0) diffs.Add(("Properties removed", string.Join(", ", propsRemoved), ""));
+        if (propsAdded.Count > 0) diffs.Add(("Properties added", "", string.Join(", ", propsAdded)));
+        var oldRate = formatRateLimit(oldElem);
+        var newRate = formatRateLimit(newElem);
+        if (oldRate != newRate) diffs.Add(("Rate limit", oldRate, newRate));
+        return diffs;
     }
 
     string formatJson(string? json)
@@ -97,9 +168,99 @@
                     <tr>
                         <td><code>@change.Property</code></td>
 
-                        @if (isJson && Model.Action == "Modified")
+                        @if (isJson && change.Property == "Security" && Model.Action == "Modified")
                         {
-                            @* --- JSON diff as badges --- *@
+                            @* --- Security: key-based diff showing Added / Updated / Removed --- *@
+                            var oldItems = parseJsonArray(change.OldValue);
+                            var newItems = parseJsonArray(change.NewValue);
+                            var oldByKey = new Dictionary<string, JsonElement>();
+                            foreach (var e in oldItems) { var k = getSecurityKey(e); oldByKey.TryAdd(k, e); }
+                            var newByKey = new Dictionary<string, JsonElement>();
+                            foreach (var e in newItems) { var k = getSecurityKey(e); newByKey.TryAdd(k, e); }
+
+                            var addedKeys = newByKey.Keys.Where(k => !oldByKey.ContainsKey(k)).ToList();
+                            var removedKeys = oldByKey.Keys.Where(k => !newByKey.ContainsKey(k)).ToList();
+                            var updatedKeys = oldByKey.Keys
+                                .Where(k => newByKey.ContainsKey(k) && oldByKey[k].GetRawText() != newByKey[k].GetRawText())
+                                .ToList();
+
+                            <td colspan="2">
+                                @if (addedKeys.Count == 0 && removedKeys.Count == 0 && updatedKeys.Count == 0)
+                                {
+                                    <span class="text-muted"><small>No changes</small></span>
+                                }
+
+                                @if (addedKeys.Count > 0)
+                                {
+                                    @foreach (var key in addedKeys)
+                                    {
+                                        var item = newByKey[key];
+                                        <div class="mb-1">
+                                            <span class="badge bg-success">Added</span>
+                                            <strong class="ms-1">@getSecurityLabel(item)</strong>
+                                            <small class="text-muted ms-1">
+                                                Record: @formatRecord(item),
+                                                Properties: @formatProperties(item),
+                                                Rate limit: @formatRateLimit(item)
+                                            </small>
+                                        </div>
+                                    }
+                                }
+
+                                @if (updatedKeys.Count > 0)
+                                {
+                                    @foreach (var key in updatedKeys)
+                                    {
+                                        var oldElem = oldByKey[key];
+                                        var newElem = newByKey[key];
+                                        var fieldDiffs = getSecurityFieldDiffs(oldElem, newElem);
+                                        <div class="mb-1">
+                                            <span class="badge bg-warning text-dark">Updated</span>
+                                            <strong class="ms-1">@getSecurityLabel(oldElem)</strong>
+                                            @foreach (var d in fieldDiffs)
+                                            {
+                                                <div class="ms-4">
+                                                    <small><code>@d.field</code>:
+                                                        @if (!string.IsNullOrEmpty(d.oldVal) && !string.IsNullOrEmpty(d.newVal))
+                                                        {
+                                                            <span class="text-danger">@d.oldVal</span> @:→ <span class="text-success">@d.newVal</span>
+                                                        }
+                                                        else if (!string.IsNullOrEmpty(d.oldVal))
+                                                        {
+                                                            <span class="text-danger">@d.oldVal</span>
+                                                        }
+                                                        else if (!string.IsNullOrEmpty(d.newVal))
+                                                        {
+                                                            <span class="text-success">@d.newVal</span>
+                                                        }
+                                                    </small>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                }
+
+                                @if (removedKeys.Count > 0)
+                                {
+                                    @foreach (var key in removedKeys)
+                                    {
+                                        var item = oldByKey[key];
+                                        <div class="mb-1">
+                                            <span class="badge bg-danger">Removed</span>
+                                            <strong class="ms-1">@getSecurityLabel(item)</strong>
+                                            <small class="text-muted ms-1">
+                                                Record: @formatRecord(item),
+                                                Properties: @formatProperties(item),
+                                                Rate limit: @formatRateLimit(item)
+                                            </small>
+                                        </div>
+                                    }
+                                }
+                            </td>
+                        }
+                        else if (isJson && Model.Action == "Modified")
+                        {
+                            @* --- Generic JSON diff as badges (EntConstraints, EntDefaultOrder, etc.) --- *@
                             var oldItems = parseJsonArray(change.OldValue);
                             var newItems = parseJsonArray(change.NewValue);
                             var oldSet = new HashSet<string>(oldItems.Select(e => e.GetRawText()));
@@ -107,21 +268,30 @@
                             var added = newItems.Where(e => !oldSet.Contains(e.GetRawText())).ToList();
                             var removed = oldItems.Where(e => !newSet.Contains(e.GetRawText())).ToList();
 
-                            <td colspan="2">
-                                @if (added.Count == 0 && removed.Count == 0)
+                            <td>
+                                @if (removed.Count > 0)
                                 {
-                                    <span class="text-muted"><small>No structural changes</small></span>
+                                    @foreach (var item in removed)
+                                    {
+                                        <span class="badge bg-danger me-1 mb-1">- @getElementLabel(item)</span>
+                                    }
                                 }
                                 else
+                                {
+                                    <span class="text-muted"><small>—</small></span>
+                                }
+                            </td>
+                            <td>
+                                @if (added.Count > 0)
                                 {
                                     @foreach (var item in added)
                                     {
                                         <span class="badge bg-success me-1 mb-1">+ @getElementLabel(item)</span>
                                     }
-                                    @foreach (var item in removed)
-                                    {
-                                        <span class="badge bg-danger me-1 mb-1">- @getElementLabel(item)</span>
-                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted"><small>—</small></span>
                                 }
                             </td>
                         }

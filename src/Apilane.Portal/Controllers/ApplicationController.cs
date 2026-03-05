@@ -305,7 +305,7 @@ namespace Apilane.Portal.Controllers
                 nameof(DBWS_Application.ForceSingleLogin)
             };
 
-            // Remove all keys, allow only needed            
+            // Remove all keys, allow only needed
             foreach (var key in ModelState.Keys)
             {
                 if (!updateValues.Contains(key))
@@ -314,23 +314,8 @@ namespace Apilane.Portal.Controllers
                 }
             }
 
-            string? returnSection = null;
-            foreach (string key in Request.Form.Keys)
-            {
-                if (key.Equals("return"))
-                {
-                    returnSection = Request.Form[key];
-                }
-            }
-
-            string? returnEntity = null;
-            foreach (string key in Request.Form.Keys)
-            {
-                if (key.Equals("entity"))
-                {
-                    returnEntity = Request.Form[key];
-                }
-            }
+            string? returnSection = Request.Form["return"];
+            string? returnEntity = Request.Form["entity"];
 
             List<string> IPAddresses = Utils.GetString(model.ClientIPsValue).Split(',').Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToList();
 
@@ -349,14 +334,11 @@ namespace Apilane.Portal.Controllers
 
             try
             {
-                List<string> AuthValues = new List<string>();
-                foreach (string key in Request.Form.Keys)
-                {
-                    if (key.StartsWith("Auth;"))
-                    {
-                        AuthValues.Add(Request.Form[key]!);
-                    }
-                }
+                // Deserialize security items from JSON
+                string? securityItemsJson = Request.Form["SecurityItems"];
+                var securityInputs = !string.IsNullOrEmpty(securityItemsJson)
+                    ? JsonSerializer.Deserialize<List<SecurityItemInput>>(securityItemsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new()
+                    : new List<SecurityItemInput>();
 
                 Application.AllowLoginUnconfirmedEmail = model.AllowLoginUnconfirmedEmail;
                 Application.AllowUserRegister = model.AllowUserRegister;
@@ -369,65 +351,50 @@ namespace Apilane.Portal.Controllers
 
                 List<DBWS_Security> SecurityItems = new List<DBWS_Security>();
 
-                foreach (var item in AuthValues)
+                foreach (var input in securityInputs)
                 {
-                    string[] parts = item.Split(';');
-                    string Name = Utils.GetString(parts[0]);
-                    int TypeID = Utils.GetInt(parts[1], 0);
-                    SecurityTypes SecurityType = (SecurityTypes)TypeID;
-                    string Endpoint = Utils.GetString(parts[2]);
-                    string RoleID = Utils.GetString(parts[3]);
-                    int Record = Utils.GetInt(parts[4], -1);
-                    string Properties = Utils.GetString(parts[5]);
+                    var securityType = (SecurityTypes)input.TypeID;
+                    var rateLimitType = (EndpointRateLimit)input.RateLimitType;
 
-                    var RateLimitType = EndpointRateLimit.None;
-                    var RateLimitValue = 0;
-                    if (parts.Length > 7)
+                    if (!new[] { "get", "post", "put", "delete" }.Contains(input.Action.ToLower()))
+                        throw new Exception($"Endpoint {input.Action} is not suported");
+
+                    if (!Enum.IsDefined(typeof(EndpointRecordAuthorization), input.Record))
+                        throw new Exception($"Record level access {input.Record} is not suported");
+
+                    if (rateLimitType != EndpointRateLimit.None && input.RateLimitValue <= 0)
+                        throw new Exception($"Invalid rate limit request value");
+
+                    List<DBWS_EntityProperty>? entityProperties = null;
+
+                    if (securityType == SecurityTypes.Entity)
                     {
-                        RateLimitType = (EndpointRateLimit)Utils.GetInt(parts[6], 0);
-                        RateLimitValue = Utils.GetInt(parts[7], 0);
-                        if (RateLimitType != EndpointRateLimit.None && RateLimitValue <= 0)
-                        {
-                            throw new Exception($"Invalid rate limit request value");
-                        }
+                        var currentEntity = Application.Entities.SingleOrDefault(x => x.Name.Equals(input.Name))
+                            ?? throw new Exception($"Invalid entity {input.Name}");
+
+                        entityProperties = currentEntity.Properties;
                     }
-
-                    if (!new List<string>() { "get", "post", "put", "delete" }.Contains(Endpoint.ToLower()))
-                        throw new Exception($"Endpoint {Endpoint} is not suported");
-
-                    if (!Enum.GetValues(typeof(EndpointRecordAuthorization)).Cast<EndpointRecordAuthorization>().ToList().Select(x => (int)x).Contains(Record))
-                        throw new Exception($"Record level access {Record} is not suported");
-
-                    List<DBWS_EntityProperty>? EntityProperties = null;
-
-                    if (SecurityType == SecurityTypes.Entity) // If it is an Entity
+                    else if (securityType == SecurityTypes.CustomEndpoint)
                     {
-                        var CurrentEntity = Application.Entities.SingleOrDefault(x => x.Name.Equals(Name))
-                            ?? throw new Exception($"Invalid entity {Name}");
-
-                        EntityProperties = CurrentEntity.Properties;
-                    }
-                    else if (SecurityType == SecurityTypes.CustomEndpoint) // If it is a custom endpoint
-                    {
-                        var CurrentCustomEndpoint = Application.CustomEndpoints.SingleOrDefault(x => x.Name.Equals(Name))
-                            ?? throw new Exception($"Invalid item {Name}");
+                        _ = Application.CustomEndpoints.SingleOrDefault(x => x.Name.Equals(input.Name))
+                            ?? throw new Exception($"Invalid item {input.Name}");
                     }
 
                     SecurityItems.Add(new DBWS_Security()
                     {
-                        Name = Name,
-                        TypeID = TypeID,
-                        Action = Endpoint,
-                        RoleID = RoleID,
-                        Record = (int)Record,
-                        Properties = SecurityType == SecurityTypes.Entity && EntityProperties is not null
-                                    ? string.Join(",", Properties.Split(',').Where(x => !string.IsNullOrWhiteSpace(x) && EntityProperties.Select(y => y.Name).Contains(x)).Select(x => x.Trim()))
+                        Name = input.Name,
+                        TypeID = input.TypeID,
+                        Action = input.Action,
+                        RoleID = input.RoleID,
+                        Record = input.Record,
+                        Properties = securityType == SecurityTypes.Entity && entityProperties is not null
+                                    ? string.Join(",", (input.Properties ?? "").Split(',').Where(x => !string.IsNullOrWhiteSpace(x) && entityProperties.Select(y => y.Name).Contains(x)).Select(x => x.Trim()))
                                     : null,
-                        RateLimit = RateLimitType != EndpointRateLimit.None && RateLimitValue > 0
+                        RateLimit = rateLimitType != EndpointRateLimit.None && input.RateLimitValue > 0
                                     ? new DBWS_Security.RateLimitItem()
                                     {
-                                        MaxRequests = RateLimitValue,
-                                        TimeWindowType = (int)RateLimitType
+                                        MaxRequests = input.RateLimitValue,
+                                        TimeWindowType = input.RateLimitType
                                     }
                                     : null
                     });

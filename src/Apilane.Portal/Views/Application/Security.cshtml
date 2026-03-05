@@ -68,24 +68,37 @@
     string SelectedEntity = Utils.GetString(ViewBag.OpenEntity);
 
     string OpenSection = Utils.GetString(ViewBag.OpenSection);
+
+    // Unified role list for the security table
+    var allRoles = new List<(string roleId, string displayName, string tooltip)>();
+    allRoles.Add((Globals.ANONYMOUS, "Anonymous users", "Anonymous user, is any user that makes an API call without an AuthToken or using an AuthToken that has expired"));
+    allRoles.Add((Globals.AUTHENTICATED, "Authenticated users", "An Authenticated user, is any user that makes an API call using a valid AuthToken"));
+    foreach (var role in ApplicationRoles)
+    {
+        allRoles.Add((role, $"Role: {role}", ""));
+    }
+
+    // Pre-build dictionary for O(1) security item lookups (avoids O(N) linear scans per cell)
+    var securityLookup = new Dictionary<(string name, string actionLower, int typeId, string roleId), DBWS_Security>();
+    foreach (var sec in Model.Security_List)
+    {
+        var key = (sec.Name, sec.Action.ToLower(), sec.TypeID, sec.RoleID);
+        securityLookup.TryAdd(key, sec);
+    }
+    ViewBag.SecurityLookup = securityLookup;
 }
 
 @functions{
 
-    public bool GetIsCkecked(SecurityItem_DTO Item, string Endpoint, string RoleID)
+    public DBWS_Security? FindSecurityItem(SecurityItem_DTO item, string endpoint, string roleId)
     {
-        return Model.Security_List.Any(x => x.TypeID == (int)Item.TypeID && x.Name.Equals(Item.Name)
-        &&
-        x.Action.ToLower().Equals(Endpoint.ToLower())
-        &&
-        x.TypeID_Enum == Item.TypeID
-        &&
-        x.RoleID.Equals(RoleID));
+        var securityLookup = (Dictionary<(string, string, int, string), DBWS_Security>)ViewBag.SecurityLookup;
+        return securityLookup.GetValueOrDefault((item.Name, endpoint.ToLower(), (int)item.TypeID, roleId));
     }
 
-    public HtmlString GetCheckbox(SecurityItem_DTO Item, string Endpoint, string RoleID)
+    public HtmlString GetCheckbox(SecurityItem_DTO Item, string Endpoint, string RoleID, DBWS_Security? secItem)
     {
-        string Checked = GetIsCkecked(Item, Endpoint, RoleID) ? "checked" : string.Empty;
+        string Checked = secItem != null ? "checked" : string.Empty;
 
         return new HtmlString($@"<div class='form-check form-switch'>
                                   <input class='form-check-input chk-auth something-has-changed' type='checkbox' role='button'
@@ -99,97 +112,72 @@
                                 </div>");
     }
 
-    public HtmlString GetRadioButtons(SecurityItem_DTO SecurityItem, string Endpoint, string RoleID)
+    public HtmlString GetRadioButtons(SecurityItem_DTO SecurityItem, string Endpoint, string RoleID, DBWS_Security? Item)
     {
-        if (RoleID.Equals(Globals.ANONYMOUS) || SecurityItem.HasOwnerColumn() == false)
+        if (RoleID.Equals(Globals.ANONYMOUS) || !SecurityItem.HasOwnerColumn() || Endpoint.Equals("post", StringComparison.OrdinalIgnoreCase))
         {
             return new HtmlString("");
         }
 
-        DBWS_Security? Item = Model.Security_List.FirstOrDefault(x => x.Name.Equals(SecurityItem.Name)
-        &&
-        x.Action.ToLower().Equals(Endpoint.ToLower())
-        &&
-        x.TypeID_Enum == SecurityItem.TypeID
-        &&
-        x.RoleID.Equals(RoleID));
+        string hidden = Item != null ? string.Empty : "d-none";
+        string prefix = $"record-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}";
+        string radioName = $"group-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}";
 
-        bool Checked = GetIsCkecked(SecurityItem, Endpoint, RoleID);
-
-        string Hidden = Checked ? string.Empty : "d-none";
-
-        string Sel_All = Item == null || (Item != null && Item.Record == ((int)EndpointRecordAuthorization.All)) ? "checked" : "";
-        string Sel_Owned = Item != null && Item.Record == ((int)EndpointRecordAuthorization.Owned) ? "checked" : "";
-
-        List<string> securityTypes = new List<string>()
+        var options = new (EndpointRecordAuthorization type, string label)[]
         {
-            $@"<div class='form-check'>
-                    <input class='form-check-input radio-auth prevent-post-form-data something-has-changed'
-                        type='radio'
-                        name='group-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}'
-                        value='{((int)EndpointRecordAuthorization.All)}'
-                        id='radio-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRecordAuthorization.All)}'
-                        data-id='{RoleID}'
-                        data-name='{SecurityItem.Name}'
-                        data-typeid='{(int)SecurityTypes.Entity}'
-                        data-action='{Endpoint}' {Sel_All}>
-                    <label class='form-check-label' for='radio-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRecordAuthorization.All)}'>All records</label>
-                </div>",
-            $@"<div class='form-check'>
-                    <input class='form-check-input radio-auth prevent-post-form-data something-has-changed'
-                        type='radio'
-                        name='group-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}'
-                        value='{((int)EndpointRecordAuthorization.Owned)}'
-                        id='radio-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRecordAuthorization.Owned)}'
-                        data-id='{RoleID}'
-                        data-name='{SecurityItem.Name}'
-                        data-typeid='{(int)SecurityTypes.Entity}'
-                        data-action='{Endpoint}' {Sel_Owned}>
-                    <label class='form-check-label' for='radio-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRecordAuthorization.Owned)}'>Owner records only</label>
-                </div>"
+            (EndpointRecordAuthorization.All, "All records"),
+            (EndpointRecordAuthorization.Owned, "Owner records only")
         };
 
-        return new HtmlString($@"<div class='record-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID} {Hidden} mt-3'>
+        var radiosHtml = "";
+        foreach (var (type, label) in options)
+        {
+            int typeVal = (int)type;
+            bool isSelected = Item == null ? type == EndpointRecordAuthorization.All : Item.Record == typeVal;
+            string selAttr = isSelected ? "checked" : "";
+            string radioId = $"radio-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{typeVal}";
+
+            radiosHtml += $@"<div class='form-check'>
+                    <input class='form-check-input radio-auth prevent-post-form-data something-has-changed'
+                        type='radio' name='{radioName}' value='{typeVal}' id='{radioId}'
+                        data-id='{RoleID}' data-name='{SecurityItem.Name}'
+                        data-typeid='{(int)SecurityTypes.Entity}' data-action='{Endpoint}' {selAttr}>
+                    <label class='form-check-label' for='{radioId}'>{label}</label>
+                </div>";
+        }
+
+        return new HtmlString($@"<div class='{prefix} {hidden} mt-3'>
                                     <span class='text-primary'>Record level access</span>
-                                    <div class='record-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID} {Hidden}' data-id='{RoleID}'>{(string.Join(@"", securityTypes))}</div>");
+                                    <div class='{prefix} {hidden}' data-id='{RoleID}'>{radiosHtml}</div>");
     }
 
-    public HtmlString GetProperties(DBWS_Application application, SecurityItem_DTO SecurityItem, string Endpoint, string RoleID)
+    public HtmlString GetProperties(DBWS_Application application, SecurityItem_DTO SecurityItem, string Endpoint, string RoleID, DBWS_Security? Item)
     {
-        DBWS_Security? Item = Model.Security_List.FirstOrDefault(x => x.Name.Equals(SecurityItem.Name)
-        &&
-        x.Action.ToLower().Equals(Endpoint.ToLower())
-        &&
-        x.TypeID_Enum == SecurityItem.TypeID
-        &&
-        x.RoleID.Equals(RoleID));
+        var propertiesAllowed = SecurityItem.Properties.Where(x => (Endpoint.Equals("get") && !x.IsPrimaryKey) || ((Endpoint.Equals("put") || Endpoint.Equals("post")) && !x.IsPrimaryKey && x.AllowEdit(application.DifferentiationEntity, SecurityItem.HasDifferentiationProperty))).ToList();
 
-        bool Checked = GetIsCkecked(SecurityItem, Endpoint, RoleID);
-
-        var propertiesAllowed = SecurityItem.Properties.Where(x => (Endpoint.Equals("get") && !x.IsPrimaryKey) || ((Endpoint.Equals("put") || Endpoint.Equals("post")) && !x.IsPrimaryKey && x.AllowEdit(application.DifferentiationEntity, SecurityItem.HasDifferentiationProperty)));
-
-        string Hidden = Checked && propertiesAllowed.Count() > 0 ? string.Empty : "d-none";
-
-        string html = "";
-
-        if (propertiesAllowed.Count() > 0)
+        if (propertiesAllowed.Count == 0)
         {
-            html += $"<div class='mt-3 record-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID} {Hidden}'><span class='text-primary'>Property level access</span></div>";
+            return new HtmlString("");
         }
+
+        string Hidden = Item != null ? string.Empty : "d-none";
+        string prefix = $"record-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}";
+        var checkedProperties = Item?.GetProperties();
+
+        string html = $"<div class='mt-3 {prefix} {Hidden}'><span class='text-primary'>Property level access</span></div>";
 
         foreach (var prop in propertiesAllowed)
         {
-            string isPropertyChecked = Item != null && Item.GetProperties().Any(x => x.Equals(prop.Name)) ? "checked" : "";
+            string isPropertyChecked = checkedProperties != null && checkedProperties.Any(x => x.Equals(prop.Name)) ? "checked" : "";
 
             string propertyLabel = (!string.IsNullOrWhiteSpace(application.DifferentiationEntity) && SecurityItem.HasDifferentiationProperty && prop.Name.Equals(application.DifferentiationEntity.GetDifferentiationPropertyName())
                 ? " <span style='color:lightgray;' title='Differentiation property'>(DP)</span>"
                 : string.Empty);
 
-            html += $@"<div class='form-check record-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID} {Hidden}'>
+            html += $@"<div class='form-check {prefix} {Hidden}'>
                         <input
                             id='check-property-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{prop.Name}'
-                            data-id='{RoleID}'
-                            data-name='{SecurityItem.Name}'
+                        data-id='{RoleID}' data-name='{SecurityItem.Name}'
                             data-action='{Endpoint}'
                             data-property='{prop.Name}'
                             data-typeid='{(int)SecurityTypes.Entity}'
@@ -208,118 +196,66 @@
         return new HtmlString(html);
     }
 
-    public HtmlString GetRateLimiting(SecurityItem_DTO SecurityItem, string Endpoint, string RoleID)
-    {        
-        DBWS_Security? Item = Model.Security_List.FirstOrDefault(x => x.Name.Equals(SecurityItem.Name)
-        &&
-        x.Action.ToLower().Equals(Endpoint.ToLower())
-        &&
-        x.TypeID_Enum == SecurityItem.TypeID
-        &&
-        x.RoleID.Equals(RoleID));
+    public HtmlString GetRateLimiting(SecurityItem_DTO SecurityItem, string Endpoint, string RoleID, DBWS_Security? Item)
+    {
+        string hidden = Item != null ? string.Empty : "d-none";
+        string prefix = $"record-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}";
+        string radioName = $"group-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}";
+        string dataAttrs = $"data-name='{Item?.Name}' data-typeid='{(int)(Item?.TypeID ?? 0)}'";
 
-        bool Bool_None = Item?.RateLimit == null || Item.RateLimit.TimeWindowType == ((int)EndpointRateLimit.None);
-        bool Bool_Per_Second = Item?.RateLimit != null && Item.RateLimit.TimeWindowType == ((int)EndpointRateLimit.Per_Second);
-        bool Bool_Per_Minute = Item?.RateLimit != null && Item.RateLimit.TimeWindowType == ((int)EndpointRateLimit.Per_Minute);
-        bool Bool_Per_Hour = Item?.RateLimit != null && Item.RateLimit.TimeWindowType == ((int)EndpointRateLimit.Per_Hour);
-
-        string Sel_None = Bool_None ? "checked" : "";
-        string Sel_Per_Second = Bool_Per_Second ? "checked" : "";
-        string Sel_Per_Minute = Bool_Per_Minute ? "checked" : "";
-        string Sel_Per_Hour = Bool_Per_Hour ? "checked" : "";
-
-        string Input_Per_Second = Bool_Per_Second ? "" : "d-none";
-        string Input_Per_Minute = Bool_Per_Minute ? "" : "d-none";
-        string Input_Per_Hour = Bool_Per_Hour ? "" : "d-none";
-
-        int Val_Per_Second = Item?.RateLimit != null && Item.RateLimit.TimeWindowType == ((int)EndpointRateLimit.Per_Second) ? Item.RateLimit.MaxRequests : 1;
-        int Val_Per_Minute = Item?.RateLimit != null && Item.RateLimit.TimeWindowType == ((int)EndpointRateLimit.Per_Minute) ? Item.RateLimit.MaxRequests : 1;
-        int Val_Per_Hour = Item?.RateLimit != null && Item.RateLimit.TimeWindowType == ((int)EndpointRateLimit.Per_Hour) ? Item.RateLimit.MaxRequests : 1;
-
-        var rateLimitTypes = new List<string>()
+        var options = new (EndpointRateLimit type, string label)[]
         {
-            $@"<div class='form-check'>
-                    <input class='form-check-input radio-ratelimit prevent-post-form-data something-has-changed'
-                        data-name='{Item?.Name}'
-                        data-typeid='{(int)(Item?.TypeID ?? 0)}'
-                        type='radio'
-                        name='group-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}'
-                        value='{((int)EndpointRateLimit.None)}'
-                        id='radio-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.None)}'
-                        {Sel_None}>
-                    <label class='form-check-label' for='radio-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.None)}'>None</label>
-                </div>",
-            $@"<div class='form-check'>
-                    <input class='form-check-input radio-ratelimit prevent-post-form-data something-has-changed'
-                        data-name='{Item?.Name}'
-                        data-typeid='{(int)(Item?.TypeID ?? 0)}'
-                        type='radio'
-                        name='group-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}'
-                        value='{((int)EndpointRateLimit.Per_Second)}'
-                        id='radio-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.Per_Second)}'
-                        {Sel_Per_Second}>
-                    <label class='form-check-label' for='radio-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.Per_Second)}'>Per second</label>
-                    <input 
-                        id='input-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.Per_Second)}'
-                        class='input-ratelimit-value something-has-changed {Input_Per_Second}'
-                        type='number'
-                        value='{Val_Per_Second}'
-                        data-name='{Item?.Name}'
-                        data-typeid='{(int)(Item?.TypeID ?? 0)}'
-                        class='form-control'/>
-                </div>",
-            $@"<div class='form-check'>
-                    <input class='form-check-input radio-ratelimit prevent-post-form-data something-has-changed'
-                        data-name='{Item?.Name}'
-                        data-typeid='{(int)(Item?.TypeID ?? 0)}'
-                        type='radio'
-                        name='group-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}'
-                        value='{((int)EndpointRateLimit.Per_Minute)}'
-                        id='radio-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.Per_Minute)}'
-                        {Sel_Per_Minute}>
-                    <label class='form-check-label' for='radio-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.Per_Minute)}'>Per minute</label>
-                    <input
-                        id='input-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.Per_Minute)}'
-                        class='input-ratelimit-value something-has-changed {Input_Per_Minute}'
-                        type='number'
-                        value='{Val_Per_Minute}'
-                        data-name='{Item?.Name}'
-                        data-typeid='{(int)(Item?.TypeID ?? 0)}'
-                        class='form-control'/>
-                </div>",
-            $@"<div class='form-check'>
-                    <input class='form-check-input radio-ratelimit prevent-post-form-data something-has-changed'
-                        data-name='{Item?.Name}'
-                        data-typeid='{(int)(Item?.TypeID ?? 0)}'
-                        type='radio'
-                        name='group-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}'
-                        value='{((int)EndpointRateLimit.Per_Hour)}'
-                        id='radio-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.Per_Hour)}'
-                        {Sel_Per_Hour}>
-                    <label class='form-check-label' for='radio-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.Per_Hour)}'>Per hour</label>
-                    <input
-                        id='input-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{((int)EndpointRateLimit.Per_Hour)}'
-                        class='input-ratelimit-value something-has-changed {Input_Per_Hour}'
-                        type='number'
-                        value='{Val_Per_Hour}'
-                        data-name='{Item?.Name}'
-                        data-typeid='{(int)(Item?.TypeID ?? 0)}'
-                        class='form-control'/>
-                </div>"
+            (EndpointRateLimit.None, "None"),
+            (EndpointRateLimit.Per_Second, "Per second"),
+            (EndpointRateLimit.Per_Minute, "Per minute"),
+            (EndpointRateLimit.Per_Hour, "Per hour")
         };
 
-        bool Checked = GetIsCkecked(SecurityItem, Endpoint, RoleID);
+        var html = $"<div class='mt-3 {prefix} {hidden}'><span class='text-primary'>Rate limiting</span></div>";
+        html += $"<div class='{prefix} {hidden} radio-ratelimit-wrapper'>";
 
-        string Hidden = Checked ? string.Empty : "d-none";
-        
-        var html = $"<div class='mt-3 record-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID} {Hidden}'><span class='text-primary'>Rate limiting</span></div>";
+        foreach (var (type, label) in options)
+        {
+            int typeVal = (int)type;
+            bool isSelected = type == EndpointRateLimit.None
+                ? (Item?.RateLimit == null || Item.RateLimit.TimeWindowType == typeVal)
+                : (Item?.RateLimit != null && Item.RateLimit.TimeWindowType == typeVal);
+            string selAttr = isSelected ? "checked" : "";
+            string radioId = $"radio-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{typeVal}";
 
-        html += $"<div class='record-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID} {Hidden} radio-ratelimit-wrapper'>{string.Join(@"", rateLimitTypes)}</div>";
+            html += "<div class='form-check'>"
+                + $"<input class='form-check-input radio-ratelimit prevent-post-form-data something-has-changed' {dataAttrs} type='radio' name='{radioName}' value='{typeVal}' id='{radioId}' {selAttr}>"
+                + $"<label class='form-check-label' for='{radioId}'>{label}" + "</label>";
 
+            if (type != EndpointRateLimit.None)
+            {
+                int inputValue = isSelected && Item?.RateLimit != null ? Item.RateLimit.MaxRequests : 1;
+                string inputHidden = isSelected ? string.Empty : "d-none";
+                html += $@"<input id='input-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{typeVal}'
+                        class='input-ratelimit-value ms-2 w-25 something-has-changed {inputHidden}'
+                        type='number' value='{inputValue}' {dataAttrs}/>";
+            }
+
+            html += "</div>";
+        }
+
+        html += "</div>";
         return new HtmlString(html);
     }
-}
 
+    public HtmlString RenderSecurityCell(SecurityItem_DTO ent, string endpoint, string roleId)
+    {
+        // Single lookup per cell — passed to all helpers
+        DBWS_Security? secItem = FindSecurityItem(ent, endpoint, roleId);
+
+        return new HtmlString($@"<td>
+            {GetCheckbox(ent, endpoint, roleId, secItem)}
+            {GetRadioButtons(ent, endpoint, roleId, secItem)}
+            {GetProperties(Model, ent, endpoint, roleId, secItem)}
+            {GetRateLimiting(ent, endpoint, roleId, secItem)}
+        </td>");
+}
+}
 
 <div class="clearfix">
     <div class="row">
@@ -496,19 +432,13 @@
                                         {
                                             SecurityItem_DTO ent = SecurityItems[i];
                                             string active = string.IsNullOrWhiteSpace(SelectedEntity) ? (i == 0 ? " active " : "") : (SelectedEntity.Equals($"{ent.TypeID}-{ent.Name}") ? " active " : "");
-                                            var tooltipHtml = string.Empty;
-                                            if (ent.TypeID == SecurityTypes.Entity)
+                                            var tooltipHtml = ent.TypeID switch
                                             {
-                                                tooltipHtml = "Entity" + (ent.IsSystem ? " (system)" : "");
-                                            }
-                                            else if (ent.TypeID == SecurityTypes.CustomEndpoint)
-                                            {
-                                                tooltipHtml =  "Custom endpoint";
-                                            }
-                                            else if (ent.TypeID == SecurityTypes.Schema)
-                                            {
-                                                tooltipHtml = "Application schema";
-                                            }
+                                                SecurityTypes.Entity => "Entity" + (ent.IsSystem ? " (system)" : ""),
+                                                SecurityTypes.CustomEndpoint => "Custom endpoint",
+                                                SecurityTypes.Schema => "Application schema",
+                                                _ => ""
+                                            };
 
                                             <li class="nav-item" role="presentation"
                                                 data-bs-toggle="tooltip"
@@ -549,111 +479,28 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        <tr>
-                                                            <td class="text-nowrap">
-                                                                Anonymous users
-                                                                <i class="bi bi-info-circle text-primary security-role-help" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-original-title="Anonymous user, is any user that makes an API call without an AuthToken or using an AuthToken that has expired"></i>
-                                                            </td>
-                                                            <td>
-                                                                @GetCheckbox(ent, "get", Globals.ANONYMOUS)
-                                                                @GetProperties(Model, ent, "get", Globals.ANONYMOUS)
-                                                                @GetRateLimiting(ent, "get", Globals.ANONYMOUS)
-                                                            </td>
-                                                            @if (ent.AllowPost())
-                                                            {
-                                                                <td>
-                                                                    @GetCheckbox(ent, "post", Globals.ANONYMOUS)
-                                                                    @GetProperties(Model, ent, "post", Globals.ANONYMOUS)
-                                                                    @GetRateLimiting(ent, "post", Globals.ANONYMOUS)
-                                                                </td>
-                                                            }
-                                                            @if (ent.AllowPut())
-                                                            {
-                                                                <td>
-                                                                    @GetCheckbox(ent, "put", Globals.ANONYMOUS)
-                                                                    @GetProperties(Model, ent, "put", Globals.ANONYMOUS)
-                                                                    @GetRateLimiting(ent, "put", Globals.ANONYMOUS)
-                                                                </td>
-                                                            }
-                                                            @if (ent.AllowDelete())
-                                                            {
-                                                                <td>
-                                                                    @GetCheckbox(ent, "delete", Globals.ANONYMOUS)
-                                                                    @GetRateLimiting(ent, "delete", Globals.ANONYMOUS)
-                                                                </td>
-                                                            }
-                                                        </tr>
-                                                        <tr>
-                                                            <td class="text-nowrap">
-                                                                Authenticated users
-                                                                <i class="bi bi-info-circle text-primary security-role-help" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-original-title="An Authenticated user, is any user that makes an API call using a valid AuthToken"></i>
-                                                            </td>
-                                                            <td>
-                                                                @GetCheckbox(ent, "get", Globals.AUTHENTICATED)
-                                                                @GetRadioButtons(ent, "get", Globals.AUTHENTICATED)
-                                                                @GetProperties(Model, ent, "get", Globals.AUTHENTICATED)
-                                                                @GetRateLimiting(ent, "get", Globals.AUTHENTICATED)
-                                                            </td>
-                                                            @if (ent.AllowPost())
-                                                            {
-                                                                <td>
-                                                                    @GetCheckbox(ent, "post", Globals.AUTHENTICATED)
-                                                                    @GetProperties(Model, ent, "post", Globals.AUTHENTICATED)
-                                                                    @GetRateLimiting(ent, "post", Globals.AUTHENTICATED)
-                                                                </td>
-                                                            }
-                                                            @if (ent.AllowPut())
-                                                            {
-                                                                <td>
-                                                                    @GetCheckbox(ent, "put", Globals.AUTHENTICATED)
-                                                                    @GetRadioButtons(ent, "put", Globals.AUTHENTICATED)
-                                                                    @GetProperties(Model, ent, "put", Globals.AUTHENTICATED)
-                                                                    @GetRateLimiting(ent, "put", Globals.AUTHENTICATED)
-                                                                </td>
-                                                            }
-                                                            @if (ent.AllowDelete())
-                                                            {
-                                                                <td>
-                                                                    @GetCheckbox(ent, "delete", Globals.AUTHENTICATED)
-                                                                    @GetRadioButtons(ent, "delete", Globals.AUTHENTICATED)
-                                                                    @GetRateLimiting(ent, "delete", Globals.AUTHENTICATED)
-                                                                </td>
-                                                            }
-                                                        </tr>
-                                                        @foreach (var role in ApplicationRoles)
+                                                        @foreach (var (roleId, displayName, tooltip) in allRoles)
                                                         {
                                                             <tr>
-                                                                <td><div class="text-nowrap">Role: @role</div></td>
-                                                                <td>
-                                                                    @GetCheckbox(ent, "get", role)
-                                                                    @GetRadioButtons(ent, "get", role)
-                                                                    @GetProperties(Model, ent, "get", role)
-                                                                    @GetRateLimiting(ent, "get", role)
+                                                                <td class="text-nowrap">
+                                                                    @displayName
+                                                                    @if (!string.IsNullOrEmpty(tooltip))
+                                                                    {
+                                                                        <i class="bi bi-info-circle text-primary security-role-help" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-original-title="@tooltip"></i>
+                                                                    }
                                                                 </td>
+                                                                @RenderSecurityCell(ent, "get", roleId)
                                                                 @if (ent.AllowPost())
                                                                 {
-                                                                    <td>
-                                                                        @GetCheckbox(ent, "post", role)
-                                                                        @GetProperties(Model, ent, "post", role)
-                                                                        @GetRateLimiting(ent, "post", role)
-                                                                    </td>
+                                                                    @RenderSecurityCell(ent, "post", roleId)
                                                                 }
                                                                 @if (ent.AllowPut())
                                                                 {
-                                                                    <td>
-                                                                        @GetCheckbox(ent, "put", role)
-                                                                        @GetRadioButtons(ent, "put", role)
-                                                                        @GetProperties(Model, ent, "put", role)
-                                                                        @GetRateLimiting(ent, "put", role)
-                                                                    </td>
+                                                                    @RenderSecurityCell(ent, "put", roleId)
                                                                 }
                                                                 @if (ent.AllowDelete())
                                                                 {
-                                                                    <td>
-                                                                        @GetCheckbox(ent, "delete", role)
-                                                                        @GetRadioButtons(ent, "delete", role)
-                                                                        @GetRateLimiting(ent, "delete", role)
-                                                                    </td>
+                                                                    @RenderSecurityCell(ent, "delete", roleId)
                                                                 }
                                                             </tr>
                                                         }
@@ -711,49 +558,62 @@
         });
 
     $('.btn_save').click(function () {
+        var btnData = $(this).data();
+
         $('.btn_save').attr('disabled', true);
         $('.btn_save').html(`<div class="spinner-border spinner-border-sm">
                                 <span class="visually-hidden">Loading...</span>
                             </div>`);
 
         var frm = $("form");
+        var securityItems = [];
 
-        $.each($('.chk-auth'), function (index) {
-            var $element = $(this);
+        document.querySelectorAll('.chk-auth').forEach(function (el) {
+            if (!el.checked) return;
 
-            // Get basic data
-            var Name = $element.data().name;
-            var Endpoint = $element.data().action;
-            var RoleID = $element.data().id;
-            var TypeID = $element.data().typeid;
+            var typeId = parseInt(el.dataset.typeid);
+            var name = el.dataset.name;
+            var action = el.dataset.action;
+            var roleId = el.dataset.id;
 
-            var $radioAuth = $("input:radio.radio-auth[name='group-auth-" + TypeID + "-" + Name + "-" + Endpoint + "-" + RoleID + "']:checked");
-            var Record = $radioAuth.val() ? $radioAuth.val() : @((int)EndpointRecordAuthorization.All);
+            // Record level access
+            var radioAuth = document.querySelector("input.radio-auth[name='group-auth-" + typeId + "-" + name + "-" + action + "-" + roleId + "']:checked");
+            var record = radioAuth ? parseInt(radioAuth.value) : @((int)EndpointRecordAuthorization.All);
 
-            var Properties = [];
-            $.each($("input[name='properties-" + TypeID + "-"  + Name + "-" + Endpoint + "-" + RoleID + "']:checked"), function() {
-                Properties.push($(this).data().property);
+            // Properties
+            var properties = [];
+            document.querySelectorAll("input[name='properties-" + typeId + "-" + name + "-" + action + "-" + roleId + "']:checked").forEach(function (prop) {
+                properties.push(prop.dataset.property);
             });
 
-            var RateLimiting = '';
-            var $radioRatelimit = $("input:radio.radio-ratelimit[name='group-ratelimit-" + TypeID + "-" + Name + "-" + Endpoint + "-" + RoleID + "']:checked");
-            if ($radioRatelimit.val() && $radioRatelimit.val() != '0') {
-                var rateLimitValue = $radioRatelimit.siblings('.input-ratelimit-value').val();
-                RateLimiting = $radioRatelimit.val() + ';' + rateLimitValue;
+            // Rate limiting
+            var rateLimitType = 0;
+            var rateLimitValue = 0;
+            var radioRatelimit = document.querySelector("input.radio-ratelimit[name='group-ratelimit-" + typeId + "-" + name + "-" + action + "-" + roleId + "']:checked");
+            if (radioRatelimit && radioRatelimit.value !== '0') {
+                rateLimitType = parseInt(radioRatelimit.value);
+                var rateLimitInput = radioRatelimit.parentElement.querySelector('.input-ratelimit-value');
+                rateLimitValue = rateLimitInput ? parseInt(rateLimitInput.value) : 0;
             }
 
-            var Checked = $element.prop('checked');
-
-            if (Checked) {
-                var value = Name + ';' + TypeID + ';' + Endpoint + ';' + RoleID + ';' + Record + ';' + Properties.join(',') + ';' + RateLimiting;
-                frm.addHidden('Auth;' + index, value);
-            }
+            securityItems.push({
+                Name: name,
+                TypeID: typeId,
+                Action: action,
+                RoleID: roleId,
+                Record: record,
+                Properties: properties.join(','),
+                RateLimitType: rateLimitType,
+                RateLimitValue: rateLimitValue
+            });
         });
+
+        frm.addHidden('SecurityItems', JSON.stringify(securityItems));
 
         // Disable inputs that are not required to be posted to prevent post data size issues.
         $(frm).find('.prevent-post-form-data').attr('disabled', 'disabled');
 
-        frm.addHidden('return', $(this).data().id);
+        frm.addHidden('return', btnData.id);
 
         frm.addHidden('entity', $('button.nav-link.active').length == 1 ? $('button.nav-link.active').data().entity : '');
 
