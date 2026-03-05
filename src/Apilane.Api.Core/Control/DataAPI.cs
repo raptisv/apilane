@@ -26,15 +26,18 @@ namespace Apilane.Api.Core
         private readonly IClusterClient _clusterClient;
         private readonly IApplicationDataService _appDataService;
         private readonly ITransactionScopeService _transactionScopeService;
+        private readonly ICustomAPI _customAPI;
 
         public DataAPI(
             IClusterClient clusterClient,
             IApplicationDataService appDataService,
-            ITransactionScopeService transactionScopeService)
+            ITransactionScopeService transactionScopeService,
+            ICustomAPI customAPI)
         {
             _clusterClient = clusterClient;
             _appDataService = appDataService;
             _transactionScopeService = transactionScopeService;
+            _customAPI = customAPI;
         }
 
         public async Task<Dictionary<string, object?>> GetByIDAsync(
@@ -492,6 +495,30 @@ namespace Apilane.Api.Core
 
                             break;
                         }
+                        case TransactionAction.Custom:
+                        {
+                            var resolvedData = op.Data != null
+                                ? ResolveReferences(op.Data, resolvedResults)
+                                : throw new ApilaneException(AppErrors.ERROR, "Custom operation requires Data with endpoint parameters");
+
+                            var customEndpoint = application.CustomEndpoints.SingleOrDefault(x => x.Name.Equals(op.Entity, StringComparison.OrdinalIgnoreCase))
+                                ?? throw new ApilaneException(AppErrors.ERROR, $"Custom endpoint '{op.Entity}' does not exist");
+
+                            // Convert resolved data to Dictionary<string, string> for custom endpoint parameters
+                            var uriParams = ExtractCustomEndpointParameters(resolvedData);
+
+                            var customResult = await _customAPI.GetAsync(
+                                application.Token,
+                                userHasFullAccess,
+                                appUser,
+                                applicationSecurityList,
+                                customEndpoint,
+                                uriParams);
+
+                            opResult.CustomResult = customResult;
+
+                            break;
+                        }
                         default:
                             throw new ApilaneException(AppErrors.ERROR, $"Unknown transaction action '{op.Action}'");
                     }
@@ -575,6 +602,26 @@ namespace Apilane.Api.Core
                     }
                 }
             }
+        }
+
+        private static Dictionary<string, string> ExtractCustomEndpointParameters(object resolvedData)
+        {
+            var result = new Dictionary<string, string>();
+            var json = JsonSerializer.Serialize(resolvedData);
+            var node = JsonNode.Parse(json);
+
+            if (node is JsonObject obj)
+            {
+                foreach (var prop in obj)
+                {
+                    if (prop.Value is not null)
+                    {
+                        result[prop.Key] = prop.Value.ToString();
+                    }
+                }
+            }
+
+            return result;
         }
 
 

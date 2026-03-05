@@ -8,7 +8,8 @@ namespace Apilane.Net.Models.Data
     {
         Post,
         Put,
-        Delete
+        Delete,
+        Custom
     }
 
     public class InTransactionOperationData
@@ -19,12 +20,12 @@ namespace Apilane.Net.Models.Data
     public class InTransactionOperation
     {
         /// <summary>
-        /// The action to perform: Post, Put, or Delete.
+        /// The action to perform: Post, Put, Delete, or Custom.
         /// </summary>
         public TransactionAction Action { get; set; }
 
         /// <summary>
-        /// The entity name.
+        /// The entity name for Post/Put/Delete operations, or the custom endpoint name for Custom operations.
         /// </summary>
         public string Entity { get; set; } = null!;
 
@@ -36,6 +37,7 @@ namespace Apilane.Net.Models.Data
 
         /// <summary>
         /// The data object for Post and Put operations.
+        /// For Custom operations, a key-value object whose values will be used as endpoint parameters.
         /// String values matching "$ref:{OperationId}" will be resolved server-side to the first ID
         /// returned by the referenced operation.
         /// </summary>
@@ -72,5 +74,10 @@ namespace Apilane.Net.Models.Data
         /// The IDs of deleted records (Delete operations).
         /// </summary>
         public List<long>? Deleted { get; set; }
+
+        /// <summary>
+        /// The result of a Custom endpoint operation.
+        /// </summary>
+        public List<List<Dictionary<string, object?>>>? CustomResult { get; set; }
     }
 }

@@ -14,6 +14,7 @@ namespace Apilane.Net.Models.Data
     ///     .Post("OrderItems", new { OrderId = orderRef.Id(), Product = "Widget" })
     ///     .Put("Orders", new { ID = orderRef.Id(), Status = "Active" })
     ///     .Delete("OldOrders", "1,2,3")
+    ///     .Custom("ProcessOrder", new { orderId = orderRef.Id() })
     ///     .Build();
     /// </code>
     /// </para>
@@ -86,6 +87,26 @@ namespace Apilane.Net.Models.Data
                 Action = TransactionAction.Delete,
                 Entity = entity,
                 Ids = ids
+            });
+            return this;
+        }
+
+        /// <summary>
+        /// Adds a Custom endpoint operation.
+        /// The endpoint name is used to look up the custom endpoint on the server.
+        /// The data object provides parameter values; use <see cref="TransactionRef.Id"/> placeholders
+        /// to pass IDs from earlier operations.
+        /// </summary>
+        /// <param name="endpointName">The name of the custom endpoint to call</param>
+        /// <param name="data">A key-value object whose values will be used as endpoint parameters</param>
+        /// <returns>This builder for chaining</returns>
+        public TransactionBuilder Custom(string endpointName, object data)
+        {
+            _operations.Add(new InTransactionOperation
+            {
+                Action = TransactionAction.Custom,
+                Entity = endpointName,
+                Data = data
             });
             return this;
         }

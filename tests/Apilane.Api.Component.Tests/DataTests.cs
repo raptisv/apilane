@@ -296,6 +296,74 @@ namespace Apilane.Api.Component.Tests
             }
         }
 
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task TransactionOperations_WithCustomEndpoint_Should_Work(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
+
+            // Add entity and properties
+            await AddEntityAsync(CustomEntityLight.EntityName);
+            await AddStringPropertyAsync(CustomEntityLight.EntityName, nameof(CustomEntityLight.Custom_String_Required), required: true);
+
+            // Add a custom endpoint that selects a record by ID
+            var selectQuery = dbType switch
+            {
+                DatabaseType.MySQL => "SELECT `ID`, `Custom_String_Required` FROM `CustomEntityLight` WHERE `ID` = {entityId}",
+                _ => "SELECT [ID], [Custom_String_Required] FROM [CustomEntityLight] WHERE [ID] = {entityId}"
+            };
+            AddCustomEndpoint("GetEntityById", selectQuery);
+
+            // Set up security for post on entity and get on custom endpoint
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) },
+                actionType: SecurityActionType.get))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "GetEntityById",
+                inRole: Globals.ANONYMOUS,
+                type: SecurityTypes.CustomEndpoint))
+            {
+                // Build transaction: Post a new entity, then call custom endpoint with the created ID
+                var transaction = new TransactionBuilder()
+                    .Post(CustomEntityLight.EntityName, new { Custom_String_Required = "hello" }, out var entityRef)
+                    .Custom("GetEntityById", new { entityId = entityRef.Id() })
+                    .Build();
+
+                var transResult = await ApilaneService.TransactionOperationsAsync(DataTransactionOperationsRequest.New(), transaction);
+                var response = transResult.Match(
+                    r => r,
+                    e => throw new Exception($"TransactionOperations with Custom failed | {e.Code} | {e.Message}"));
+
+                // Assert: 2 results
+                Assert.NotNull(response.Results);
+                Assert.Equal(2, response.Results.Count);
+
+                // Result[0]: Post entity
+                Assert.Equal(TransactionAction.Post, response.Results[0].Action);
+                Assert.Equal(CustomEntityLight.EntityName, response.Results[0].Entity);
+                Assert.NotNull(response.Results[0].Created);
+                Assert.Single(response.Results[0].Created!);
+                var createdId = response.Results[0].Created!.Single();
+                Assert.True(createdId > 0);
+
+                // Result[1]: Custom endpoint
+                Assert.Equal(TransactionAction.Custom, response.Results[1].Action);
+                Assert.Equal("GetEntityById", response.Results[1].Entity);
+                Assert.NotNull(response.Results[1].CustomResult);
+                Assert.Single(response.Results[1].CustomResult!);
+
+                // The custom endpoint returns a single result set with one row
+                var resultSet = response.Results[1].CustomResult![0];
+                Assert.Single(resultSet);
+                var row = resultSet[0];
+                Assert.Equal("hello", row["Custom_String_Required"]?.ToString());
+            }
+        }
+
         private async Task Assert_CRUD_With_AuthToken_Security_Async(string? authtoken, string securityRole)
         {
             // Get
