@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.4.12 (2026-03-07)
+- feat(portal): Added tree and matrix to visualize security
+
 ## 8.4.11 (2026-03-05)
 - feat(portal): Simplified and optimized security view
 
