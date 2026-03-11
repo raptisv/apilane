@@ -1,0 +1,288 @@
+@using Apilane.Portal.Models;
+@using Apilane.Common.Models;
+@model CloneProgressInfo
+
+@{
+    ViewBag.Title = "Clone Progress";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    DBWS_Application Application = ViewBag.Application;
+    string operationId = ViewBag.OperationId;
+}
+
+<div class="row clearfix">
+    <div class="col-12 col-xl-8">
+        <div class="card">
+            <h4 class="card-header">
+                <i class="bi bi-arrow-repeat me-2"></i>Cloning application @Application.Name
+            </h4>
+            <div class="card-body">
+
+                <div id="cloneStatusSection">
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold" id="statusLabel">Initializing...</span>
+                            <span class="badge bg-primary" id="percentageLabel">0%</span>
+                        </div>
+                        <div class="progress" style="height: 24px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 id="progressBar"
+                                 role="progressbar"
+                                 style="width: 0%;"
+                                 aria-valuenow="0"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100">
+                                0%
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3" id="schemaCounters">
+                        <div class="col-md-6">
+                            <div class="card bg-body-secondary">
+                                <div class="card-body py-2">
+                                    <div class="d-flex justify-content-between">
+                                        <small class="text-muted">Entities created</small>
+                                        <small><span id="entitiesCreated">0</span> / <span id="totalEntitiesToCreate">0</span></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3" id="dataCounters" style="display:none;">
+                        <div class="col-md-6">
+                            <div class="card bg-body-secondary">
+                                <div class="card-body py-2">
+                                    <div class="d-flex justify-content-between">
+                                        <small class="text-muted">Entities cloned</small>
+                                        <small><span id="entitiesDataCloned">0</span> / <span id="totalEntitiesToCloneData">0</span></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-body-secondary">
+                                <div class="card-body py-2">
+                                    <div class="d-flex justify-content-between">
+                                        <small class="text-muted">Records</small>
+                                        <small><span id="totalImported">0</span> / <span id="totalRecords">0</span></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="currentEntityCreatingSection" style="display:none;">
+                        <div class="card bg-body-secondary mb-3">
+                            <div class="card-body py-2">
+                                <div class="d-flex align-items-center">
+                                    <small>
+                                        <i class="bi bi-gear me-1"></i>
+                                        Creating entity: <strong id="currentEntityCreatingName"></strong>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="currentEntityCloningSection" style="display:none;">
+                        <div class="card bg-body-secondary mb-3">
+                            <div class="card-body py-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small>
+                                        <i class="bi bi-table me-1"></i>
+                                        Cloning data: <strong id="currentEntityCloningName"></strong>
+                                    </small>
+                                    <small>
+                                        <span id="currentEntityImported">0</span> / <span id="currentEntityTotal">0</span> records
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="etaSection" style="display:none;">
+                        <div class="d-flex align-items-center text-muted">
+                            <i class="bi bi-clock me-2"></i>
+                            <small>Estimated time remaining: <strong id="etaValue">calculating...</strong></small>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="completedSection" style="display:none;">
+                    <div class="alert alert-success" role="alert">
+                        <div class="d-flex gap-3 align-items-center">
+                            <i class="bi bi-check-circle-fill fs-4"></i>
+                            <div>
+                                <strong>Clone completed successfully!</strong>
+                                <p class="mb-0 mt-1">The application has been cloned.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <a id="goToClonedApp" href="#" class="btn btn-primary">
+                        <i class="bi bi-arrow-right me-1"></i>Go to cloned application
+                    </a>
+                </div>
+
+                <div id="errorSection" style="display:none;">
+                    <div class="alert alert-danger" role="alert">
+                        <div class="d-flex gap-3 align-items-center">
+                            <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+                            <div>
+                                <strong>Clone failed</strong>
+                                <p class="mb-0 mt-1" id="errorMessage"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="@Url.RouteUrl("AppRoute", new { appid = Application.Token, controller = "Application", action = "Clone" })" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Back to clone
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script type="text/javascript">
+
+        $(document).ready(function () {
+            var operationId = '@operationId';
+            var pollInterval = 2000;
+            var timer = null;
+
+            function formatEta(seconds) {
+                if (seconds == null || seconds <= 0) return 'calculating...';
+                if (seconds < 60) return Math.ceil(seconds) + ' seconds';
+                if (seconds < 3600) {
+                    var mins = Math.floor(seconds / 60);
+                    var secs = Math.ceil(seconds % 60);
+                    return mins + 'm ' + secs + 's';
+                }
+                var hours = Math.floor(seconds / 3600);
+                var mins = Math.floor((seconds % 3600) / 60);
+                return hours + 'h ' + mins + 'm';
+            }
+
+            function formatNumber(num) {
+                return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+            }
+
+            function updateProgress(data) {
+                // Update progress bar
+                var pct = data.OverallPercentage;
+                $('#progressBar')
+                    .css('width', pct + '%')
+                    .attr('aria-valuenow', pct)
+                    .text(pct + '%');
+                $('#percentageLabel').text(pct + '%');
+
+                // Update status label and visible sections based on phase
+                switch (data.StatusText) {
+                    case 'Pending':
+                        $('#statusLabel').text('Preparing clone operation...');
+                        break;
+                    case 'CreatingApplication':
+                        $('#statusLabel').text('Creating application...');
+                        $('#schemaCounters').show();
+                        break;
+                    case 'CreatingEntities':
+                        $('#statusLabel').text('Creating entities...');
+                        $('#schemaCounters').show();
+                        $('#entitiesCreated').text(data.EntitiesCreated);
+                        $('#totalEntitiesToCreate').text(data.TotalEntitiesToCreate);
+                        break;
+                    case 'CloningData':
+                        $('#statusLabel').text('Cloning data...');
+                        $('#schemaCounters').hide();
+                        $('#currentEntityCreatingSection').hide();
+                        $('#dataCounters').show();
+                        $('#entitiesDataCloned').text(data.EntitiesDataCloned);
+                        $('#totalEntitiesToCloneData').text(data.TotalEntitiesToCloneData);
+                        $('#totalImported').text(formatNumber(data.TotalRecordsImported));
+                        $('#totalRecords').text(formatNumber(data.TotalRecordsAllEntities));
+                        break;
+                }
+
+                // Current entity being created (schema phase)
+                if (data.CurrentEntityCreatingName) {
+                    $('#currentEntityCreatingSection').show();
+                    $('#currentEntityCreatingName').text(data.CurrentEntityCreatingName);
+                } else {
+                    $('#currentEntityCreatingSection').hide();
+                }
+
+                // Current entity being cloned (data phase)
+                if (data.CurrentEntityCloningDataName) {
+                    $('#currentEntityCloningSection').show();
+                    $('#currentEntityCloningName').text(data.CurrentEntityCloningDataName);
+                    $('#currentEntityImported').text(formatNumber(data.CurrentEntityImportedRecords));
+                    $('#currentEntityTotal').text(formatNumber(data.CurrentEntityTotalRecords));
+                } else {
+                    $('#currentEntityCloningSection').hide();
+                }
+
+                // ETA (only during data cloning phase)
+                if (data.EstimatedRemainingSeconds != null && data.TotalRecordsImported > 0) {
+                    $('#etaSection').show();
+                    $('#etaValue').text(formatEta(data.EstimatedRemainingSeconds));
+                }
+
+                // Completed
+                if (data.StatusText === 'Completed') {
+                    clearInterval(timer);
+                    $('#progressBar')
+                        .removeClass('progress-bar-animated progress-bar-striped')
+                        .addClass('bg-success')
+                        .css('width', '100%')
+                        .text('100%');
+                    $('#percentageLabel').text('100%').removeClass('bg-primary').addClass('bg-success');
+                    $('#statusLabel').text('Completed!');
+                    $('#currentEntityCreatingSection').hide();
+                    $('#currentEntityCloningSection').hide();
+                    $('#etaSection').hide();
+                    $('#cloneStatusSection').hide();
+                    $('#completedSection').show();
+
+                    if (data.ClonedApplicationToken) {
+                        var url = UrlSiteBase + '/App/' + data.ClonedApplicationToken + '/Application/Entities';
+                        $('#goToClonedApp').attr('href', url);
+                    }
+                }
+
+                // Failed
+                if (data.StatusText === 'Failed') {
+                    clearInterval(timer);
+                    $('#progressBar')
+                        .removeClass('progress-bar-animated progress-bar-striped')
+                        .addClass('bg-danger');
+                    $('#percentageLabel').removeClass('bg-primary').addClass('bg-danger');
+                    $('#statusLabel').text('Failed');
+                    $('#currentEntityCreatingSection').hide();
+                    $('#currentEntityCloningSection').hide();
+                    $('#etaSection').hide();
+                    $('#cloneStatusSection').hide();
+                    $('#errorSection').show();
+                    $('#errorMessage').text(data.ErrorMessage || 'An unexpected error occurred during cloning.');
+                }
+            }
+
+            function pollStatus() {
+                var url = UrlSiteBase + '/App/@Application.Token/Application/CloneStatus?operationId=' + operationId;
+                $.getJSON(url)
+                    .done(function (data) {
+                        updateProgress(data);
+                    })
+                    .fail(function () {
+                        // Silently retry on next interval
+                    });
+            }
+
+            // Start polling
+            pollStatus();
+            timer = setInterval(pollStatus, pollInterval);
+        });
+
+    </script>
+}

@@ -1,4 +1,5 @@
 ﻿using Apilane.Common.Attributes;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Apilane.Portal.Models
@@ -17,5 +18,8 @@ namespace Apilane.Portal.Models
         [AttrRequired]
         [Display(Name = "Clone data")]
         public bool CloneData { get; set; }
+
+        [Display(Name = "Entities to clone")]
+        public List<string>? EntitiesToClone { get; set; }
     }
 }

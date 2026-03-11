@@ -1,4 +1,4 @@
-﻿@using Apilane.Portal.Models;
+@using Apilane.Portal.Models;
 @using Apilane.Common;
 @using Apilane.Common.Models;
 @using Apilane.Common.Utilities;
@@ -30,6 +30,8 @@
     DatabaseTypes.Add(new SelectListItem() { Selected = true, Value = ((int)DatabaseType.SQLLite).ToString(), Text = "SQL Lite" });
     DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.SQLServer).ToString(), Text = "SQL Server" });
     DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.MySQL).ToString(), Text = "My SQL" });
+
+    var cloneableEntities = (List<string>)ViewBag.CloneableEntities;
 }
 
 <div class="row clearfix">
@@ -47,9 +49,11 @@
                             <li>The cloned application is going to be identical to the original.</li>
                             <li>Entities, properties custom endpoints and security will be identical.</li>
                             <li>If "Clone data" option is  selected, data will also be migrated. Otherwise the new database will be empty.</li>
+                            <li>You can select which entities to clone data for. By default, all entities are selected.</li>
                             <li>A new application token will be automatically generated.</li>
                             <li>The applications (source and clone) will not be connected to each other.</li>
                             <li>Any change to each application schema or data, will not be mirrored to the other.</li>
+                            <li>Data cloning runs in the background. You will see a progress bar with estimated time remaining.</li>
                         </ul>
                     </div>
                 </div>
@@ -102,8 +106,28 @@
                     </div>
                     <div class="form-group mb-3">
                         <div class="form-line">
-                            @Html.CheckBoxFor(x => x.CloneData, new { @class = "form-check-input" })
-                            <label class="form-check-label" for="CloneData">Clone data. If not selected, only schema will be cloned.</label>
+                            @Html.CheckBoxFor(x => x.CloneData, new { @class = "form-check-input", id = "cloneDataCheckbox" })
+                            <label class="form-check-label" for="cloneDataCheckbox">Clone data. If not selected, only schema will be cloned.</label>
+                        </div>
+                    </div>
+                    <div class="form-group mb-3" id="entitySelectionSection" style="display:none;">
+                        <label class="form-label fw-bold">Select entities to clone data for:</label>
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary me-1" id="selectAllEntities">Select all</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="deselectAllEntities">Deselect all</button>
+                        </div>
+                        <div class="border rounded p-3">
+                            @foreach (var entityName in cloneableEntities)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input entity-checkbox" type="checkbox"
+                                           name="EntitiesToClone" value="@entityName"
+                                           id="entity_@entityName" checked="checked" />
+                                    <label class="form-check-label" for="entity_@entityName">
+                                        <i class="bi bi-table me-1"></i>@entityName
+                                    </label>
+                                </div>
+                            }
                         </div>
                     </div>
                     <div class="form-group">
@@ -133,6 +157,27 @@
                 } else {
                     $('#databaseConnectionString, .info-db-type').hide();
                 }
+            });
+
+            // Toggle entity selection visibility based on Clone Data checkbox
+            var toggleEntitySelection = function () {
+                if ($('#cloneDataCheckbox').is(':checked')) {
+                    $('#entitySelectionSection').show();
+                } else {
+                    $('#entitySelectionSection').hide();
+                }
+            };
+
+            $('#cloneDataCheckbox').on('change', toggleEntitySelection);
+            toggleEntitySelection();
+
+            // Select/Deselect all entity checkboxes
+            $('#selectAllEntities').on('click', function () {
+                $('.entity-checkbox').prop('checked', true);
+            });
+
+            $('#deselectAllEntities').on('click', function () {
+                $('.entity-checkbox').prop('checked', false);
             });
 
         });

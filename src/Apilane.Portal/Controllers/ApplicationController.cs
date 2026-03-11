@@ -23,16 +23,19 @@ namespace Apilane.Portal.Controllers
     {
         private readonly ILogger<ApplicationController> _logger;
         private readonly PortalConfiguration _portalConfiguration;
+        private readonly ICloneService _cloneService;
 
         public ApplicationController(
             ILogger<ApplicationController> logger,
             ApplicationDbContext dbContext,
             IApiHttpService apiHttpService,
-            PortalConfiguration portalConfiguration)
+            PortalConfiguration portalConfiguration,
+            ICloneService cloneService)
             : base(dbContext, apiHttpService)
         {
             _logger = logger;
             _portalConfiguration = portalConfiguration;
+            _cloneService = cloneService;
         }
 
         public IActionResult Entities()
@@ -538,6 +541,10 @@ namespace Apilane.Portal.Controllers
         public ActionResult Clone()
         {
             ViewBag.AvailableServers = DBContext.Servers.ToList();
+            ViewBag.CloneableEntities = Application.Entities
+                .Where(e => !e.Name.Equals("Files"))
+                .Select(e => e.Name)
+                .ToList();
             return View();
         }
 
@@ -548,6 +555,10 @@ namespace Apilane.Portal.Controllers
             try
             {
                 ViewBag.AvailableServers = DBContext.Servers.ToList();
+                ViewBag.CloneableEntities = Application.Entities
+                    .Where(e => !e.Name.Equals("Files"))
+                    .Select(e => e.Name)
+                    .ToList();
 
                 if (!ModelState.IsValid)
                 {
@@ -602,25 +613,21 @@ namespace Apilane.Portal.Controllers
 
                 // !IMPORTANT! It is important to keep the same Encryption key since any encrypted data will not be able to be decrypted.
 
+                // Save to Portal DB immediately so the application entry exists
                 DBContext.Applications.Add(applicationToClone);
-
-                // Create application on api server
-                var apiResponsGenerate = await ApiHttpService.PostAsync($"{appServer.ServerUrl}/api/ApplicationNew/Generate?installationKey={_portalConfiguration.InstallationKey}", applicationToClone.Token, portalUserAuthToken, applicationToClone);
-
-                if (apiResponsGenerate.IsError(out var error))
-                {
-                    throw new Exception($"Could not get a response from Api server | Error code {error}");
-                }
-
                 await DBContext.SaveChangesAsync();
 
-                if (model.CloneData)
-                {
-                    // Clone data
-                    await CloneDataAsync(applicationToClone.Token, appServer);
-                }
+                // Start the full clone operation in the background (app creation + entity creation + data clone)
+                var operationId = _cloneService.StartCloneAsync(
+                    Application,
+                    applicationToClone,
+                    appServer,
+                    portalUserAuthToken,
+                    model.CloneData,
+                    model.EntitiesToClone);
 
-                return RedirectToRoute("AppRoute", new { appid = applicationToClone.Token, controller = "Application", action = "Entities" });
+                // Redirect immediately to progress page
+                return RedirectToRoute("AppRoute", new { appid = Application.Token, controller = "Application", action = "CloneProgress", operationId });
             }
             catch (Exception ex)
             {
@@ -629,54 +636,49 @@ namespace Apilane.Portal.Controllers
             }
         }
 
-        private async Task CloneDataAsync(string appTokenTo, DBWS_Server serverTo)
+        [HttpGet]
+        public IActionResult CloneProgress(string operationId)
         {
-            var portalUserAuthToken = User.Identity?.GetPortalUserAuthToken()
-                ?? throw new Exception("User not logged in");
+            var progress = _cloneService.GetProgress(operationId);
 
-            // Order by referenced entities, to avoid missing entities during constraint creation.
-            var groups = Application.GroupEntitesByFKReferences();
-
-            // All entities should be present in property "groups.Flat" with a level, depending on the FK chain.
-            // An entity might be preset multiple times on the list due to many FK relationships, so it is important to take the maximum level of all occurrences.
-            var entitiesOrderedByFKReferences = Application.Entities
-                .OrderBy(e => groups.Flat.Where(x => x.ID.Equals(e.Name, StringComparison.OrdinalIgnoreCase)).Select(x => x.Level).DefaultIfEmpty(0).Max());
-
-            foreach(var entity in entitiesOrderedByFKReferences)
+            if (progress == null)
             {
-                if (entity.Name.Equals("Files"))
-                {
-                    // Do not clone files
-                    continue;
-                }
-
-                var entityData = await ApiHttpService.GetAllDataAsync(Application.Server.ServerUrl, Application.Token, entity.Name, portalUserAuthToken);
-
-                if (entityData.IsError(out var error))
-                {
-                    throw new Exception(error.ToString());
-                }
-
-                int pageIndex = 0;
-                int pageSize = 1000;
-                var currentPage = entityData.Value.Data.Skip(pageIndex * pageSize).Take(pageSize).ToList();
-                while (currentPage.Count > 0)
-                {
-                    // Importing 
-                    var recordStart = pageIndex * pageSize;
-                    var recordEnd = (pageIndex * pageSize) + pageSize;
-                    var recordCount = entityData.Value.Data.Count;
-                    recordEnd = recordCount >= recordEnd ? recordEnd : recordCount;
-                    _logger.LogInformation($"Importing '{entity.Name}' records {recordStart}-{recordEnd}/{recordCount}");
-
-                    // Insert current page
-                    var insertedIds = await ApiHttpService.ImportDataAsync(serverTo.ServerUrl, appTokenTo, entity.Name, currentPage, portalUserAuthToken);
-
-                    // Go to next page
-                    pageIndex++;
-                    currentPage = entityData.Value.Data.Skip(pageIndex * pageSize).Take(pageSize).ToList();
-                }
+                return RedirectToAction("Index", "Applications");
             }
+
+            ViewBag.OperationId = operationId;
+            return View(progress);
+        }
+
+        [HttpGet]
+        public IActionResult CloneStatus(string operationId)
+        {
+            var progress = _cloneService.GetProgress(operationId);
+
+            if (progress == null)
+            {
+                return NotFound();
+            }
+
+            return Json(new
+            {
+                progress.Status,
+                StatusText = progress.Status.ToString(),
+                progress.OverallPercentage,
+                progress.TotalEntitiesToCreate,
+                progress.EntitiesCreated,
+                progress.CurrentEntityCreatingName,
+                progress.TotalEntitiesToCloneData,
+                progress.EntitiesDataCloned,
+                progress.CurrentEntityCloningDataName,
+                progress.CurrentEntityTotalRecords,
+                progress.CurrentEntityImportedRecords,
+                progress.TotalRecordsAllEntities,
+                progress.TotalRecordsImported,
+                progress.EstimatedRemainingSeconds,
+                progress.ErrorMessage,
+                progress.ClonedApplicationToken
+            });
         }
     }
 }

@@ -22,6 +22,7 @@ namespace Apilane.Portal.Extensions
             .AddSingleton<ILogger>((s) => Log.Logger)
             .AddSingleton<IEmailService, EmailService>()
             .AddSingleton<IApiHttpService, ApiHttpService>()
+            .AddSingleton<ICloneService, CloneService>()
             // Scoped
             .AddScoped<IPortalSettingsService, PortalSettingsService>()
             .AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, Controllers.AccountController.AppClaimsPrincipalFactory>()
