@@ -180,25 +180,29 @@
 </div>
 
 <script type="text/template" id="template-select-unique">
-    <ul id="sortable" class="list-group">
-    </ul>
+    <div class="text-start">
+        <div class="border rounded p-2">
+            <label class="form-label fw-semibold mb-1">Properties</label>
+            <div id="sortable" class="unique-property-list"></div>
+        </div>
+    </div>
 </script>
 
 <script type="text/template" id="template-select-foreignkeys">
-    <div class="row">
-        <div class="col-4">
-            <h4>Property</h4>
-            <ul id="radio-property" class="list-group"></ul>
+    <div class="text-start">
+        <div class="border rounded p-2 mb-3">
+            <label class="form-label fw-semibold mb-1">Property</label>
+            <div id="radio-property"></div>
         </div>
-        <div class="col-4">
-            <h4>Foreign key to entity</h4>
-            <ul id="radio-entity" class="list-group"></ul>
+        <div class="border rounded p-2 mb-3">
+            <label class="form-label fw-semibold mb-1">Foreign key to entity</label>
+            <div id="radio-entity" class="fk-entity-list"></div>
         </div>
-        <div class="col-4">
-            <h4>On delete/update</h4>
-            <ul id="radio-fklogic" class="list-group"></ul>
+        <div class="border rounded p-2">
+            <label class="form-label fw-semibold mb-1">On delete behavior</label>
+            <div id="radio-fklogic"></div>
         </div>
-    </div>  
+    </div>
 </script>
 
 @section scripts {
@@ -229,39 +233,33 @@
             var availableProperties = @Html.Raw(Json.Serialize(entityPropertiesThanCanBeFKs.Select(x => x.Name)));
             var properties = [];
             $.each(availableProperties, function (i, prop) {
-                properties.push(`<li class="list-group-item">
-                                    <label class='custom-control custom-radio'>
-                                        <input type="radio" name="radio-select-property" value="${prop}" class="radio-property custom-control-input"/>
-                                        <span class='custom-control-label'>${prop}</span>
-                                    </label>
-                                </li>`);
+                properties.push(`<div class="form-check">
+                    <input type="radio" name="radio-select-property" value="${prop}" class="form-check-input" id="fk-prop-${prop}"/>
+                    <label class="form-check-label" for="fk-prop-${prop}">${prop}</label>
+                </div>`);
             });
 
             var availableFKEntities = @Html.Raw(Json.Serialize(availableFKEntities));
             var entities = [];
             $.each(availableFKEntities, function (i, entity) {
-                entities.push(`<li class="list-group-item">
-                                    <label class='custom-control custom-radio'>
-                                        <input type="radio" name="radio-select-entity" value="${entity}" class="radio-entity custom-control-input"/>
-                                        <span class='custom-control-label'>${entity}</span>
-                                    </label>
-                                </li>`);
+                entities.push(`<div class="form-check">
+                    <input type="radio" name="radio-select-entity" value="${entity}" class="form-check-input" id="fk-ent-${entity}"/>
+                    <label class="form-check-label" for="fk-ent-${entity}">${entity}</label>
+                </div>`);
             });
 
             var availableFKLogics = @Html.Raw(Json.Serialize(foreignKeyLogics));
             var fkLogics = [];
             $.each(availableFKLogics, function (i, fkLogic) {
-                fkLogics.push(`<li class="list-group-item">
-                                    <label class='custom-control custom-radio'>
-                                        <input type="radio" name="radio-select-fklogic" value="${fkLogic.Key}" class="radio-fklogic custom-control-input"/>
-                                        <span class='custom-control-label'>${fkLogic.Text}</span>
-                                    </label>
-                                </li>`);
+                fkLogics.push(`<div class="form-check">
+                    <input type="radio" name="radio-select-fklogic" value="${fkLogic.Key}" class="form-check-input" id="fk-logic-${fkLogic.Key}"/>
+                    <label class="form-check-label" for="fk-logic-${fkLogic.Key}">${fkLogic.Text}</label>
+                </div>`);
             });
 
             Swal.fire({
                 position: 'top',
-                title: '',
+                title: 'Configure foreign key',
                 html: $('#template-select-foreignkeys').html(),
                 showCancelButton: true,
                 confirmButtonText: 'OK',
@@ -295,26 +293,25 @@
             var availableValues = @Html.Raw(Json.Serialize(entityPropertiesThanCanBeUnique.Select(x => x.Name)));
             var properties = [];
             $.each(availableValues, function (i, prop) {
-                var html = `<li class="list-group-item">
-                                <label class='custom-control custom-checkbox'>
-                                    <input type="checkbox" id="check-${prop}" class="check-property custom-control-input switcher-input" data-id="${prop}" data-sublist="sub-list-${prop}"/>
-                                    <span class='custom-control-label'>${prop}</span>
-                                </label>
-                            </li>`;
+                var html = `<div class="form-check">
+                    <input type="checkbox" id="check-${prop}" class="check-property form-check-input" data-id="${prop}"/>
+                    <label class="form-check-label" for="check-${prop}">${prop}</label>
+                </div>`;
 
                 properties.push(html);
             });
 
             Swal.fire({
                 position: 'top',
-                title: 'Select properties',
+                title: 'Select unique properties',
                 html: $('#template-select-unique').html(),
                 showCancelButton: true,
                 confirmButtonText: 'OK',
                 buttonsStyling: false,
                 customClass: {
+                    popup: 'swal-wide',
                     confirmButton: 'btn btn-primary',
-                    cancelButton: 'btn'
+                    cancelButton: 'btn ms-2'
                 }
             }).then((submit) => {
                 if (submit.isConfirmed) {
@@ -344,14 +341,14 @@
         }
 
         .list-group {
-            height: 350px;
-            overflow: auto;
+            max-height: 250px;
+            overflow-y: auto;
         }
 
         .list-group-item {
             transition: unset !important;
             text-align: left !important;
-            padding: 4px 0 0px 12px;
+            padding: 6px 12px;
         }
 
         #Filter,
@@ -361,7 +358,18 @@
         }
 
         .swal-wide {
-            width: 50% !important;
+            width: 420px !important;
+            max-width: 90vw !important;
+        }
+
+        .fk-entity-list {
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .unique-property-list {
+            max-height: 250px;
+            overflow-y: auto;
         }
     </style>
 }
