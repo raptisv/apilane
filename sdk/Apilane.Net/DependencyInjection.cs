@@ -7,28 +7,39 @@ namespace Microsoft.Extensions.DependencyInjection
 {
     public static class ApilaneExtensions
     {
+        private const string DefaultHttpClientName = "Apilane";
+
         public static IServiceCollection UseApilane(
             this IServiceCollection services,
             string applicationApiUrl,
             string applicationToken,
-            HttpClient? httpClient = null,
             IApilaneAuthTokenProvider? apilaneAuthTokenProvider = null,
             string? serviceKey = null)
         {
+            var config = new ApilaneConfiguration()
+            {
+                ApplicationApiUrl = applicationApiUrl,
+                ApplicationToken = applicationToken
+            };
+
+            var httpClientName = string.IsNullOrWhiteSpace(serviceKey)
+                ? DefaultHttpClientName
+                : $"{DefaultHttpClientName}_{serviceKey}";
+
+            services.AddHttpClient(httpClientName);
+
             if (string.IsNullOrWhiteSpace(serviceKey))
             {
                 services.AddSingleton<IApilaneService>((serviceProvider) =>
                 {
+                    var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+
                     // Optional global auth token provider
                     var authTokenProvider = apilaneAuthTokenProvider ?? serviceProvider.GetService<IApilaneAuthTokenProvider>();
 
                     return new ApilaneService(
-                        httpClient ?? new HttpClient(),
-                        new ApilaneConfiguration()
-                        {
-                            ApplicationApiUrl = applicationApiUrl,
-                            ApplicationToken = applicationToken
-                        },
+                        httpClientFactory.CreateClient(httpClientName),
+                        config,
                         authTokenProvider);
                 });
             }
@@ -37,16 +48,14 @@ namespace Microsoft.Extensions.DependencyInjection
                 // Keyed registration
                 services.AddKeyedSingleton<IApilaneService>(serviceKey, (serviceProvider, key) =>
                 {
+                    var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+
                     // Optional global auth token provider
                     var authTokenProvider = apilaneAuthTokenProvider ?? serviceProvider.GetService<IApilaneAuthTokenProvider>();
 
                     return new ApilaneService(
-                        httpClient ?? new HttpClient(),
-                        new ApilaneConfiguration
-                        {
-                            ApplicationApiUrl = applicationApiUrl,
-                            ApplicationToken = applicationToken
-                        },
+                        httpClientFactory.CreateClient(httpClientName),
+                        config,
                         authTokenProvider);
                 });
             }
