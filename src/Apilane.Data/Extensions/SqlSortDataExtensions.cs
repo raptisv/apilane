@@ -21,9 +21,12 @@ namespace Apilane.Data.Extensions
                 throw new Exception("Property cannot be empty");
             }
 
-            return databaseType == DatabaseType.MySQL
-                ? $"`{Utils.GetString(sortData.Property)}` {sortData.GetDirection()}"
-                : $"[{Utils.GetString(sortData.Property)}] {sortData.GetDirection()}";
+            return databaseType switch
+            {
+                DatabaseType.MySQL => $"`{Utils.GetString(sortData.Property)}` {sortData.GetDirection()}",
+                DatabaseType.PostgreSQL => $"\"{Utils.GetString(sortData.Property)}\" {sortData.GetDirection()}",
+                _ => $"[{Utils.GetString(sortData.Property)}] {sortData.GetDirection()}"
+            };
         }
 
         private static string GetDirection(this SortData sortData)

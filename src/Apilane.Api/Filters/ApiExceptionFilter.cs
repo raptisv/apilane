@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
+using Npgsql;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -83,6 +84,12 @@ namespace Apilane.Api.Filters
                 else if (context.Exception is MySqlException mySqlException)
                 {
                     property = mySqlException.Message.TryExtractPropertyFromMySqlConstraintException(out var appError, out string errorMessage);
+                    error = appError;
+                    message = errorMessage;
+                }
+                else if (context.Exception is PostgresException postgresException)
+                {
+                    property = postgresException.TryExtractPropertyFromPostgresConstraintException(out var appError, out string errorMessage);
                     error = appError;
                     message = errorMessage;
                 }
@@ -303,6 +310,87 @@ namespace Apilane.Api.Filters
             }
 
             return string.Empty;
+        }
+
+        public static string? TryExtractPropertyFromPostgresConstraintException(
+            this PostgresException ex,
+            out AppErrors appError,
+            out string errorMessage)
+        {
+            // SqlState codes (class 23 — Integrity Constraint Violation):
+            //   23505  unique_violation
+            //   23502  not_null_violation
+            //   23503  foreign_key_violation
+
+            // Unique violation — ConstraintName follows our naming convention:
+            //   UNIQUE_{EntityName}_{Col1}_{Col2}
+            // e.g. UNIQUE_Users_Email  →  property = "Email"
+
+            // Not-null violation — ColumnName is populated directly by PostgreSQL.
+
+            // Foreign key violation — ConstraintName follows our naming convention:
+            //   FOREIGN_KEY_{EntityName}_{Property}_{FKEntity}
+            // e.g. FOREIGN_KEY_Orders_UserId_Users  →  property = "UserId"
+
+            appError = AppErrors.ERROR;
+            errorMessage = Globals.GeneralError;
+
+            switch (ex.SqlState)
+            {
+                case PostgresErrorCodes.UniqueViolation:
+                {
+                    appError = AppErrors.UNIQUE_CONSTRAINT_VIOLATION;
+                    errorMessage = "Value already exists";
+
+                    // ConstraintName = "UNIQUE_{EntityName}_{Col1}_{Col2}..."
+                    // Strip the "UNIQUE_" prefix and the entity-name segment, return the rest.
+                    var constraintName = ex.ConstraintName;
+                    if (!string.IsNullOrWhiteSpace(constraintName) &&
+                        constraintName.StartsWith("UNIQUE_", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Parts: ["UNIQUE", EntityName, Col1, Col2, ...]
+                        var parts = constraintName.Split('_');
+                        if (parts.Length > 2)
+                        {
+                            // Rejoin everything after "UNIQUE" and the entity name
+                            return string.Join("_", parts.Skip(2));
+                        }
+                    }
+
+                    return constraintName;
+                }
+
+                case PostgresErrorCodes.NotNullViolation:
+                {
+                    appError = AppErrors.REQUIRED;
+                    errorMessage = "Required";
+                    return ex.ColumnName;
+                }
+
+                case PostgresErrorCodes.ForeignKeyViolation:
+                {
+                    appError = AppErrors.FOREIGN_KEY_CONSTRAINT_VIOLATION;
+                    errorMessage = "Foreign key constraint violation";
+
+                    // ConstraintName = "FOREIGN_KEY_{EntityName}_{Property}_{FKEntity}"
+                    var constraintName = ex.ConstraintName;
+                    if (!string.IsNullOrWhiteSpace(constraintName) &&
+                        constraintName.StartsWith("FOREIGN_KEY_", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Parts: ["FOREIGN", "KEY", EntityName, Property, FKEntity]
+                        var parts = constraintName.Split('_');
+                        if (parts.Length > 3)
+                        {
+                            return parts[3];
+                        }
+                    }
+
+                    return constraintName;
+                }
+
+                default:
+                    return null;
+            }
         }
     }
 }

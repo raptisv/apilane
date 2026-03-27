@@ -2,6 +2,7 @@
 using Apilane.Common.Utilities;
 using Microsoft.Data.SqlClient;
 using MySqlConnector;
+using Npgsql;
 using System;
 using System.Data.Common;
 
@@ -16,6 +17,7 @@ namespace Apilane.Data.Extensions
                 DatabaseType.SQLLite => GetDbProviderFactory("Microsoft.Data.Sqlite.SqliteFactory", "Microsoft.Data.Sqlite"),
                 DatabaseType.SQLServer => SqlClientFactory.Instance,
                 DatabaseType.MySQL => MySqlConnectorFactory.Instance,
+                DatabaseType.PostgreSQL => NpgsqlFactory.Instance,
                 _ => throw new NotImplementedException(),
             };
         }

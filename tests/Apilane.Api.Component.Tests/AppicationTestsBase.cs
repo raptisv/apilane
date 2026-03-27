@@ -81,6 +81,8 @@ namespace Apilane.Api.Component.Tests
                 yield return new object[] { DatabaseType.SQLServer, "Server=localhost,1433;Database=TestApp;User Id=sa;Password=12345678;TrustServerCertificate=true;", true };
                 yield return new object[] { DatabaseType.MySQL, "Server=127.0.0.1;Port=3306;Uid=root;Pwd=12345678;Database=testapp;UseXaTransactions=false;", false };
                 yield return new object[] { DatabaseType.MySQL, "Server=127.0.0.1;Port=3306;Uid=root;Pwd=12345678;Database=testapp;UseXaTransactions=false;", true };
+                yield return new object[] { DatabaseType.PostgreSQL, "Server=127.0.0.1;Port=5432;Database=TestApp;User Id=postgres;Password=12345678;", false };
+                yield return new object[] { DatabaseType.PostgreSQL, "Server=127.0.0.1;Port=5432;Database=TestApp;User Id=postgres;Password=12345678;", true };
             }
 
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
@@ -264,6 +266,7 @@ namespace Apilane.Api.Component.Tests
             var query = dbType switch
             {
                  DatabaseType.MySQL => $"UPDATE `{nameof(Users)}` SET `{nameof(Users.Roles)}` = '{string.Join(",", roles)}' WHERE `ID` = {userId}",
+                 DatabaseType.PostgreSQL => $"UPDATE \"{nameof(Users)}\" SET \"{nameof(Users.Roles)}\" = '{string.Join(",", roles)}' WHERE \"ID\" = {userId}",
                  _ => $"UPDATE [{nameof(Users)}] SET [{nameof(Users.Roles)}] = '{string.Join(",", roles)}' WHERE [ID] = {userId}"
             };
 
@@ -429,13 +432,13 @@ namespace Apilane.Api.Component.Tests
             }
         }
 
-        private void MockApplicationService(DBWS_Application application)
+        protected void MockApplicationService(DBWS_Application application)
         {
             A.CallTo(() => ApplicationServiceMock.GetAsync(application.Token))
-                    .Returns(application);
+                    .Returns(Task.FromResult(application));
 
             A.CallTo(() => ApplicationServiceMock.GetDbInfoAsync(application.Token))
-                .Returns(application.ToDbInfo(ApiConfiguration.FilesPath));
+                .Returns(ValueTask.FromResult(application.ToDbInfo(ApiConfiguration.FilesPath)));
         }
     }
 }

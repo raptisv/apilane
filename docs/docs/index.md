@@ -34,7 +34,7 @@ It offers features such as database management, user authentication, file storag
 
 * **Security** — Data encryption, role-based access control, IP allow/block lists, and sliding window rate limiting.
 
-* **Storage Providers** — Out-of-the-box support for [SQLite](https://en.wikipedia.org/wiki/SQLite), [SQL Server](https://en.wikipedia.org/wiki/Microsoft_SQL_Server), and [MySQL](https://en.wikipedia.org/wiki/MySQL).
+* **Storage Providers** — Out-of-the-box support for [SQLite](https://en.wikipedia.org/wiki/SQLite), [SQL Server](https://en.wikipedia.org/wiki/Microsoft_SQL_Server), [MySQL](https://en.wikipedia.org/wiki/MySQL) and [PostgreSQL](https://en.wikipedia.org/wiki/PostgreSQL).
 
 ## Quick Start
 

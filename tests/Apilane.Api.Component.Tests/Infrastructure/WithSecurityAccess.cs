@@ -8,6 +8,7 @@ using FakeItEasy;
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace Apilane.Api.Component.Tests.Infrastructure
 {
@@ -69,10 +70,10 @@ namespace Apilane.Api.Component.Tests.Infrastructure
         private void MockApplicationService(DBWS_Application application)
         {
             A.CallTo(() => _applicationServiceMock.GetAsync(application.Token))
-                    .Returns(application);
+                    .Returns(Task.FromResult(application));
 
             A.CallTo(() => _applicationServiceMock.GetDbInfoAsync(application.Token))
-                .Returns(application.ToDbInfo(ApiConfiguration.FilesPath));
+                .Returns(ValueTask.FromResult(application.ToDbInfo(ApiConfiguration.FilesPath)));
         }
     }
 }

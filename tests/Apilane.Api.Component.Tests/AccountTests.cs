@@ -322,6 +322,8 @@ namespace Apilane.Api.Component.Tests
                                                 SET IDENTITY_INSERT [{DiffEntityName}] OFF;",
                     DatabaseType.MySQL => $@"INSERT INTO `{DiffEntityName}` (`ID`, `Created`) VALUES ({newDiffPropertyValue}, {DateTime.UtcNow.ToUnixTimestampMilliseconds()});
                                                UPDATE `Users` SET `{DiffEntityName.GetDifferentiationPropertyName()}` = {newDiffPropertyValue} WHERE `ID` = {expectedUserId};",
+                    DatabaseType.PostgreSQL => $@"INSERT INTO ""{DiffEntityName}"" (""ID"", ""Created"") VALUES ({newDiffPropertyValue}, {DateTime.UtcNow.ToUnixTimestampMilliseconds()});
+                                               UPDATE ""Users"" SET ""{DiffEntityName.GetDifferentiationPropertyName()}"" = {newDiffPropertyValue} WHERE ""ID"" = {expectedUserId};",
                     _ => $@"INSERT INTO [{DiffEntityName}] ([ID], [Created]) VALUES ({newDiffPropertyValue}, {DateTime.UtcNow.ToUnixTimestampMilliseconds()});
                                                UPDATE [Users] SET [{DiffEntityName.GetDifferentiationPropertyName()}] = {newDiffPropertyValue} WHERE [ID] = {expectedUserId};",
                 };

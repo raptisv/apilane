@@ -13,7 +13,7 @@ namespace Apilane.Common.Helpers
         public bool IsUserTriggeredSameAsAcceptingTheEmail { get; set; }
         public List<EmailEventsPlaceholders> Placeholders { get; set; } = null!;
 
-        public static Dictionary<string, string> UserProperties = new Dictionary<string, string>()
+        public static Dictionary<string, string> UserProperties = new()
         {
             { "ID", "The user id" },
             { "Username", "The username" },

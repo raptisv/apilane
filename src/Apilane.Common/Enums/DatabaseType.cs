@@ -11,6 +11,9 @@ namespace Apilane.Common.Enums
         SQLServer = 2,
 
         [Display(Name = "MySQL")]
-        MySQL = 3
+        MySQL = 3,
+
+        [Display(Name = "PostgreSQL")]
+        PostgreSQL = 4
     }
 }

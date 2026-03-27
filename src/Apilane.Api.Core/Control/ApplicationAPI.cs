@@ -70,6 +70,9 @@ namespace Apilane.Api.Core
                 case (int)DatabaseType.MySQL:
                     MySQLDataStorageRepository.ConfirmDatabaseExists(application.GetConnectionstring(_apiConfiguration.FilesPath));
                     break;
+                case (int)DatabaseType.PostgreSQL:
+                    PostgreSQLDataStorageRepository.ConfirmDatabaseExists(application.GetConnectionstring(_apiConfiguration.FilesPath));
+                    break;
                 default:
                     throw new NotImplementedException();
             }

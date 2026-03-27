@@ -38,6 +38,7 @@ namespace Apilane.Data.Extensions
                     var propertySql = databaseType switch
                     {
                         DatabaseType.MySQL => $"`{entityName}`.`{filterData.Property}`",
+                        DatabaseType.PostgreSQL => $"\"{entityName}\".\"{filterData.Property}\"",
                         _ => $"[{entityName}].[{filterData.Property}]"
                     };
 
@@ -51,6 +52,12 @@ namespace Apilane.Data.Extensions
                         {
                             FilterOperators.equal => $"`{entityName}`.`{filterData.Property}` IS NULL ",
                             FilterOperators.notequal => $"`{entityName}`.`{filterData.Property}` IS NOT NULL ",
+                            _ => throw new FormatException($"Null values accept only 'equals' and 'notequals' as an operator"),
+                        },
+                        DatabaseType.PostgreSQL => filterData.Operator switch
+                        {
+                            FilterOperators.equal => $"\"{entityName}\".\"{filterData.Property}\" IS NULL ",
+                            FilterOperators.notequal => $"\"{entityName}\".\"{filterData.Property}\" IS NOT NULL ",
                             _ => throw new FormatException($"Null values accept only 'equals' and 'notequals' as an operator"),
                         },
                         _ => filterData.Operator switch
@@ -147,15 +154,28 @@ namespace Apilane.Data.Extensions
                         {
                             DatabaseType.SQLServer => "ISNULL",
                             DatabaseType.MySQL or DatabaseType.SQLLite => "IFNULL",
+                            DatabaseType.PostgreSQL => "COALESCE",
                             _ => throw new NotImplementedException(),
                         };
 
-                        sqlfilter += filterData.Operator switch
+                        if (databaseType == DatabaseType.PostgreSQL)
                         {
-                            FilterOperators.equal => $"{ISNULL}({propertySql}, 0) = {(Utils.GetBool(filterData.Value) ? "1" : "0")}",
-                            FilterOperators.notequal => $"{ISNULL}({propertySql}, 0) <> {(Utils.GetBool(filterData.Value) ? "1" : "0")}",
-                            _ => throw new FormatException($"Error operator for property '{propertyName}' - Boolean properties allow only 'equal' and 'notequal' as filter operator"),
-                        };
+                            sqlfilter += filterData.Operator switch
+                            {
+                                FilterOperators.equal => $"{ISNULL}({propertySql}, FALSE) = {(Utils.GetBool(filterData.Value) ? "TRUE" : "FALSE")}",
+                                FilterOperators.notequal => $"{ISNULL}({propertySql}, FALSE) <> {(Utils.GetBool(filterData.Value) ? "TRUE" : "FALSE")}",
+                                _ => throw new FormatException($"Error operator for property '{propertyName}' - Boolean properties allow only 'equal' and 'notequal' as filter operator"),
+                            };
+                        }
+                        else
+                        {
+                            sqlfilter += filterData.Operator switch
+                            {
+                                FilterOperators.equal => $"{ISNULL}({propertySql}, 0) = {(Utils.GetBool(filterData.Value) ? "1" : "0")}",
+                                FilterOperators.notequal => $"{ISNULL}({propertySql}, 0) <> {(Utils.GetBool(filterData.Value) ? "1" : "0")}",
+                                _ => throw new FormatException($"Error operator for property '{propertyName}' - Boolean properties allow only 'equal' and 'notequal' as filter operator"),
+                            };
+                        }
                     }
                     break;
                 case PropertyType.String:
@@ -193,6 +213,23 @@ namespace Apilane.Data.Extensions
                                 FilterOperators.lessorequal => $"{propertySql} <= N'{strValue}'",
                                 FilterOperators.greater => $"{propertySql} > N'{strValue}'",
                                 FilterOperators.greaterorequal => $"{propertySql} >= N'{strValue}'",
+                                _ => throw new FormatException($"Error operator for property '{propertyName}'"),
+                            };
+                        }
+                        else if (databaseType == DatabaseType.PostgreSQL)
+                        {
+                            sqlfilter += filterData.Operator switch
+                            {
+                                FilterOperators.equal => $"{propertySql} ILIKE '{filterData.Value}'",
+                                FilterOperators.notequal => $"{propertySql} NOT ILIKE '{filterData.Value}'",
+                                FilterOperators.startswith => $"{propertySql} ILIKE '{filterData.Value}%'",
+                                FilterOperators.endswith => $"{propertySql} ILIKE '%{filterData.Value}'",
+                                FilterOperators.contains => $"{propertySql} ILIKE '%{filterData.Value}%'",
+                                FilterOperators.notcontains => $"{propertySql} NOT ILIKE '%{filterData.Value}%'",
+                                FilterOperators.less => $"{propertySql} < '{filterData.Value}'",
+                                FilterOperators.lessorequal => $"{propertySql} <= '{filterData.Value}'",
+                                FilterOperators.greater => $"{propertySql} > '{filterData.Value}'",
+                                FilterOperators.greaterorequal => $"{propertySql} >= '{filterData.Value}'",
                                 _ => throw new FormatException($"Error operator for property '{propertyName}'"),
                             };
                         }

@@ -57,6 +57,7 @@ namespace Apilane.Data.Repository.Factory
                     DatabaseType.SQLServer => new SQLServerDataStorageRepository(applicationDbInfo.ConnectionString),
                     DatabaseType.MySQL => new MySQLDataStorageRepository(applicationDbInfo.ConnectionString),
                     DatabaseType.SQLLite => new SQLiteDataStorageRepository(applicationDbInfo.ConnectionString),
+                    DatabaseType.PostgreSQL => new PostgreSQLDataStorageRepository(applicationDbInfo.ConnectionString),
                     _ => throw new NotImplementedException(),
                 };
             }

@@ -15,6 +15,7 @@
     DatabaseTypes.Add(new SelectListItem() { Selected = true, Value = ((int)DatabaseType.SQLLite).ToString(), Text = "SQL Lite" });
     DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.SQLServer).ToString(), Text = "SQL Server" });
     DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.MySQL).ToString(), Text = "My SQL" });
+    DatabaseTypes.Add(new SelectListItem() { Selected = false, Value = ((int)DatabaseType.PostgreSQL).ToString(), Text = "PostgreSQL" });
 
     List<SelectListItem> Servers = new List<SelectListItem>();
 
@@ -89,6 +90,16 @@
                         </div>
                         <div class="alert alert-warning mt-3">
                             Do not forget to use <strong>UseXaTransactions=false;</strong> to allow queries execute inside TransactionScope.
+                        </div>
+                    </div>
+                    <div class="info-db-type info-db-type-@((int)DatabaseType.PostgreSQL)" @(Model == null || Model.DatabaseType != (int)DatabaseType.PostgreSQL ? new HtmlString("style='display:none;'") : new HtmlString(""))>
+                        <div class="alert alert-primary mt-3">
+                            The connection string must be pointing to an existing but empty database with the necessary access rights.
+                            The connection string will be validated as soon as you click on 'save'.
+                            <a target="_blank" href="https://www.connectionstrings.com/postgresql/">PostgreSQL connection string examples</a>
+                        </div>
+                        <div class="alert alert-warning mt-3">
+                            Ensure the database user has <strong>CREATE TABLE</strong> privileges on the target database.
                         </div>
                     </div>
                     <div class="form-group mb-3">

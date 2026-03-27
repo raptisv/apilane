@@ -310,6 +310,7 @@ namespace Apilane.Api.Component.Tests
             var selectQuery = dbType switch
             {
                 DatabaseType.MySQL => "SELECT `ID`, `Custom_String_Required` FROM `CustomEntityLight` WHERE `ID` = {entityId}",
+                DatabaseType.PostgreSQL => "SELECT \"ID\", \"Custom_String_Required\" FROM \"CustomEntityLight\" WHERE \"ID\" = {entityId}",
                 _ => "SELECT [ID], [Custom_String_Required] FROM [CustomEntityLight] WHERE [ID] = {entityId}"
             };
             AddCustomEndpoint("GetEntityById", selectQuery);

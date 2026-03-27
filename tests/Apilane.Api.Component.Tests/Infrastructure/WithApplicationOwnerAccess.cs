@@ -1,6 +1,7 @@
 ﻿using Apilane.Api.Core.Abstractions;
 using FakeItEasy;
 using System;
+using System.Threading.Tasks;
 
 namespace Apilane.Api.Component.Tests.Infrastructure
 {
@@ -18,14 +19,14 @@ namespace Apilane.Api.Component.Tests.Infrastructure
 
             // Set the user as global admin to prevent validations
             A.CallTo(() => _portalInfoServiceMock.UserOwnsApplicationAsync(A<string>.Ignored, _appToken))
-                .Returns(true);
+                .Returns(Task.FromResult(true));
         }
 
         public void Dispose()
         {
             // Set the user as NOT global admin to perform validations as needed
             A.CallTo(() => _portalInfoServiceMock.UserOwnsApplicationAsync(A<string>.Ignored, _appToken))
-                .Returns(false);
+                .Returns(Task.FromResult(false));
         }
     }
 }

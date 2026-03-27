@@ -16,10 +16,8 @@ namespace Apilane.Common.Extensions
         {
             return application.DatabaseType switch
             {
-                (int)DatabaseType.SQLServer => application.ConnectionString ?? throw new Exception("ConnectionString cannot be empty"),
-                (int)DatabaseType.MySQL => application.ConnectionString ?? throw new Exception("ConnectionString cannot be empty"),
                 (int)DatabaseType.SQLLite => $"Data Source={application.Token.GetApplicationFileInfo(filesPath).FullName};Cache Size=2000;Version=3;FailIfMissing=True;foreign keys=true;",
-                _ => throw new NotImplementedException(),
+                _ => application.ConnectionString ?? throw new Exception("ConnectionString cannot be empty")
             };
         }
 

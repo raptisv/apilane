@@ -1,6 +1,6 @@
 # Storage Providers
 
-Apilane supports three storage providers out of the box. Each application can use a different provider, and the choice is made when creating the application.
+Apilane supports four storage providers out of the box. Each application can use a different provider, and the choice is made when creating the application.
 
 !!!info "What Apilane manages"
     On the storage provider level, Apilane handles creating, renaming, and deleting entities (tables) and properties (columns). It also manages unique and foreign key constraints. It does not provide tools beyond that, such as index management or manual query optimization.
@@ -19,7 +19,7 @@ No additional configuration is required. Apilane creates a SQLite database file 
 | Can support production for moderate workloads | |
 
 !!!info "Migration path"
-    You can start with SQLite and migrate to SQL Server or MySQL later as your application grows.
+    You can start with SQLite and migrate to SQL Server, MySQL, or PostgreSQL later as your application grows.
 
 ## SQL Server
 
@@ -51,12 +51,28 @@ Server=myserver;Database=myapp_db;User=myuser;Password=mypassword;
 !!!warning "Your responsibility"
     Database management (backups, scaling, availability, index optimization) is a developer concern. Apilane handles schema management only.
 
+## PostgreSQL
+
+**Best for:** Open-source stacks, cloud-native deployments, applications requiring advanced SQL features.
+
+Same setup as SQL Server and MySQL — provide a connection string to an existing empty database. Apilane creates all system tables on first use.
+
+**Example connection string:**
+
+```
+Host=myserver;Database=myapp_db;Username=myuser;Password=mypassword;
+```
+
+!!!warning "Your responsibility"
+    Database management (backups, scaling, availability, index optimization) is a developer concern. Apilane handles schema management only.
+
 ## Choosing a Provider
 
-| Criteria | SQLite | SQL Server | MySQL |
-|---|---|---|---|
-| Setup complexity | None | Moderate | Moderate |
-| Cost | Free | Licensed / Cloud | Free / Cloud |
-| Concurrent users | Low-Medium | High | High |
-| Hosting | Bundled with API | Separate server | Separate server |
-| Best for | Dev / Small apps | Enterprise | Open-source stacks |
+| Criteria | SQLite | SQL Server | MySQL | PostgreSQL |
+|---|---|---|---|---|
+| Setup complexity | None | Moderate | Moderate | Moderate |
+| Cost | Free | Licensed / Cloud | Free / Cloud | Free / Cloud |
+| Concurrent users | Low-Medium | High | High | High |
+| Hosting | Bundled with API | Separate server | Separate server | Separate server |
+| Best for | Dev / Small apps | Enterprise | Open-source stacks | Open-source / Cloud-native |
+

@@ -4,6 +4,7 @@ site_url = "https://docs.apilane.com"
 repo_url = "https://github.com/raptisv/apilane"
 site_description = "Apilane — Backend-as-a-Service platform for web and mobile applications"
 site_author = "Apilane"
+extra_javascript = ["javascripts/extra.js"]
 
 nav = [
     { "Overview" = "index.md" },

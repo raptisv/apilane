@@ -140,6 +140,21 @@ namespace Apilane.Api.Core.Services
                         }
                     }
                     break;
+                case DatabaseType.PostgreSQL:
+                    {
+                        // Drop ALL tables
+
+                        await using (var ctx = new PostgreSQLDataStorageRepository(connectionString))
+                        {
+                            var tables = await ctx.ExecTableAsync(@"SELECT tablename as table FROM pg_tables WHERE schemaname = current_schema();");
+                            var cmd = $@"SET session_replication_role = replica;
+                                        {string.Join("", tables.ToDictionary().Select(x => $@"DROP TABLE IF EXISTS ""{x["table"]}"" CASCADE;"))}
+                                        SET session_replication_role = DEFAULT;";
+
+                            await ctx.ExecNQAsync(cmd);
+                        }
+                    }
+                    break;
                 default: throw new NotImplementedException();
             }
         }

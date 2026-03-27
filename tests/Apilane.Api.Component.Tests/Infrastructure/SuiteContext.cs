@@ -32,7 +32,7 @@ namespace CasinoService.ComponentTests.Infrastructure
                 });
             });
 
-            var apiConfiguration = factory.Services.GetRequiredService<ApiConfiguration>();
+            var apiConfiguration = Factory.Services.GetRequiredService<ApiConfiguration>();
 
             Factory.Server.BaseAddress = new Uri(apiConfiguration.Url);
 
