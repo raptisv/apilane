@@ -33,7 +33,7 @@ namespace Apilane.Api.Core
                 pageSize = 1000;
             }
 
-            var historyRecords = await _applicationHelperService.GetHistoryForRecordPagedAsync(appToken, entity, recordId, pageIndex.Value, pageSize.Value);
+            var historyRecords = await _applicationHelperService.GetHistoryForRecordPagedAsync(entity, recordId, pageIndex.Value, pageSize.Value);
 
             return new DataTotalResponse()
             {
@@ -43,6 +43,6 @@ namespace Apilane.Api.Core
         }
 
         public Task DeleteAsync( string appToken, string entity, List<long>? recordIds) 
-            => _applicationHelperService.DeleteHistoryAsync(appToken, entity, recordIds);
+            => _applicationHelperService.DeleteHistoryAsync(entity, recordIds);
     }
 }

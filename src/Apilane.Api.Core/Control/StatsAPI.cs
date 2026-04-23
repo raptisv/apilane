@@ -134,7 +134,7 @@ namespace Apilane.Api.Core
             var data = await _dataStore.GetDataCountAsync(entity.Name, null);
 
             var historyRecords = await _applicationHelperService
-                .GetHistoryCountForEntityAsync(appToken, entity.Name);
+                .GetHistoryCountForEntityAsync(entity.Name);
 
             return new CountDataHistoryDto()
             {

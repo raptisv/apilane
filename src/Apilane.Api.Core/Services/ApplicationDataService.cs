@@ -372,7 +372,7 @@ namespace Apilane.Api.Core.Services
                 // Call SaveHistoryForDataRow after succesfull update, if prev data exists and row was updated
                 if (prevData != null && rowsAffected > 0)
                 {
-                    await _applicationHelperService.CreateHistoryAsync(appToken, entity.Name, ID, Data_UserSecurity.User?.ID, prevData);
+                    await _applicationHelperService.CreateHistoryAsync(entity.Name, ID, Data_UserSecurity.User?.ID, prevData);
                 }
 
                 return rowsAffected;
@@ -432,7 +432,7 @@ namespace Apilane.Api.Core.Services
 
             var listIDsToDelete = recordsAllowedToDelete.Data.AsEnumerable().Select(x => Utils.GetLong(x[Globals.PrimaryKeyColumn])).ToList();
 
-            await _applicationHelperService.DeleteHistoryAsync(appToken, entity.Name, listIDsToDelete);
+            await _applicationHelperService.DeleteHistoryAsync(entity.Name, listIDsToDelete);
 
             var deleteFilter = new FilterData(Globals.PrimaryKeyColumn, FilterData.FilterOperators.contains, string.Join(",", listIDsToDelete), PropertyType.Number);
 

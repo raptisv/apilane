@@ -18,7 +18,6 @@ using System.Data;
 using System.Data.SQLite;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Transactions;
@@ -436,9 +435,9 @@ namespace Apilane.Api.Extensions
                 {
                     SQLiteConnection.CreateFile(file.FullName);
 
-                    await using (var ctxNoAccess = new SQLiteDataStorageRepository(connSring))
+                    await using (var ctx = new SQLiteDataStorageRepository(connSring))
                     {
-                        await ctxNoAccess.ExecNQAsync($@"CREATE TABLE IF NOT EXISTS OrleansMembershipVersionTable
+                        await ctx.ExecNQAsync($@"CREATE TABLE IF NOT EXISTS OrleansMembershipVersionTable
                                                     (
 	                                                    DeploymentId TEXT NOT NULL PRIMARY KEY,
 	                                                    Timestamp BIGINT NOT NULL DEFAULT 0,

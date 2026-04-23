@@ -1,4 +1,4 @@
-﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -25,6 +26,8 @@ namespace Apilane.Api.Controllers
     [Route("api/[controller]/[action]")]
     public class BaseApplicationApiController : Controller
     {
+        private static readonly ConcurrentDictionary<string, bool> _systemTablesMigratedTokens = new();
+
         protected readonly ApiConfiguration ApiConfiguration;
         protected readonly IClusterClient ClusterClient;
 
@@ -58,6 +61,19 @@ namespace Apilane.Api.Controllers
             // Load the application
             var applicationService = context.HttpContext.RequestServices.GetRequiredService<IApplicationService>();
             Application = await applicationService.GetAsync(applicationToken);
+
+            // Ensure system tables exist in the main database (migration for existing apps)
+            if (!_systemTablesMigratedTokens.ContainsKey(applicationToken))
+            {
+                var skipMigration = context.ActionDescriptor.EndpointMetadata.OfType<SkipSystemTablesMigrationAttribute>().Any();
+
+                if (!skipMigration)
+                {
+                    var applicationBuilder = context.HttpContext.RequestServices.GetRequiredService<IApplicationBuilderService>();
+                    await applicationBuilder.EnsureSystemTablesAsync();
+                    _systemTablesMigratedTokens.TryAdd(applicationToken, true);
+                }
+            }
 
             UserHasFullAccess = false;
             if (queryService.IsPortalRequest)

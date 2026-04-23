@@ -349,7 +349,7 @@ namespace Apilane.Api.Core
                 var userData = await _dataStore.GetDataByIdAsync(nameof(Users), currentUser.ID, null);
                 if (userData is not null)
                 {
-                    await _applicationHelperService.CreateHistoryAsync(appToken, usersEntity.Name, currentUser.ID, currentUser.ID, userData);
+                    await _applicationHelperService.CreateHistoryAsync(usersEntity.Name, currentUser.ID, currentUser.ID, userData);
                 }
             }
 
@@ -375,7 +375,7 @@ namespace Apilane.Api.Core
             string appName,
             string? emailConfirmationRedirectUrl)
         {
-            var userIdForToken = await _applicationHelperService.GetUserIdFromEmailConfitmationTokenAsync(appToken, confirmationToken);
+            var userIdForToken = await _applicationHelperService.GetUserIdFromEmailConfitmationTokenAsync(confirmationToken);
 
             if (userIdForToken is null)
             {

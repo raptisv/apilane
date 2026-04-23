@@ -8,6 +8,7 @@ namespace Apilane.Api.Core.Abstractions
     public interface IApplicationBuilderService
     {
         Task BuildApplicationAsync(DBWS_Application application);
+        Task EnsureSystemTablesAsync();
         Task DegenerateEntityAsync(DBWS_Application application, string entityName);
         Task DegeneratePropertyAsync(DBWS_Application application, long propertyId);
         ValueTask DisposeAsync();

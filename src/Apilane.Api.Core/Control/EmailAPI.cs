@@ -135,7 +135,7 @@ namespace Apilane.Api.Core
         }
 
         public Task<List<EmailTemplateDto>> GetEmailsAsync(string appToken, long? templateId = null)
-            => _applicationHelperService.GetEmailsAsync(appToken, templateId);
+            => _applicationHelperService.GetEmailsAsync(templateId);
 
         public Task UpdateAsync(string appToken, EmailTemplateDto template)
         {
@@ -149,7 +149,7 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.REQUIRED, null, template.Content);
             }
 
-            return _applicationHelperService.UpdateEmailAsync(appToken, template);
+            return _applicationHelperService.UpdateEmailAsync(template);
         }
 
         private async Task<Dictionary<string, object?>?> GetUserByEmailAsync(

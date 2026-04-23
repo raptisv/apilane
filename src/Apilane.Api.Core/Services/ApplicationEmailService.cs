@@ -1,4 +1,4 @@
-﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
@@ -44,7 +44,7 @@ namespace Apilane.Api.Core.Services
           Dictionary<string, object?> userThatAcceptsTheEmail,
           Dictionary<string, object?> userThatTriggeredTheEmail)
         {
-            var emailTemplate = await _applicationHelperService.GetEmailAsync(appToken, eventCode);
+            var emailTemplate = await _applicationHelperService.GetEmailAsync(eventCode);
 
             if (emailTemplate is not null)
             {
@@ -95,7 +95,7 @@ namespace Apilane.Api.Core.Services
             Dictionary<string, object?> userThatAcceptsTheEmail,
             Dictionary<string, object?> userThatTriggeredTheEmail)
         {
-            var emailTemplate = await _applicationHelperService.GetEmailAsync(appToken, eventCode);
+            var emailTemplate = await _applicationHelperService.GetEmailAsync(eventCode);
 
             if (emailTemplate is not null)
             {
@@ -178,7 +178,7 @@ namespace Apilane.Api.Core.Services
                     case EmailEventsPlaceholders.confirmation_url:
                         {
                             string confirmationToken = Guid.NewGuid().ToString();
-                            await _applicationHelperService.CreateEmailConfirmationTokenAsync(appToken, Utils.GetLong(userThatAcceptsTheEmail[nameof(Users.ID)]), confirmationToken);
+                            await _applicationHelperService.CreateEmailConfirmationTokenAsync(Utils.GetLong(userThatAcceptsTheEmail[nameof(Users.ID)]), confirmationToken);
                             string confirmUrl = $"{applicationServerUrl.Trim('/').ToLower()}/api/Account/Confirm?{Globals.ApplicationTokenQueryParam}={appToken}&token={confirmationToken}";
                             subject = subject.Replace(strPlaceholder, confirmUrl);
                             content = content.Replace(strPlaceholder, confirmUrl);
@@ -187,7 +187,7 @@ namespace Apilane.Api.Core.Services
                     case EmailEventsPlaceholders.reset_password_url:
                         {
                             string resetToken = Guid.NewGuid().ToString();
-                            await _applicationHelperService.CreatePasswordResetTokenAsync(appToken, Utils.GetLong(userThatAcceptsTheEmail[nameof(Users.ID)]), resetToken);
+                            await _applicationHelperService.CreatePasswordResetTokenAsync(Utils.GetLong(userThatAcceptsTheEmail[nameof(Users.ID)]), resetToken);
                             string resetUrl = $"{applicationServerUrl.Trim('/').ToLower()}/App/{appToken}/Account/Manage/ResetPassword?Token={resetToken}";
                             subject = subject.Replace(strPlaceholder, resetUrl);
                             content = content.Replace(strPlaceholder, resetUrl);
