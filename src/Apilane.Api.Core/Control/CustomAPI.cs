@@ -1,19 +1,16 @@
 ﻿using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
-using Apilane.Api.Core.Grains;
 using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Api.Core.Services;
 using Apilane.Common;
 using Apilane.Common.Abstractions;
 using Apilane.Common.Enums;
-using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Data.Abstractions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
-using Orleans;
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
@@ -26,19 +23,16 @@ namespace Apilane.Api.Core
     public class CustomAPI : ICustomAPI
     {
         private readonly ILogger<CustomAPI> _logger;
-        private readonly IClusterClient _clusterClient; 
         private readonly IApplicationDataStoreFactory _dataStore;
         private readonly ITransactionScopeService _transactionScopeService;
 
         public CustomAPI(
             ILogger<CustomAPI> logger,
-            IClusterClient clusterClient,
             IApplicationDataStoreFactory dataStore,
             ITransactionScopeService transactionScopeService)
         {
             _logger = logger;
             _dataStore = dataStore;
-            _clusterClient = clusterClient;
             _transactionScopeService = transactionScopeService;
         }
 
@@ -57,18 +51,6 @@ namespace Apilane.Api.Core
             if (userSecurity.Count == 0)
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: customEndpoint.Name);
-            }
-
-            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
-            {
-                // Check rate limit
-                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), $"custom:{customEndpoint.Name}", SecurityActionType.get);
-                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
-                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
-                if (!rateLimitResult.IsRequestAllowed)
-                {
-                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
-                }
             }
 
             string query = GetQueryFixed(customEndpoint, uriParams);

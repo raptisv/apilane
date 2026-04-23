@@ -35,7 +35,7 @@ namespace Apilane.Common.Extensions
             return true;
         }
 
-        public static string BuildRateLimitingGrainKeyExt(
+        public static string BuildRateLimitPartitionKey(
             int maxRequests,
             TimeSpan timeWindow,
             string? userIdentifier,

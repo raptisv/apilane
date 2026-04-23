@@ -1,5 +1,4 @@
 ﻿using Apilane.Api.Core.Configuration;
-using Apilane.Api.Core.Grains;
 using Apilane.Common.Extensions;
 using Apilane.Data.Repository;
 using Microsoft.AspNetCore.Builder;
@@ -68,11 +67,6 @@ namespace Apilane.Api.Extensions
                     // The statistics are currently used by ActivationCountPlacementDirector that tries to achieve a balanced distribution of grain activations across silos.
                     // If you are not using ActivationCountPlacement policy for your grains classes, then decreasing the interval will have no negative effect on behavior of the cluster.
                     options.DeploymentLoadPublisherRefreshTime = TimeSpan.FromMinutes(1);
-                })
-                .Configure<GrainCollectionOptions>(options =>
-                {
-                    // Max rate limit is 60 minutes so we can't drop the grain sooner
-                    options.ClassSpecificCollectionAge[typeof(RateLimitSlidingWindowGrain).FullName!] = TimeSpan.FromMinutes(65);
                 })
                 .Configure<EndpointOptions>(options =>
                 {

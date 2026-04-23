@@ -4,12 +4,12 @@ using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Core.Grains;
 using Apilane.Api.Core.Models.AppModules.Authentication;
+using Apilane.Api.Filters;
+using Apilane.Api.Services;
 using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
-using Apilane.Api.Filters;
-using Apilane.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,6 +42,7 @@ namespace Apilane.Api.Controllers
         protected DBWS_Application Application = null!;
         protected bool UserHasFullAccess = false;
         protected Users? ApplicationUser = null;
+        protected ApplicationRateLimiter ApplicationRateLimiter = null!;
 
         public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
@@ -61,6 +62,7 @@ namespace Apilane.Api.Controllers
             // Load the application
             var applicationService = context.HttpContext.RequestServices.GetRequiredService<IApplicationService>();
             Application = await applicationService.GetAsync(applicationToken);
+            ApplicationRateLimiter = ApplicationRateLimiter.GetOrCreate(applicationToken);
 
             // Ensure system tables exist in the main database (migration for existing apps)
             if (!_systemTablesMigratedTokens.ContainsKey(applicationToken))
@@ -98,9 +100,47 @@ namespace Apilane.Api.Controllers
                     (AppClientIPsLogics)Application.ClientIPsLogic,
                     Application.ClientIPsValue,
                     queryService.IPAddress);
+
+                await EnforceRateLimitAsync(context, queryService);
             }
 
             await base.OnActionExecutionAsync(context, next);
+        }
+
+        private async Task EnforceRateLimitAsync(ActionExecutingContext context, IQueryDataService queryService)
+        {
+            var entityOrEndpoint = string.IsNullOrWhiteSpace(queryService.Entity)
+                ? queryService.CustomEndpoint
+                : queryService.Entity;
+
+            if (string.IsNullOrWhiteSpace(entityOrEndpoint))
+                return;
+
+            if (!Enum.TryParse<SecurityActionType>(queryService.RouteAction, ignoreCase: true, out var actionType))
+                return;
+
+            var rateLimitItems = Application.Security_List
+                .Where(s =>
+                    s.Name.Equals(entityOrEndpoint, StringComparison.OrdinalIgnoreCase) &&
+                    s.Action.Equals(actionType.ToString(), StringComparison.OrdinalIgnoreCase))
+                .Select(s => s.RateLimit)
+                .ToList();
+
+            if (!rateLimitItems.IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
+                return;
+
+            var userIdentifier = ApplicationUser?.ID.ToString();
+
+            var permitted = await ApplicationRateLimiter.TryAcquireAsync(
+                maxRequests,
+                timeWindow,
+                userIdentifier,
+                entityOrEndpoint,
+                actionType.ToString(),
+                context.HttpContext.RequestAborted);
+
+            if (!permitted)
+                throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED);
         }
 
         protected DBWS_Entity GetEntity(string entityName)

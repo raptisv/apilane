@@ -1,8 +1,6 @@
 ﻿using Apilane.Api.Component.Tests.Infrastructure;
-using Apilane.Api.Core.Grains;
 using Apilane.Common;
 using Apilane.Common.Enums;
-using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Net.Models.Account;
 using Apilane.Net.Models.Data;
@@ -159,9 +157,7 @@ namespace Apilane.Api.Component.Tests
         private async Task GetCustomEndpoint_ShouldSucceed<T>(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken)
         {
             // Reset limits before next test
-            var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(rateLimit.MaxRequests, rateLimit.TimeWindow, userId?.ToString(), $"custom:{"test"}", SecurityActionType.get);
-            var rateLimitGrainRef = ClusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(TestApplication.Token), rateLimitGrainKeyExt, null);
-            await rateLimitGrainRef.ResetLimitsAsync();
+            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), "test", SecurityActionType.get.ToString());
 
             var request = CustomEndpointRequest.New("test");
 
@@ -229,9 +225,7 @@ namespace Apilane.Api.Component.Tests
         private async Task GetData_ShouldSucceed<T>(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken)
         {
             // Reset limits before next test
-            var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(rateLimit.MaxRequests, rateLimit.TimeWindow, userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.get);
-            var rateLimitGrainRef = ClusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(TestApplication.Token), rateLimitGrainKeyExt, null);
-            await rateLimitGrainRef.ResetLimitsAsync();
+            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.get.ToString());
 
             var request = DataGetListRequest.New(CustomEntityLight.EntityName);
 
@@ -298,9 +292,7 @@ namespace Apilane.Api.Component.Tests
         private async Task<long> PostData_ShouldSucceed(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken, object data)
         {
             // Reset limits before next test
-            var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(rateLimit.MaxRequests, rateLimit.TimeWindow, userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.post);
-            var rateLimitGrainRef = ClusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(TestApplication.Token), rateLimitGrainKeyExt, null);
-            await rateLimitGrainRef.ResetLimitsAsync();
+            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.post.ToString());
 
             var request = DataPostRequest.New(CustomEntityLight.EntityName);
 
@@ -374,9 +366,7 @@ namespace Apilane.Api.Component.Tests
         private async Task PutData_ShouldSucceed(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken, object data)
         {
             // Reset limits before next test
-            var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(rateLimit.MaxRequests, rateLimit.TimeWindow, userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.put);
-            var rateLimitGrainRef = ClusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(TestApplication.Token), rateLimitGrainKeyExt, null);
-            await rateLimitGrainRef.ResetLimitsAsync();
+            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.put.ToString());
 
             var request = DataPutRequest.New(CustomEntityLight.EntityName);
 
@@ -431,9 +421,7 @@ namespace Apilane.Api.Component.Tests
         private async Task DeleteData_ShouldSucceed(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken, List<long> Ids)
         {
             // Reset limits before next test
-            var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(rateLimit.MaxRequests, rateLimit.TimeWindow, userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.delete);
-            var rateLimitGrainRef = ClusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(TestApplication.Token), rateLimitGrainKeyExt, null);
-            await rateLimitGrainRef.ResetLimitsAsync();
+            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.delete.ToString());
 
             var request = DataDeleteRequest.New(CustomEntityLight.EntityName, Ids);
 
