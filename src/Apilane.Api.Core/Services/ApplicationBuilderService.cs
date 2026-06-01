@@ -420,11 +420,15 @@ namespace Apilane.Api.Core.Services
 
         public async Task EnsureSystemTablesAsync()
         {
+            _logger.LogInformation("Ensure system tables");
+
             foreach (var entity in Entities_Helper)
             {
                 var tableExists = await _applicationDataStoreFactory.ExistsTableAsync(entity.Name);
                 if (!tableExists)
                 {
+                    _logger.LogInformation($"Create system table {entity.Name}");
+
                     await _applicationDataStoreFactory.CreateTableWithPrimaryKeyAsync(entity.Name);
 
                     foreach (var property in entity.Properties.Where(x => !x.IsPrimaryKey))
