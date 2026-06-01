@@ -136,6 +136,13 @@ One way to minimize the impact of a malicious attack is rate limiting. Rate limi
 
 Apilane employs **Sliding Window Rate Limiting** to manage and control the rate of requests from users effectively. This method allows for a more granular approach to tracking request counts over time compared to traditional fixed window strategies.
 
+!!!warning "Multi-instance deployments"
+    Rate limiting is enforced **per API server instance**, not across the entire cluster. In a multi-instance deployment (e.g., Kubernetes with multiple replicas), each API server maintains its own independent rate limit counters in memory.
+    
+    **Example:** If you configure a rate limit of 100 requests per minute and deploy 3 API instances behind a load balancer, the effective rate limit is approximately **300 requests per minute** (100 per instance), depending on how traffic is distributed across instances.
+    
+    For cluster-wide rate limiting, consider using an external rate limiting solution (e.g., API Gateway, reverse proxy with rate limiting, or distributed rate limiter with shared state in Redis).
+
 ### Configuration options
 
 For each security rule, you can configure a rate limit with two parameters:
@@ -171,3 +178,4 @@ When multiple rate limiting rules are applicable to a particular user or endpoin
 - **Balance security with usability** — Overly strict rate limits may frustrate legitimate users. Tailor limits to your application's specific usage patterns
 - **Use different limits for different roles** — Administrators and internal services typically need higher limits than end users
 - **Monitor rate limit hits** — If legitimate users are frequently hitting rate limits, consider adjusting the thresholds
+- **Account for multi-instance deployments** — If running multiple API instances, remember that each instance enforces limits independently. Adjust your configured limits accordingly (divide by the number of instances for approximate cluster-wide enforcement)

@@ -5,9 +5,11 @@ using Apilane.Api.Core.Exceptions;
 using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
+using Apilane.Common.Helpers;
 using Apilane.Common.Models;
 using Apilane.Common.Utilities;
 using Apilane.Data.Abstractions;
+using Apilane.Data.Helper.Models;
 using Apilane.Data.Repository;
 using Microsoft.CodeAnalysis;
 using Microsoft.Extensions.Logging;
@@ -416,6 +418,358 @@ namespace Apilane.Api.Core.Services
             return result;
         }
 
+        public async Task EnsureSystemTablesAsync()
+        {
+            _logger.LogInformation("Ensure system tables");
+
+            foreach (var entity in Entities_Helper)
+            {
+                var tableExists = await _applicationDataStoreFactory.ExistsTableAsync(entity.Name);
+                if (!tableExists)
+                {
+                    _logger.LogInformation($"Create system table {entity.Name}");
+
+                    await _applicationDataStoreFactory.CreateTableWithPrimaryKeyAsync(entity.Name);
+
+                    foreach (var property in entity.Properties.Where(x => !x.IsPrimaryKey))
+                    {
+                        await _applicationDataStoreFactory.CreateColumnAsync(
+                            entity.Name,
+                            property.Name,
+                            property.TypeID_Enum,
+                            property.Required,
+                            property.DecimalPlaces,
+                            property.Maximum);
+                    }
+
+                    // Seed H_Email_Templates with default rows
+                    if (entity.Name == nameof(H_Email_Templates))
+                    {
+                        foreach (var item in EmailEvent.EmailEvents)
+                        {
+                            await _applicationDataStoreFactory.CreateDataAsync(
+                                nameof(H_Email_Templates),
+                                new Dictionary<string, object?>
+                                {
+                                    { nameof(H_Email_Templates.Active), false },
+                                    { nameof(H_Email_Templates.Description), item.Description },
+                                    { nameof(H_Email_Templates.EventCode), item.Code.ToString() },
+                                    { nameof(H_Email_Templates.Subject), item.DefaultSubject },
+                                    { nameof(H_Email_Templates.Content), item.DefaultContent }
+                                },
+                                allowInsertIdentity: false);
+                        }
+                    }
+                }
+            }
+        }
+
         public ValueTask DisposeAsync() => _applicationDataStoreFactory.DisposeAsync();
+
+        private static List<DBWS_Entity> Entities_Helper
+        {
+            get
+            {
+                return new List<DBWS_Entity>() {
+                    new DBWS_Entity()
+                    {
+                        ID = -1,
+                        AppID = -1,
+                        IsSystem = true,
+                        Name = nameof(H_Entity_Change_Tracking),
+                        Description = "Stores the records changes",
+                        RequireChangeTracking = false,
+                        Properties = new List<DBWS_EntityProperty>()
+                        {
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Entity_Change_Tracking.ID),
+                                Required = true,
+                                Description = null,
+                                TypeID = (int)PropertyType.Number,
+                                IsPrimaryKey = true,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Entity_Change_Tracking.Entity),
+                                Required = true,
+                                Description = "The entity",
+                                TypeID = (int)PropertyType.String,
+                                Maximum = 100,
+                                IsPrimaryKey = false,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Entity_Change_Tracking.RecordID),
+                                Required = true,
+                                Description = "The record's primary key",
+                                TypeID = (int)PropertyType.Number,
+                                IsPrimaryKey = false,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Entity_Change_Tracking.Owner),
+                                Required = false,
+                                Description = "The user id that made the change",
+                                TypeID = (int)PropertyType.Number,
+                                IsPrimaryKey = false,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Entity_Change_Tracking.Data),
+                                Required = true,
+                                Description = "The record's past data",
+                                TypeID = (int)PropertyType.String,
+                                IsPrimaryKey = false,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = Globals.CreatedColumn,
+                                Required = true,
+                                Description = "Created (UTC)",
+                                ValidationRegex = null,
+                                TypeID = (int)PropertyType.Date,
+                                Maximum = int.MaxValue,
+                                Minimum = 0,
+                                IsPrimaryKey = false,
+                            }
+                        }
+                    },
+                    new DBWS_Entity()
+                    {
+                        ID = -1,
+                        AppID = -1,
+                        IsSystem = true,
+                        Name = nameof(H_Auth_Email_Confirmation_Tokens),
+                        Description = "Email confirmation tokens",
+                        RequireChangeTracking = false,
+                        Properties = new List<DBWS_EntityProperty>()
+                        {
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Auth_Email_Confirmation_Tokens.ID),
+                                Required = true,
+                                Description = null,
+                                TypeID = (int)PropertyType.Number,
+                                IsPrimaryKey = true,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Auth_Email_Confirmation_Tokens.Owner),
+                                Required = true,
+                                Description = null,
+                                TypeID = (int)PropertyType.Number,
+                                DecimalPlaces = 0,
+                                Minimum = null,
+                                Maximum = null,
+                                IsPrimaryKey = false,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Auth_Email_Confirmation_Tokens.Token),
+                                Required = true,
+                                Description = null,
+                                TypeID = (int)PropertyType.String,
+                                Maximum = 100,
+                                IsPrimaryKey = false,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = Globals.CreatedColumn,
+                                Required = true,
+                                Description = "Created (UTC)",
+                                ValidationRegex = null,
+                                TypeID = (int)PropertyType.Date,
+                                Maximum = int.MaxValue,
+                                Minimum = 0,
+                                IsPrimaryKey = false,
+                            }
+                        }
+                    },
+                    new DBWS_Entity()
+                    {
+                        ID = -1,
+                        AppID = -1,
+                        IsSystem = true,
+                        Name = nameof(H_Auth_Password_Reset_Tokens),
+                        Description = "Password reset tokens",
+                        RequireChangeTracking = false,
+                        Properties = new List<DBWS_EntityProperty>()
+                        {
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Auth_Password_Reset_Tokens.ID),
+                                Required = true,
+                                Description = null,
+                                TypeID = (int)PropertyType.Number,
+                                IsPrimaryKey = true,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Auth_Password_Reset_Tokens.Owner),
+                                Required = true,
+                                Description = null,
+                                TypeID = (int)PropertyType.Number,
+                                DecimalPlaces = 0,
+                                Minimum = null,
+                                Maximum = null,
+                                IsPrimaryKey = false,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Auth_Password_Reset_Tokens.Token),
+                                Required = true,
+                                Description = null,
+                                TypeID = (int)PropertyType.String,
+                                Maximum = 100,
+                                IsPrimaryKey = false,
+                            },
+                            new DBWS_EntityProperty()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = Globals.CreatedColumn,
+                                Required = true,
+                                Description = "Created (UTC)",
+                                ValidationRegex = null,
+                                TypeID = (int)PropertyType.Date,
+                                Maximum = int.MaxValue,
+                                Minimum = 0,
+                                IsPrimaryKey = false,
+                            }
+                        }
+                    },
+                    new DBWS_Entity()
+                    {
+                        ID = -1,
+                        AppID = -1,
+                        IsSystem = true,
+                        Name = nameof(H_Email_Templates),
+                        Description = "Email templates",
+                        RequireChangeTracking = false,
+                        Properties = new List<DBWS_EntityProperty>()
+                        {
+                            new()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Email_Templates.ID),
+                                Required = true,
+                                Description = null,
+                                TypeID = (int)PropertyType.Number,
+                                IsPrimaryKey = true,
+                            },
+                            new()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Email_Templates.Description),
+                                ValidationRegex = "^[a-zA-Z0-9_]+$",
+                                Required = true,
+                                Description = "The email's reference name",
+                                TypeID = (int)PropertyType.String,
+                                Minimum = null,
+                                Maximum = 100,
+                                IsPrimaryKey = false,
+                            },
+                            new()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Email_Templates.Active),
+                                Required = true,
+                                Description = null,
+                                TypeID = (int)PropertyType.Boolean,
+                                Minimum = null,
+                                Maximum = null,
+                                IsPrimaryKey = false,
+                            },
+                            new()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Email_Templates.EventCode),
+                                Required = true,
+                                Description = null,
+                                TypeID = (int)PropertyType.String,
+                                Minimum = null,
+                                Maximum = null,
+                                IsPrimaryKey = false,
+                            },
+                            new()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Email_Templates.Subject),
+                                Required = true,
+                                Description = "The email's subject",
+                                TypeID = (int)PropertyType.String,
+                                Minimum = null,
+                                Maximum = 2000,
+                                IsPrimaryKey = false,
+                            },
+                            new()
+                            {
+                                ID = -1,
+                                IsSystem = true,
+                                EntityID = -1,
+                                Name = nameof(H_Email_Templates.Content),
+                                Required = true,
+                                Description = "The email's HTML content",
+                                TypeID = (int)PropertyType.String,
+                                Minimum = null,
+                                Maximum = null,
+                                IsPrimaryKey = false,
+                            }
+                        }
+                    }
+                };
+            }
+        }
     }
 }

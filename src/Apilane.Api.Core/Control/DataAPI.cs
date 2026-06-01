@@ -1,15 +1,12 @@
 ﻿﻿using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
-using Apilane.Api.Core.Grains;
 using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Api.Core.Services;
 using Apilane.Common;
 using Apilane.Common.Abstractions;
 using Apilane.Common.Enums;
-using Apilane.Common.Extensions;
 using Apilane.Common.Models;
-using Orleans;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -23,18 +20,15 @@ namespace Apilane.Api.Core
 {
     public class DataAPI : IDataAPI
     {
-        private readonly IClusterClient _clusterClient;
         private readonly IApplicationDataService _appDataService;
         private readonly ITransactionScopeService _transactionScopeService;
         private readonly ICustomAPI _customAPI;
 
         public DataAPI(
-            IClusterClient clusterClient,
             IApplicationDataService appDataService,
             ITransactionScopeService transactionScopeService,
             ICustomAPI customAPI)
         {
-            _clusterClient = clusterClient;
             _appDataService = appDataService;
             _transactionScopeService = transactionScopeService;
             _customAPI = customAPI;
@@ -58,18 +52,6 @@ namespace Apilane.Api.Core
             if (userSecurity.Count == 0)
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
-            }
-
-            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
-            {
-                // Check rate limit
-                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), entity.Name, SecurityActionType.get);
-                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
-                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
-                if (!rateLimitResult.IsRequestAllowed)
-                {
-                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, entity: entity.Name, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
-                }
             }
 
             return await _appDataService.GetByIDAsync(
@@ -152,18 +134,6 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
 
-            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
-            {
-                // Check rate limit
-                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), entity.Name, SecurityActionType.get);
-                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
-                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
-                if (!rateLimitResult.IsRequestAllowed)
-                {
-                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, entity: entity.Name, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
-                }
-            }
-
             var systemFilters = _appDataService.GetSystemFilters(userHasFullAccess, differentiationEntity, entity, (appUser, userSecurity));
             var filterData = _appDataService.GetFilterData(entity, filter, userSecurity);
             if (filterData is not null)
@@ -205,18 +175,6 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
 
-            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
-            {
-                // Check rate limit
-                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), entity.Name, SecurityActionType.post);
-                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
-                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
-                if (!rateLimitResult.IsRequestAllowed)
-                {
-                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, entity: entity.Name, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
-                }
-            }
-
             return await _appDataService.PostAsync(
                 appToken,
                 entity,
@@ -247,18 +205,6 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
 
-            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
-            {
-                // Check rate limit
-                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), entity.Name, SecurityActionType.put);
-                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
-                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
-                if (!rateLimitResult.IsRequestAllowed)
-                {
-                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, entity: entity.Name, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
-                }
-            }
-
             return await _appDataService.PutAsync(
                 appToken,
                 entity,
@@ -287,18 +233,6 @@ namespace Apilane.Api.Core
             if (userSecurity.Count == 0)
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
-            }
-
-            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
-            {
-                // Check rate limit
-                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), entity.Name, SecurityActionType.delete);
-                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
-                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
-                if (!rateLimitResult.IsRequestAllowed)
-                {
-                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, entity: entity.Name, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
-                }
             }
 
             return await _appDataService.DeleteAsync(
@@ -638,18 +572,6 @@ namespace Apilane.Api.Core
             if (userSecurity.Count == 0)
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: Globals.SCHEMA);
-            }
-
-            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
-            {
-                // Check rate limit
-                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), Globals.SCHEMA + appToken, SecurityActionType.get);
-                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
-                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
-                if (!rateLimitResult.IsRequestAllowed)
-                {
-                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, entity: Globals.SCHEMA, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
-                }
             }
 
             return true;

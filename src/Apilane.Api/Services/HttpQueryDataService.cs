@@ -99,7 +99,7 @@ namespace Apilane.Api.Services
             get
             {
                 return RouteController.Equals("custom")
-                    ? Utils.GetString(_actionContextAccessor.ActionContext?.RouteData?.Values["id"])
+                    ? Utils.GetString(_actionContextAccessor.ActionContext?.RouteData?.Values["name"])
                     : string.Empty;
             }
         }

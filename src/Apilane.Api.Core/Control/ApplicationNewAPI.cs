@@ -1,4 +1,4 @@
-﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
@@ -7,7 +7,6 @@ using Apilane.Common.Abstractions;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
-using Apilane.Data.Abstractions;
 using Apilane.Data.Repository;
 using Apilane.Data.Repository.Factory;
 using Microsoft.Extensions.Logging;
@@ -23,20 +22,17 @@ namespace Apilane.Api.Core
         private readonly ILogger<ApplicationService> _logger;
         private readonly ApiConfiguration _apiConfiguration;
         private readonly ITransactionScopeService _transactionScopeService;
-        private readonly IApplicationHelperService _applicationHelperService;
 
         public ApplicationNewAPI(
             ApiConfiguration currentConfiguration,
             ILogger<ApplicationService> loggerService,
             ILoggerFactory loggerFactory,
-            ITransactionScopeService transactionScopeService,
-            IApplicationHelperService applicationHelperService)
+            ITransactionScopeService transactionScopeService)
         {
             _logger = loggerService;
             _apiConfiguration = currentConfiguration;
             _loggerFactory = loggerFactory;
             _transactionScopeService = transactionScopeService;
-            _applicationHelperService = applicationHelperService;
         }
 
         public async Task<bool> CreateApplicationAsync(DBWS_Application newApplication)
@@ -97,20 +93,17 @@ namespace Apilane.Api.Core
 
             try
             {
-                // Build app
                 using (var scope = _transactionScopeService.OpenTransactionScope(timeout: TimeSpan.FromMinutes(10)))
                 {
                     await applicationBuilder.BuildApplicationAsync(newApplication);
+                    await applicationBuilder.EnsureSystemTablesAsync();
 
                     scope.Complete();
                 }
 
-                // Build helper
-                await _applicationHelperService.EnsureHelperDatabaseAsync(newApplication.Token);
-
                 return true;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Console.WriteLine(ex);
                 throw;
@@ -120,66 +113,5 @@ namespace Apilane.Api.Core
                 await applicationBuilder.DisposeAsync();
             }
         }
-
-        //public async Task ImportApplicationAsync(MemoryStream zipFileStream)
-        //{
-        //    DBWS_Application importedApplication = null;
-
-        //    using (var zip = new ZipArchive(zipFileStream, ZipArchiveMode.Read))
-        //    {
-        //        Json file
-        //        var appJsonFileEntry = zip.Entries.SingleOrDefault(x => x.Name.Equals("application.json"));
-
-        //        if (appJsonFileEntry is null)
-        //            throw new Exception("Application json file not found to import");
-
-        //        using (var stream = appJsonFileEntry.Open())
-        //        using (var reader = new StreamReader(stream))
-        //            importedApplication = JsonSerializer.Deserialize<DBWS_Application>(reader.ReadToEnd());
-
-        //        Create the application directory
-        //        DirectoryInfo rootAppDirectory = importedApplication.GetRootDirectoryInfo(_apiConfiguration.FilesPath);
-        //        if (rootAppDirectory.Exists == false)
-        //            rootAppDirectory.Create();
-
-        //        Extractor all to directory
-        //        zip.ExtractToDirectory(rootAppDirectory.FullName);
-
-        //        Db file
-        //        var appJsonDbEntry = zip.Entries.SingleOrDefault(x => x.Name.Equals($"{importedApplication.Token}.db"));
-
-        //        if (appJsonDbEntry is null)
-        //            throw new Exception("Application db file not found to import");
-        //    }
-
-        //    if (importedApplication is null)
-        //    {
-        //        throw new Exception("Application not found to import");
-        //    }
-
-        //    Finally...
-        //    var appService = new ApplicationServiceCachedForNewApp(_loggerService, _apiConfiguration, _queryDataService, _configuration, _clientFactory, _cacheService, importedApplication);
-
-        //    var _applicationBuilder = new ApplicationBuilderService(
-        //        _apiConfiguration,
-        //        _loggerService,
-        //        new ApplicationDataStoreFactory(_apiConfiguration, appService, _loggerService),
-        //        appService,
-        //        _configuration);
-
-        //    try
-        //    {
-        //        await _applicationBuilder.BuildApplication(importedApplication);
-        //    }
-        //    catch
-        //    {
-        //        throw;
-        //    }
-        //    finally
-        //    {
-        //    IMPORTANT: Dispose the context as this is used outside the default context from DI
-        //        _applicationBuilder.Dispose();
-        //    }
-        //}
     }
 }

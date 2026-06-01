@@ -137,7 +137,7 @@ namespace Apilane.Api.Areas.Account.Controllers
 		{
 			try
 			{
-				var userId = await _applicationHelperService.GetUserIdFromPasswordResetTokenAsync(Application.Token, Token);
+				var userId = await _applicationHelperService.GetUserIdFromPasswordResetTokenAsync(Token);
 
 				if (userId is null)
 				{
@@ -170,7 +170,7 @@ namespace Apilane.Api.Areas.Account.Controllers
 
 			try
 			{
-				var userIdFromToken = await _applicationHelperService.GetUserIdFromPasswordResetTokenAsync(Application.Token, Token);
+				var userIdFromToken = await _applicationHelperService.GetUserIdFromPasswordResetTokenAsync(Token);
 
 				if (userIdFromToken is null)
 				{
@@ -189,7 +189,7 @@ namespace Apilane.Api.Areas.Account.Controllers
 						},
 						new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, userId.Value, PropertyType.Number));
 
-					await _applicationHelperService.DeletePasswordResetTokenAsync(Application.Token, Token);
+					await _applicationHelperService.DeletePasswordResetTokenAsync(Token);
 				}
 
 				return RedirectToAction("ResetPasswordConfirmation", "Manage");

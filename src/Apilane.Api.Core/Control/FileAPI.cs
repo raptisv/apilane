@@ -2,7 +2,6 @@
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
-using Apilane.Api.Core.Grains;
 using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Api.Core.Models.AppModules.Files;
 using Apilane.Api.Core.Services;
@@ -11,7 +10,6 @@ using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Data.Abstractions;
-using Orleans;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -25,20 +23,17 @@ namespace Apilane.Api.Core
     public class FileAPI : IFileAPI
     {
         private ApiConfiguration _apiConfiguration;
-        private readonly IClusterClient _clusterClient;
         private IApplicationDataService _appDataService;
         private IApplicationService _applicationService;
         private IApplicationDataStoreFactory _dataStore;
 
         public FileAPI(
             ApiConfiguration apiConfiguration,
-            IClusterClient clusterClient,
             IApplicationDataService appDataService,
             IApplicationService applicationService,
             IApplicationDataStoreFactory dataStore)
         {
             _apiConfiguration = apiConfiguration;
-            _clusterClient = clusterClient;
             _appDataService = appDataService;
             _applicationService = applicationService;
             _dataStore = dataStore;
@@ -152,18 +147,6 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entityFiles.Name);
             }
 
-            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
-            {
-                // Check rate limit
-                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), entityFiles.Name, SecurityActionType.get);
-                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
-                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
-                if (!rateLimitResult.IsRequestAllowed)
-                {
-                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, entity: entityFiles.Name, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
-                }
-            }
-
             if (pageIndex <= 0)
             {
                 pageIndex = 1;
@@ -210,18 +193,6 @@ namespace Apilane.Api.Core
             if (userSecurity.Count == 0)
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: nameof(Files));
-            }
-
-            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
-            {
-                // Check rate limit
-                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), filesEntity.Name, SecurityActionType.post);
-                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
-                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
-                if (!rateLimitResult.IsRequestAllowed)
-                {
-                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, entity: filesEntity.Name, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
-                }
             }
 
             fileUID = (appUser?.ID.ToString() ?? string.Empty)
@@ -295,18 +266,6 @@ namespace Apilane.Api.Core
             if (userSecurity.Count == 0)
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: filesEntity.Name);
-            }
-
-            if (userSecurity.Select(x => x.RateLimit).IsRateLimited(out int maxRequests, out TimeSpan timeWindow))
-            {
-                // Check rate limit
-                var rateLimitGrainKeyExt = SecurityExtensions.BuildRateLimitingGrainKeyExt(maxRequests, timeWindow, appUser?.ID.ToString(), filesEntity.Name, SecurityActionType.delete);
-                var rateLimitGrainRef = _clusterClient.GetGrain<IRateLimitSlidingWindowGrain>(Guid.Parse(appToken), rateLimitGrainKeyExt, null);
-                var rateLimitResult = await rateLimitGrainRef.IsRequestAllowedAsync();
-                if (!rateLimitResult.IsRequestAllowed)
-                {
-                    throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED, entity: filesEntity.Name, message: $"Try again in {rateLimitResult.TimeToWait.GetTimeRemainingString()}");
-                }
             }
 
             var listOfIds = Utils.GetString(ids).Split(',').Select(x => Utils.GetInt(x)).Where(x => x > 0).ToList();

@@ -6,6 +6,8 @@ An Apilane Instance consists of 2 deployments, the `Apilane Portal` and the `Api
     Apilane does not offer facilities for identifying malicious traffic towards the server such as DDoS attacks. This is a developer concern and should be taken into account for applications open to the internet.
 
     What Apilane offers is rate limiting management per entity and action. Visit [rate limiting](developer_guide/security.md#rate-limiting) for more info.
+    
+    **Important:** Rate limiting is enforced per API server instance, not across the cluster. In multi-instance deployments, the effective rate limit is multiplied by the number of instances.
 
 ---
 
@@ -60,6 +62,9 @@ Two modes are available:
 ### Rate limiting
 
 Navigate to the [rate limiting section](developer_guide/security.md#rate-limiting) for more information on how rate limiting may increase application security.
+
+!!!info "Multi-instance deployments"
+    Rate limiting counters are maintained in-memory on each API server instance independently. In deployments with multiple API instances (e.g., Kubernetes with horizontal scaling), each instance enforces its own rate limits. The aggregate rate limit across all instances is approximately the configured limit multiplied by the number of instances.
 
 ### Data encryption
 

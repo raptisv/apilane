@@ -9,7 +9,6 @@ using Apilane.Common.Models;
 using Apilane.Common.Models.Dto;
 using Apilane.Common.Services;
 using Apilane.Data.Abstractions;
-using Apilane.Data.Helper;
 using Apilane.Data.Repository.Factory;
 using Apilane.Api.Filters;
 using Apilane.Api.HostedServices;
@@ -42,9 +41,9 @@ namespace Apilane.Api.Extensions
                 .AddSingleton<IApplicationService, ApplicationService>()
                 .AddSingleton<IActionContextAccessor, ActionContextAccessor>()
                 .AddSingleton<ITransactionScopeService, TransactionScopeService>()
-                .AddSingleton<IApplicationEmailService, ApplicationEmailService>()
-                .AddSingleton<IApplicationHelperService>((s) => new ApplicationHelperService(apiConfiguration.FilesPath))
-                // Scoped
+                // Scoped (depend on IApplicationDataStoreFactory which is scoped)
+                .AddScoped<IApplicationHelperService, ApplicationHelperService>()
+                .AddScoped<IApplicationEmailService, ApplicationEmailService>()
                 .AddScoped<IDataAPI, DataAPI>()
                 .AddScoped<IFileAPI, FileAPI>()
                 .AddScoped<IEmailAPI, EmailAPI>()

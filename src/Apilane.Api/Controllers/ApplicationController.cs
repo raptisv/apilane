@@ -49,6 +49,7 @@ namespace Apilane.Api.Controllers
         public Task Rebuild() => _applicationAPI.RebuildAsync(Application);
 
         [HttpGet]
+        [SkipSystemTablesMigration]
         public Task Degenerate() => _applicationAPI.DegenerateAsync(Application, (DatabaseType)Application.DatabaseType, Application.GetConnectionstring(ApiConfiguration.FilesPath));
 
         [HttpGet]
