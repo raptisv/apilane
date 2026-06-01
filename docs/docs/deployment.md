@@ -62,6 +62,9 @@ Apilane can be deployed to Kubernetes, on premise or in any cloud provider. Ther
 
 An Apilane Instance can consist of more than one API server. For example, you might have separate servers for testing and production. Visit the [Server](developer_guide/server_overview.md) page for more details on this concept.
 
+!!!info "Rate limiting in multi-instance deployments"
+    When running multiple API instances (horizontal scaling), be aware that [rate limiting](developer_guide/security.md#rate-limiting) is enforced per instance, not cluster-wide. Each API server maintains its own independent rate limit counters in memory. The effective rate limit across all instances is approximately the configured limit multiplied by the number of instances, depending on load balancer distribution.
+
 ---
 
 ## Health checks
@@ -126,13 +129,89 @@ The API service supports OpenTelemetry for metrics and distributed tracing:
 
 ### Orleans Dashboard
 
-The API uses [Microsoft Orleans](https://github.com/dotnet/orleans) for distributed actor state management. The Orleans cluster exposes a dashboard (default port `8080`) that can be useful for debugging in development environments.
+The API uses [Microsoft Orleans](https://github.com/dotnet/orleans) for distributed actor state management. Orleans requires a clustering provider for multi-server deployments. The system supports three clustering options with automatic fallback:
 
-| Orleans Setting | Default | Description |
+1. **Localhost** (default) - For single-server or development environments
+2. **Redis** - For production multi-server deployments using Redis
+3. **AdoNet** - For production multi-server deployments using SQL databases (SQL Server, MySQL, PostgreSQL)
+
+#### Clustering Configuration
+
+The clustering behavior is configured via the `Clustering` section in `appsettings.{Environment}.json`:
+
+```json
+"Clustering": {
+  "ClusterId": "apilane_api_cluster",
+  "ServiceId": "apilane_api_service",
+  "Type": "Localhost",
+  "SiloPort": 11111,
+  "GatewayPort": 30000,
+  "DashboardPort": 8080
+}
+```
+
+#### Configuration Options
+
+| Setting | Description | Default |
 |---|---|---|
-| `SiloPort` | `11111` | Grain-to-grain communication |
-| `GatewayPort` | `30000` | Client-to-silo communication |
-| `DashboardPort` | `8080` | Orleans dashboard UI |
+| `ClusterId` | Unique identifier for the Orleans cluster | `apilane_api_cluster` |
+| `ServiceId` | Unique identifier for the Orleans service | `apilane_api_service` |
+| `Type` | Clustering type: `Localhost`, `Redis`, or `AdoNet` | `Localhost` |
+| `SiloPort` | Grain-to-grain communication port | `11111` |
+| `GatewayPort` | Client-to-silo communication port | `30000` |
+| `DashboardPort` | Orleans dashboard UI port | `8080` |
+
+#### Redis Clustering
+
+For production deployments with multiple API instances, configure Redis clustering:
+
+```json
+"Clustering": {
+  "ClusterId": "apilane_api_cluster",
+  "ServiceId": "apilane_api_service",
+  "Type": "Redis",
+  "SiloPort": 11111,
+  "GatewayPort": 30000,
+  "DashboardPort": 8080,
+  "Redis": {
+    "ConnectionString": "localhost:6379"
+  }
+}
+```
+
+#### AdoNet Clustering
+
+For production deployments using SQL databases:
+
+```json
+"Clustering": {
+  "ClusterId": "apilane_api_cluster",
+  "ServiceId": "apilane_api_service",
+  "Type": "AdoNet",
+  "SiloPort": 11111,
+  "GatewayPort": 30000,
+  "DashboardPort": 8080,
+  "AdoNet": {
+    "ConnectionString": "Server=localhost;Database=OrleansDb;User Id=sa;Password=YourPassword;",
+    "Invariant": "System.Data.SqlClient"
+  }
+}
+```
+
+**Supported Invariants**:
+- `System.Data.SqlClient` - SQL Server
+- `MySql.Data.MySqlClient` - MySQL
+- `Npgsql` - PostgreSQL
+
+**Database Setup**: The database and tables must be created before starting the API. See [Orleans ADO.NET documentation](https://learn.microsoft.com/en-us/dotnet/orleans/host/configuration-guide/adonet-configuration) for setup scripts.
+
+#### Clustering Type Selection Logic
+
+If no `Clustering` section is present in configuration, the system defaults to **Localhost** clustering.
+
+If the `Type` is specified, the system attempts to use that clustering provider. If the required configuration is missing (e.g., `Redis.ConnectionString` for Redis type), the system throws an exception at startup.
+
+The Orleans cluster exposes a dashboard (default port `8080`) that can be useful for debugging in development environments.
 
 ---
 

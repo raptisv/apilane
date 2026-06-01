@@ -335,3 +335,5 @@ ASALocalRun/
 
 # Zensical docs
 /docs/site
+
+.sisyphus
