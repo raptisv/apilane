@@ -55,7 +55,7 @@ namespace Apilane.Api.Core.AppModules
                             Description = "Created (UTC)",
                             ValidationRegex = null,
                             TypeID = (int)PropertyType.Date,
-                            Maximum = int.MaxValue,
+                            Maximum = long.MaxValue,
                             Minimum = 0,
                             IsPrimaryKey = false,
                         }
@@ -142,7 +142,7 @@ namespace Apilane.Api.Core.AppModules
                             Description = "Created (UTC)",
                             ValidationRegex = null,
                             TypeID = (int)PropertyType.Date,
-                            Maximum = int.MaxValue,
+                            Maximum = long.MaxValue,
                             Minimum = 0,
                             IsPrimaryKey = false,
                         },
@@ -156,7 +156,7 @@ namespace Apilane.Api.Core.AppModules
                             Description = "The date the user was last seen (UTC)",
                             ValidationRegex = null,
                             TypeID = (int)PropertyType.Date,
-                            Maximum = int.MaxValue,
+                            Maximum = long.MaxValue,
                             Minimum = 0,
                             IsPrimaryKey = false,
                         },
@@ -276,7 +276,7 @@ namespace Apilane.Api.Core.AppModules
                             Description = "Created (UTC)",
                             ValidationRegex = null,
                             TypeID = (int)PropertyType.Date,
-                            Maximum = int.MaxValue,
+                            Maximum = long.MaxValue,
                             Minimum = 0,
                             IsPrimaryKey = false,
                         }
@@ -388,7 +388,7 @@ namespace Apilane.Api.Core.AppModules
                             Description = "The date the file was uploaded (UTC)",
                             ValidationRegex = null,
                             TypeID = (int)PropertyType.Date,
-                            Maximum = int.MaxValue,
+                            Maximum = long.MaxValue,
                             Minimum = 0,
                             IsPrimaryKey = false,
                         }
@@ -482,7 +482,7 @@ namespace Apilane.Api.Core.AppModules
                     IsPrimaryKey = false,
                     Name = Globals.CreatedColumn,
                     EntityID = -1, // TO FILL
-                    Maximum = int.MaxValue,
+                    Maximum = long.MaxValue,
                     Minimum = 0,
                     Required = true,
                     DateModified = DateTime.UtcNow,

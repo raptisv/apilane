@@ -547,7 +547,7 @@ namespace Apilane.Api.Core.Services
                                 Description = "Created (UTC)",
                                 ValidationRegex = null,
                                 TypeID = (int)PropertyType.Date,
-                                Maximum = int.MaxValue,
+                                Maximum = long.MaxValue,
                                 Minimum = 0,
                                 IsPrimaryKey = false,
                             }
@@ -610,7 +610,7 @@ namespace Apilane.Api.Core.Services
                                 Description = "Created (UTC)",
                                 ValidationRegex = null,
                                 TypeID = (int)PropertyType.Date,
-                                Maximum = int.MaxValue,
+                                Maximum = long.MaxValue,
                                 Minimum = 0,
                                 IsPrimaryKey = false,
                             }
@@ -673,7 +673,7 @@ namespace Apilane.Api.Core.Services
                                 Description = "Created (UTC)",
                                 ValidationRegex = null,
                                 TypeID = (int)PropertyType.Date,
-                                Maximum = int.MaxValue,
+                                Maximum = long.MaxValue,
                                 Minimum = 0,
                                 IsPrimaryKey = false,
                             }

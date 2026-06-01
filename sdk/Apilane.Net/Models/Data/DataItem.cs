@@ -1,7 +1,4 @@
-﻿using Apilane.Net.Extensions;
-using System;
-
-namespace Apilane.Net.Models.Data
+﻿namespace Apilane.Net.Models.Data
 {
     public class DataItem
     {
@@ -18,17 +15,6 @@ namespace Apilane.Net.Models.Data
         /// <summary>
         /// The date the record was created
         /// </summary>
-        public long? Created { get; set; }
-
-        /// <summary>
-        /// The date the record was created as a DateTime object
-        /// </summary>
-        public DateTime? Created_Date
-        {
-            get
-            {
-                return Created?.UnixTimestampToDatetime();
-            }
-        }
+        public long Created { get; set; }
     }
 }

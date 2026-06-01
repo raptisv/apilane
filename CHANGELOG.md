@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.5.0 (2026-06-01)
+- feat(refactor): Remove noaccess.db + In-memory rate limit + Orleans clustering options
+
 ## 8.4.12 (2026-03-07)
 - feat(portal): Added tree and matrix to visualize security
 
