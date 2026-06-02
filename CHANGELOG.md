@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.5.1 (2026-06-02)
+- fix(import): Fixed import
+
 ## 8.5.0 (2026-06-01)
 - feat(refactor): Remove noaccess.db + In-memory rate limit + Orleans clustering options
 
