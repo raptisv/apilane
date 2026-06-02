@@ -423,7 +423,7 @@ namespace Apilane.Api.Core.AppModules
                         IsPrimaryKey = false,
                         Name = differentiationEntity.GetDifferentiationPropertyName(),
                         EntityID = entity.ID,
-                        Maximum = int.MaxValue,
+                        Maximum = long.MaxValue,
                         Minimum = 0,
                         Required = false,
                         DateModified = DateTime.UtcNow,
@@ -504,7 +504,7 @@ namespace Apilane.Api.Core.AppModules
                     IsPrimaryKey = false,
                     Name = differentiationEntity.GetDifferentiationPropertyName(),
                     EntityID = -1, // TO FILL
-                    Maximum = int.MaxValue,
+                    Maximum = long.MaxValue,
                     Minimum = 0,
                     Required = false,
                     DateModified = DateTime.UtcNow,

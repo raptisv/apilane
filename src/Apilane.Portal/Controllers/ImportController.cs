@@ -79,6 +79,27 @@ namespace Apilane.Portal.Controllers
         {
             try
             {
+                if (!ModelState.IsValid)
+                {
+                    var errors = ModelState
+                        .Where(x => x.Value?.Errors.Count > 0)
+                        .Select(x => new
+                        {
+                            Field = x.Key,
+                            Errors = x.Value!.Errors.Select(e => new
+                            {
+                                e.ErrorMessage,
+                                Exception = e.Exception?.Message
+                            })
+                        });
+
+                    var errorMessages = ModelState
+                        .Where(x => x.Value?.Errors.Count > 0)
+                        .SelectMany(x => x.Value!.Errors.Select(e => e.ErrorMessage));
+
+                    return Json(new { Success = false, Error = string.Join("; ", errorMessages) });
+                }
+
                 var warnings = await ProcessImportAsync(request);
 
                 return Json(new { Success = true, Warnings = warnings });

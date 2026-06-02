@@ -75,7 +75,7 @@
 
                             <div class="form-group mb-3">
                                 <label class="form-label fw-semibold">JSON payload</label>
-                                <textarea id="importJson" class="form-control font-monospace" rows="20" placeholder='{"Entities": [], "Security": []}'></textarea>
+                                <textarea id="importJson" class="form-control font-monospace" rows="20" placeholder='{"Entities": [], "Security": [], "CustomEndpoints": []}'></textarea>
                             </div>
 
                             <div id="importResult" class="mb-3" style="display:none;"></div>
@@ -120,8 +120,7 @@
 <script type="text/javascript">
 
     var examplePayload = {
-        "Entities": [
-            {
+        "Entities": [{
                 "Name": "Product",
                 "Description": "Product catalog",
                 "RequireChangeTracking": false,
@@ -176,10 +175,8 @@
                         "Properties": "Product_ID,Product"
                     }
                 ]
-            }
-        ],
-        "Security": [
-            {
+         }],
+        "Security": [{
                 "Name": "Product",
                 "TypeID": 0,
                 "RoleID": "ANONYMOUS",
@@ -187,8 +184,12 @@
                 "Record": 0,
                 "Properties": null,
                 "RateLimit": null
-            }
-        ]
+        }],
+        "CustomEndpoints": [{
+              "Name": "GetAllProduct",
+              "Description": "Retrieves all products.",
+              "Query": "SELECT * FROM [Product];"
+        }]
     };
 
     document.getElementById('examplePayload').textContent = JSON.stringify(examplePayload, null, 2);
@@ -228,7 +229,7 @@
                     ? document.querySelector('input[name="__RequestVerificationToken"]').value
                     : ''
             },
-            body: JSON.stringify(payload)
+            body: jsonText
         })
         .then(function (response) { return response.json(); })
         .then(function (result) {
