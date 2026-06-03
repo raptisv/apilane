@@ -1,5 +1,9 @@
 # Changelog
 
+## 8.5.2 (2026-06-03)
+- feat(files): Introduced files cloud storage providers
+- fix(licenses): Update licenses
+
 ## 8.5.1 (2026-06-02)
 - fix(import): Fixed import
 
