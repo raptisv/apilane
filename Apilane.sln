@@ -96,8 +96,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "developer_guide", "develope
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "licenses", "licenses", "{996916D6-04A2-4416-A081-0C841E317CFD}"
 	ProjectSection(SolutionItems) = preProject
+		licenses\AWSSDK.S3-Apache-2.0 = licenses\AWSSDK.S3-Apache-2.0
+		licenses\Azure.Storage.Blobs-MIT = licenses\Azure.Storage.Blobs-MIT
 		licenses\d3.txt = licenses\d3.txt
 		licenses\FakeItEasy-MIT = licenses\FakeItEasy-MIT
+		licenses\Google.Cloud.Storage.V1-Apache-2.0 = licenses\Google.Cloud.Storage.V1-Apache-2.0
 		licenses\LigerShark.WebOptimizer.Core-Apache-2.0 = licenses\LigerShark.WebOptimizer.Core-Apache-2.0
 		licenses\MySqlConnector-MIT = licenses\MySqlConnector-MIT
 		licenses\OpenTelemetry-Apache-2.0 = licenses\OpenTelemetry-Apache-2.0

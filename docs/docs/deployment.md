@@ -4,8 +4,8 @@ An `Apilane Instance` consists of 2 services that can be deployed in any environ
 
 | Service | Image | Default Port | Purpose |
 |---|---|---|---|
-| **Apilane Portal** | `raptis/apilane:portal-8.4.9` | `5000` | Admin dashboard for managing applications, entities, security, and reports |
-| **Apilane API** | `raptis/apilane:api-8.4.9` | `5001` | REST API server that client applications connect to |
+| **Apilane Portal** | `raptis/apilane:portal-8.5.2` | `5000` | Admin dashboard for managing applications, entities, security, and reports |
+| **Apilane API** | `raptis/apilane:api-8.5.2` | `5001` | REST API server that client applications connect to |
 
 !!!info "Environment variables"
     Please visit [environment variables](getting_started.md#environment-variables) section for a description of the available environment variables.
