@@ -153,6 +153,12 @@
 
     public HtmlString GetProperties(DBWS_Application application, SecurityItem_DTO SecurityItem, string Endpoint, string RoleID, DBWS_Security? Item)
     {
+        // Files entity on POST: properties are system-managed, hide property-level security
+        if (SecurityItem.Name.Equals("Files") && Endpoint.Equals("post", StringComparison.OrdinalIgnoreCase))
+        {
+            return new HtmlString("");
+        }
+
         var propertiesAllowed = SecurityItem.Properties.Where(x => (Endpoint.Equals("get") && !x.IsPrimaryKey) || ((Endpoint.Equals("put") || Endpoint.Equals("post")) && !x.IsPrimaryKey && x.AllowEdit(application.DifferentiationEntity, SecurityItem.HasDifferentiationProperty))).ToList();
 
         if (propertiesAllowed.Count == 0)

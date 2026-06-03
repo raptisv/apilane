@@ -39,10 +39,13 @@ Both services use persistent volumes to store data:
 | Service | Volume | Container Path | Contents |
 |---|---|---|---|
 | Portal | `apilane-portal-data` | `/etc/apilanewebportal` | Portal SQLite database, data protection keys |
-| API | `apilane-api-data` | `/etc/apilanewebapi` | Application databases (SQLite), uploaded files |
+| API | `apilane-api-data` | `/etc/apilanewebapi` | Application databases (SQLite), uploaded files (if using LocalFileSystem storage) |
 
 !!!warning "Data persistence"
     Without proper volume mapping, all application data — databases, uploaded files, and configuration — will be lost when containers are recreated.
+
+!!!info "Cloud storage"
+    If using cloud file storage providers (Google Cloud Storage, AWS S3, Azure Blob Storage), uploaded files are stored in the cloud bucket/container. The API volume is only required for SQLite application databases. See [File Storage Providers](developer_guide/file_storage_providers.md) for configuration.
 
 ---
 
@@ -54,9 +57,12 @@ Apilane can be deployed to Kubernetes, on premise or in any cloud provider. Ther
     For Kubernetes deployments, all instances of the `Apilane Portal` and `Apilane API` services must be able to access the application files. Since on-disk files in a container are ephemeral, a [persistent volume](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) is required. You will have to map the following paths from environment variables:
 
     - For Portal map `FilesPath`
-    - For API map `FilesPath`
+    - For API map `FilesPath` (only required if using `LocalFileSystem` storage provider)
 
     Both can point to the same path since the files are not conflicting.
+
+!!!tip "Cloud storage for multi-instance deployments"
+    For production multi-instance deployments, consider using cloud file storage (Google Cloud Storage, AWS S3, Azure Blob Storage) instead of shared persistent volumes. Cloud storage eliminates the need for volume sharing and provides better scalability. See [File Storage Providers](developer_guide/file_storage_providers.md) for configuration.
 
 ### Multi-server setup
 

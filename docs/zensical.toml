@@ -18,6 +18,7 @@ nav = [
         { "Entities & Properties" = "developer_guide/entities_properties.md" },
         { "Storage Providers" = "developer_guide/storage_providers.md" },
         { "Files" = "developer_guide/files.md" },
+        { "File Storage Providers" = "developer_guide/file_storage_providers.md" },
         { "Filtering & Sorting" = "developer_guide/filtering_sorting.md" },
         { "Transactions" = "developer_guide/transactions.md" },
         { "Security" = "developer_guide/security.md" },

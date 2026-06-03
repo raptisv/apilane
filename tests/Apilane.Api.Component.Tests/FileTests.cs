@@ -92,7 +92,7 @@ namespace Apilane.Api.Component.Tests
             using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "Files",
                 inRole: securityRole,
                 actionType: SecurityActionType.post,
-                properties: new() { nameof(FileItem.Size), nameof(FileItem.Name), nameof(FileItem.Public), nameof(FileItem.UID) }))
+                properties: new() { nameof(FileItem.Size), nameof(FileItem.Name), nameof(FileItem.UID) }))
             {
                 postedFileId = await PostFile_ShouldSucceed(authtoken);
                 Assert.True(postedFileId > 0);

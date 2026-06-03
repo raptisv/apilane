@@ -1,13 +1,17 @@
 # Files
 
-Apilane provides built-in file storage for your applications. Files are stored on the API server's file system and their metadata is tracked in the `Files` system entity.
+Apilane provides built-in file storage for your applications. Files can be stored on the local server file system or in cloud object storage (Google Cloud Storage, AWS S3, Azure Blob Storage). File metadata is tracked in the `Files` system entity.
+
+!!!info "Storage Provider Configuration"
+    The file storage location is configured via the `FileStorage` section in `appsettings.json`. See [File Storage Providers](file_storage_providers.md) for setup instructions for each provider.
 
 ## How It Works
 
 - Files are uploaded via the **Files** controller (not the Data controller)
-- Each file gets a metadata record in the `Files` entity with properties like `Name`, `Size`, `UID`, and `Public`
+- Each file gets a metadata record in the `Files` entity with properties like `Name`, `Size`, `UID`
 - File access is governed by the same [security rules](security.md) as any other entity
 - The maximum allowed file size is configurable per application
+- Physical files are stored according to the configured storage provider (local file system or cloud storage)
 
 ## Uploading Files
 
@@ -21,17 +25,7 @@ Content-Type: multipart/form-data
 fileUpload: (binary file data)
 ```
 
-**Query parameters:**
-
-| Parameter | Required | Default | Description |
-|---|---|---|---|
-| `uid` | No | Auto-generated GUID | A custom unique identifier for the file. Accepts `a-z`, `A-Z`, `0-9`, `_`, `-`. If a file with the same UID exists, it will be overwritten. |
-| `public` | No | `false` | If `true`, the file is accessible to all users regardless of authorization rules. |
-
 **Response:** The new file's `ID` (integer).
-
-!!!info "Use case for public files"
-    Set `public=true` for assets like profile pictures or images used in HTML pages that need to be accessible without authentication.
 
 ## Downloading Files
 
@@ -47,10 +41,7 @@ GET https://my.api.server/api/Files/Download?fileUID={uid}
 x-application-token: {appToken}
 ```
 
-The response is the raw file binary with a `Content-Type` of `application/octet-stream`. Client caching is set to 60 minutes.
-
-!!!info "Tip"
-    You can use the Download URL directly in HTML `<img>` tags or as download links.
+The response is the raw file binary with a `Content-Type` header based on the file's MIME type. Client caching is set to 60 minutes.
 
 ## Listing Files
 
@@ -100,8 +91,6 @@ File access is controlled by the same role-based security rules as entities. Nav
 - Which roles can list/view file metadata (GET)
 - Which roles can delete files (DELETE)
 
-Files marked as `public=true` bypass read authorization and are accessible to anyone with the download URL.
-
 ## SDK Usage
 
 ``` csharp
@@ -110,8 +99,7 @@ byte[] fileBytes = System.IO.File.ReadAllBytes("photo.jpg");
 var uploadResponse = await _apilaneService.PostFileAsync(
     FilePostRequest.New()
         .WithAuthToken(authToken)
-        .WithFileName("photo.jpg")
-        .WithPublicFlag(false),
+        .WithFileName("photo.jpg"),
     fileBytes);
 
 // List files

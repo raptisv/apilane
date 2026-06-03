@@ -31,8 +31,11 @@
             }
 
             <div class="d-flex justify-content-start align-items-center mb-4">
-                <a href="@(Entity.AllowAddProperties() ? Url.RouteUrl("EntRoute", new {controller = "Entity", action = "PropertyCreate", appid = Application.Token, entid = Entity.Name }) : "#")" class="btn btn-primary"><span class="bi bi-plus me-1"></span>New property</a>
-                <a title="@Entity.Name data" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Data", appid = Html.GetAppToken(), entid = Entity.Name, inFrame = true })" class="ms-2 btn btn-default iframe-link-popup"><i class="bi bi-database"></i></a>
+                @if (Entity.AllowAddProperties())
+                {
+                    <a href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "PropertyCreate", appid = Application.Token, entid = Entity.Name })" class="btn btn-primary me-2"><span class="bi bi-plus me-1"></span>New property</a>
+                }
+                <a title="@Entity.Name data" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Data", appid = Html.GetAppToken(), entid = Entity.Name, inFrame = true })" class="btn btn-default iframe-link-popup"><i class="bi bi-database"></i></a>
             </div>
 
             <div class="row clearfix">

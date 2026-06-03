@@ -10,6 +10,7 @@ using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Data.Abstractions;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -26,17 +27,23 @@ namespace Apilane.Api.Core
         private IApplicationDataService _appDataService;
         private IApplicationService _applicationService;
         private IApplicationDataStoreFactory _dataStore;
+        private ICloudStorageProvider _storageProvider;
+        private readonly ILogger<FileAPI> _logger;
 
         public FileAPI(
             ApiConfiguration apiConfiguration,
             IApplicationDataService appDataService,
             IApplicationService applicationService,
-            IApplicationDataStoreFactory dataStore)
+            IApplicationDataStoreFactory dataStore,
+            ICloudStorageProvider storageProvider,
+            ILogger<FileAPI> logger)
         {
             _apiConfiguration = apiConfiguration;
             _appDataService = appDataService;
             _applicationService = applicationService;
             _dataStore = dataStore;
+            _storageProvider = storageProvider;
+            _logger = logger;
         }
 
         public async Task<Files?> GetFileItemAsync(long fileID)
@@ -56,7 +63,6 @@ namespace Apilane.Api.Core
                      UID = Utils.GetString(result[nameof(Files.UID)]),
                      Size = Utils.GetDouble(result[nameof(Files.Size)], 0),
                      Name = Utils.GetString(result[nameof(Files.Name)]),
-                     Public = Utils.GetBool(result[nameof(Files.Public)]),
                 };
             }
 
@@ -67,7 +73,7 @@ namespace Apilane.Api.Core
         {
             var resultList = await _dataStore.GetPagedDataAsync(
                 nameof(Files),
-                new List<string>() { nameof(Files.ID), nameof(Files.Owner), nameof(Files.Created), nameof(Files.UID), nameof(Files.Size), nameof(Files.Name), nameof(Files.Public) },
+            new List<string>() { nameof(Files.ID), nameof(Files.Owner), nameof(Files.Created), nameof(Files.UID), nameof(Files.Size), nameof(Files.Name) },
                 new FilterData(nameof(Files.UID), FilterData.FilterOperators.equal, fileUID, PropertyType.String),
                 null, 1, 1);
 
@@ -82,7 +88,6 @@ namespace Apilane.Api.Core
                     UID = Utils.GetString(result[nameof(Files.UID)]),
                     Size = Utils.GetDouble(result[nameof(Files.Size)], 0),
                     Name = Utils.GetString(result[nameof(Files.Name)]),
-                    Public = Utils.GetBool(result[nameof(Files.Public)]),
                 };
             }
 
@@ -157,6 +162,13 @@ namespace Apilane.Api.Core
                 pageSize = 1000;
             }
 
+            var systemFilters = _appDataService.GetSystemFilters(userHasFullAccess, differentiationEntity, entityFiles, (appUser, userSecurity));
+            var filterData = _appDataService.GetFilterData(entityFiles, filter, userSecurity);
+            if (filterData is not null)
+            {
+                systemFilters.Add(filterData);
+            }
+
             return await _appDataService.GetAsync(
                 appToken,
                 differentiationEntity,
@@ -164,7 +176,7 @@ namespace Apilane.Api.Core
                 entityFiles,
                 pageIndex,
                 pageSize,
-                _appDataService.GetFilterData(entityFiles, filter, userSecurity),
+                new FilterData(FilterData.FilterLogic.AND, systemFilters),
                 _appDataService.GetSortData(entityFiles, sort, userSecurity),
                 properties,
                 (appUser, userSecurity),
@@ -181,13 +193,15 @@ namespace Apilane.Api.Core
             string? differentiationEntity,
             string applicationEncryptionKey,
             int maxAllowedFileSizeInKB,
-            byte[] buffer,
-            string fileName,
-            string fileUID,
-            bool isPublic)
+            Stream fileContent,
+            long contentLength,
+            string fileName)
         {
+            var fullPropertyAccess = EntityAccess.GetFull(nameof(Files), filesEntity.Properties, SecurityActionType.post);
+
+            // The file will be created with full access but at this point we need to confirm that the user has post access to Files.
             var userSecurity = userHasFullAccess
-                ? EntityAccess.GetFull(nameof(Files), filesEntity.Properties, SecurityActionType.post)
+                ? fullPropertyAccess
                 : EntityAccess.GetMaximum(appUser, applicationSecurityList, nameof(Files), SecurityTypes.Entity, SecurityActionType.post);
 
             if (userSecurity.Count == 0)
@@ -195,14 +209,7 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: nameof(Files));
             }
 
-            fileUID = (appUser?.ID.ToString() ?? string.Empty)
-                + "_"
-                + (string.IsNullOrWhiteSpace(fileUID) ? Guid.NewGuid().ToString() : fileUID);
-
-            if (!Utils.IsValidRegexMatch(fileUID, "^[a-zA-Z0-9_-]+$"))
-            {
-                throw new Exception("UID accepts only a-z, A-Z, 0-9, _, -");
-            }
+            string fileUID = Guid.NewGuid().ToString();
 
             var newFile = new Files()
             {
@@ -210,9 +217,8 @@ namespace Apilane.Api.Core
                 Name = fileName,
                 UID = fileUID,
                 Owner = appUser?.ID,
-                Public = isPublic,
                 Created = Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow),
-                Size = buffer.Length / 1024.0 / 1024.0
+                Size = contentLength / 1024.0 / 1024.0,
             };
 
             if (_apiConfiguration.InvalidFilesExtentions.Contains(new FileInfo(newFile.Name).Extension.ToLower()))
@@ -229,7 +235,7 @@ namespace Apilane.Api.Core
             // Validate things like file size etc.
             await ValidateFileObjectAsync(newFile.Size, newFile.UID, currentRoot, maxAllowedFileSizeInKB);
 
-            // Create the file object
+            // Create the file object with full property access (Files properties are system-managed, not user-provided)
             var result = await _appDataService.PostAsync(
                 appToken,
                 filesEntity,
@@ -237,10 +243,10 @@ namespace Apilane.Api.Core
                 differentiationEntity,
                 applicationEncryptionKey,
                 JsonSerializer.Serialize(newFile),
-                (appUser, userSecurity));
+                (appUser, fullPropertyAccess));
 
             // First create the file object in database (to apply security) and then save the file
-            File.WriteAllBytes(Path.Combine(currentRoot.FullName, newFile.UID), buffer);
+            await _storageProvider.PutAsync(appToken, fileUID, fileContent, contentLength);
 
             return result.FirstOrDefault();
         }
@@ -313,16 +319,26 @@ namespace Apilane.Api.Core
 
                 if (fileItems.Count > 0)
                 {
-                    // First delete to validate access
+                    var fileUidsToDelete = fileItems
+                        .Select(x => Utils.GetString(x[nameof(Files.UID)]))
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .ToList();
+
                     result = await _appDataService.DeleteAsync(appToken, filesEntity, userHasFullAccess, differentiationEntity, applicationEncryptionKey, finalIdsToDelete, (appUser, userSecurity));
 
-                    // Then delete the files
-                    foreach (var file in fileItems)
+                    foreach (var fileUid in fileUidsToDelete)
                     {
-                        var fileInfo = new FileInfo($"{appToken.GetFilesRootDirectoryInfo(_apiConfiguration.FilesPath).FullName}\\{file[nameof(Files.UID)]}");
-                        if (fileInfo.Exists)
+                        try
                         {
-                            fileInfo.Delete();
+                            await _storageProvider.DeleteAsync(appToken, fileUid);
+                        }
+                        catch (Exception ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException)
+                        {
+                            // File is already gone; the database delete has succeeded.
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to delete physical file {UID} for application {AppToken}", fileUid, appToken);
                         }
                     }
                 }

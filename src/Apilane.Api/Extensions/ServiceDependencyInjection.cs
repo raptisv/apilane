@@ -4,8 +4,8 @@ using Apilane.Api.Core.Abstractions.Metrics;
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Services;
 using Apilane.Api.Core.Services.Metrics;
+using Apilane.Api.Core.Services.Storage;
 using Apilane.Common.Abstractions;
-using Apilane.Common.Models;
 using Apilane.Common.Models.Dto;
 using Apilane.Common.Services;
 using Apilane.Data.Abstractions;
@@ -78,6 +78,19 @@ namespace Apilane.Api.Extensions
                     c.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                     c.Timeout = TimeSpan.FromSeconds(5);
                 });
+
+            services.AddSingleton<ICloudStorageProvider>((sp) =>
+            {
+                var provider = apiConfiguration.FileStorage.Provider;
+                return provider switch
+                {
+                    StorageProviderType.LocalFileSystem => new LocalFileSystemProvider(apiConfiguration),
+                    StorageProviderType.GoogleCloudStorage => new GoogleCloudStorageProvider(apiConfiguration.FileStorage),
+                    StorageProviderType.AwsS3 => new AwsS3StorageProvider(apiConfiguration.FileStorage),
+                    StorageProviderType.AzureBlobStorage => new AzureBlobStorageProvider(apiConfiguration.FileStorage),
+                    _ => throw new InvalidOperationException($"Unknown storage provider: {provider}")
+                };
+            });
 
             // Hosted services
 

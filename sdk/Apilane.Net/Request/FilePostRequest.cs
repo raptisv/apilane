@@ -8,7 +8,6 @@ namespace Apilane.Net.Request
         public static FilePostRequest New() => new();
 
         private string? _fileUid;
-        private bool _public;
         private string? _fileName;
 
         private FilePostRequest() : base(null, "Files", "Post")
@@ -29,12 +28,6 @@ namespace Apilane.Net.Request
             return this;
         }
 
-        public FilePostRequest WithPublicFlag(bool isPublic)
-        {
-            _public = isPublic;
-            return this;
-        }
-
         public FilePostRequest WithFileUID(string fileUid)
         {
             _fileUid = fileUid;
@@ -43,10 +36,7 @@ namespace Apilane.Net.Request
 
         protected override NameValueCollection GetExtraParams()
         {
-            var extraParams = new NameValueCollection
-            {
-                { "public", _public.ToString().ToLower() }
-            };
+            var extraParams = new NameValueCollection();
 
             if (!string.IsNullOrWhiteSpace(_fileUid))
             {

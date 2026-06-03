@@ -290,7 +290,7 @@ namespace Apilane.Api.Core.AppModules
                     Name = nameof(Files),
                     Description = "Stores the files",
                     RequireChangeTracking = false,
-                    HasDifferentiationProperty = false,
+                    HasDifferentiationProperty = true,
                     EntConstraints = JsonSerializer.Serialize(new List<EntityConstraint>()
                     {
                         new()
@@ -352,18 +352,6 @@ namespace Apilane.Api.Core.AppModules
                             Description = "The file's size in MB",
                             TypeID = (int)PropertyType.Number,
                             DecimalPlaces = 6,
-                            IsPrimaryKey = false,
-                        },
-                        new()
-                        {
-                            ID = -1,
-                            IsSystem = true,
-                            EntityID = -1,// TO FILL
-                            Name = nameof(Files.Public),
-                            Required = true,
-                            Description = "True if the file is public",
-                            TypeID = (int)PropertyType.Boolean,
-                            DecimalPlaces = null,
                             IsPrimaryKey = false,
                         },
                         new()

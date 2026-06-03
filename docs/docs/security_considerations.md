@@ -24,6 +24,18 @@ Access to the Portal should ideally be restricted to a private network. If that 
 
 The Portal uses ASP.NET Identity with cookie-based authentication (`Apilane.Portal.Identity`). Portal passwords require a minimum of 8 characters. Data protection keys are persisted to the `FilesPath` directory.
 
+### File storage credentials
+
+When using cloud file storage providers (Google Cloud Storage, AWS S3, Azure Blob Storage), proper credential management is critical:
+
+- **Never commit credentials** to source control (service account JSON files, access keys, connection strings)
+- **Use secrets management**: Docker secrets, Kubernetes secrets, or cloud-native secret managers (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager)
+- **Rotate credentials regularly**: Establish a credential rotation policy and update secrets without service downtime
+- **Least privilege**: Grant only the minimum required permissions (`s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` for S3; Storage Object Admin for GCS; Blob Data Contributor for Azure)
+- **Use managed identities** when available: Workload Identity (GKE), IAM Roles (EKS), Managed Identity (AKS) eliminate the need for static credentials
+
+See [File Storage Providers](developer_guide/file_storage_providers.md) for provider-specific credential configuration examples.
+
 ---
 
 ## Apilane API (Server)

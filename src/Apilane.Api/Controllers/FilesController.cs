@@ -4,17 +4,17 @@ using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Core.Models.AppModules.Files;
+using Apilane.Api.Models.ViewModels;
 using Apilane.Common.Enums;
 using Apilane.Common.Models;
+using Apilane.Common.Utilities;
 using Apilane.Api.Attributes;
 using Apilane.Api.Filters;
-using Apilane.Api.Models.ViewModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Orleans;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -25,15 +25,18 @@ namespace Apilane.Api.Controllers
     {
         private readonly IFileAPI _fileAPI;
         private readonly IMetricsService _metricsService;
+        private readonly ICloudStorageProvider _storageProvider;
 
         public FilesController(
             ApiConfiguration apiConfiguration,
             IFileAPI fileAPI,
             IClusterClient clusterClient,
-            IMetricsService metricsService) : base(apiConfiguration, clusterClient)
+            IMetricsService metricsService,
+            ICloudStorageProvider storageProvider) : base(apiConfiguration, clusterClient)
         {
             _fileAPI = fileAPI;
             _metricsService = metricsService;
+            _storageProvider = storageProvider;
         }
 
         /// <summary>
@@ -142,54 +145,41 @@ namespace Apilane.Api.Controllers
 
         private async Task<IActionResult> GetGivenTheIDAsync(Files fileItem)
         {
-            // Do not validate access if file is public
-            if (!fileItem.Public)
-            {
-                // Make this call to validate access to the file record
-                var item = await _fileAPI.GetByIdAsync(
-                    Application.Token,
-                    GetEntity(nameof(Files)),
-                    UserHasFullAccess,
-                    ApplicationUser,
-                    Application.Security_List,
-                    Application.DifferentiationEntity,
-                    Application.EncryptionKey,
-                    fileItem.ID,
-                    null);
+            var item = await _fileAPI.GetByIdAsync(
+                Application.Token,
+                GetEntity(nameof(Files)),
+                UserHasFullAccess,
+                ApplicationUser,
+                Application.Security_List,
+                Application.DifferentiationEntity,
+                Application.EncryptionKey,
+                fileItem.ID,
+                null);
 
-                // If the user has no specific access set, he is unauthorized
-                if (item == null)
-                {
-                    throw new ApilaneException(AppErrors.UNAUTHORIZED, null, null);
-                }
+            if (item == null)
+            {
+                return NotFound();
             }
 
-            var fileInfo = _fileAPI.GetFileInfoAsync(Application.Token, fileItem.UID);
-            if (!fileInfo.Exists)
+            var stream = await _storageProvider.GetAsync(Application.Token, fileItem.UID);
+            var contentType = MimeTypeDetector.GetMimeType(fileItem.Name);
+            return new FileStreamResult(stream, contentType)
             {
-                throw new ApilaneException(AppErrors.FILE_NOT_FOUND, null, null);
-            }
-
-            byte[] fileBytes = System.IO.File.ReadAllBytes(fileInfo.FullName);
-            return File(fileBytes, "application/octet-stream", fileItem.Name);
+                FileDownloadName = fileItem.Name
+            };
         }
 
         /// <summary>
         ///  Use this endpoint to upload a file
         /// </summary>
         /// <param name="fileUpload"></param>
-        /// <param name="uid">The file unique udentifier. If not provided the platform will assign a guid. Accepts a-z, A-Z, 0-9, _, -. Any file with the same UID will be overriden by the new file. Visit help section for more info.</param>
-        /// <param name="public">Default value false. Set it to true, to allow all users access this specific file, besides authorization. (example use: images for html pages)</param>
         /// <returns>Returns the new created file ID</returns>
         [HttpPost]
         [Produces("application/json")]
         [ProducesResponseType(typeof(long), (int)HttpStatusCode.OK)]
         [ProducesResponseType(typeof(ApiErrorVm), (int)HttpStatusCode.Unauthorized)]
         [DisableRequestSizeLimit]
-        public async Task<long> Post(
-            IFormFile fileUpload,
-            string uid = null!,
-            bool @public = false)
+        public async Task<long> Post(IFormFile fileUpload)
         {
             using var metricsTimer = _metricsService.RecordDataDuration("post", "files", Application.Token);
 
@@ -198,13 +188,7 @@ namespace Apilane.Api.Controllers
                 throw new ApilaneException(AppErrors.ERROR, "No file found to upload");
             }
 
-            byte[] buffer;
-            using (var ms = new MemoryStream())
-            {
-                fileUpload.CopyTo(ms);
-                buffer = ms.ToArray();
-            }
-
+            using var stream = fileUpload.OpenReadStream();
             return await _fileAPI.PostAsync(
                 Application.Token,
                 GetEntity(nameof(Files)),
@@ -215,10 +199,9 @@ namespace Apilane.Api.Controllers
                 Application.DifferentiationEntity,
                 Application.EncryptionKey,
                 Application.MaxAllowedFileSizeInKB,
-                buffer,
-                fileUpload.FileName,
-                uid,
-                @public);
+                stream,
+                fileUpload.Length,
+                fileUpload.FileName);
         }
 
         /// <summary>

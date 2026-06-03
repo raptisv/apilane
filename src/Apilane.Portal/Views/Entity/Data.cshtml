@@ -169,7 +169,7 @@
 
             @foreach (var prop in Model.Entity.Properties.Where(x => x.AllowEdit(Model.Application.DifferentiationEntity, Model.Entity.HasDifferentiationProperty)))
             {
-                <tr>
+                <tr class="property-row property-row-@prop.Name">
                     <td class="prop-label">
                         @prop.Name
                     </td>
@@ -219,27 +219,6 @@
                 </td>
                 <td>
                     <input id="file-upload" type="file" name="FileUpload" class="text_input">
-                </td>
-            </tr>
-            <tr>
-                <td class="prop-label">
-                    UID
-                </td>
-                <td>
-                    <input id="string-UID" class="text_input input-data input-UID" type="text" />
-                </td>
-            </tr>
-            <tr>
-                <td class="prop-label">
-                    Public
-                </td>
-                <td>
-                    <div id="select-file-Public">
-                        <select class="form-control">
-                            <option value="false">False</option>
-                            <option value="true">True</option>
-                        </select>
-                    </div>
                 </td>
             </tr>
         </table>
@@ -821,14 +800,7 @@
                 $('.inpIsPortalRequestHeaderNameIsPortalRequestHeaderNamet-data').removeClass('border-red');
                 if (submit) {
                     var data = {
-                        @if (IsFiles)
-                        {
-                            <text>
-                            UID: $('#string-UID').val(),
-                            Public: $('#select-file-Public select option:selected').val()
-                            </text>
-                        }
-                        else
+                        @if (!IsFiles)
                         {
                             foreach (var prop in Model.Entity.Properties.Where(x => x.AllowEdit(Model.Application.DifferentiationEntity, Model.Entity.HasDifferentiationProperty)))
                             {
@@ -856,7 +828,7 @@
                     {
                         if (CurrentFileData != null) {
 
-                            $('#file-upload').fileupload('option', 'url', '@Html.Raw(PostUrl)?UID=' + data.UID + '&Public=' + data.Public);
+                            $('#file-upload').fileupload('option', 'url', '@Html.Raw(PostUrl)');
 
                             CurrentFileData.submit();
 
@@ -901,6 +873,11 @@
 
             if (action == 'CREATE') {
                 $('.data-post-info').show();
+                // Hide Roles property for Users entity on register (not available on register endpoint)
+                @if (Model.Entity.Name.Equals("Users"))
+                {
+                    @: $('.property-row-Roles').hide();
+                }
             } else { // UPDATE
                 $('.data-post-info').hide();
             }

@@ -16,6 +16,6 @@ namespace Apilane.Api.Core.Abstractions
         FileInfo GetFileInfoAsync(string appToken, string fileUID);
         Task<Files?> GetFileItemAsync(long FileID);
         Task<Files?> GetFileItemAsync(string FileUID);
-        Task<long> PostAsync(string appToken, DBWS_Entity entity, bool userHasFullAccess, Users? appUser, List<DBWS_Security> applicationSecurityList, DatabaseType databaseType, string? differentiationEntity, string applicationEncryptionKey, int maxAllowedFileSizeInKB, byte[] buffer, string FileName, string UID, bool Public);
+        Task<long> PostAsync(string appToken, DBWS_Entity entity, bool userHasFullAccess, Users? appUser, List<DBWS_Security> applicationSecurityList, DatabaseType databaseType, string? differentiationEntity, string applicationEncryptionKey, int maxAllowedFileSizeInKB, Stream fileContent, long contentLength, string fileName);
     }
 }

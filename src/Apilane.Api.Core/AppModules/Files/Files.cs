@@ -6,7 +6,6 @@
         public string Name { get; set; } = null!;
         public string UID { get; set; } = null!;
         public long? Owner { get; set; }
-        public bool Public { get; set; }
 
         /// <summary>
         /// File size in MB

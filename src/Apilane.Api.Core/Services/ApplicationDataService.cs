@@ -431,7 +431,6 @@ namespace Apilane.Api.Core.Services
             }
 
             var listIDsToDelete = recordsAllowedToDelete.Data.AsEnumerable().Select(x => Utils.GetLong(x[Globals.PrimaryKeyColumn])).ToList();
-
             await _applicationHelperService.DeleteHistoryAsync(entity.Name, listIDsToDelete);
 
             var deleteFilter = new FilterData(Globals.PrimaryKeyColumn, FilterData.FilterOperators.contains, string.Join(",", listIDsToDelete), PropertyType.Number);
