@@ -784,6 +784,58 @@ export class DataGetByIdRequest extends ApilaneRequestBase {
     }
 }
 
+/** Get record history request builder (paged change-tracking history for a single record). */
+export class DataGetHistoryByIdRequest extends ApilaneRequestBase {
+    #id;
+    #pageIndex = 1;
+    #pageSize = 10;
+
+    /**
+     * @param {string} entity
+     * @param {number} id
+     */
+    constructor(entity, id) {
+        super(entity, 'Data', 'GetHistoryByID');
+        this.#id = id;
+    }
+
+    /**
+     * @param {string} entity
+     * @param {number} id
+     * @returns {DataGetHistoryByIdRequest}
+     */
+    static new(entity, id) {
+        return new DataGetHistoryByIdRequest(entity, id);
+    }
+
+    /**
+     * @param {number} pageIndex
+     * @returns {this}
+     */
+    withPageIndex(pageIndex) {
+        this.#pageIndex = pageIndex;
+        return this;
+    }
+
+    /**
+     * @param {number} pageSize
+     * @returns {this}
+     */
+    withPageSize(pageSize) {
+        this.#pageSize = pageSize;
+        return this;
+    }
+
+    /** @internal */
+    _getExtraParams() {
+        const params = new URLSearchParams();
+        params.set('id', String(this.#id));
+        params.set('pageIndex', String(this.#pageIndex));
+        params.set('pageSize', String(this.#pageSize));
+        return params;
+    }
+}
+
 /** Get all data request builder (auto-paginated). */
 export class DataGetAllRequest {
     #entity;
@@ -1959,6 +2011,20 @@ export class ApilaneService {
      * @returns {Promise<ApilaneResult<object>>}
      */
     async getDataById(request, signal) {
+        return this.#get(request, signal);
+    }
+
+    /**
+     * Gets the change-tracking history for a single record, paged and ordered newest first.
+     * Each entry holds the record's property values before the change plus the
+     * History_Record_Created and History_Record_Owner metadata columns.
+     * History is resolved through the live record — once the record is deleted this returns a NOT_FOUND error.
+     * Returns `{ Data: [...], Total: number }`.
+     * @param {DataGetHistoryByIdRequest} request
+     * @param {AbortSignal} [signal]
+     * @returns {Promise<ApilaneResult<{ Data: object[], Total: number }>>}
+     */
+    async getHistoryById(request, signal) {
         return this.#get(request, signal);
     }
 

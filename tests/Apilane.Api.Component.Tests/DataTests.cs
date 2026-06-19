@@ -63,6 +63,15 @@ namespace Apilane.Api.Component.Tests
             public long ParentId { get; set; }
         }
 
+        // Shape returned by the GetHistoryByID endpoint: the entity's previous property
+        // values plus the change-tracking metadata columns.
+        private class CustomEntityLightHistory
+        {
+            public string? Custom_String_Required { get; set; }
+            public long History_Record_Created { get; set; }
+            public long? History_Record_Owner { get; set; }
+        }
+
         //private class CustomEntityFull : DataItem
         //{
         //    public const string EntityName = "CustomEntityFull";
@@ -122,6 +131,96 @@ namespace Apilane.Api.Component.Tests
             foreach (var role in roles)
             {
                 await Assert_CRUD_With_AuthToken_Security_Async(authToken, role);
+            }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task GetHistoryById_Should_Return_Record_Change_History(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
+
+            // Add custom entity WITH change tracking enabled, plus a property
+            await AddEntityAsync(CustomEntityLight.EntityName, requireChangeTracking: true);
+            await AddStringPropertyAsync(CustomEntityLight.EntityName, nameof(CustomEntityLight.Custom_String_Required), required: true);
+
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.put,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.get,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.delete))
+            {
+                // POST a record
+                var postResult = await ApilaneService.PostDataAsync(
+                    DataPostRequest.New(CustomEntityLight.EntityName),
+                    new { Custom_String_Required = "v1" });
+                var id = postResult.Match(r => r.Single(), e => throw new Exception($"Post failed | {e.Code} | {e.Message}"));
+
+                // No history exists before any update
+                var initialHistory = await ApilaneService.GetHistoryByIdAsync<CustomEntityLightHistory>(
+                    DataGetHistoryByIdRequest.New(CustomEntityLight.EntityName, id));
+                var initialResponse = initialHistory.Match(r => r, e => throw new Exception($"GetHistory failed | {e.Code} | {e.Message}"));
+                Assert.Equal(0, initialResponse.Total);
+                Assert.Empty(initialResponse.Data);
+
+                // Two updates -> two history snapshots holding the previous values
+                var put1 = await ApilaneService.PutDataAsync(
+                    DataPutRequest.New(CustomEntityLight.EntityName),
+                    new { ID = id, Custom_String_Required = "v2" });
+                put1.Match(r => r, e => throw new Exception($"Put1 failed | {e.Code} | {e.Message}"));
+
+                var put2 = await ApilaneService.PutDataAsync(
+                    DataPutRequest.New(CustomEntityLight.EntityName),
+                    new { ID = id, Custom_String_Required = "v3" });
+                put2.Match(r => r, e => throw new Exception($"Put2 failed | {e.Code} | {e.Message}"));
+
+                // History now holds the two previous values ("v1" before the first update, "v2" before the second)
+                var historyResult = await ApilaneService.GetHistoryByIdAsync<CustomEntityLightHistory>(
+                    DataGetHistoryByIdRequest.New(CustomEntityLight.EntityName, id)
+                        .WithPageIndex(1)
+                        .WithPageSize(20));
+                var historyResponse = historyResult.Match(r => r, e => throw new Exception($"GetHistory failed | {e.Code} | {e.Message}"));
+
+                Assert.Equal(2, historyResponse.Total);
+                Assert.Equal(2, historyResponse.Data.Count);
+                // Each entry carries the change-tracking metadata
+                Assert.All(historyResponse.Data, h => Assert.True(h.History_Record_Created > 0));
+                // The snapshots contain the previous values (order-independent assertion to avoid timestamp ties)
+                var historicalValues = historyResponse.Data.Select(h => h.Custom_String_Required).ToList();
+                Assert.Contains("v1", historicalValues);
+                Assert.Contains("v2", historicalValues);
+
+                // Paging: page size 1 returns a single entry but reports the full total
+                var pagedResult = await ApilaneService.GetHistoryByIdAsync<CustomEntityLightHistory>(
+                    DataGetHistoryByIdRequest.New(CustomEntityLight.EntityName, id)
+                        .WithPageIndex(1)
+                        .WithPageSize(1));
+                var pagedResponse = pagedResult.Match(r => r, e => throw new Exception($"GetHistory paged failed | {e.Code} | {e.Message}"));
+                Assert.Single(pagedResponse.Data);
+                Assert.Equal(2, pagedResponse.Total);
+
+                // The endpoint resolves history through the live record: once the record is
+                // deleted it can no longer be located, so the endpoint returns NOT_FOUND
+                // (the history rows themselves remain in the database).
+                var deleteResult = await ApilaneService.DeleteDataAsync(
+                    DataDeleteRequest.New(CustomEntityLight.EntityName).AddIdToDelete(id));
+                deleteResult.Match(r => r, e => throw new Exception($"Delete failed | {e.Code} | {e.Message}"));
+
+                var historyAfterDelete = await ApilaneService.GetHistoryByIdAsync<CustomEntityLightHistory>(
+                    DataGetHistoryByIdRequest.New(CustomEntityLight.EntityName, id));
+                historyAfterDelete.Match(
+                    r => throw new Exception("History should not be returned for a deleted record"),
+                    e => Assert.Equal(ValidationError.NOT_FOUND, e.Code));
             }
         }
 

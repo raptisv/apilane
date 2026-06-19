@@ -25,18 +25,15 @@ namespace Apilane.Api.Controllers
     public class DataController : BaseApplicationApiController
     {
         private readonly IDataAPI _dataAPI;
-        private readonly IEntityHistoryAPI _entityHistoryAPI;
         private readonly IMetricsService _metricsService; 
 
         public DataController(
             ApiConfiguration apiConfiguration,
             IDataAPI dataAPI,
-            IEntityHistoryAPI entityHistoryAPI,
             IClusterClient clusterClient,
             IMetricsService metricsService) : base(apiConfiguration, clusterClient)
         {
             _dataAPI = dataAPI;
-            _entityHistoryAPI = entityHistoryAPI;
             _metricsService = metricsService;
         }
 

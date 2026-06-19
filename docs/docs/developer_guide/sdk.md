@@ -234,6 +234,21 @@ var product = await _apilaneService.GetDataByIdAsync<Product>(
         .WithAuthToken(authToken));
 ```
 
+### Get Record History
+
+Returns the change-tracking history for a single record (newest first), when the entity has change tracking enabled. Each entry holds the record's property values *before* the change, plus `History_Record_Created` (Unix ms) and `History_Record_Owner` (user id, nullable). Supply a model `T` that combines the entity's properties with those two columns. History is resolved through the live record — once the record is deleted the endpoint returns a `NOT_FOUND` error.
+
+```csharp
+var history = await _apilaneService.GetHistoryByIdAsync<ProductHistory>(
+    DataGetHistoryByIdRequest.New("Products", id: 1)
+        .WithPageSize(20)
+        .WithPageIndex(1)
+        .WithAuthToken(authToken));
+
+var entries = history.Value.Data;   // each entry: Name, Price, ..., History_Record_Created, History_Record_Owner
+int total = history.Value.Total;
+```
+
 ### Create Records
 
 ```csharp

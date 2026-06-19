@@ -74,6 +74,41 @@ namespace Apilane.Net.Services
             }
         }
 
+        /// <summary>
+        /// Retrieves the change-tracking history for a single record, paged and ordered newest first.
+        /// Each entry holds the record's property values before the change plus the
+        /// History_Record_Created and History_Record_Owner metadata columns.
+        /// History is resolved through the live record — once the record is deleted the endpoint returns a NOT_FOUND error.
+        /// </summary>
+        public async Task<Either<DataTotalResponse<T>, ApilaneError>> GetHistoryByIdAsync<T>(
+            DataGetHistoryByIdRequest request,
+            JsonSerializerOptions? customJsonSerializerOptions = null,
+            CancellationToken cancellationToken = default)
+        {
+            using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
+            {
+                var authorizationToken = await GetAuthTokenAsync(request);
+                if (!string.IsNullOrWhiteSpace(authorizationToken))
+                {
+                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
+                }
+                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var jsonString = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    if (request.ShouldThrowExceptionOnError())
+                    {
+                        throw new Exception(errorResponse.BuildErrorMessage());
+                    }
+                    return errorResponse;
+                }
+
+                return JsonSerializer.Deserialize<DataTotalResponse<T>>(jsonString, customJsonSerializerOptions ?? JsonDeserializerSettings)!;
+            }
+        }
+
         public async Task<Either<DataResponse<T>, ApilaneError>> GetDataAsync<T>(
             DataGetListRequest request,
             JsonSerializerOptions? customJsonSerializerOptions = null,

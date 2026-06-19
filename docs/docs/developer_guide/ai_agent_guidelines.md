@@ -200,6 +200,45 @@ const result = await apilane.getData(
 
 ---
 
+### Record History
+
+When an entity has change tracking enabled, Apilane stores a snapshot of a record's **previous values** every time it is updated. Use `GetHistoryByIdAsync` / `getHistoryById` to read a single record's history, paged and ordered newest-first.
+
+It returns `{ Data, Total }`. Each `Data` entry contains the entity's property values **as they were before that change** (only the properties the caller has `get` access to), plus two metadata columns:
+
+| Field | Description |
+|---|---|
+| `History_Record_Created` | Unix timestamp (ms) of the change |
+| `History_Record_Owner` | The user ID that made the change (nullable) |
+| *(entity properties)* | The record's values before the change, e.g. `Name`, `Price` |
+
+```csharp
+// .NET — supply a model with the entity's properties + the two metadata columns
+var history = await apilane.GetHistoryByIdAsync<ProductHistory>(
+    DataGetHistoryByIdRequest.New("Products", 5)
+        .WithPageSize(20)
+        .WithPageIndex(1)
+        .WithAuthToken(token));
+var entries = history.Value.Data;   // each: Name, Price, ..., History_Record_Created, History_Record_Owner
+int total = history.Value.Total;
+```
+```javascript
+// JavaScript
+const history = await apilane.getHistoryById(
+    DataGetHistoryByIdRequest.new('Products', 5)
+        .withPageSize(20)
+        .withPageIndex(1)
+        .withAuthToken(token)
+);
+const entries = history.value.Data;
+```
+
+- Requires `get` access to the entity — only properties granted by that security are included in each snapshot
+- Default page size is 10; always set `.WithPageSize()` / `.withPageSize()` explicitly for predictable paging
+- **History is resolved through the live record.** Once the record is deleted, this endpoint returns a `NOT_FOUND` error — the underlying history rows are retained in the database but are no longer readable here (an admin can purge them from the Portal)
+
+---
+
 ### Filtering
 
 Use the SDK filter builders — never construct raw JSON filter strings.

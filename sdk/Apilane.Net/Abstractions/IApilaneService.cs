@@ -28,6 +28,7 @@ namespace Apilane.Net.Abstractions
         Task<Either<(T1 Data1, T2 Data2), ApilaneError>> GetCustomEndpointAsync<T1, T2>(CustomEndpointRequest customendpoint, CancellationToken cancellationToken = default);
         Task<Either<DataResponse<T>, ApilaneError>> GetDataAsync<T>(DataGetListRequest request, JsonSerializerOptions? customJsonSerializerOptions = null, CancellationToken cancellationToken = default);
         Task<Either<T, ApilaneError>> GetDataByIdAsync<T>(DataGetByIdRequest request, JsonSerializerOptions? customJsonSerializerOptions = null, CancellationToken cancellationToken = default);
+        Task<Either<DataTotalResponse<T>, ApilaneError>> GetHistoryByIdAsync<T>(DataGetHistoryByIdRequest request, JsonSerializerOptions? customJsonSerializerOptions = null, CancellationToken cancellationToken = default);
         Task<Either<DataTotalResponse<T>, ApilaneError>> GetDataTotalAsync<T>(DataGetListRequest request, JsonSerializerOptions? customJsonSerializerOptions = null, CancellationToken cancellationToken = default);
         Task<Either<T, ApilaneError>> GetFileByIdAsync<T>(FileGetByIdRequest request, JsonSerializerOptions? customJsonSerializerOptions = null, CancellationToken cancellationToken = default);
         Task<Either<DataResponse<T>, ApilaneError>> GetFilesAsync<T>(FileGetListRequest request, JsonSerializerOptions? customJsonSerializerOptions = null, CancellationToken cancellationToken = default);

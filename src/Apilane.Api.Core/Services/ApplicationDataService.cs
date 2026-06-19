@@ -431,8 +431,8 @@ namespace Apilane.Api.Core.Services
             }
 
             var listIDsToDelete = recordsAllowedToDelete.Data.AsEnumerable().Select(x => Utils.GetLong(x[Globals.PrimaryKeyColumn])).ToList();
-            await _applicationHelperService.DeleteHistoryAsync(entity.Name, listIDsToDelete);
 
+            // History is intentionally retained on record deletion; it can only be purged manually by an admin via the EntityHistory API.
             var deleteFilter = new FilterData(Globals.PrimaryKeyColumn, FilterData.FilterOperators.contains, string.Join(",", listIDsToDelete), PropertyType.Number);
 
             await _dataStore.DeleteDataAsync(entity.Name, deleteFilter);
