@@ -1,5 +1,9 @@
 # Changelog
 
+## 8.5.3 (2026-06-20)
+- feat(history): Persist last record state on historic data before record deletion + history in transaction scope
+- feat(history): Prevent deletion of historic data on record deletion
+
 ## 8.5.2 (2026-06-03)
 - feat(files): Introduced files cloud storage providers
 - fix(licenses): Update licenses
