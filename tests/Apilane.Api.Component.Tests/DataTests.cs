@@ -72,6 +72,23 @@ namespace Apilane.Api.Component.Tests
             public long? History_Record_Owner { get; set; }
         }
 
+        // Used to count rows in the H_Entity_Change_Tracking system table via a custom endpoint.
+        private class HistoryCountRow
+        {
+            public long HistoryCount { get; set; }
+        }
+
+        private async Task<long> GetEntityHistoryRowCountAsync(string countEndpointName)
+        {
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, countEndpointName, type: SecurityTypes.CustomEndpoint))
+            {
+                var result = await ApilaneService.GetCustomEndpointAsync<List<HistoryCountRow>>(CustomEndpointRequest.New(countEndpointName));
+                return result.Match(
+                    r => r.Single().HistoryCount,
+                    e => throw new Exception($"Count history failed | {e.Code} | {e.Message}"));
+            }
+        }
+
         //private class CustomEntityFull : DataItem
         //{
         //    public const string EntityName = "CustomEntityFull";
@@ -144,6 +161,17 @@ namespace Apilane.Api.Component.Tests
             await AddEntityAsync(CustomEntityLight.EntityName, requireChangeTracking: true);
             await AddStringPropertyAsync(CustomEntityLight.EntityName, nameof(CustomEntityLight.Custom_String_Required), required: true);
 
+            // Register a custom endpoint that counts the rows kept in the change-tracking table for this entity.
+            const string countEndpoint = "CountCustomEntityLightHistory";
+            const string historyTable = "H_Entity_Change_Tracking";
+            var countQuery = dbType switch
+            {
+                DatabaseType.MySQL => $"SELECT COUNT(*) AS `HistoryCount` FROM `{historyTable}` WHERE `Entity` = '{CustomEntityLight.EntityName}'",
+                DatabaseType.PostgreSQL => $"SELECT COUNT(*) AS \"HistoryCount\" FROM \"{historyTable}\" WHERE \"Entity\" = '{CustomEntityLight.EntityName}'",
+                _ => $"SELECT COUNT(*) AS [HistoryCount] FROM [{historyTable}] WHERE [Entity] = '{CustomEntityLight.EntityName}'"
+            };
+            AddCustomEndpoint(countEndpoint, countQuery);
+
             using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
                 inRole: Globals.ANONYMOUS,
                 actionType: SecurityActionType.post,
@@ -209,17 +237,105 @@ namespace Apilane.Api.Component.Tests
                 Assert.Single(pagedResponse.Data);
                 Assert.Equal(2, pagedResponse.Total);
 
-                // The endpoint resolves history through the live record: once the record is
-                // deleted it can no longer be located, so the endpoint returns NOT_FOUND
-                // (the history rows themselves remain in the database).
+                // Before deletion there are two history rows (one per update)
+                Assert.Equal(2, await GetEntityHistoryRowCountAsync(countEndpoint));
+
+                // Delete the record. Because change tracking is enabled, a final snapshot of the
+                // record is captured before it is removed (and prior history is retained).
                 var deleteResult = await ApilaneService.DeleteDataAsync(
                     DataDeleteRequest.New(CustomEntityLight.EntityName).AddIdToDelete(id));
                 deleteResult.Match(r => r, e => throw new Exception($"Delete failed | {e.Code} | {e.Message}"));
 
+                // The deletion snapshot was added on top of the two update snapshots
+                Assert.Equal(3, await GetEntityHistoryRowCountAsync(countEndpoint));
+
+                // The GetHistoryByID endpoint resolves history through the live record: once the
+                // record is deleted it can no longer be located, so the endpoint returns NOT_FOUND
+                // (even though the snapshots remain in the database).
                 var historyAfterDelete = await ApilaneService.GetHistoryByIdAsync<CustomEntityLightHistory>(
                     DataGetHistoryByIdRequest.New(CustomEntityLight.EntityName, id));
                 historyAfterDelete.Match(
                     r => throw new Exception("History should not be returned for a deleted record"),
+                    e => Assert.Equal(ValidationError.NOT_FOUND, e.Code));
+            }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task TransactionDelete_WithChangeTracking_Captures_Snapshot_Atomically(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
+
+            // Add custom entity WITH change tracking enabled, plus a property
+            await AddEntityAsync(CustomEntityLight.EntityName, requireChangeTracking: true);
+            await AddStringPropertyAsync(CustomEntityLight.EntityName, nameof(CustomEntityLight.Custom_String_Required), required: true);
+
+            // Register a custom endpoint that counts the rows kept in the change-tracking table for this entity.
+            const string countEndpoint = "CountCustomEntityLightHistory";
+            const string historyTable = "H_Entity_Change_Tracking";
+            var countQuery = dbType switch
+            {
+                DatabaseType.MySQL => $"SELECT COUNT(*) AS `HistoryCount` FROM `{historyTable}` WHERE `Entity` = '{CustomEntityLight.EntityName}'",
+                DatabaseType.PostgreSQL => $"SELECT COUNT(*) AS \"HistoryCount\" FROM \"{historyTable}\" WHERE \"Entity\" = '{CustomEntityLight.EntityName}'",
+                _ => $"SELECT COUNT(*) AS [HistoryCount] FROM [{historyTable}] WHERE [Entity] = '{CustomEntityLight.EntityName}'"
+            };
+            AddCustomEndpoint(countEndpoint, countQuery);
+
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.put,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.get,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.delete))
+            {
+                // POST a record, then update it once to create one history snapshot
+                var postResult = await ApilaneService.PostDataAsync(
+                    DataPostRequest.New(CustomEntityLight.EntityName),
+                    new { Custom_String_Required = "v1" });
+                var id = postResult.Match(r => r.Single(), e => throw new Exception($"Post failed | {e.Code} | {e.Message}"));
+
+                var put = await ApilaneService.PutDataAsync(
+                    DataPutRequest.New(CustomEntityLight.EntityName),
+                    new { ID = id, Custom_String_Required = "v2" });
+                put.Match(r => r, e => throw new Exception($"Put failed | {e.Code} | {e.Message}"));
+
+                Assert.Equal(1, await GetEntityHistoryRowCountAsync(countEndpoint));
+
+                // Delete the record inside a BATCH TRANSACTION (which opens an ambient transaction scope).
+                // The delete's own Required scope joins that ambient transaction, so the final snapshot
+                // and the delete commit together.
+                var transactionData = new InTransactionData()
+                {
+                    Delete = new List<InTransactionData.InTransactionDelete>()
+                    {
+                        new InTransactionData.InTransactionDelete() { Entity = CustomEntityLight.EntityName, Ids = id.ToString() }
+                    }
+                };
+
+                var transResult = await ApilaneService.TransactionDataAsync(DataTransactionRequest.New(), transactionData);
+                var response = transResult.Match(r => r, e => throw new Exception($"Transaction failed | {e.Code} | {e.Message}"));
+
+                Assert.NotNull(response.Delete);
+                Assert.Single(response.Delete);
+                Assert.Equal(id, response.Delete.Single());
+
+                // The deletion snapshot was committed together with the delete: 1 update + 1 deletion = 2 rows
+                Assert.Equal(2, await GetEntityHistoryRowCountAsync(countEndpoint));
+
+                // The record itself is gone
+                var getResult = await ApilaneService.GetDataByIdAsync<CustomEntityLight>(
+                    DataGetByIdRequest.New(CustomEntityLight.EntityName, id));
+                getResult.Match(
+                    r => throw new Exception("Record should have been deleted"),
                     e => Assert.Equal(ValidationError.NOT_FOUND, e.Code));
             }
         }

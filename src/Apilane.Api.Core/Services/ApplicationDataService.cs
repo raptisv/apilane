@@ -3,6 +3,7 @@ using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Common;
+using Apilane.Common.Abstractions;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
@@ -27,19 +28,22 @@ namespace Apilane.Api.Core.Services
         private readonly IApplicationService _applicationService;
         private readonly IApplicationHelperService _applicationHelperService;
         private readonly IEntityHistoryAPI _entityHistoryAPI;
+        private readonly ITransactionScopeService _transactionScopeService;
 
         public ApplicationDataService(
             ILogger<ApplicationDataService> logger,
             IApplicationDataStoreFactory dataStore,
             IApplicationService applicationService,
             IApplicationHelperService applicationHelperService,
-            IEntityHistoryAPI entityHistoryAPI)
+            IEntityHistoryAPI entityHistoryAPI,
+            ITransactionScopeService transactionScopeService)
         {
             _logger = logger;
             _dataStore = dataStore;
             _applicationService = applicationService;
             _applicationHelperService = applicationHelperService;
             _entityHistoryAPI = entityHistoryAPI;
+            _transactionScopeService = transactionScopeService;
         }
 
         public async Task<Dictionary<string, object?>> GetByIDAsync(
@@ -364,16 +368,32 @@ namespace Apilane.Api.Core.Services
                 var filter = GetSystemFilters(userHasFullAccess, differentiationEntity, entity, Data_UserSecurity);
                 filter.Add(new FilterData(Globals.PrimaryKeyColumn, FilterData.FilterOperators.equal, ID, PropertyType.Number));
 
+                // When change tracking is enabled, the update and the history snapshot must be atomic.
+                // A Required scope joins the ambient transaction when called inside a batch transaction.
+                if (entity.RequireChangeTracking)
+                {
+                    using var scope = _transactionScopeService.OpenTransactionScope();
+
+                    var rowsAffectedTracked = await _dataStore.UpdateDataAsync(
+                        entity.Name,
+                        propertyValues,
+                        new FilterData(FilterData.FilterLogic.AND, filter));
+
+                    // Call SaveHistoryForDataRow after succesfull update, if prev data exists and row was updated
+                    if (prevData != null && rowsAffectedTracked > 0)
+                    {
+                        await _applicationHelperService.CreateHistoryAsync(entity.Name, ID, Data_UserSecurity.User?.ID, prevData);
+                    }
+
+                    scope.Complete();
+
+                    return rowsAffectedTracked;
+                }
+
                 var rowsAffected = await _dataStore.UpdateDataAsync(
                     entity.Name,
                     propertyValues,
                     new FilterData(FilterData.FilterLogic.AND, filter));
-
-                // Call SaveHistoryForDataRow after succesfull update, if prev data exists and row was updated
-                if (prevData != null && rowsAffected > 0)
-                {
-                    await _applicationHelperService.CreateHistoryAsync(entity.Name, ID, Data_UserSecurity.User?.ID, prevData);
-                }
 
                 return rowsAffected;
             }
@@ -432,8 +452,31 @@ namespace Apilane.Api.Core.Services
 
             var listIDsToDelete = recordsAllowedToDelete.Data.AsEnumerable().Select(x => Utils.GetLong(x[Globals.PrimaryKeyColumn])).ToList();
 
-            // History is intentionally retained on record deletion; it can only be purged manually by an admin via the EntityHistory API.
             var deleteFilter = new FilterData(Globals.PrimaryKeyColumn, FilterData.FilterOperators.contains, string.Join(",", listIDsToDelete), PropertyType.Number);
+
+            // When change tracking is enabled, capture a final snapshot of each record before it is
+            // deleted, and make the snapshot(s) and the delete atomic so they cannot diverge.
+            // A Required scope joins the ambient transaction when called inside a batch transaction.
+            // (Existing history is also retained on deletion; it can only be purged manually by an admin.)
+            if (entity.RequireChangeTracking)
+            {
+                using var scope = _transactionScopeService.OpenTransactionScope();
+
+                foreach (var idToDelete in listIDsToDelete)
+                {
+                    var recordData = await _dataStore.GetDataByIdAsync(entity.Name, idToDelete, null);
+                    if (recordData != null)
+                    {
+                        await _applicationHelperService.CreateHistoryAsync(entity.Name, idToDelete, userSecurity.User?.ID, recordData);
+                    }
+                }
+
+                await _dataStore.DeleteDataAsync(entity.Name, deleteFilter);
+
+                scope.Complete();
+
+                return listIDsToDelete;
+            }
 
             await _dataStore.DeleteDataAsync(entity.Name, deleteFilter);
 

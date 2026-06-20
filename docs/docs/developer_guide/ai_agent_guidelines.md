@@ -235,7 +235,8 @@ const entries = history.value.Data;
 
 - Requires `get` access to the entity — only properties granted by that security are included in each snapshot
 - Default page size is 10; always set `.WithPageSize()` / `.withPageSize()` explicitly for predictable paging
-- **History is resolved through the live record.** Once the record is deleted, this endpoint returns a `NOT_FOUND` error — the underlying history rows are retained in the database but are no longer readable here (an admin can purge them from the Portal)
+- **Deleting a record captures a final snapshot.** When change tracking is enabled, deleting a record stores one last snapshot of its values before removal (in addition to retaining prior history)
+- **History is resolved through the live record.** Once the record is deleted, this endpoint returns a `NOT_FOUND` error — the underlying history rows (including the final pre-deletion snapshot) are retained in the database but are no longer readable here (an admin can purge them from the Portal)
 
 ---
 
