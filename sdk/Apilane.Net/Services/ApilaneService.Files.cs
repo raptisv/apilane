@@ -23,11 +23,7 @@ namespace Apilane.Net.Services
 
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -52,11 +48,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -87,11 +79,19 @@ namespace Apilane.Net.Services
                 form.Add(fileContent, "FileUpload", request.GetFileName());
 
                 httpRequest.Content = form;
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
+
+                // Request signing is not supported for file uploads (it would require buffering the
+                // whole multipart body to hash it). File uploads authenticate with the bearer token.
+                if (request.HasSigning(out _, out _))
                 {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
+                    throw new InvalidOperationException("Request signing is not supported for file uploads. Use WithAuthToken for PostFileAsync.");
                 }
+
+                if (request.HasAuthToken(out var authToken))
+                {
+                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
+                }
+
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -115,11 +115,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Delete, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 

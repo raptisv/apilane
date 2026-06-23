@@ -23,11 +23,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -52,11 +48,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -87,11 +79,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -118,11 +106,7 @@ namespace Apilane.Net.Services
 
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -215,11 +199,7 @@ namespace Apilane.Net.Services
 
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -248,11 +228,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 httpRequest.Content = new StringContent(JsonSerializer.Serialize(data), Encoding.UTF8, "application/json");
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -283,11 +259,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 httpRequest.Content = new StringContent(JsonSerializer.Serialize(data), Encoding.UTF8, "application/json");
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -316,11 +288,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 httpRequest.Content = new StringContent(JsonSerializer.Serialize(data), Encoding.UTF8, "application/json");
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -350,11 +318,7 @@ namespace Apilane.Net.Services
             {
                 httpRequest.Content = new StringContent(JsonSerializer.Serialize(data), Encoding.UTF8, "application/json");
 
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -378,11 +342,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Delete, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 

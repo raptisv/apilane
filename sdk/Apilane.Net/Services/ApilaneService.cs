@@ -19,7 +19,6 @@ namespace Apilane.Net.Services
         private readonly string _applicationTokenHeaderName = "x-application-token";
         private readonly HttpClient _httpClient;
         private readonly ApilaneConfiguration _config;
-        private readonly IApilaneAuthTokenProvider? _apilaneAuthTokenProvider;
 
         public static readonly JsonSerializerOptions JsonDeserializerSettings = new JsonSerializerOptions()
         {
@@ -39,12 +38,10 @@ namespace Apilane.Net.Services
 
         internal ApilaneService(
             HttpClient httpClient,
-            ApilaneConfiguration config,
-            IApilaneAuthTokenProvider? apilaneAuthTokenProvider = null)
+            ApilaneConfiguration config)
         {
             _httpClient = httpClient;
             _config = config;
-            _apilaneAuthTokenProvider = apilaneAuthTokenProvider;
 
             if (string.IsNullOrWhiteSpace(config.ApplicationApiUrl))
             {
@@ -100,23 +97,36 @@ namespace Apilane.Net.Services
             return $"{_config.ApplicationApiUrl.TrimEnd('/')}/api/Email/ForgotPassword?AppToken={_config.ApplicationToken}&Email={email}";
         }
 
-        private async Task<string?> GetAuthTokenAsync<TBuilder>(ApilaneRequestBase<TBuilder> request) where TBuilder : ApilaneRequestBase<TBuilder>
+        /// <summary>
+        /// Applies authentication to an outgoing request. If the request is configured for signing
+        /// (<see cref="ApilaneRequestBase{TBuilder}.WithSigning"/>), it is signed with HMAC and the
+        /// token is never sent; otherwise the bearer token (if any) is attached.
+        /// </summary>
+        private async Task ApplyAuthAsync<TBuilder>(HttpRequestMessage httpRequest, ApilaneRequestBase<TBuilder> request) where TBuilder : ApilaneRequestBase<TBuilder>
         {
-            // Request auth token is a priority
-            if (request.HasAuthToken(out var requestAuthToken))
+            if (request.HasSigning(out var keyId, out var secret))
             {
-                return requestAuthToken;
+                var keyIdStr = keyId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                var body = httpRequest.Content is null
+                    ? Array.Empty<byte>()
+                    : await httpRequest.Content.ReadAsByteArrayAsync();
+
+                var pathAndQuery = httpRequest.RequestUri!.PathAndQuery;
+                var canonical = RequestSigner.BuildCanonicalString(keyIdStr, httpRequest.Method.Method, pathAndQuery, timestamp, body);
+                var signature = RequestSigner.ComputeSignature(secret, canonical);
+
+                httpRequest.Headers.Add(RequestSigner.KeyIdHeader, keyIdStr);
+                httpRequest.Headers.Add(RequestSigner.TimestampHeader, timestamp);
+                httpRequest.Headers.Add(RequestSigner.SignatureHeader, signature);
+                return;
             }
-            else
+
+            if (request.HasAuthToken(out var authorizationToken))
             {
-                // Else check for global authtoken provider
-                if (_apilaneAuthTokenProvider is not null)
-                {
-                    return await _apilaneAuthTokenProvider.GetAuthTokenAsync();
-                }
+                httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
             }
-            
-            return null;
         }
     }
 }

@@ -24,6 +24,17 @@
 
         public const string ClientIdHeaderValuePortal = "portal";
 
+        // Signed-request (HMAC proof-of-possession) authentication headers.
+        // The secret (AuthTokens.Token) is never transmitted; the client sends only these.
+        public const string AuthKeyIdHeaderName = "x-auth-keyid";          // public identifier = AuthTokens.ID
+
+        public const string AuthTimestampHeaderName = "x-auth-timestamp";  // unix milliseconds, signed
+
+        public const string AuthSignatureHeaderName = "x-auth-signature";  // base64 HMAC-SHA256
+
+        // Max allowed clock skew between client timestamp and server time for a signed request.
+        public const int SignedRequestClockSkewSeconds = 120;
+
         public const string ANONYMOUS = "ANONYMOUS";
 
         public const string AUTHENTICATED = "AUTHENTICATED";

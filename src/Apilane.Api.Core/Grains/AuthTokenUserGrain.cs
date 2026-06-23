@@ -8,6 +8,7 @@ using Apilane.Common.Models.Dto;
 using Apilane.Data.Repository.Factory;
 using Microsoft.Extensions.Logging;
 using Orleans;
+using Orleans.Placement;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,6 +23,10 @@ namespace Apilane.Api.Core.Grains
         Task ResetUserCacheAsync();
     }
 
+    // Prefer activating on the calling silo so that, when resolved from AuthTokenByIdGrain
+    // (signed requests) or directly from the API controller (bearer), it tends to be co-located
+    // with its caller and avoids an extra network hop.
+    [PreferLocalPlacement]
     public class AuthTokenUserGrain : Grain, IAuthTokenUserGrain
     {
         private readonly ILogger<AuthTokenUserGrain> _logger;

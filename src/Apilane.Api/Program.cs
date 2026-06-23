@@ -187,6 +187,32 @@ namespace Apilane.Api
                         ctx.Response.Headers["Cache-Control"] = "max-age=31536000";
                     }
 
+                    if (ctx.Request.Headers.ContainsKey(Globals.AuthSignatureHeaderName))
+                    {
+                        // Signing requires hashing the request body. Multipart (file) uploads are not
+                        // supported because verifying them would force buffering the whole upload, so
+                        // reject them here — before the body is read — rather than buffering then failing.
+                        var contentType = ctx.Request.ContentType;
+                        if (!string.IsNullOrEmpty(contentType) &&
+                            contentType.StartsWith("multipart/", StringComparison.OrdinalIgnoreCase))
+                        {
+                            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            ctx.Response.ContentType = "application/json";
+                            await ctx.Response.WriteAsync(JsonSerializer.Serialize(new
+                            {
+                                Code = "UNAUTHORIZED", // matches AppErrors.UNAUTHORIZED.ToString() / ValidationError.UNAUTHORIZED
+                                Message = "Request signing is not supported for file uploads.",
+                                Property = (string?)null,
+                                Entity = (string?)null
+                            }));
+                            return;
+                        }
+
+                        // Otherwise the raw body must be re-readable after model binding to verify the
+                        // body hash. Enable buffering only for signed requests to avoid the cost elsewhere.
+                        ctx.Request.EnableBuffering();
+                    }
+
                     await next();
                 });
 

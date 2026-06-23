@@ -109,14 +109,19 @@ namespace Apilane.Api.Core
             // Create and store a new AuthToken
             var authToken = Guid.NewGuid().ToString();
 
-            await _dataStore.CreateDataAsync(
+            var authTokenId = await _dataStore.CreateDataAsync(
                 nameof(AuthTokens),
                 new Dictionary<string, object?>()
                 {
                     { nameof(AuthTokens.Owner), userId },
                     { nameof(AuthTokens.Created), Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow) },
                     { nameof(AuthTokens.Token), authToken }
-                }, false);
+                }, false)
+                ?? throw new ApilaneException(AppErrors.ERROR, "Failed to create authentication token");
+
+            // Clear any cached secret for this token id used by signed-request auth.
+            // (Ids are never reused in production, but a full data reset can recreate them.)
+            await _clusterClient.GetGrain<IAuthTokenByIdGrain>(authTokenId).ResetAsync();
 
             // Update last login
             await _dataStore.UpdateDataAsync(
@@ -130,7 +135,8 @@ namespace Apilane.Api.Core
             return new LoginResponseDto()
             {
                 User = drUser,
-                AuthToken = authToken
+                AuthToken = authToken,
+                AuthTokenID = authTokenId
             };
         }
 
@@ -179,7 +185,7 @@ namespace Apilane.Api.Core
             var newAuthToken = Guid.NewGuid().ToString();
 
             // Create the new token
-            await _dataStore.CreateDataAsync(
+            var newAuthTokenId = await _dataStore.CreateDataAsync(
                 nameof(AuthTokens),
                 new Dictionary<string, object?>()
                 {
@@ -187,6 +193,12 @@ namespace Apilane.Api.Core
                     { nameof(AuthTokens.Token), newAuthToken },
                     { nameof(AuthTokens.Created), Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow) }
                 }, false);
+
+            if (newAuthTokenId.HasValue)
+            {
+                // Clear any cached secret for this token id used by signed-request auth.
+                await _clusterClient.GetGrain<IAuthTokenByIdGrain>(newAuthTokenId.Value).ResetAsync();
+            }
 
             return newAuthToken;
         }

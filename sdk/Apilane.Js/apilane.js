@@ -384,6 +384,64 @@ export function dateToUnixTimestampMilliseconds(date) {
 }
 
 // ============================================================================
+// Request Signing (HMAC proof-of-possession)
+// ============================================================================
+
+/**
+ * Header names for the signed-request authentication scheme. The secret (the AuthToken)
+ * is never transmitted; only these signed metadata values are sent.
+ */
+export const SigningHeaders = Object.freeze({
+    KeyId: 'x-auth-keyid',
+    Timestamp: 'x-auth-timestamp',
+    Signature: 'x-auth-signature',
+});
+
+/** Base64-encodes an ArrayBuffer (works in browsers and Node 18+). */
+function _bufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+/**
+ * Produces the timestamp and HMAC signature for a request. The canonical string MUST
+ * match the server byte-for-byte:
+ *   keyId \n METHOD(upper) \n path+query \n timestamp(unix ms) \n base64(sha256(body))
+ *
+ * @param {number} keyId
+ * @param {string} secret
+ * @param {string} method
+ * @param {string} pathAndQuery
+ * @param {string} bodyString
+ * @returns {Promise<{ timestamp: string, signature: string }>}
+ */
+async function _signRequest(keyId, secret, method, pathAndQuery, bodyString) {
+    const subtle = globalThis.crypto.subtle;
+    const encoder = new TextEncoder();
+
+    const timestamp = String(Date.now());
+
+    const bodyHash = _bufferToBase64(await subtle.digest('SHA-256', encoder.encode(bodyString ?? '')));
+
+    const canonical = [
+        String(keyId),
+        (method ?? '').toUpperCase(),
+        pathAndQuery ?? '',
+        timestamp,
+        bodyHash,
+    ].join('\n');
+
+    const key = await subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const signature = _bufferToBase64(await subtle.sign('HMAC', key, encoder.encode(canonical)));
+
+    return { timestamp, signature };
+}
+
+// ============================================================================
 // Request Builders
 // ============================================================================
 
@@ -402,6 +460,10 @@ class ApilaneRequestBase {
     #entity;
     /** @type {string|null} */
     #authToken = null;
+    /** @type {number|null} */
+    #signingKeyId = null;
+    /** @type {string|null} */
+    #signingSecret = null;
     /** @type {boolean} */
     #throwOnError = false;
 
@@ -422,13 +484,34 @@ class ApilaneRequestBase {
     }
 
     /**
-     * Sets the authentication token for this request.
-     * Overrides any global auth token provider.
+     * Sets the bearer authentication token for this request.
+     * Mutually exclusive with withSigning.
      * @param {string} authToken
      * @returns {this}
      */
     withAuthToken(authToken) {
+        if (this.#signingKeyId != null) {
+            throw new Error('A request cannot use both withAuthToken and withSigning. Choose one authentication method.');
+        }
         this.#authToken = authToken;
+        return this;
+    }
+
+    /**
+     * Authenticate this request by signing it (HMAC proof-of-possession) instead of sending the
+     * token. Pass the values returned at login: `keyId` is the AuthTokenID and `secret` is the
+     * AuthToken itself. The SDK computes the signature locally from the token and never transmits
+     * the token. Mutually exclusive with withAuthToken.
+     * @param {number} keyId - The AuthTokenID returned at login.
+     * @param {string} secret - The AuthToken returned at login (used as the signing key; never sent).
+     * @returns {this}
+     */
+    withSigning(keyId, secret) {
+        if (this.#authToken != null) {
+            throw new Error('A request cannot use both withSigning and withAuthToken. Choose one authentication method.');
+        }
+        this.#signingKeyId = keyId;
+        this.#signingSecret = secret;
         return this;
     }
 
@@ -448,6 +531,16 @@ class ApilaneRequestBase {
      */
     _getAuthToken() {
         return { hasToken: this.#authToken != null && this.#authToken.trim() !== '', token: this.#authToken };
+    }
+
+    /**
+     * @internal
+     * @returns {{ keyId: number, secret: string }|null}
+     */
+    _getSigning() {
+        return this.#signingKeyId != null && this.#signingSecret != null && this.#signingSecret !== ''
+            ? { keyId: this.#signingKeyId, secret: this.#signingSecret }
+            : null;
     }
 
     /**
@@ -1673,18 +1766,12 @@ export class TransactionBuilder {
 // ============================================================================
 
 /**
- * @callback AuthTokenProvider
- * @returns {Promise<string|null>}
- */
-
-/**
  * The main Apilane service client.
  * Provides methods for all Apilane API operations: Account, Data, Files, Stats, and Custom endpoints.
  */
 export class ApilaneService {
     #apiUrl;
     #appToken;
-    #authTokenProvider;
     #customFetch;
     #defaultHeaders;
 
@@ -1692,10 +1779,9 @@ export class ApilaneService {
      * @param {object} config
      * @param {string} config.apiUrl - The Apilane API base URL (e.g. "https://my.api.server").
      * @param {string} config.appToken - The application token.
-     * @param {AuthTokenProvider} [config.authTokenProvider] - Optional global auth token provider.
      * @param {typeof fetch} [config.fetch] - Optional custom fetch implementation.
      */
-    constructor({ apiUrl, appToken, authTokenProvider, fetch: customFetch } = {}) {
+    constructor({ apiUrl, appToken, fetch: customFetch } = {}) {
         if (!apiUrl || typeof apiUrl !== 'string' || apiUrl.trim() === '') {
             throw new Error('Apilane api url is required');
         }
@@ -1705,7 +1791,6 @@ export class ApilaneService {
 
         this.#apiUrl = apiUrl.replace(/\/+$/, '');
         this.#appToken = appToken;
-        this.#authTokenProvider = authTokenProvider ?? null;
         this.#customFetch = customFetch ?? globalThis.fetch.bind(globalThis);
         this.#defaultHeaders = {
             'x-application-token': this.#appToken,
@@ -1715,29 +1800,40 @@ export class ApilaneService {
     // ---- Internal helpers ----
 
     /**
-     * Resolves the auth token from the request or the global provider.
+     * Resolves the per-request bearer auth token, if any.
      * @param {ApilaneRequestBase} request
-     * @returns {Promise<string|null>}
+     * @returns {string|null}
      */
-    async #resolveAuthToken(request) {
+    #resolveAuthToken(request) {
         const { hasToken, token } = request._getAuthToken();
-        if (hasToken) {
-            return token;
-        }
-        if (this.#authTokenProvider != null) {
-            return await this.#authTokenProvider();
-        }
-        return null;
+        return hasToken ? token : null;
     }
 
     /**
-     * Builds common request headers including auth if available.
+     * Builds common request headers and applies authentication. If the request is configured for
+     * signing, it is signed with HMAC and the token is never sent; otherwise the bearer token
+     * (if any) is attached.
      * @param {ApilaneRequestBase} request
+     * @param {string} method
+     * @param {string} url
+     * @param {string} [bodyString]
      * @returns {Promise<Record<string, string>>}
      */
-    async #buildHeaders(request) {
+    async #buildHeaders(request, method, url, bodyString) {
         const headers = { ...this.#defaultHeaders };
-        const authToken = await this.#resolveAuthToken(request);
+
+        const signing = request._getSigning?.();
+        if (signing != null) {
+            const parsed = new URL(url);
+            const pathAndQuery = parsed.pathname + parsed.search;
+            const { timestamp, signature } = await _signRequest(signing.keyId, signing.secret, method, pathAndQuery, bodyString ?? '');
+            headers[SigningHeaders.KeyId] = String(signing.keyId);
+            headers[SigningHeaders.Timestamp] = timestamp;
+            headers[SigningHeaders.Signature] = signature;
+            return headers;
+        }
+
+        const authToken = this.#resolveAuthToken(request);
         if (authToken != null && authToken.trim() !== '') {
             headers['Authorization'] = `Bearer ${authToken}`;
         }
@@ -1790,7 +1886,7 @@ export class ApilaneService {
      */
     async #get(request, signal, transform) {
         const url = request.getUrl(this.#apiUrl);
-        const headers = await this.#buildHeaders(request);
+        const headers = await this.#buildHeaders(request, 'GET', url, '');
         const response = await this.#customFetch(url, {
             method: 'GET',
             headers,
@@ -1810,12 +1906,13 @@ export class ApilaneService {
      */
     async #postJson(request, body, signal, transform) {
         const url = request.getUrl(this.#apiUrl);
-        const headers = await this.#buildHeaders(request);
+        const bodyString = JSON.stringify(body);
+        const headers = await this.#buildHeaders(request, 'POST', url, bodyString);
         headers['Content-Type'] = 'application/json';
         const response = await this.#customFetch(url, {
             method: 'POST',
             headers,
-            body: JSON.stringify(body),
+            body: bodyString,
             signal,
         });
         return this.#handleResponse(response, request, transform);
@@ -1832,12 +1929,13 @@ export class ApilaneService {
      */
     async #putJson(request, body, signal, transform) {
         const url = request.getUrl(this.#apiUrl);
-        const headers = await this.#buildHeaders(request);
+        const bodyString = JSON.stringify(body);
+        const headers = await this.#buildHeaders(request, 'PUT', url, bodyString);
         headers['Content-Type'] = 'application/json';
         const response = await this.#customFetch(url, {
             method: 'PUT',
             headers,
-            body: JSON.stringify(body),
+            body: bodyString,
             signal,
         });
         return this.#handleResponse(response, request, transform);
@@ -1853,7 +1951,7 @@ export class ApilaneService {
      */
     async #delete(request, signal, transform) {
         const url = request.getUrl(this.#apiUrl);
-        const headers = await this.#buildHeaders(request);
+        const headers = await this.#buildHeaders(request, 'DELETE', url, '');
         const response = await this.#customFetch(url, {
             method: 'DELETE',
             headers,
@@ -2201,7 +2299,18 @@ export class ApilaneService {
      */
     async postFile(request, data, signal) {
         const url = request.getUrl(this.#apiUrl);
-        const headers = await this.#buildHeaders(request);
+
+        // Request signing is not supported for file uploads (it would require buffering the whole
+        // multipart body to hash it). File uploads authenticate with the bearer token.
+        if (request._getSigning?.() != null) {
+            throw new Error('Request signing is not supported for file uploads. Use withAuthToken for postFile.');
+        }
+
+        const headers = { ...this.#defaultHeaders };
+        const authToken = this.#resolveAuthToken(request);
+        if (authToken != null && authToken.trim() !== '') {
+            headers['Authorization'] = `Bearer ${authToken}`;
+        }
         // Do not set Content-Type — let fetch set the multipart boundary automatically
         const formData = new FormData();
 
@@ -2288,7 +2397,6 @@ export class ApilaneService {
  * @param {object} config
  * @param {string} config.apiUrl - The Apilane API base URL.
  * @param {string} config.appToken - The application token.
- * @param {AuthTokenProvider} [config.authTokenProvider] - Optional global auth token provider.
  * @param {typeof fetch} [config.fetch] - Optional custom fetch implementation.
  * @returns {ApilaneService}
  *

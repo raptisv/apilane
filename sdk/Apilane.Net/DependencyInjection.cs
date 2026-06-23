@@ -13,7 +13,6 @@ namespace Microsoft.Extensions.DependencyInjection
             this IServiceCollection services,
             string applicationApiUrl,
             string applicationToken,
-            IApilaneAuthTokenProvider? apilaneAuthTokenProvider = null,
             string? serviceKey = null)
         {
             var config = new ApilaneConfiguration()
@@ -34,13 +33,9 @@ namespace Microsoft.Extensions.DependencyInjection
                 {
                     var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
 
-                    // Optional global auth token provider
-                    var authTokenProvider = apilaneAuthTokenProvider ?? serviceProvider.GetService<IApilaneAuthTokenProvider>();
-
                     return new ApilaneService(
                         httpClientFactory.CreateClient(httpClientName),
-                        config,
-                        authTokenProvider);
+                        config);
                 });
             }
             else
@@ -50,13 +45,9 @@ namespace Microsoft.Extensions.DependencyInjection
                 {
                     var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
 
-                    // Optional global auth token provider
-                    var authTokenProvider = apilaneAuthTokenProvider ?? serviceProvider.GetService<IApilaneAuthTokenProvider>();
-
                     return new ApilaneService(
                         httpClientFactory.CreateClient(httpClientName),
-                        config,
-                        authTokenProvider);
+                        config);
                 });
             }
 

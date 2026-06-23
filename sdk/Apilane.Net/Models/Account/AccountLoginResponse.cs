@@ -6,6 +6,12 @@ namespace Apilane.Net.Models.Account
     {
         public string AuthToken { get; set; } = null!;
 
+        /// <summary>
+        /// The id of the issued token, used as the public key id for signed-request
+        /// authentication (where the AuthToken itself is never transmitted).
+        /// </summary>
+        public long AuthTokenID { get; set; }
+
         public T User { get; set; } = default!;
     }
 

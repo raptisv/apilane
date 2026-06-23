@@ -48,11 +48,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
 
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
@@ -82,11 +78,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();
@@ -116,11 +108,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 httpRequest.Content = new StringContent(JsonSerializer.Serialize((object)request.RegisterItem), Encoding.UTF8, "application/json");
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();
@@ -148,11 +136,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Put, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 httpRequest.Content = new StringContent(JsonSerializer.Serialize(updateItem), Encoding.UTF8, "application/json");
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
@@ -178,11 +162,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();

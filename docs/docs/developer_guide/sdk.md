@@ -36,47 +36,28 @@ public MyController(IApilaneService apilaneService)
 
 ### Advanced Setup Options
 
-The `UseApilane` method accepts optional parameters:
+The `UseApilane` method accepts an optional service key for registering multiple apps:
 
 ```csharp
 builder.Services.UseApilane(
     serverUrl,
     applicationToken,
-    httpClient: customHttpClient,           // Custom HttpClient instance
-    apilaneAuthTokenProvider: myProvider,    // Global auth token provider
-    serviceKey: "app1"                      // Keyed registration for multi-app scenarios
+    serviceKey: "app1"   // Keyed registration for multi-app scenarios
 );
 ```
 
-### Global Auth Token Provider
+### Providing the auth token
 
-Instead of passing an auth token on every request, implement `IApilaneAuthTokenProvider` to provide it automatically (e.g., from the current HTTP context):
-
-```csharp
-public class HttpContextAuthTokenProvider : IApilaneAuthTokenProvider
-{
-    private readonly IHttpContextAccessor _httpContextAccessor;
-
-    public HttpContextAuthTokenProvider(IHttpContextAccessor httpContextAccessor)
-    {
-        _httpContextAccessor = httpContextAccessor;
-    }
-
-    public Task<string?> GetAuthTokenAsync()
-    {
-        var token = _httpContextAccessor.HttpContext?.Request.Headers["Authorization"]
-            .ToString()?.Replace("Bearer ", "");
-        return Task.FromResult(token);
-    }
-}
-```
-
-Register it before calling `UseApilane`:
+Pass the auth token per request via `.WithAuthToken(token)` on any request builder, resolving it
+from your own session/context/storage at call time:
 
 ```csharp
-builder.Services.AddSingleton<IApilaneAuthTokenProvider, HttpContextAuthTokenProvider>();
-builder.Services.UseApilane(serverUrl, applicationToken);
+var data = await _apilaneService.GetDataAsync<Product>(
+    DataGetListRequest.New("Products").WithAuthToken(token));
 ```
+
+Or sign requests with `.WithSigning(keyId, token)` so the token is never sent at all
+(see [Security » Authenticating requests](security.md)).
 
 ### Keyed Services (Multi-App)
 

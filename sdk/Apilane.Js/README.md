@@ -50,18 +50,32 @@ if (loginResult.isError) {
 }
 ```
 
-### 3. Or use a global auth token provider
+### 3. Or sign requests (don't send the token over the wire)
+
+Instead of sending the token, you can **sign** each request. The token is used only to compute an
+HMAC signature locally and is never transmitted, protecting it from request logs / proxies and
+limiting a captured request to a short time window.
+
+Login returns the token's id (`AuthTokenID`) — use it as the public key id and the token as the
+signing secret. Call `.withSigning(keyId, secret)` on any request builder (it takes precedence over
+`.withAuthToken`):
 
 ```javascript
-const apilane = createApilaneService({
-    apiUrl: 'https://my.api.server',
-    appToken: 'your-app-token',
-    authTokenProvider: async () => localStorage.getItem('authToken'),
-});
+const login = (await apilane.accountLogin(
+    AccountLoginRequest.new({ Email: 'user@example.com', Password: 'password' })
+)).value;
 
-// No need to pass auth token per request — it's resolved automatically
-const data = await apilane.getData(DataGetListRequest.new('Products'));
+const data = await apilane.getData(
+    DataGetListRequest.new('Products').withSigning(login.AuthTokenID, login.AuthToken)
+);
 ```
+
+The SDK sends `x-auth-keyid`, `x-auth-timestamp`, and `x-auth-signature`, where the signature is
+`HMAC-SHA256(token, canonical)` and the canonical string is the newline-joined
+`keyId, METHOD, path+query, timestamp, base64(SHA-256(body))` (computed via the Web Crypto API).
+The server rejects requests outside a small clock-skew window (default ±2 min), so keep the client
+clock roughly in sync. File uploads cannot be signed — use `withAuthToken` for `postFile`
+(calling `withSigning` on a file upload throws).
 
 ## Features
 

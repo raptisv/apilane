@@ -111,6 +111,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "licenses", "licenses", "{99
 		licenses\xunit-Apache-2.0 = licenses\xunit-Apache-2.0
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Js", "Js", "{26279FAE-1F2C-480E-B9F5-7856966E82FC}"
+	ProjectSection(SolutionItems) = preProject
+		sdk\Apilane.Js\apilane.js = sdk\Apilane.Js\apilane.js
+		sdk\Apilane.Js\README.md = sdk\Apilane.Js\README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -195,6 +201,7 @@ Global
 		{C2F03EFF-19F1-4C6B-9588-DBAEA4A559E1} = {B9A9401E-790D-4DAF-9433-9D49CF9263A3}
 		{C9EC0B0B-BD5A-4977-9A05-32A52F7177BF} = {B9A9401E-790D-4DAF-9433-9D49CF9263A3}
 		{996916D6-04A2-4416-A081-0C841E317CFD} = {BE8EF20A-5557-451B-9E3C-B345B4CAEA87}
+		{26279FAE-1F2C-480E-B9F5-7856966E82FC} = {F729F015-1D46-41DB-B6A8-84E4FB976443}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {1CE543A9-552F-4700-878C-A89AEA809584}

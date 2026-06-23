@@ -47,8 +47,33 @@ public class MyService
 }
 ```
 
-Auth tokens can be provided per-request via `.WithAuthToken()` on any request builder,
-or globally by implementing `IApilaneAuthTokenProvider` and registering it in DI.
+Auth tokens are provided per-request via `.WithAuthToken()` on any request builder.
+
+### Signed requests (don't send the token over the wire)
+
+Instead of sending the auth token on every request, you can **sign** requests. The token is used
+only to compute an HMAC signature locally and is never transmitted, which protects it from request
+logs / proxies and limits a captured request to a short time window.
+
+Login returns the token's id (`AuthTokenID`) — use it as the public key id and the token as the
+signing secret. Call `.WithSigning(keyId, secret)` on any request builder (it takes precedence over
+`.WithAuthToken`):
+
+```csharp
+var login = (await _apilane.AccountLoginAsync<MyUser>(
+    AccountLoginRequest.New(new LoginItem { Email = "user@example.com", Password = "password" }))).Value;
+
+var data = await _apilane.GetDataAsync<MyProduct>(
+    DataGetListRequest.New("Products")
+        .WithSigning(login.AuthTokenID, login.AuthToken));
+```
+
+How it works: the SDK sends `x-auth-keyid`, `x-auth-timestamp`, and `x-auth-signature`, where the
+signature is `HMAC-SHA256(token, canonical)` and the canonical string is the newline-joined
+`keyId, METHOD, path+query, timestamp, base64(SHA-256(body))`. The server resolves the secret by
+key id, recomputes the signature, and rejects requests outside a small clock-skew window
+(default ±2 min). Keep the client clock roughly in sync. File uploads cannot be signed — use
+`WithAuthToken` for `PostFileAsync` (calling `WithSigning` on a file upload throws).
 
 ## Features
 

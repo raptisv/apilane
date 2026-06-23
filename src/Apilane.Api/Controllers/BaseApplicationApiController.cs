@@ -10,6 +10,9 @@ using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
+using Apilane.Common.Security;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
@@ -87,7 +90,14 @@ namespace Apilane.Api.Controllers
             // Validate
             if (!UserHasFullAccess)
             {
-                if (!string.IsNullOrWhiteSpace(authorizationToken) &&
+                // A signed request proves possession of the token without transmitting it: the
+                // signature is verified and the user resolved inside AuthTokenByIdGrain. Otherwise
+                // fall back to the bearer token.
+                if (context.HttpContext.Request.Headers.ContainsKey(Globals.AuthSignatureHeaderName))
+                {
+                    ApplicationUser = await ResolveSignedRequestUserAsync(context.HttpContext.Request);
+                }
+                else if (!string.IsNullOrWhiteSpace(authorizationToken) &&
                     Guid.TryParse(authorizationToken, out var guidAuthToken))
                 {
                     var grainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
@@ -147,6 +157,64 @@ namespace Apilane.Api.Controllers
         {
             return Application.Entities.SingleOrDefault(x => x.Name.Equals(entityName, StringComparison.OrdinalIgnoreCase))
                 ?? throw new ApilaneException(AppErrors.ERROR, $"Entity {entityName} does not exist");
+        }
+
+        /// <summary>
+        /// Builds the canonical string from the incoming signed request and resolves the user via
+        /// the signed-auth grain. Throws <see cref="ApilaneException"/> with UNAUTHORIZED (carrying
+        /// the failure reason) when the request is not authentic.
+        /// </summary>
+        private async Task<Users?> ResolveSignedRequestUserAsync(HttpRequest request)
+        {
+            var keyIdStr = request.Headers[Globals.AuthKeyIdHeaderName].ToString();
+            var timestampStr = request.Headers[Globals.AuthTimestampHeaderName].ToString();
+            var providedSignature = request.Headers[Globals.AuthSignatureHeaderName].ToString();
+
+            if (string.IsNullOrWhiteSpace(keyIdStr) ||
+                string.IsNullOrWhiteSpace(timestampStr) ||
+                string.IsNullOrWhiteSpace(providedSignature))
+            {
+                throw new ApilaneException(AppErrors.UNAUTHORIZED, "Incomplete signed-request headers");
+            }
+
+            if (!long.TryParse(keyIdStr, out var keyId) ||
+                !long.TryParse(timestampStr, out var timestampMs))
+            {
+                throw new ApilaneException(AppErrors.UNAUTHORIZED, "Invalid signed-request headers");
+            }
+
+            var body = await ReadBodyAsync(request);
+            var canonical = RequestSignature.BuildCanonicalString(
+                keyId.ToString(),
+                request.Method,
+                UriHelper.GetEncodedPathAndQuery(request),
+                timestampMs.ToString(),
+                body);
+
+            return await ClusterClient
+                .GetGrain<IAuthTokenByIdGrain>(keyId)
+                .VerifyAndGetUserAsync(
+                    Application.ToDbInfo(ApiConfiguration.FilesPath),
+                    Application.AuthTokenExpireMinutes,
+                    timestampMs,
+                    canonical,
+                    providedSignature);
+        }
+
+        private static async Task<byte[]> ReadBodyAsync(Microsoft.AspNetCore.Http.HttpRequest request)
+        {
+            // Buffering is enabled upstream for signed requests, so the body stream is seekable
+            // and can be re-read here after model binding has already consumed it.
+            if (request.Body is null || !request.Body.CanSeek)
+            {
+                return Array.Empty<byte>();
+            }
+
+            request.Body.Position = 0;
+            using var ms = new System.IO.MemoryStream();
+            await request.Body.CopyToAsync(ms);
+            request.Body.Position = 0;
+            return ms.ToArray();
         }
 
         private static void ValidateApplicationUserCanAccessTheApplication(

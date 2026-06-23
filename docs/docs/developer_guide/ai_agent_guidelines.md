@@ -32,7 +32,6 @@ builder.Services.UseApilane(serverUrl, applicationToken);
 const apilane = createApilaneService({
     apiUrl: 'https://my.api.server',
     appToken: 'your-app-token',
-    authTokenProvider: async () => getStoredToken(), // optional global provider
 });
 ```
 
@@ -297,31 +296,45 @@ Always use the `FilterOperator` enum — never pass raw operator strings.
 
 ### Auth Tokens
 
-- Pass auth tokens via `.WithAuthToken(token)` / `.withAuthToken(token)` on each request
-- Or register a global auth token provider to avoid passing it manually every time:
-
-**.NET** — implement `IApilaneAuthTokenProvider`:
-```csharp
-public class MyAuthProvider : IApilaneAuthTokenProvider
-{
-    public Task<string?> GetAuthTokenAsync()
-        => Task.FromResult(GetTokenFromSession());
-}
-// Register before UseApilane
-builder.Services.AddSingleton<IApilaneAuthTokenProvider, MyAuthProvider>();
-```
-
-**JavaScript** — pass `authTokenProvider` to `createApilaneService`:
-```javascript
-const apilane = createApilaneService({
-    apiUrl, appToken,
-    authTokenProvider: async () => localStorage.getItem('authToken'),
-});
-```
-
+- Pass auth tokens via `.WithAuthToken(token)` / `.withAuthToken(token)` on each request, resolving the token from session/context/storage at call time
+- For a stronger option that never sends the token, sign requests with `.WithSigning(keyId, token)` (see **Signed Requests** below)
 - NEVER hardcode auth tokens — resolve them from session/context/storage at runtime
 - Auth tokens expire after the configured `AuthTokenExpireMinutes` — handle token renewal or re-login
 - Use `accountRenewAuthToken` / `AccountRenewAuthTokenAsync` to get a fresh token before expiry
+
+---
+
+### Signed Requests (don't send the token over the wire)
+
+For a stronger scheme than bearer, **sign** each request instead of transmitting the token. The token (the secret) never leaves the client; the request carries only an HMAC signature plus a timestamp. This survives request logging / TLS termination, and a captured request is only usable inside a short time window.
+
+Login returns the token **id** (`AuthTokenID`) alongside the token — use the id as the public key id and the token as the signing secret.
+
+**.NET** — `.WithSigning(keyId, secret)` on any request (takes precedence over `.WithAuthToken`):
+```csharp
+var login = (await apilane.AccountLoginAsync<ApiUser>(
+    AccountLoginRequest.New(new LoginItem { Email = email, Password = password }))).Value;
+
+var result = await apilane.GetDataAsync<Product>(
+    DataGetListRequest.New("Products")
+        .WithSigning(login.AuthTokenID, login.AuthToken)
+        .WithPageSize(25));
+```
+```javascript
+// JavaScript — .withSigning(keyId, secret)
+const login = (await apilane.accountLogin(
+    AccountLoginRequest.new({ Email: email, Password: password }))).value;
+
+const result = await apilane.getData(
+    DataGetListRequest.new('Products')
+        .withSigning(login.AuthTokenID, login.AuthToken)
+        .withPageSize(25));
+```
+
+- The client and server clocks must be roughly in sync — requests outside a small window (default ±2 min) are rejected
+- Sign each request fresh (the timestamp is part of the signature) — don't cache and resend a signed request
+- File **uploads** cannot be signed — use `.WithAuthToken` for `postFile`; calling `.WithSigning` on a file upload throws
+- Still resolve the token/keyId from session/storage at runtime — never hardcode them
 
 ---
 
@@ -584,7 +597,7 @@ const result = await apilane.getCustomEndpoint(
 | Selecting all properties | Excess bandwidth | Use `.WithProperties()` with only needed columns |
 | Filtering in memory | Fetches too much data from DB | Use `.WithFilter()` for server-side filtering |
 | Including system props in POST body | Ignored or errors | Never send `ID`, `Owner`, `Created`, `Created_Date` on create |
-| Hardcoding auth tokens | Security risk, breaks on expiry | Use auth token provider or resolve from session |
+| Hardcoding auth tokens | Security risk, breaks on expiry | Resolve from session/context/storage at runtime |
 | Using data endpoints for files | Errors | Use dedicated file endpoints (`PostFileAsync`/`postFile`, etc.) |
 | Assuming IDs before creation | Wrong references | Use `TransactionBuilder` cross-references (`$ref`) |
 | Requesting total count on every page | Double DB queries | Only request on first page or when pager needs it |

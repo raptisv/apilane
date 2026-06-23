@@ -133,11 +133,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                var authorizationToken = await GetAuthTokenAsync(request);
-                if (!string.IsNullOrWhiteSpace(authorizationToken))
-                {
-                    httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authorizationToken);
-                }
+                await ApplyAuthAsync(httpRequest, request);
                 var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
                 response.Dispose();

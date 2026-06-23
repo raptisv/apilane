@@ -17,6 +17,36 @@ Each application defines how long authentication tokens remain valid after the l
 
 ![Apilane](../assets/security_signin.png)
 
+#### Authenticating requests
+
+Once logged in, a client authenticates each request in one of two ways:
+
+**1. Bearer token (default).** Send the authentication token in the `Authorization: Bearer <token>` header. Simple, but the secret travels on every request — anyone able to observe it (logs, a TLS-terminating proxy, browser history) can reuse it until it expires.
+
+**2. Signed requests (proof-of-possession).** The token is treated as a shared secret that is stored once at login and **never transmitted again**. Each request instead carries an HMAC signature proving the client holds the token. This is safer than bearer and is replay-protected.
+
+Login (and the login response of the SDKs) returns the token's **id** (`AuthTokenID`) in addition to the token. The id is the public key identifier; the token is the signing secret. The client sends these headers:
+
+| Header | Value |
+|---|---|
+| `x-auth-keyid` | the `AuthTokenID` (public, not secret) |
+| `x-auth-timestamp` | current time in unix milliseconds |
+| `x-auth-signature` | base64 HMAC-SHA256 of the canonical request string |
+
+The signature is computed as `HMAC-SHA256(secret = token, message = canonical)` where the canonical string is the newline-joined list:
+
+```
+keyId
+HTTP-METHOD (upper-case)
+path + query (as sent)
+timestamp
+base64(SHA-256(request body))
+```
+
+The server resolves the secret from `x-auth-keyid`, recomputes the signature over the same canonical string, and compares it in constant time. It also rejects requests whose timestamp is outside a small clock-skew window (default ±2 minutes), which bounds how long any captured request could be reused.
+
+Because the secret is never sent, a logged or intercepted request cannot expose the token, and an intercepted request is only usable inside that short window. Both the .NET and JavaScript SDKs implement this via `.WithSigning(keyId, secret)` / `.withSigning(keyId, secret)` on any request. (File uploads cannot be signed and must use the bearer token.)
+
 ---
 
 ## Register
