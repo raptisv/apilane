@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.6.0 (2026-06-23)
+- feat(auth)!: add request signing (HMAC) authentication
+
 ## 8.5.3 (2026-06-20)
 - feat(history): Persist last record state on historic data before record deletion + history in transaction scope
 - feat(history): Prevent deletion of historic data on record deletion
