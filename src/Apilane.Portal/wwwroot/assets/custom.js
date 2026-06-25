@@ -405,9 +405,21 @@ function hexWithAlpha(hex, alpha) {
 
 function loadApplicationDisplayToken(appId, appToken, appEncryptionKey) {
     $('.swal-display-token-' + appId).click(function () {
+        // Read-only inputs so the values can be selected/copied (a <b> tag cannot be
+        // reliably double-click selected), each with a one-click copy button.
+        function copyField(label, value) {
+            return '<div class="mb-3 text-start">' +
+                '<label class="form-label mb-1">' + label + '</label>' +
+                '<div class="input-group">' +
+                '<input type="text" class="form-control" readonly value="' + value + '" onclick="this.select();" />' +
+                '<button type="button" class="btn btn-outline-secondary copy-btn" data-copy="' + value + '" title="Copy">' +
+                '<i class="bi bi-clipboard"></i></button>' +
+                '</div></div>';
+        }
+
         Swal.fire({
             title: "Application info",
-            html: `<div class="alert alert-primary fade show">Token: <b>${appToken}</b></div><div class="alert alert-primary fade show">Encryption key: <b>${appEncryptionKey}</b></div>`,
+            html: copyField('Token', appToken) + copyField('Encryption key', appEncryptionKey),
             showCancelButton: false,
             showConfirmButton: true,
             confirmButtonText: "OK",
@@ -416,6 +428,27 @@ function loadApplicationDisplayToken(appId, appToken, appEncryptionKey) {
             customClass: {
                 confirmButton: 'btn btn-primary'
             },
+            didOpen: function (popup) {
+                popup.querySelectorAll('.copy-btn').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var value = btn.getAttribute('data-copy');
+                        var flash = function () {
+                            var icon = btn.querySelector('i');
+                            if (!icon) { return; }
+                            icon.className = 'bi bi-check2';
+                            setTimeout(function () { icon.className = 'bi bi-clipboard'; }, 1200);
+                        };
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(value).then(flash).catch(function () { });
+                        } else {
+                            var input = btn.closest('.input-group').querySelector('input');
+                            input.select();
+                            document.execCommand('copy');
+                            flash();
+                        }
+                    });
+                });
+            }
         });
     });
 }

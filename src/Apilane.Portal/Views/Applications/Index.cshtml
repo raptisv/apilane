@@ -76,7 +76,7 @@
                                                     </a>
                                                 </li>
                                                 <li>
-                                                    <a href="@(app.Server.ServerUrl.ToLower().Trim('/'))/swagger/index.html" class="dropdown-item" target="_blank">
+                                                    <a href="@($"{app.Server.ServerUrl.ToLower().Trim('/')}/swagger/index.html?appToken={app.Token}&appName={System.Uri.EscapeDataString(app.Name)}")" class="dropdown-item" target="_blank">
                                                         <i class="bi bi-box-arrow-up-right me-2"></i>Swagger
                                                     </a>
                                                 </li>

@@ -163,8 +163,18 @@ namespace Apilane.Api
                 app.UseSwagger();
                 app.UseSwaggerUI((c) =>
                 {
-                    //c.InjectJavascript("/Scripts/swagger_custom.js");
                     c.DefaultModelsExpandDepth(-1); // Disable swagger schemas at bottom
+
+                    // Shows the application name (passed as ?appName= when opening Swagger from
+                    // the portal) as a banner on the UI.
+                    c.InjectJavascript("/swagger-custom.js");
+
+                    // When Swagger is opened from a specific application (?appToken=...), apply that
+                    // token to every request automatically — including the swagger.json fetch, so the
+                    // appToken field is pre-filled (see DefaultHeaderFilter).
+                    c.UseRequestInterceptor(
+                        "(req) => { try { var t = new URLSearchParams(window.location.search).get('appToken'); " +
+                        "if (t && !/[?&]appToken=[^&]/.test(req.url)) { req.url += (req.url.indexOf('?') < 0 ? '?' : '&') + 'appToken=' + encodeURIComponent(t); } } catch (e) {} return req; }");
                 });
 
                 app.UseSerilogRequestLogging();
@@ -259,17 +269,35 @@ namespace Apilane.Api
 
         private class DefaultHeaderFilter : IOperationFilter
         {
+            private readonly IHttpContextAccessor _httpContextAccessor;
+
+            public DefaultHeaderFilter(IHttpContextAccessor httpContextAccessor)
+            {
+                _httpContextAccessor = httpContextAccessor;
+            }
+
             public void Apply(OpenApiOperation operation, OperationFilterContext context)
             {
                 if (context.ApiDescription.TryGetMethodInfo(out var method))
                 {
+                    // The request interceptor forwards ?appToken=... onto the swagger.json fetch, so
+                    // pre-fill the field with that token when Swagger was opened for a specific app.
+                    var appToken = _httpContextAccessor.HttpContext?.Request.Query[Globals.ApplicationTokenQueryParam].ToString();
+
                     operation.Parameters.Insert(0, new OpenApiParameter
                     {
                         Name = Globals.ApplicationTokenQueryParam,
                         In = ParameterLocation.Query,
                         Required = true,
                         AllowEmptyValue = false,
-                        Description = "The application token (guid)"
+                        Description = "The application token (guid)",
+                        Schema = new OpenApiSchema
+                        {
+                            Type = "string",
+                            Default = string.IsNullOrEmpty(appToken)
+                                ? null
+                                : new Microsoft.OpenApi.Any.OpenApiString(appToken)
+                        }
                     });
                 }
             }

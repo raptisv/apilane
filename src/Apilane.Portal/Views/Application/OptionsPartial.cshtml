@@ -35,7 +35,7 @@
     <a href="#" class="swal-display-token-@Model.ID btn btn-default mt-1">
         <i class="bi bi-info-circle me-1"></i>Info
     </a>
-    <a href="@(Model.Server.ServerUrl.ToLower().Trim('/'))/swagger/index.html" class="btn btn-default mt-1" target="_blank">
+    <a href="@($"{Model.Server.ServerUrl.ToLower().Trim('/')}/swagger/index.html?appToken={Model.Token}&appName={System.Uri.EscapeDataString(Model.Name)}")" class="btn btn-default mt-1" target="_blank">
         <i class="bi bi-box-arrow-up-right me-1"></i>API
     </a>
 </div>
