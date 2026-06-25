@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.7.0 (2026-06-25)
+- feat(reports)!: Report dashboard with resizable multi-series panels
+
 ## 8.6.0 (2026-06-23)
 - feat(auth)!: add request signing (HMAC) authentication
 
