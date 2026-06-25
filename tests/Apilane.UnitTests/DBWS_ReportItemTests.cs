@@ -5,83 +5,88 @@ namespace Apilane.UnitTests
     [TestClass]
     public class DBWS_ReportItemTests
     {
-        private static DBWS_ReportItem BuildItem(
+        // Builds a panel + single series and returns the series' API url (the panel supplies the
+        // shared Entity / GroupBy / MaxRecords; the series supplies the aggregate Property + Filter).
+        private static string BuildUrl(
             string entity = "Orders",
-            string properties = "Total,Count",
+            string property = "Total,Count",
             string? filter = null,
             string groupBy = "month",
-            int maxRecords = 100) => new DBWS_ReportItem
+            int maxRecords = 100)
+        {
+            var panel = new DBWS_ReportPanel
             {
                 AppID = 1,
                 TypeID = 1,
-                Order = 0,
-                PanelWidth = 12,
+                X = 0,
+                Y = 0,
+                W = 12,
+                H = 4,
                 Title = "Test Report",
-                Entity = entity,
-                Properties = properties,
-                Filter = filter,
-                GroupBy = groupBy,
                 MaxRecords = maxRecords
             };
+
+            var series = new DBWS_ReportSeries
+            {
+                Label = "Series 1",
+                Entity = entity,
+                GroupBy = groupBy,
+                Property = property,
+                Filter = filter
+            };
+
+            return series.GetApiUrl(panel);
+        }
 
         // ─── GetApiUrl ───────────────────────────────────────────────────────────
 
         [TestMethod]
         public void GetApiUrl_ContainsEntityName()
         {
-            var item = BuildItem(entity: "Orders");
-            Assert.IsTrue(item.GetApiUrl().Contains("Entity=Orders"));
+            Assert.IsTrue(BuildUrl(entity: "Orders").Contains("Entity=Orders"));
         }
 
         [TestMethod]
         public void GetApiUrl_ContainsProperties()
         {
-            var item = BuildItem(properties: "Total,Count");
-            Assert.IsTrue(item.GetApiUrl().Contains("Properties=Total,Count"));
+            Assert.IsTrue(BuildUrl(property: "Total,Count").Contains("Properties=Total,Count"));
         }
 
         [TestMethod]
         public void GetApiUrl_ContainsGroupBy()
         {
-            var item = BuildItem(groupBy: "month");
-            Assert.IsTrue(item.GetApiUrl().Contains("GroupBy=month"));
+            Assert.IsTrue(BuildUrl(groupBy: "month").Contains("GroupBy=month"));
         }
 
         [TestMethod]
         public void GetApiUrl_ContainsPageSize()
         {
-            var item = BuildItem(maxRecords: 50);
-            Assert.IsTrue(item.GetApiUrl().Contains("PageSize=50"));
+            Assert.IsTrue(BuildUrl(maxRecords: 50).Contains("PageSize=50"));
         }
 
         [TestMethod]
         public void GetApiUrl_NullFilter_FilterEqualsEmpty()
         {
-            var item = BuildItem(filter: null);
-            // Filter= appears but with no value (stripped of spaces)
-            Assert.IsTrue(item.GetApiUrl().Contains("Filter="));
+            Assert.IsTrue(BuildUrl(filter: null).Contains("Filter="));
         }
 
         [TestMethod]
         public void GetApiUrl_WithFilter_FilterAppearsInUrl()
         {
-            var item = BuildItem(filter: "Amount>10");
-            Assert.IsTrue(item.GetApiUrl().Contains("Filter=Amount>10"));
+            Assert.IsTrue(BuildUrl(filter: "Amount>10").Contains("Filter=Amount>10"));
         }
 
         [TestMethod]
         public void GetApiUrl_NoSpaces()
         {
-            var item = BuildItem(entity: "My Entity", properties: "A, B");
-            var url = item.GetApiUrl();
+            var url = BuildUrl(entity: "My Entity", property: "A, B");
             Assert.IsFalse(url.Contains(' '));
         }
 
         [TestMethod]
         public void GetApiUrl_StartsWithStatsAggregate()
         {
-            var item = BuildItem();
-            Assert.IsTrue(item.GetApiUrl().StartsWith("Stats/Aggregate?"));
+            Assert.IsTrue(BuildUrl().StartsWith("Stats/Aggregate?"));
         }
     }
 }

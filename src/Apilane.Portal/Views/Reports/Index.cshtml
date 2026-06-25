@@ -1,6 +1,6 @@
-﻿@using Apilane.Portal.Models;
+@using Apilane.Portal.Models;
 @using Apilane.Common.Models;
-@model (DBWS_Application Application, List<DBWS_ReportItem> Reports)
+@model (DBWS_Application Application, List<DBWS_ReportPanel> Reports)
 
 @{
     ViewBag.Title = "Reports";
@@ -25,82 +25,73 @@
                 await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Model.Application);
             }
 
-            <div>
+            <div class="mb-2">
                 <a href="@Url.RouteUrl("AppRoute", new {controller = "Reports", action = "Create", appid = Html.GetAppToken() })" class="btn btn-primary"><i class="bi bi-plus me-1"></i>New report</a>
             </div>
 
-            <div id="report-grid" class="report-grid row clearfix">
-                @foreach (var report in Model.Reports.OrderBy(x => x.Order))
+            @Html.AntiForgeryToken()
+
+            <div class="grid-stack">
+                @foreach (var report in Model.Reports.OrderBy(x => x.Y).ThenBy(x => x.X))
                 {
-                    var entity = Model.Application.Entities.Single(e => e.Name.Equals(report.Entity));
-                    await Html.RenderPartialAsync("Report", (report, entity, Model.Application.Token, Model.Application.Server.ServerUrl));
+                    await Html.RenderPartialAsync("Report", (report, Model.Application, Model.Application.Token, Model.Application.Server.ServerUrl));
                 }
             </div>
         </div>
     </div>
 </div>
 
+@section styles{
+    <link rel="stylesheet" href="~/assets/vendor/gridstack/gridstack.min.css" />
+    <style>
+        .grid-stack { background: transparent; }
+        .grid-stack-item-content { inset: 0; overflow: hidden; }
+        .grid-report .card-body { padding: 0.75rem; }
+    </style>
+}
+
 @section scripts{
+    <script src="~/assets/vendor/chartjs/chart.umd.min.js"></script>
+    <script src="~/assets/vendor/gridstack/gridstack-all.js"></script>
     <script type="text/javascript">
 
-        $("#report-grid").sortable({
-            connectWith: ".grid-report",
-            handle: ".card .card-header h5",
-            placeholder: "placeholder",
-            start: function (e, ui) {
-
-                var classes = ui.item.attr('class').split(/\s+/);
-                for(var x=0; x<classes.length;x++){
-                    if (classes[x].indexOf("col")>-1){
-                    ui.placeholder.addClass(classes[x]);
-                   }
-                 }
-
-                ui.placeholder.css({
-                  width: ui.item.innerWidth() - 30,
-                  height: ui.item.innerHeight() - 15,
-                  padding: ui.item.css("padding"),
-                  marginTop: 0
-                });
-
-                //ui.placeholder.width(ui.item.find('.card').width());
-                //ui.placeholder.height(ui.item.find('.card').height());
-                //ui.placeholder.addClass(ui.item.attr("class"));
-            },
-            stop : function(event, ui){
-                var IDs = $("#report-grid").sortable(
-                'toArray',
-                {
-                    attribute: 'id'
-                });
-
-                $.ajax({
-                    url: `/App/@(Model.Application.Token)/Reports/Reorder?reportsOrder=${(IDs.join())}`,
-                    type: 'GET',
-                    success: function (data) {
-
-                    },
-                    error: function (e) {
-                        // Do nothing?
-                    }
-                });
-            }
+        var reportsGrid = GridStack.init({
+            column: 12,
+            cellHeight: 70,
+            margin: 6,
+            handle: '.report-drag-handle',
+            float: false,
+            resizable: { handles: 'e, se, s, sw, w' }
         });
-        $("#report-grid").disableSelection();
+
+        var saveLayoutUrl = '@Url.RouteUrl("AppRoute", new { controller = "Reports", action = "SaveLayout", appid = Model.Application.Token })';
+        var antiForgeryToken = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+        function saveReportsLayout() {
+            var nodes = reportsGrid.save(false);
+            var layout = nodes.map(function (n) {
+                return { Id: parseInt(n.id, 10), X: n.x, Y: n.y, W: n.w, H: n.h };
+            }).filter(function (n) { return n.Id > 0; });
+
+            fetch(saveLayoutUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': antiForgeryToken
+                },
+                body: JSON.stringify(layout)
+            });
+        }
+
+        // Persist whenever the user moves or resizes a panel.
+        reportsGrid.on('change', function () {
+            saveReportsLayout();
+        });
+
+        // Chart.js (v2) only resizes on window resize, so nudge it when a panel is resized.
+        reportsGrid.on('resizestop', function () {
+            window.dispatchEvent(new Event('resize'));
+        });
 
     </script>
 }
-
-<style>
-
-    .placeholder {
-        margin-top: 1.5rem !important;
-        margin-bottom: 15px !important;
-        margin-left: 0 !important;
-        border: 1px solid #ccc;
-        background-color: whitesmoke;
-        -webkit-box-shadow: 0px 0px 10px #888;
-        -moz-box-shadow: 0px 0px 10px #888;
-        box-shadow: 0px 0px 10px #888;
-    }
-</style>

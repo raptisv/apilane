@@ -11,6 +11,15 @@ namespace Apilane.Common.Enums
         Pie = 1,
 
         [Display(Name = "Line chart")]
-        Line = 2
+        Line = 2,
+
+        [Display(Name = "Bar chart")]
+        Bar = 3,
+
+        [Display(Name = "Radar chart")]
+        Radar = 4,
+
+        [Display(Name = "Stacked bar chart")]
+        StackedBar = 5
     }
 }

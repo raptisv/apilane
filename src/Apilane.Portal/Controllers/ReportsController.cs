@@ -4,9 +4,11 @@ using Apilane.Portal.Abstractions;
 using Apilane.Portal.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Apilane.Portal.Controllers
@@ -24,7 +26,10 @@ namespace Apilane.Portal.Controllers
 
         public ActionResult Index()
         {
-            var reports = DBContext.Reports.Where(x => x.AppID == Application.ID).ToList();
+            var reports = DBContext.Reports
+                .Include(x => x.Series)
+                .Where(x => x.AppID == Application.ID)
+                .ToList();
 
             return View((Application, reports));
         }
@@ -34,9 +39,85 @@ namespace Apilane.Portal.Controllers
             return RedirectToRoute("AppRoute", new { appid = Application.Token, controller = "Reports", action = "Index" });
         }
 
-        private DBWS_ReportItem GetReport(long ID)
+        private DBWS_ReportPanel GetReport(long ID)
         {
-            return DBContext.Reports.Single(x => x.AppID == Application.ID && x.ID == ID);
+            return DBContext.Reports
+                .Include(x => x.Series)
+                .Single(x => x.AppID == Application.ID && x.ID == ID);
+        }
+
+        /// <summary>
+        /// Parses the series posted by the editor (JSON array) into model objects and validates them
+        /// (adding ModelState errors). Rows are NOT dropped — the full set is returned so the editor
+        /// can re-display exactly what the user entered when validation fails.
+        /// </summary>
+        private List<DBWS_ReportSeries> ParseSeries(string? seriesJson)
+        {
+            var result = new List<DBWS_ReportSeries>();
+
+            List<DBWS_ReportSeries>? series = null;
+            if (!string.IsNullOrWhiteSpace(seriesJson))
+            {
+                try
+                {
+                    series = JsonSerializer.Deserialize<List<DBWS_ReportSeries>>(seriesJson,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                }
+                catch (Exception ex)
+                {
+                    ModelState.AddModelError("CustomError", $"Invalid series: {ex.Message}");
+                    return result;
+                }
+            }
+
+            var order = 0;
+            foreach (var s in series ?? new List<DBWS_ReportSeries>())
+            {
+                result.Add(new DBWS_ReportSeries
+                {
+                    ID = 0,
+                    Label = (s.Label ?? string.Empty).Trim(),
+                    Entity = (s.Entity ?? string.Empty).Trim(),
+                    GroupBy = (s.GroupBy ?? string.Empty).Trim(),
+                    Property = (s.Property ?? string.Empty).Trim(),
+                    Filter = string.IsNullOrWhiteSpace(s.Filter) ? null : s.Filter,
+                    Order = order++,
+                    DateModified = DateTime.UtcNow
+                });
+            }
+
+            // Validate without dropping rows (so edits are preserved on re-render).
+            if (result.Count == 0)
+            {
+                ModelState.AddModelError("CustomError", "Add at least one series (label, entity, group-by and property).");
+            }
+
+            var incomplete = false;
+            foreach (var s in result)
+            {
+                if (string.IsNullOrWhiteSpace(s.Label) ||
+                    string.IsNullOrWhiteSpace(s.Entity) ||
+                    string.IsNullOrWhiteSpace(s.GroupBy) ||
+                    string.IsNullOrWhiteSpace(s.Property))
+                {
+                    incomplete = true;
+                }
+                else if (!Application.Entities.Any(e => e.Name.Equals(s.Entity, StringComparison.OrdinalIgnoreCase)))
+                {
+                    ModelState.AddModelError("CustomError", $"Unknown entity '{s.Entity}'.");
+                }
+                else
+                {
+                    ValidateFilter(s.Filter);
+                }
+            }
+
+            if (incomplete)
+            {
+                ModelState.AddModelError("CustomError", "Each series needs a label, entity, group-by and property.");
+            }
+
+            return result;
         }
 
         public class PropertiesGroups
@@ -69,15 +150,15 @@ namespace Apilane.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(DBWS_ReportItem model)
+        public async Task<IActionResult> Create(DBWS_ReportPanel model, string? seriesJson)
         {
-            ModelState.Remove(nameof(DBWS_ReportItem.AppID));
-            ModelState.Remove(nameof(DBWS_ReportItem.Filter));
-            ModelState.Remove(nameof(DBWS_ReportItem.Application));
+            ModelState.Remove(nameof(DBWS_ReportPanel.AppID));
+            ModelState.Remove(nameof(DBWS_ReportPanel.Application));
 
-            var entity = Application.Entities.Single(x => x.Name == model.Entity);
+            var series = ParseSeries(seriesJson);
 
-            ValidateFilter(model.Filter);
+            // Keep the entered series so they are re-displayed if validation fails.
+            model.Series = series;
 
             if (!ModelState.IsValid)
             {
@@ -86,10 +167,13 @@ namespace Apilane.Portal.Controllers
 
             try
             {
-                model.PanelWidth = 6;// Default col-md-6
                 model.AppID = Application.ID;
 
-                model.Order = DBContext.Reports.Where(x => x.AppID == Application.ID).ToList().Select(x => x.Order).DefaultIfEmpty(0).Max() + 1;
+                // Default geometry: half-width panel appended below the existing ones.
+                model.W = 6;
+                model.H = 4;
+                model.X = 0;
+                model.Y = DBContext.Reports.Where(x => x.AppID == Application.ID).ToList().Select(x => x.Y + x.H).DefaultIfEmpty(0).Max();
                 model.ID = 0;
                 DBContext.Reports.Add(model);
                 await DBContext.SaveChangesAsync();
@@ -121,47 +205,39 @@ namespace Apilane.Portal.Controllers
                 }
                 catch (Exception ex)
                 {
-                    ModelState.AddModelError(nameof(DBWS_ReportItem.Filter), ex.Message);
+                    ModelState.AddModelError("CustomError", $"Invalid filter: {ex.Message}");
                 }
             }
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(DBWS_ReportItem model)
+        public async Task<IActionResult> Edit(DBWS_ReportPanel model, string? seriesJson)
         {
-            ModelState.Remove(nameof(DBWS_ReportItem.Application));
+            ModelState.Remove(nameof(DBWS_ReportPanel.Application));
 
-            var entity = Application.Entities.Single(x => x.Name.Equals(model.Entity));
+            var series = ParseSeries(seriesJson);
 
-            ValidateFilter(model.Filter);
+            // Keep the entered series so they are re-displayed if validation/save fails.
+            model.Series = series;
 
             if (!ModelState.IsValid)
             {
                 return View("AddEdit", model);
             }
 
-            DBWS_ReportItem report = GetReport(model.ID);
+            DBWS_ReportPanel report = GetReport(model.ID);
             try
             {
                 report.TypeID = model.TypeID;
                 report.Title = model.Title;
-                report.Entity = model.Entity;
-                report.Properties = model.Properties;
-                report.GroupBy = model.GroupBy;
-                report.Filter = model.Filter;
                 report.MaxRecords = model.MaxRecords;
+                report.TimeRange = model.TimeRange;
                 report.DateModified = DateTime.UtcNow;
 
-                DBContext.Attach(report);
-                DBContext.Entry(report).Property(x => x.TypeID).IsModified = true;
-                DBContext.Entry(report).Property(x => x.Title).IsModified = true;
-                DBContext.Entry(report).Property(x => x.Entity).IsModified = true;
-                DBContext.Entry(report).Property(x => x.Properties).IsModified = true;
-                DBContext.Entry(report).Property(x => x.GroupBy).IsModified = true;
-                DBContext.Entry(report).Property(x => x.Filter).IsModified = true;
-                DBContext.Entry(report).Property(x => x.MaxRecords).IsModified = true;
-                DBContext.Entry(report).Property(x => x.DateModified).IsModified = true;
+                // Replace the series wholesale (cascade removes the old ones).
+                DBContext.ReportSeries.RemoveRange(report.Series);
+                report.Series = series;
 
                 await DBContext.SaveChangesAsync();
 
@@ -170,7 +246,7 @@ namespace Apilane.Portal.Controllers
             catch (Exception ex)
             {
                 ModelState.AddModelError("CustomError", ex.Message);
-                return View("AddEdit", report);
+                return View("AddEdit", model);
             }
         }
 
@@ -182,7 +258,7 @@ namespace Apilane.Portal.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Delete(DBWS_ReportItem model)
+        public async Task<IActionResult> Delete(DBWS_ReportPanel model)
         {
             try
             {
@@ -200,45 +276,47 @@ namespace Apilane.Portal.Controllers
             }
         }
 
-        [HttpGet]
-        public async Task<JsonResult> Reorder(string reportsOrder)
+        public class LayoutItem
         {
-            List<long> reportsIDs = Utils.GetString(reportsOrder).Split(',').Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => Utils.GetLong(x)).Where(x => x > 0).ToList();
+            public long Id { get; set; }
+            public int X { get; set; }
+            public int Y { get; set; }
+            public int W { get; set; }
+            public int H { get; set; }
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<JsonResult> SaveLayout([FromBody] List<LayoutItem> layout)
+        {
+            if (layout == null || layout.Count == 0)
+            {
+                return Json("OK");
+            }
 
             var reports = DBContext.Reports.Where(x => x.AppID == Application.ID).ToList();
 
-            for (int i = 0; i < reportsIDs.Count; i++)
+            foreach (var item in layout)
             {
-                var report = reports.FirstOrDefault(x => x.ID == reportsIDs[i]);
-                if (report != null)
+                var report = reports.FirstOrDefault(x => x.ID == item.Id);
+                if (report == null)
                 {
-                    report.Order = i;
-
-                    DBContext.Attach(report);
-                    DBContext.Entry(report).Property(x => x.Order).IsModified = true;
+                    continue;
                 }
+
+                report.X = item.X;
+                report.Y = item.Y;
+                report.W = item.W;
+                report.H = item.H;
+
+                DBContext.Attach(report);
+                DBContext.Entry(report).Property(x => x.X).IsModified = true;
+                DBContext.Entry(report).Property(x => x.Y).IsModified = true;
+                DBContext.Entry(report).Property(x => x.W).IsModified = true;
+                DBContext.Entry(report).Property(x => x.H).IsModified = true;
             }
 
             await DBContext.SaveChangesAsync();
-
-            return Json("OK");
-        }
-
-        [HttpGet]
-        public async Task<JsonResult> SetWidth(long ID, int Width)
-        {
-            if (Width > 0 && Width <= 12 && Width % 2 == 0)
-            {
-                var report = DBContext.Reports.FirstOrDefault(x => x.ID == ID);
-                if (report != null)
-                {
-                    report.PanelWidth = Width;
-
-                    DBContext.Attach(report);
-                    DBContext.Entry(report).Property(x => x.PanelWidth).IsModified = true;
-                    await DBContext.SaveChangesAsync();
-                }
-            }
 
             return Json("OK");
         }

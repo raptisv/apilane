@@ -119,7 +119,7 @@ namespace Apilane.Common.Models
         public List<DBWS_Entity> Entities { get; set; } = null!;
 
 
-        public List<DBWS_ReportItem> Reports { get; set; } = null!;
+        public List<DBWS_ReportPanel> Reports { get; set; } = null!;
 
 
         public List<DBWS_CustomEndpoint> CustomEndpoints { get; set; } = null!;

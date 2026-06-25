@@ -139,26 +139,38 @@ namespace Apilane.Portal.Controllers
 
                 // Create initial report
 
-                var initReport = new DBWS_ReportItem()
+                var initReport = new DBWS_ReportPanel()
                 {
                     ID = 0,
                     AppID = -1,
                     Title = "User registrations per day",
-                    Entity = "Users",
                     DateModified = DateTime.UtcNow,
                     MaxRecords = 1000,
-                    Order = 0,
-                    PanelWidth = 12,
-                    GroupBy = $"Created.Year,Created.Month,Created.Day",
-                    Properties = $"ID.{DataAggregates.Count.ToString()}",
+                    X = 0,
+                    Y = 0,
+                    W = 12,
+                    H = 4,
                     TypeID = (int)ReportType.Line,
-                    Filter = null
+                    Series = new List<DBWS_ReportSeries>
+                    {
+                        new DBWS_ReportSeries
+                        {
+                            ID = 0,
+                            Label = "Registrations",
+                            Entity = "Users",
+                            GroupBy = $"Created.Year,Created.Month,Created.Day",
+                            Property = $"ID.{DataAggregates.Count}",
+                            Filter = null,
+                            Order = 0,
+                            DateModified = DateTime.UtcNow
+                        }
+                    }
                 };
 
                 // Initialize values
                 newApplication.Entities.ForEach(x => x.ID = 0);
                 newApplication.Entities.ForEach(x => x.Properties.ForEach(p => p.ID = 0));
-                newApplication.Reports = new List<DBWS_ReportItem>() { initReport };
+                newApplication.Reports = new List<DBWS_ReportPanel>() { initReport };
                 DBContext.Applications.Add(newApplication);
 
                 // Create application on api server

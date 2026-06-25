@@ -165,147 +165,6 @@ function getLabelForGroup(groupBy, groupValues, includeLabelIfNeeded) {
 }
 
 
-function loadReport_Grid(response, element, properties, groupBy) {
-    var allData = [];
-    $.each(response, function (i, value) {
-        var record = {
-            label: getLabelForGroup(groupBy, value, false)
-        };
-
-        $.each(properties, function (p, property) {
-            record[property.Raw] = value[property.Raw.replace('.', '_')];
-        });
-
-        allData.push(record);
-    });
-
-    var htmlHead = '';
-    $.each(groupBy, function (i, groupByItem) {
-        $.each(groupByItem.Values, function (j, valueItem) {
-            htmlHead += '<th>' + valueItem.Name + '</th>';
-        });
-    });
-    $.each(properties, function (p, property) {
-        htmlHead += '<th>' + property.Raw.split('.').join(' ') + '</th>';
-    });
-
-    var htmlBody = '';
-    $.each(allData, function (i, dataItem) {
-        htmlBody += '<tr>';
-        $.each(dataItem.label, function (j, label) {
-            htmlBody += '<td style="font-weight:bold;">' + label[0] + '</td>';
-        });
-        $.each(properties, function (p, property) {
-            htmlBody += '<td>' + dataItem[property.Raw] + '</td>';
-        });
-        htmlBody += '</tr>';
-    });
-
-    $('#' + element).html('<div class="table-responsive" style="height: 100%;"><table class="table table-sm table-hover table-report-item"><thead><tr>' + htmlHead + '</tr></thead><tbody>' + htmlBody + '</tbody></table></div>');
-}
-
-function loadReport_Pie(response, element, properties, groupBy, showLegend) {
-    var labels = [];
-    var values = [];
-    $.each(response, function (i, value) {
-        var recordValue = value[properties[0].Raw.replace('.', '_')];
-        labels.push(getLabelForGroup(groupBy, value, true).map(function (elem) { return elem[0]; }).join(', '));
-        values.push(recordValue);
-    });
-
-    $('#' + element).html('<canvas id="' + element + '_chart"></canvas>');
-
-    new Chart(document.getElementById(element + '_chart').getContext('2d'), {
-        type: 'pie',
-        data: {
-            datasets: [{
-                data: values,
-                fill: false
-            }],
-            labels: labels
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            legend: {
-                display: showLegend,
-                position: 'right'
-            },
-            plugins: {
-                colorschemes: {
-                    scheme: 'office.Breeze6'
-                }
-            }
-        }
-    });
-}
-
-// Line charts allows only dates for grouping
-function loadReport_Line(response, element, properties, groupBy, showLegend) {
-    var allData = [];
-    $.each(response, function (i, value) {
-        var record = {
-            label: getLabelForGroup(groupBy, value)
-        };
-
-        $.each(properties, function (p, property) {
-            record[property.Raw] = value[property.Raw.replace('.', '_')];
-        });
-
-        allData.push(record);
-    });
-
-    // Sort by date property
-    allData.sort(function (a, b) {
-        if ((a.label[0][1] !== null ? a.label[0][1].getTime() : a.label[0][0]) > (b.label[0][1] !== null ? b.label[0][1].getTime() : b.label[0][0]))
-            return 1;
-        else
-            return -1;
-    });
-
-    var labels = allData.map(function (elem) { return elem.label[0][0]; });
-
-    var datasets = [];
-    $.each(properties, function (p, property) {
-        var dataset = [];
-        $.each(allData, function (i, item) {
-            dataset.push(item[property.Raw]);
-        });
-        datasets.push({
-            label: property.Raw.split('.').join(' '),
-            data: dataset,
-            fill: false
-        });
-    });
-
-    $('#' + element).html('<canvas id="' + element + '_chart"></canvas>');
-
-    new Chart(document.getElementById(element + '_chart').getContext('2d'), {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: datasets
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            legend: {
-                display: showLegend,
-                position: 'bottom'
-            },
-            plugins: {
-                colorschemes: {
-                    scheme: 'office.Breeze6'
-                }
-            },
-            tooltips: {
-                intersect: false,
-                mode: 'index'
-            }
-        }
-    });
-}
-
 function normalizeQueryParameters(url) {
     const urlObj = new URL(url);
     const params = new URLSearchParams(urlObj.search);
@@ -317,67 +176,6 @@ function normalizeQueryParameters(url) {
     urlObj.search = params.toString();
 
     return urlObj.toString();
-}
-
-function loadApplicationReport(
-    reportID,
-    appToken,
-    portalUserAuthToken,
-    type,
-    urlStats,
-    propertiesForChart,
-    groupByForChart) {
-
-    $('#view-api-endpoint-' + reportID).click(function (e) {
-        e.preventDefault();
-
-        var url = `${urlStats}&AppToken=${appToken}`;
-
-        Swal.fire({
-            title: "API endpoint",
-            html: `<textarea readonly rows="10" class="w-100 form-control">${url}</textarea>`,
-            showCancelButton: true,
-            showConfirmButton: true,
-            cancelButtonText: 'Close',
-            confirmButtonText: "Open in a new tab",
-            buttonsStyling: false,
-            customClass: {
-                confirmButton: 'btn btn-primary',
-                cancelButton: 'btn btn-secondary ms-2'
-            }
-        }).then((submit) => {
-            if (submit.isConfirmed) {
-                window.open(url, '_blank');
-            }
-        });
-    });
-
-    setupResizeLinks(reportID, appToken, 4);
-    setupResizeLinks(reportID, appToken, 6);
-    setupResizeLinks(reportID, appToken, 12);
-
-    $('#refresh-report-' + reportID).click(function (e) {
-        loadApplicationReportChart(reportID, appToken, portalUserAuthToken, type, urlStats, propertiesForChart, groupByForChart);
-    });
-
-    loadApplicationReportChart(reportID, appToken, portalUserAuthToken, type, urlStats, propertiesForChart, groupByForChart);    
-}
-
-function setupResizeLinks(reportID, appToken, col) {
-    $('#resize-' + col + '-' + reportID).click(function (e) {
-        $.ajax({
-            url: '/App/' + appToken + '/Reports/SetWidth?ID=' + reportID + '&Width=' + col,
-            type: 'GET',
-            success: function (data) {
-                $('.report-' + reportID).attr('class', 'report-' + reportID + ' col-lg-' + col + ' col-md-' + col + ' col-sm-12 col-xs-12 mt-4');
-                $('.resize-link-' + reportID).removeClass('disabled');
-                $('#resize-' + col + '-' + reportID).addClass('disabled');
-            },
-            error: function (e) {
-                // Do nothing?
-            }
-        });
-    });
 }
 
 function apiCall(url, appToken, portalUserAuthToken, callback, errorCallback) {
@@ -400,44 +198,209 @@ function apiCall(url, appToken, portalUserAuthToken, callback, errorCallback) {
     });
 }
 
-function loadApplicationReportChart(reportID, appToken, portalUserAuthToken, type, urlStats, propertiesForChart, groupByForChart) {
+// ---- Multi-series report panels (shared x-axis) ----
 
-    $('#report_' + reportID).html(`<div class="text-center">
-                                    <div class="spinner-border">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                </div>`);
+var REPORT_PALETTE = ['#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f', '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac'];
 
-    apiCall(urlStats, appToken, portalUserAuthToken, function (response) {
-        $('#report_' + reportID).empty();
-        if (response.length === 0) {
-            $('#report_' + reportID).html('<div class="text-center"><span class="text-muted" style="position: absolute; top: 50%;">No data</span></div>');
-            return;
-        }
+function loadApplicationReportPanel(reportID, appToken, portalUserAuthToken, type, seriesDefs) {
 
-        try {
-            if (type === 'Pie') {
-                loadReport_Pie(response, 'report_' + reportID, propertiesForChart, groupByForChart, true);
-            } else if (type === 'Line') {
-                loadReport_Line(response, 'report_' + reportID, propertiesForChart, groupByForChart, true);
-            } else if (type === 'Grid') {
-                loadReport_Grid(response, 'report_' + reportID, propertiesForChart, groupByForChart, true);
-            }
-        } catch (err) {
-            console.error(err);
-            $('#report_' + reportID).html('<div style="text-align: center;"><span class="label label-danger">' + err + '</span><div>');
-        }
-    },
-        function (e) {
-            var jsonResponse = { Message: 'Error' };
-            if (e.responseJSON) {
-                jsonResponse = e.responseJSON;
-            }
-            else if (e.xhr && e.xhr.responseText) {
-                jsonResponse = JSON.parse(e.xhr.responseText);
-            }
-            $('#report_' + reportID).html('<div style="text-align: center;"><span class="label label-danger">' + jsonResponse.Message + '</span><div>');
+    $('#view-api-endpoint-' + reportID).off('click').on('click', function (e) {
+        e.preventDefault();
+        var urls = seriesDefs.map(function (s) { return s.url + '&AppToken=' + appToken; }).join('\n\n');
+        Swal.fire({
+            title: 'API endpoint' + (seriesDefs.length > 1 ? 's' : ''),
+            html: '<textarea readonly rows="10" class="w-100 form-control">' + urls + '</textarea>',
+            showCancelButton: false,
+            confirmButtonText: 'Close',
+            buttonsStyling: false,
+            customClass: { confirmButton: 'btn btn-primary' }
         });
+    });
+
+    $('#refresh-report-' + reportID).off('click').on('click', function () {
+        renderReportPanel(reportID, appToken, portalUserAuthToken, type, seriesDefs);
+    });
+
+    renderReportPanel(reportID, appToken, portalUserAuthToken, type, seriesDefs);
+}
+
+function renderReportPanel(reportID, appToken, portalUserAuthToken, type, seriesDefs) {
+    var el = $('#report_' + reportID);
+    el.html('<div class="text-center"><div class="spinner-border"><span class="visually-hidden">Loading...</span></div></div>');
+
+    if (!seriesDefs || seriesDefs.length === 0) {
+        el.html('<div class="text-center"><span class="text-muted">No series</span></div>');
+        return;
+    }
+
+    var results = new Array(seriesDefs.length);
+    var remaining = seriesDefs.length;
+    var hasError = false;
+
+    seriesDefs.forEach(function (s, idx) {
+        apiCall(s.url, appToken, portalUserAuthToken, function (response) {
+            results[idx] = { def: s, response: response };
+            remaining--;
+            if (remaining === 0 && !hasError) {
+                try {
+                    renderCombinedReport(reportID, type, results);
+                } catch (err) {
+                    console.error(err);
+                    el.html('<div style="text-align:center;"><span class="label label-danger">' + err + '</span></div>');
+                }
+            }
+        }, function (e) {
+            if (hasError) return;
+            hasError = true;
+            var msg = 'Error';
+            if (e.responseJSON) { msg = e.responseJSON.Message; }
+            else if (e.xhr && e.xhr.responseText) { try { msg = JSON.parse(e.xhr.responseText).Message; } catch (x) { } }
+            el.html('<div style="text-align:center;"><span class="label label-danger">' + msg + '</span></div>');
+        });
+    });
+}
+
+// Case-insensitive lookup of an aggregate column on a response row (the column casing can vary
+// across database providers, e.g. ID_Count vs ID_count).
+function getRowValue(row, col) {
+    if (row[col] !== undefined) { return row[col]; }
+    var lc = col.toLowerCase();
+    for (var k in row) {
+        if (k.toLowerCase() === lc) { return row[k]; }
+    }
+    return undefined;
+}
+
+function extractSeriesPoints(response, groupByForChart, propertyRaw) {
+    var col = propertyRaw.replace('.', '_');
+    var points = [];
+    $.each(response, function (i, row) {
+        var labelParts = getLabelForGroup(groupByForChart, row);
+        var key = labelParts.map(function (p) { return p[0]; }).join(' / ');
+        var sortVal = (labelParts.length > 0 && labelParts[0][1] !== null) ? labelParts[0][1].getTime() : key;
+        points.push({ key: key, sortVal: sortVal, value: getRowValue(row, col) });
+    });
+    return points;
+}
+
+function renderCombinedReport(reportID, type, results) {
+    var el = $('#report_' + reportID);
+
+    var allEmpty = results.every(function (r) { return !r.response || r.response.length === 0; });
+    if (allEmpty) {
+        el.html('<div class="text-center"><span class="text-muted" style="position:absolute; top:50%;">No data</span></div>');
+        return;
+    }
+
+    // Build the shared, aligned x-axis across all series (each series uses its own group-by).
+    var keyOrder = [];
+    var seenKeys = {};
+    var perSeriesMaps = results.map(function (r) {
+        var propRaw = (r.def.properties && r.def.properties.length > 0) ? r.def.properties[0].Raw : null;
+        var map = {};
+        if (propRaw) {
+            extractSeriesPoints(r.response, r.def.groupBy, propRaw).forEach(function (pt) {
+                map[pt.key] = pt.value;
+                if (!seenKeys[pt.key]) { seenKeys[pt.key] = true; keyOrder.push({ key: pt.key, sortVal: pt.sortVal }); }
+            });
+        }
+        return map;
+    });
+
+    keyOrder.sort(function (a, b) {
+        if (typeof a.sortVal === 'number' && typeof b.sortVal === 'number') { return a.sortVal - b.sortVal; }
+        return ('' + a.sortVal).localeCompare('' + b.sortVal);
+    });
+    var labels = keyOrder.map(function (k) { return k.key; });
+
+    if (type === 'Grid') {
+        var html = '<div class="table-responsive" style="height:100%;"><table class="table table-sm table-hover table-report-item"><thead><tr><th>Group</th>';
+        results.forEach(function (r) { html += '<th>' + r.def.label + '</th>'; });
+        html += '</tr></thead><tbody>';
+        labels.forEach(function (lab) {
+            html += '<tr><td style="font-weight:bold;">' + lab + '</td>';
+            perSeriesMaps.forEach(function (m) { html += '<td>' + (m[lab] !== undefined && m[lab] !== null ? m[lab] : '') + '</td>'; });
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        el.html(html);
+        return;
+    }
+
+    el.html('<canvas id="report_' + reportID + '_chart"></canvas>');
+    var ctx = document.getElementById('report_' + reportID + '_chart').getContext('2d');
+
+    if (type === 'Pie') {
+        // A pie shows a single series; slices are the group values of the first series.
+        var first = perSeriesMaps[0];
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: labels.map(function (lab) { return toNumberOrNull(first[lab]); }),
+                    backgroundColor: labels.map(function (lab, i) { return REPORT_PALETTE[i % REPORT_PALETTE.length]; })
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'right' } } }
+        });
+        return;
+    }
+
+    // Line / Bar / Stacked bar / Radar: one dataset per series, aligned to the shared labels.
+    var chartType = (type === 'Bar' || type === 'StackedBar') ? 'bar' : (type === 'Radar' ? 'radar' : 'line');
+    var isRadar = chartType === 'radar';
+    var isStacked = type === 'StackedBar';
+
+    var datasets = results.map(function (r, idx) {
+        var m = perSeriesMaps[idx];
+        var color = REPORT_PALETTE[idx % REPORT_PALETTE.length];
+        return {
+            label: r.def.label,
+            data: labels.map(function (lab) { return toNumberOrNull(m[lab]); }),
+            borderColor: color,
+            borderWidth: 2,
+            // Radar fills a translucent polygon; line/bar use the solid series color.
+            backgroundColor: isRadar ? hexWithAlpha(color, 0.3) : color,
+            pointBackgroundColor: color,
+            pointRadius: isRadar ? 2 : 3,
+            fill: isRadar,
+            spanGaps: true
+        };
+    });
+
+    new Chart(ctx, {
+        type: chartType,
+        data: { labels: labels, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            // Line/bar: tooltip on hover anywhere along the x-axis (all series at that x).
+            // Radar: hover the nearest point (index mode is meaningless on a radial axis).
+            interaction: isRadar ? { mode: 'nearest', intersect: true } : { mode: 'index', intersect: false },
+            plugins: { legend: { display: true, position: 'bottom' } },
+            // Soft minimum of 0 (radar uses the radial 'r' scale; hide its numeric value ticks).
+            // Stacked bar stacks both axes so series sum per x-position.
+            scales: isRadar
+                ? { r: { suggestedMin: 0, ticks: { display: false } } }
+                : (isStacked
+                    ? { x: { stacked: true }, y: { stacked: true, suggestedMin: 0 } }
+                    : { y: { suggestedMin: 0 } })
+        }
+    });
+}
+
+// Coerces a value to a number, or null when it is missing / not numeric.
+function toNumberOrNull(v) {
+    if (v === undefined || v === null || v === '') { return null; }
+    var n = Number(v);
+    return isNaN(n) ? null : n;
+}
+
+// Converts a #rrggbb colour to an rgba() string with the given alpha.
+function hexWithAlpha(hex, alpha) {
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
 }
 
 function loadApplicationDisplayToken(appId, appToken, appEncryptionKey) {

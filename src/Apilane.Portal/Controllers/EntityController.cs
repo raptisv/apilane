@@ -586,6 +586,11 @@ namespace Apilane.Portal.Controllers
                             }
                             break;
                         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                        // Bar / Stacked bar / Radar use the same option set as Pie: a numeric
+                        // aggregate over a categorical / date grouping.
+                        case ReportType.Bar:
+                        case ReportType.StackedBar:
+                        case ReportType.Radar:
                         case ReportType.Pie:
                             if (prop.TypeID_Enum == PropertyType.String)
                             {

@@ -22,7 +22,7 @@ namespace Apilane.UnitTests
             MailUserName = "user@example.com",
             MailPassword = "secret",
             Entities = new System.Collections.Generic.List<DBWS_Entity>(),
-            Reports = new System.Collections.Generic.List<DBWS_ReportItem>(),
+            Reports = new System.Collections.Generic.List<DBWS_ReportPanel>(),
             CustomEndpoints = new System.Collections.Generic.List<DBWS_CustomEndpoint>(),
             Collaborates = new System.Collections.Generic.List<DBWS_Collaborate>()
         };

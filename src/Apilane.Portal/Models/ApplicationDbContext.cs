@@ -28,7 +28,8 @@ namespace Apilane.Portal.Models
         public DbSet<DBWS_EntityProperty> EntityProperties { get; set; }
         public DbSet<DBWS_CustomEndpoint> CustomEndpoints { get; set; }
         public DbSet<DBWS_Collaborate> Collaborations { get; set; }
-        public DbSet<DBWS_ReportItem> Reports { get; set; }
+        public DbSet<DBWS_ReportPanel> Reports { get; set; }
+        public DbSet<DBWS_ReportSeries> ReportSeries { get; set; }
         public DbSet<PortalAuditLog> AuditLogs { get; set; }
 
         public ApplicationDbContext(
@@ -85,8 +86,16 @@ namespace Apilane.Portal.Models
             builder.Entity<DBWS_Collaborate>().ToTable("Collaborations").HasKey(p => p.ID);
             builder.Entity<DBWS_Collaborate>().HasOne(p => p.Application).WithMany(b => b.Collaborates).HasForeignKey(p => p.AppID).IsRequired();
 
-            builder.Entity<DBWS_ReportItem>().ToTable("Reports").HasKey(p => p.ID);
-            builder.Entity<DBWS_ReportItem>().HasOne(p => p.Application).WithMany(b => b.Reports).HasForeignKey(p => p.AppID).IsRequired();
+            builder.Entity<DBWS_ReportPanel>().ToTable("ReportPanels").HasKey(p => p.ID);
+            builder.Entity<DBWS_ReportPanel>().HasOne(p => p.Application).WithMany(b => b.Reports).HasForeignKey(p => p.AppID).IsRequired();
+
+            builder.Entity<DBWS_ReportSeries>().ToTable("ReportPanelSeries").HasKey(p => p.ID);
+            builder.Entity<DBWS_ReportSeries>()
+                .HasOne(p => p.Panel)
+                .WithMany(b => b.Series)
+                .HasForeignKey(p => p.PanelID)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
 
             // Audit logs table
             builder.Entity<PortalAuditLog>().ToTable("AuditLogs").HasKey(p => p.ID);
@@ -215,7 +224,7 @@ namespace Apilane.Portal.Models
             typeof(DBWS_EntityProperty),
             typeof(DBWS_CustomEndpoint),
             typeof(DBWS_Collaborate),
-            typeof(DBWS_ReportItem),
+            typeof(DBWS_ReportPanel),
             typeof(DBWS_Server),
             typeof(GlobalSettings),
             typeof(IdentityUserRole<string>)
@@ -408,7 +417,7 @@ namespace Apilane.Portal.Models
                 DBWS_EntityProperty prop => GetAppIdForProperty(prop),
                 DBWS_CustomEndpoint ce => ce.AppID > 0 ? ce.AppID : null,
                 DBWS_Collaborate collab => collab.AppID > 0 ? collab.AppID : null,
-                DBWS_ReportItem report => report.AppID > 0 ? report.AppID : null,
+                DBWS_ReportPanel report => report.AppID > 0 ? report.AppID : null,
                 _ => null // Admin-level: Server, GlobalSettings, UserRole
             };
         }
@@ -435,7 +444,7 @@ namespace Apilane.Portal.Models
                 DBWS_EntityProperty => "Property",
                 DBWS_CustomEndpoint => "Custom Endpoint",
                 DBWS_Collaborate => "Collaboration",
-                DBWS_ReportItem => "Report",
+                DBWS_ReportPanel => "Report",
                 DBWS_Server => "Server",
                 Common.Models.GlobalSettings => "Global Settings",
                 IdentityUserRole<string> => "User Role",
@@ -453,7 +462,7 @@ namespace Apilane.Portal.Models
                 DBWS_EntityProperty prop => prop.Name ?? "Unknown",
                 DBWS_CustomEndpoint ce => ce.Name ?? "Unknown",
                 DBWS_Collaborate collab => collab.UserEmail ?? "Unknown",
-                DBWS_ReportItem report => report.Title ?? "Unknown",
+                DBWS_ReportPanel report => report.Title ?? "Unknown",
                 DBWS_Server server => server.Name ?? "Unknown",
                 Apilane.Common.Models.GlobalSettings => "Instance Settings",
                 IdentityUserRole<string> userRole => ResolveUserEmailForRole(userRole),

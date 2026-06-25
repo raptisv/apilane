@@ -1,42 +1,95 @@
-﻿@using Apilane.Portal.Models
+@using System.Linq
+@using Apilane.Portal.Models
 @using Apilane.Common.Models
 @using Apilane.Common.Enums
 @using Microsoft.AspNetCore.Http;
-@model (DBWS_ReportItem Report, DBWS_Entity Entity, string AppToken, string ServerUrl)
+@model (DBWS_ReportPanel Report, DBWS_Application Application, string AppToken, string ServerUrl)
 
 @{
+    var panel = Model.Report;
+    var window = DBWS_ReportPanel.GetTimeWindowMs(panel.TimeRange);
 
+    // Resolve each valid series with whether it is grouped by a date (the time window only applies
+    // to date group-bys; everything else keeps top-N).
+    var validSeries = panel.Series.OrderBy(s => s.Order)
+        .Where(s => Model.Application.Entities.Any(e => e.Name.Equals(s.Entity, StringComparison.OrdinalIgnoreCase)))
+        .Select(s =>
+        {
+            var seriesEntity = Model.Application.Entities.Single(e => e.Name.Equals(s.Entity, StringComparison.OrdinalIgnoreCase));
+            var dateProperty = s.GroupBy.Split(',')[0].Split('.')[0];
+            var groupProp = seriesEntity.Properties.FirstOrDefault(p => p.Name.Equals(dateProperty, StringComparison.OrdinalIgnoreCase));
+            var isDateGroup = groupProp != null && groupProp.TypeID_Enum == Apilane.Common.Enums.PropertyType.Date;
+            return new { Series = s, Entity = seriesEntity, DateProperty = dateProperty, IsDateGroup = isDateGroup };
+        }).ToList();
+
+    // Scope per panel: window applies if any date series is windowed, top-N if any series falls back
+    // to it. When the panel MIXES both, the scope is shown per-series (in the label) instead of as an
+    // ambiguous panel badge.
+    var anyWindowed = window.HasValue && validSeries.Any(si => si.IsDateGroup);
+    var anyTopN = validSeries.Any(si => !(window.HasValue && si.IsDateGroup));
+    var mixed = anyWindowed && anyTopN;
+    var rangeLabel = DBWS_ReportPanel.GetTimeRangeDisplay(panel.TimeRange);
+    var topNLabel = $"Top {panel.MaxRecords}";
+
+    var seriesDefs = validSeries.Select(si =>
+    {
+        var windowed = window.HasValue && si.IsDateGroup;
+        var effectiveFilter = windowed
+            ? si.Series.BuildWindowedFilter(si.DateProperty, window.Value.StartMs, window.Value.EndMs)
+            : null;
+
+        // On mixed panels, annotate each series with its own scope so the legend is unambiguous.
+        var label = mixed ? $"{si.Series.Label} · {(windowed ? rangeLabel : topNLabel)}" : si.Series.Label;
+
+        return new
+        {
+            label = label,
+            url = $"{Model.ServerUrl}/api/{si.Series.GetApiUrl(panel, effectiveFilter)}",
+            properties = Html.GetPropertiesForChart(si.Entity, si.Series.Property),
+            groupBy = Html.GetGroupsForChart(si.Entity, si.Series.GroupBy)
+        };
+    }).ToList();
 }
 
-<div id="@Model.Report.ID" class="report-@Model.Report.ID report-item col-lg-@Model.Report.PanelWidth col-md-@Model.Report.PanelWidth col-sm-12 col-xs-12 mt-4">
-    <div class="card grid-report">
-        <div class="card-header d-flex justify-content-between align-items-center" style="cursor: grab;">
-            <h5 class="m-0 mr-2" title="@Model.Report.Title">
-                @Model.Report.Title
-            </h5>
-            <div class="card-header-elements ml-md-auto">
-                <a href="javascript:void(0);" title="Refresh" id="refresh-report-@Model.Report.ID" class="btn btn-sm btn-default">
-                    <span class="bi bi-arrow-clockwise"></span>
-                </a>
-                <div class="btn-group">
-                    <button class="btn btn-sm dropdown-toggle btn-default" type="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-three-dots"></i>
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a href="@(Url.RouteUrl("AppRoute", new { controller = "Reports", action = "Edit", appid = Model.AppToken }))?ID=@Model.Report.ID" data-id="@Model.Report.ID" class="dropdown-item">Edit</a></li>
-                        <li><a href="@(Url.RouteUrl("AppRoute", new { controller = "Reports", action = "Delete", appid = Model.AppToken }))?ID=@Model.Report.ID" data-id="@Model.Report.ID" class="dropdown-item">Delete</a></li>
-                        <li><div class="dropdown-divider"></div></li>
-                        <li><a href="javascript:void(0);" id="view-api-endpoint-@Model.Report.ID" class="dropdown-item">View API endpoint</a></li>
-                        <li><div class="dropdown-divider"></div></li>
-                        <li><a href="javascript:void(0);" id="resize-4-@Model.Report.ID" class="dropdown-item resize-link-@Model.Report.ID @(Model.Report.PanelWidth == 4 ? "disabled" : "")">Minimum width</a></li>
-                        <li><a href="javascript:void(0);" id="resize-6-@Model.Report.ID" class="dropdown-item resize-link-@Model.Report.ID @(Model.Report.PanelWidth == 6 ? "disabled" : "")">Half width</a></li>
-                        <li><a href="javascript:void(0);" id="resize-12-@Model.Report.ID" class="dropdown-item resize-link-@Model.Report.ID @(Model.Report.PanelWidth == 12 ? "disabled" : "")">Full width</a></li>
-                    </ul>
+<div class="grid-stack-item report-@Model.Report.ID" gs-id="@Model.Report.ID" gs-x="@Model.Report.X" gs-y="@Model.Report.Y" gs-w="@Model.Report.W" gs-h="@Model.Report.H">
+    <div class="grid-stack-item-content">
+        <div class="card grid-report h-100 d-flex flex-column">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="report-drag-handle m-0 mr-2 text-truncate" style="cursor: move; flex: 1;" title="@Model.Report.Title">
+                    @Model.Report.Title
+                </h5>
+                @if (!mixed && anyWindowed && rangeLabel != null)
+                {
+                    <span class="badge text-muted fw-normal me-2 flex-shrink-0" title="Time window applied to date series">
+                        <i class="bi bi-clock-history"></i> @rangeLabel
+                    </span>
+                }
+                @if (!mixed && anyTopN)
+                {
+                    <span class="badge text-muted fw-normal me-2 flex-shrink-0" title="Max points per series">
+                        <i class="bi bi-list-ol"></i> @topNLabel
+                    </span>
+                }
+                <div class="card-header-elements ml-md-auto">
+                    <a href="javascript:void(0);" title="Refresh" id="refresh-report-@Model.Report.ID" class="btn btn-sm btn-default">
+                        <span class="bi bi-arrow-clockwise"></span>
+                    </a>
+                    <div class="btn-group">
+                        <button class="btn btn-sm dropdown-toggle btn-default" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots"></i>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a href="@(Url.RouteUrl("AppRoute", new { controller = "Reports", action = "Edit", appid = Model.AppToken }))?ID=@Model.Report.ID" data-id="@Model.Report.ID" class="dropdown-item">Edit</a></li>
+                            <li><a href="@(Url.RouteUrl("AppRoute", new { controller = "Reports", action = "Delete", appid = Model.AppToken }))?ID=@Model.Report.ID" data-id="@Model.Report.ID" class="dropdown-item">Delete</a></li>
+                            <li><div class="dropdown-divider"></div></li>
+                            <li><a href="javascript:void(0);" id="view-api-endpoint-@Model.Report.ID" class="dropdown-item">View API endpoint</a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="card-body" style="height: 235px;">
-            <div id="report_@(Model.Report.ID)" style="height: 100%;@(Model.Report.TypeID_Enum != ReportType.Grid ? "padding:6px;" : string.Empty);" class="table-fixed-head"></div>
+            <div class="card-body flex-fill" style="overflow: hidden; min-height: 0;">
+                <div id="report_@(Model.Report.ID)" style="height: 100%;@(Model.Report.TypeID_Enum != ReportType.Grid ? "padding:6px;" : string.Empty);" class="table-fixed-head"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -45,15 +98,12 @@
 {
     <script type="text/javascript">
         $(document).ready(function () {
-            loadApplicationReport(
-                @Model.Report.ID,
+            loadApplicationReportPanel(
+                @panel.ID,
                '@Model.AppToken',
                '@Html.GetPortalUserAuthToken(User.Identity!)',
-               '@Model.Report.TypeID_Enum.ToString()',
-               '@Model.ServerUrl/api/@Html.Raw(Model.Report.GetApiUrl())',
-                @Html.Raw(Json.Serialize(Html.GetPropertiesForChart(Model.Entity, Model.Report.Properties))),
-                @Html.Raw(Json.Serialize(Html.GetGroupsForChart(Model.Entity, Model.Report.GroupBy))));
+               '@panel.TypeID_Enum.ToString()',
+                @Html.Raw(Json.Serialize(seriesDefs)));
         });
-
     </script>
 }

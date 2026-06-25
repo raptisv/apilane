@@ -117,8 +117,9 @@ namespace Apilane.Portal.Extensions
                 "assets/vendor/sweetalert/sweetalert2.min.js",
                 "assets/vendor/jquery-ui/jquery-ui.js",
                 "assets/custom.js",
-                "assets/vendor/chartjs/chart.min.js",
-                "assets/vendor/chartjs/chartjs-plugin-colorschemes.min.js",
+                // Chart.js is NOT bundled here: re-minifying its already-minified ES build with
+                // NUglify breaks the Filler plugin. It is loaded raw via a <script> tag on the
+                // Reports page (the only page that draws charts), like GridStack.
                 "assets/vendor/bootstrap-notify/bootstrap-notify.min.js",
                 "assets/vendor/jquery-file-upload/jquery.ui.widget.js",
                 "assets/vendor/jquery-file-upload/jquery.iframe-transport.js",
