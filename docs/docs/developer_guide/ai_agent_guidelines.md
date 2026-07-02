@@ -292,6 +292,19 @@ const filter = FilterItem.and(
 
 Always use the `FilterOperator` enum — never pass raw operator strings.
 
+**Matching a set of IDs (`IN`):** there is no `IN` operator. On a **numeric** property, `contains` / `notcontains` with a comma-joined value compiles to SQL `IN (...)` / `NOT IN (...)`. This is the established Apilane "IN" idiom — build the value with `string.Join(",", ids)`:
+
+```csharp
+// .NET — WHERE ID IN (3, 7, 42)
+var filter = new FilterItem("ID", FilterOperator.contains, string.Join(",", ids));
+```
+```javascript
+// JavaScript — WHERE ID IN (3, 7, 42)
+const filter = FilterItem.condition('ID', FilterOperator.contains, ids.join(','));
+```
+
+On a **string** property `contains` is a substring match (`LIKE`), not set membership.
+
 ---
 
 ### Auth Tokens

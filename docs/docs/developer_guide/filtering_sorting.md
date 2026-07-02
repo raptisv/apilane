@@ -69,6 +69,30 @@ This translates to: `Country = 'US' AND (Role = 'admin' OR Role = 'manager')`
 | `contains` | `like` | Contains substring | String |
 | `notcontains` | `nc` | Does not contain substring | String |
 
+### Matching a set of values (`IN`)
+
+Apilane has no dedicated `IN` operator. On a **numeric** property, `contains` and `notcontains` compile to SQL `IN (...)` / `NOT IN (...)` when the value is a comma-separated list of numbers. This is the established Apilane idiom for "match any of these IDs":
+
+```json
+{ "Property": "ID", "Operator": "contains", "Value": "3,7,42" }
+```
+
+translates to `ID IN (3, 7, 42)`.
+
+!!!warning "Numeric only"
+    On a **string** property, `contains` means *substring* `LIKE` — not `IN`. The set-membership behaviour applies only to numeric properties.
+
+With the SDK, build the value with `string.Join(",", ids)`:
+
+```csharp
+// .NET — "ID IN (...)"
+var filter = new FilterItem("ID", FilterOperator.contains, string.Join(",", ids));
+```
+```javascript
+// JavaScript — "ID IN (...)"
+const filter = FilterItem.condition('ID', FilterOperator.contains, ids.join(','));
+```
+
 ### Filter Logic
 
 | Logic | Description |

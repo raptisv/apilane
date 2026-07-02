@@ -201,6 +201,20 @@ Use `ValueTask<T>` for hot-path grain methods; `Task<T>` elsewhere.
 Place extension methods in the nearest `Extensions/` directory of the relevant project.
 File name matches the type being extended: `ApplicationExtensions.cs` extends `DBWS_Application`.
 
+### Filtering — the `IN` idiom
+Filters have no dedicated `IN` operator. On a **numeric** property, `contains` / `notcontains`
+compile to SQL `IN (...)` / `NOT IN (...)` when the value is a comma-joined list of numbers (see
+`SqlFilterDataExtensions`). `FilterOperator.contains` + `string.Join(",", ids)` is the established
+Apilane "IN" idiom — used internally, e.g. in `ApplicationDataService`:
+
+```csharp
+new FilterData(Globals.PrimaryKeyColumn, FilterData.FilterOperators.contains,
+    string.Join(",", ids), PropertyType.Number); // -> WHERE [ID] IN (...)
+```
+
+In the SDK the same idiom is `new FilterItem("ID", FilterOperator.contains, string.Join(",", ids))`.
+On a **string** property `contains` is a substring `LIKE`, not set membership.
+
 ---
 
 ## Testing Conventions

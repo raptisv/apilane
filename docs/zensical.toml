@@ -25,6 +25,7 @@ nav = [
         { "Custom Endpoints" = "developer_guide/custom_endpoints.md" },
         { "Email Templates" = "developer_guide/email_templates.md" },
         { "Reports" = "developer_guide/reports.md" },
+        { "Schema Import" = "developer_guide/schema_import.md" },
     ] },
     { "REST API Reference" = "api_reference.md" },
     { "SDK (.NET)" = "developer_guide/sdk.md" },
