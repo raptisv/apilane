@@ -1,5 +1,10 @@
 # Changelog
 
+## 8.7.1 (2026-07-03)
+- fix(data): quote table names in GetDataById and ExistsTable
+- feat(docs): Update docs
+- feat(swagger): scope Swagger to the calling application + copy-pasteable token
+
 ## 8.7.0 (2026-06-25)
 - feat(reports)!: Report dashboard with resizable multi-series panels
 
