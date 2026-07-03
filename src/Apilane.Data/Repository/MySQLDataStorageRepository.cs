@@ -411,7 +411,7 @@ namespace Apilane.Data.Repository
             long id,
             List<string>? entityProperties)
         {
-            var result = await ExecPagingAsync(entityName, Globals.PrimaryKeyColumn,
+            var result = await ExecPagingAsync($"`{entityName}`", Globals.PrimaryKeyColumn,
                 fields: entityProperties is null ? "*" : string.Join(",", entityProperties.Select(x => $"`{x}`")),
                 filter: $" `{entityName}`.`{Globals.PrimaryKeyColumn}` = {id}",
                 sort: null,
