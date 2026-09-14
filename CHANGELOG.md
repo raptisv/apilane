@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.7.2 (2026-09-14)
+- fix(security): require app owner for CustomController.TestQuery
+
 ## 8.7.1 (2026-07-03)
 - fix(data): quote table names in GetDataById and ExistsTable
 - feat(docs): Update docs
