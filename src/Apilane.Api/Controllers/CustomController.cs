@@ -66,7 +66,11 @@ namespace Apilane.Api.Controllers
             return Json(result);
         }
 
+        // Runs arbitrary SQL from the request body. This is a portal-only "test the query before
+        // saving" feature and must be restricted to the application owner — otherwise anyone holding
+        // the (client-side, public) application token could read any table, including AuthTokens and Users.
         [ApiExplorerSettings(IgnoreApi = true)]
+        [ApplicationOwnerAuthorize]
         [HttpPost]
         public async Task<JsonResult> TestQuery([FromBody] DBWS_CustomEndpoint item)
         {
