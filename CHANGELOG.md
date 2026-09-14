@@ -1,5 +1,8 @@
 # Changelog
 
+## 8.7.3 (2026-09-14)
+fix(import): root FK-dependency ordering at Users, not only the differentiation entity
+
 ## 8.7.2 (2026-09-14)
 - fix(security): require app owner for CustomController.TestQuery
 
