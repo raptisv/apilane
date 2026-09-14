@@ -51,9 +51,17 @@ namespace Apilane.Common.Extensions
                     .Select(c => new GroupItem() { ID = x.Name, ParentID = c.GetForeignKeyProperties().FKEntity }))
                 .ToList();
 
-            // Add differentiation Entity or Users as root without parent to start from
-            var rootEntity = string.IsNullOrWhiteSpace(application.DifferentiationEntity) ? "Users" : application.DifferentiationEntity;
-            data.Add(new GroupItem() { ID = rootEntity, ParentID = null });
+            // Seed the tree roots. 'Users' is always present and is the most common FK target, so
+            // it must be a root — otherwise entities that reference Users (but not the differentiation
+            // entity) are unreachable, their Level stays int.MaxValue, and the ordering silently
+            // collapses to input order (breaking FK-dependency ordering on differentiation apps).
+            // The differentiation entity, when configured, is seeded as an additional root.
+            data.Add(new GroupItem() { ID = "Users", ParentID = null });
+            if (!string.IsNullOrWhiteSpace(application.DifferentiationEntity)
+                && !application.DifferentiationEntity.Equals("Users", StringComparison.OrdinalIgnoreCase))
+            {
+                data.Add(new GroupItem() { ID = application.DifferentiationEntity, ParentID = null });
+            }
 
             data = data.OrderBy(x => x.Level).DistinctBy(x => new { x.ID, x.ParentID }).ToList();
             return (data.BuildTree(), data);
