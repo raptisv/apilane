@@ -1,7 +1,10 @@
 # Changelog
 
+## 10.0.0 (2026-09-17)
+- chore: upgrade to .NET 10 and migrate portal UI to Tailwind CSS v4 + Alpine.js
+
 ## 8.7.3 (2026-09-14)
-fix(import): root FK-dependency ordering at Users, not only the differentiation entity
+- fix(import): root FK-dependency ordering at Users, not only the differentiation entity
 
 ## 8.7.2 (2026-09-14)
 - fix(security): require app owner for CustomController.TestQuery
