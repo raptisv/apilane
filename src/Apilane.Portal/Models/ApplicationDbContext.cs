@@ -313,12 +313,19 @@ namespace Apilane.Portal.Models
         /// the data needed to build audit log entries, or null when
         /// there is no authenticated user or nothing to audit.
         /// </summary>
-        private IEnumerable<PendingAuditEntry> BuildAuditEntries()
+        /// <remarks>
+        /// Materialized eagerly (<see cref="Enumerable.ToList{TSource}(IEnumerable{TSource})"/>) rather than
+        /// returned as a lazy query. Callers add new <see cref="PortalAuditLog"/> entities to the ChangeTracker
+        /// while iterating the result — with a lazy query that mutation happens while the underlying
+        /// <see cref="ChangeTracker.Entries()"/> enumeration is still open, which throws
+        /// "Collection was modified; enumeration operation may not execute."
+        /// </remarks>
+        private List<PendingAuditEntry> BuildAuditEntries()
         {
             var httpContext = _httpContextAccessor?.HttpContext;
             if (httpContext?.User?.Identity?.IsAuthenticated != true)
             {
-                return Enumerable.Empty<PendingAuditEntry>();
+                return new List<PendingAuditEntry>();
             }
 
             return ChangeTracker.Entries()
@@ -333,7 +340,8 @@ namespace Apilane.Portal.Models
                     UserId = httpContext.User.Identity.GetUserId(),
                     UserEmail = httpContext.User.Identity.GetUserEmail(),
                     Timestamp = DateTime.UtcNow
-                });
+                })
+                .ToList();
         }
 
         private void AddAuditLog(PendingAuditEntry pending, PropertyValues? dbValues)

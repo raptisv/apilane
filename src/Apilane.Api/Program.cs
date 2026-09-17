@@ -13,8 +13,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Serilog;
+using Serilog.Enrichers.Span;
 using Serilog.Settings.Configuration;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System;
@@ -53,7 +54,10 @@ namespace Apilane.Api
                     {
                         SectionName = "Serilog",
                         FormatProvider = null
-                    }).CreateLogger();
+                    })
+                    // Attach TraceId/SpanId (from the current Activity) to every log event.
+                    .Enrich.WithSpan()
+                    .CreateLogger();
 
                 var appConfig = new ApiConfiguration(configuration);
 
@@ -100,22 +104,11 @@ namespace Apilane.Api
 						Scheme = "Bearer"
 					});
 
-					c.AddSecurityRequirement(new OpenApiSecurityRequirement()
+					c.AddSecurityRequirement(doc =>
 					{
-						{
-							new OpenApiSecurityScheme
-							{
-								Reference = new OpenApiReference
-								{
-									Type = ReferenceType.SecurityScheme,
-									Id = "Bearer"
-								},
-								Scheme = "oauth2",
-								Name = "Bearer",
-								In = ParameterLocation.Header,
-							},
-							new List<string>()
-						}
+						var requirement = new OpenApiSecurityRequirement();
+						requirement.Add(new OpenApiSecuritySchemeReference("Bearer", doc), new List<string>());
+						return requirement;
 					});
 
 					var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
@@ -284,6 +277,9 @@ namespace Apilane.Api
                     // pre-fill the field with that token when Swagger was opened for a specific app.
                     var appToken = _httpContextAccessor.HttpContext?.Request.Query[Globals.ApplicationTokenQueryParam].ToString();
 
+                    // Parameters is nullable in the current OpenAPI model (a fresh operation may not have any yet).
+                    operation.Parameters ??= new List<Microsoft.OpenApi.IOpenApiParameter>();
+
                     operation.Parameters.Insert(0, new OpenApiParameter
                     {
                         Name = Globals.ApplicationTokenQueryParam,
@@ -293,10 +289,10 @@ namespace Apilane.Api
                         Description = "The application token (guid)",
                         Schema = new OpenApiSchema
                         {
-                            Type = "string",
+                            Type = JsonSchemaType.String,
                             Default = string.IsNullOrEmpty(appToken)
                                 ? null
-                                : new Microsoft.OpenApi.Any.OpenApiString(appToken)
+                                : System.Text.Json.Nodes.JsonValue.Create(appToken)
                         }
                     });
                 }

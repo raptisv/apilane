@@ -16,6 +16,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
+using Serilog.Enrichers.Span;
 using Serilog.Settings.Configuration;
 using System;
 using System.IO;
@@ -47,7 +48,10 @@ namespace Apilane.Portal
                 {
                     SectionName = "Serilog",
                     FormatProvider = null
-                }).CreateLogger();
+                })
+                // Attach TraceId/SpanId (from the current Activity) to every log event.
+                .Enrich.WithSpan()
+                .CreateLogger();
 
             var appConfig = new PortalConfiguration(configuration);
 
@@ -88,7 +92,8 @@ namespace Apilane.Portal
 
             builder.Services
                 .AddServices(appConfig)
-                .AddAssets();
+                .AddAssets()
+                .AddOpenTelemetry(appConfig.OpenTelemetry);
 
             builder.Services.AddMvc();
 
@@ -154,6 +159,9 @@ namespace Apilane.Portal
             }
 
             app.UseSerilogRequestLogging();
+
+            // Expose the Prometheus scrape endpoint (before auth so /metrics is not behind login).
+            app.UseOpenTelemetryPrometheusScrapingEndpoint(context => context.Request.Path == "/metrics");
 
             app.UseWebOptimizer();
 

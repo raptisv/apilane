@@ -89,7 +89,7 @@ namespace Apilane.UnitTests
                 Properties = "SomeColumn"
             };
 
-            Assert.ThrowsException<InvalidOperationException>(() => constraint.GetUniqueProperties());
+            Assert.ThrowsExactly<InvalidOperationException>(() => constraint.GetUniqueProperties());
         }
 
         // ─── GetForeignKeyProperties ───────────────────────────────────────────
@@ -135,7 +135,7 @@ namespace Apilane.UnitTests
                 Properties = null
             };
 
-            Assert.ThrowsException<InvalidOperationException>(() => constraint.GetForeignKeyProperties());
+            Assert.ThrowsExactly<InvalidOperationException>(() => constraint.GetForeignKeyProperties());
         }
 
         [TestMethod]
@@ -147,7 +147,7 @@ namespace Apilane.UnitTests
                 Properties = "OnlyOne"
             };
 
-            Assert.ThrowsException<InvalidOperationException>(() => constraint.GetForeignKeyProperties());
+            Assert.ThrowsExactly<InvalidOperationException>(() => constraint.GetForeignKeyProperties());
         }
 
         [TestMethod]
@@ -159,7 +159,7 @@ namespace Apilane.UnitTests
                 Properties = "Col,Table"
             };
 
-            Assert.ThrowsException<InvalidOperationException>(() => constraint.GetForeignKeyProperties());
+            Assert.ThrowsExactly<InvalidOperationException>(() => constraint.GetForeignKeyProperties());
         }
 
         // ─── GetForeignKeyPropertiesAsList ─────────────────────────────────────
@@ -190,7 +190,7 @@ namespace Apilane.UnitTests
             };
 
             // GetForeignKeyProperties throws on null; GetForeignKeyPropertiesAsList propagates
-            Assert.ThrowsException<InvalidOperationException>(() => constraint.GetForeignKeyPropertiesAsList());
+            Assert.ThrowsExactly<InvalidOperationException>(() => constraint.GetForeignKeyPropertiesAsList());
         }
     }
 }

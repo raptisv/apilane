@@ -10,7 +10,7 @@
     var FONT_SIZE = 13;
 
     function isDarkTheme() {
-        return document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        return true; // Portal is dark-only now
     }
 
     function getThemeColors() {
@@ -546,22 +546,16 @@
             var modalEl = document.getElementById('securityTreeModal');
             if (!modalEl) return;
 
-            var modal = new bootstrap.Modal(modalEl);
-            modal.show();
+            window.Alpine.store('modal').open('securityTreeModal');
 
             var container = document.getElementById('securityTreeContainer');
             if (!container) return;
 
-            // Clear and re-render when modal is shown
-            modalEl.addEventListener('shown.bs.modal', function onShown() {
-                modalEl.removeEventListener('shown.bs.modal', onShown);
+            // Wait for Alpine's x-show to actually flip the modal to visible (it updates the
+            // DOM on the next tick, not synchronously) before measuring/rendering into it.
+            window.Alpine.nextTick(function () {
                 renderTree(container);
             });
-
-            // If modal is already visible (edge case), render immediately
-            if (modalEl.classList.contains('show')) {
-                renderTree(container);
-            }
         });
     }
 })();

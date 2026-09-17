@@ -305,7 +305,7 @@
                             <td>
                                 @if (itemCount > 0)
                                 {
-                                    <a href="#" data-bs-toggle="modal" data-bs-target="#@modalId">
+                                    <a href="#" @@click.prevent="$store.modal.open('@modalId')">
                                         View JSON (@itemCount @(itemCount == 1 ? "item" : "items"))
                                     </a>
                                 }
@@ -349,18 +349,18 @@
             if (parseJsonArray(jsonValue).Count == 0) { continue; }
             var modalId = "json-modal-" + Model.ID + "-" + change.Property;
 
-            <div class="modal fade" id="@modalId" tabindex="-1" aria-hidden="true">
+            <div class="modal" id="@modalId" x-show="$store.modal.activeId === '@modalId'" x-transition x-cloak @@click.self="$store.modal.close()">
                 <div class="modal-dialog modal-lg modal-dialog-scrollable">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title">@change.Property</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <button type="button" class="btn-close" @@click="$store.modal.close()" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <pre class="mb-0"><code>@formatJson(jsonValue)</code></pre>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-secondary" @@click="$store.modal.close()">Close</button>
                         </div>
                     </div>
                 </div>

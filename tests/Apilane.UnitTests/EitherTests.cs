@@ -55,7 +55,7 @@ namespace Apilane.UnitTests
         {
             var either = new Either<string, int>(99);
 
-            Assert.ThrowsException<InvalidOperationException>(() => _ = either.Value);
+            Assert.ThrowsExactly<InvalidOperationException>(() => _ = either.Value);
         }
 
         [TestMethod]
@@ -105,7 +105,7 @@ namespace Apilane.UnitTests
         {
             var either = new Either<string, int>("ok");
 
-            Assert.ThrowsException<ArgumentNullException>(() =>
+            Assert.ThrowsExactly<ArgumentNullException>(() =>
                 either.Match(null!, e => "error"));
         }
 
@@ -114,7 +114,7 @@ namespace Apilane.UnitTests
         {
             var either = new Either<string, int>("ok");
 
-            Assert.ThrowsException<ArgumentNullException>(() =>
+            Assert.ThrowsExactly<ArgumentNullException>(() =>
                 either.Match(s => s, null!));
         }
 

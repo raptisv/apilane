@@ -337,3 +337,7 @@ ASALocalRun/
 /docs/site
 
 .sisyphus
+.claude
+
+# Tailwind CLI binary (platform-specific, ~100MB+) — download via build-tools/README.md, never commit.
+/build-tools/tailwindcss*

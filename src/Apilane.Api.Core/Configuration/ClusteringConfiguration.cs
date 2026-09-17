@@ -9,7 +9,6 @@ namespace Apilane.Api.Core.Configuration
         public ClusteringType Type { get; set; } = ClusteringType.Localhost;
         public int SiloPort { get; set; } = 11111;
         public int GatewayPort { get; set; } = 30000;
-        public int DashboardPort { get; set; } = 8080;
         public RedisClusteringConfiguration? Redis { get; set; }
         public AdoNetClusteringConfiguration? AdoNet { get; set; }
 

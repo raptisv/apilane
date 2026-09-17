@@ -80,6 +80,9 @@ namespace Apilane.Api.Core.Configuration
                 public bool Enabled { get; set; } = false;
                 public string Url { get; set; } = null!;
                 public double SampleRatio { get; set; } = 0.1;
+                // When true (default), every finished span is also written as a Serilog log event
+                // (carrying TraceId/SpanId/ParentId), so the request flow is logged.
+                public bool LogSpans { get; set; } = true;
             }
 
             public class OpenTelemetryMetricsConfiguration

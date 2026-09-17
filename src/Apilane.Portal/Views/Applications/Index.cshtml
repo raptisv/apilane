@@ -9,24 +9,23 @@
 @{
     ViewBag.Title = "Applications";
     Layout = "~/Views/Shared/_Layout.cshtml";
-    var isDarkTheme = Html.IsDarkTheme(Context.Request);
 }
 
-<div class="clearfix">
-    <div class="row">
-        <div class="col-lg-12">
+<div>
+    <div>
+        <div>
 
             <div class="mb-4">
                 <div class="btn-group" role="group" aria-label="Button group with nested dropdown">
-                    <a href="@Url.Action("Create", "Applications")" class="btn btn-primary"><i class="bi bi-plus me-1"></i>New application</a>
+                    <a href="@Url.Action("Create", "Applications")" class="btn btn-primary rounded-r-none"><i class="bi bi-plus me-1"></i>New application</a>
 
-                    <div class="btn-group" role="group">
-                        <button id="btnGroupDrop1" type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
-                        <div class="dropdown-menu" aria-labelledby="btnGroupDrop1" style="">
+                    <div class="dropdown" x-data="{ open: false }" @@click.outside="open = false">
+                        <button id="btnGroupDrop1" type="button" class="btn btn-primary rounded-l-none" @@click="open = !open"><i class="bi bi-chevron-down"></i></button>
+                        <div class="dropdown-menu" x-show="open" x-transition x-cloak @@click="open = false">
                             <a href="@Url.Action("Import", "Applications")" class="dropdown-item"><i class="bi bi-upload me-2"></i>Import</a>
                         </div>
                     </div>
-                </div>                
+                </div>
             </div>
 
             @foreach (var server in Model.Servers)
@@ -48,10 +47,10 @@
                         </div>
                     </div>
 
-                    <div class="row clearfix">
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                         @foreach (var app in Model.Applications.Where(x => x.ServerID == server.ID))
                         {
-                            <div class='col-12 col-lg-4 col-md-6'>
+                            <div>
 
                                 <div class="card mb-4">
 
@@ -65,28 +64,22 @@
                                                 @(EnumProvider<DatabaseType>.GetDisplayValue(((DatabaseType)app.DatabaseType)))
                                             </span>
                                         </div>
-                                        <div class="dropstart ms-auto">
-                                            <button class="btn text-muted" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <div class="dropstart ms-auto" x-data="{ open: false }" @@click.outside="open = false">
+                                            <button class="btn text-muted" @@click="open = !open">
                                                 <i class="i bi-three-dots-vertical"></i>
                                             </button>
-                                            <ul class="dropdown-menu">
-                                                <li>
-                                                    <a href="#" class="dropdown-item swal-display-token-@app.ID">
-                                                        <i class="bi bi-info-circle me-2"></i>Info
-                                                    </a>
-                                                </li>
-                                                <li>
-                                                    <a href="@($"{app.Server.ServerUrl.ToLower().Trim('/')}/swagger/index.html?appToken={app.Token}&appName={System.Uri.EscapeDataString(app.Name)}")" class="dropdown-item" target="_blank">
-                                                        <i class="bi bi-box-arrow-up-right me-2"></i>Swagger
-                                                    </a>
-                                                </li>
-                                                <li><hr class="dropdown-divider"></li>
-                                                <li>
-                                                    <a href="#" class="dropdown-item compare-application-@app.Token">
-                                                        <i class="bi bi-layout-split me-2"></i>Compare
-                                                    </a>
-                                                </li>
-                                            </ul>
+                                            <div class="dropdown-menu" x-show="open" x-transition x-cloak @@click="open = false">
+                                                <a href="#" class="dropdown-item swal-display-token-@app.ID">
+                                                    <i class="bi bi-info-circle me-2"></i>Info
+                                                </a>
+                                                <a href="@($"{app.Server.ServerUrl.ToLower().Trim('/')}/swagger/index.html?appToken={app.Token}&appName={System.Uri.EscapeDataString(app.Name)}")" class="dropdown-item" target="_blank">
+                                                    <i class="bi bi-box-arrow-up-right me-2"></i>Swagger
+                                                </a>
+                                                <hr class="dropdown-divider" />
+                                                <a href="#" class="dropdown-item compare-application-@app.Token">
+                                                    <i class="bi bi-layout-split me-2"></i>Compare
+                                                </a>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -145,70 +138,50 @@
                                             <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "DataBrowser", appid = app.Token })" class="btn btn-sm btn-default" title="Data browser">
                                                 <i class="bi bi-database"></i>
                                             </a>
-                                            <div class="btn-group">
-                                                <button class="btn btn-sm dropdown-toggle btn-default" type="button" data-bs-toggle="dropdown">
+                                            <div class="dropdown" x-data="{ open: false }" @@click.outside="open = false">
+                                                <button class="btn btn-sm btn-default" type="button" @@click="open = !open">
                                                     <i class="bi bi-three-dots"></i>
                                                 </button>
-                                                <ul class="dropdown-menu">
-                                                    <li>
-                                                        <a href="@Url.RouteUrl("AppRoute", new {controller = "CustomEndpoints", action = "Index", appid = app.Token })" class="dropdown-item">
-                                                            <i class="bi bi-arrow-up-right-square me-2"></i>Custom
-                                                        </a>
-                                                    </li>
-                                                    <li>
-                                                        <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Email", appid = app.Token })" class="dropdown-item">
-                                                            <i class="bi bi-envelope me-2"></i>Email
-                                                        </a>
-                                                    </li>
-                                                    <li>
-                                                        <a href="@Url.RouteUrl("AppRoute", new {controller = "Reports", action = "Index", appid = app.Token })" class="dropdown-item">
-                                                            <i class="bi bi-graph-up me-2"></i>Reports
-                                                        </a>
-                                                    </li>
+                                                <div class="dropdown-menu" x-show="open" x-transition x-cloak @@click="open = false">
+                                                    <a href="@Url.RouteUrl("AppRoute", new {controller = "CustomEndpoints", action = "Index", appid = app.Token })" class="dropdown-item">
+                                                        <i class="bi bi-arrow-up-right-square me-2"></i>Custom
+                                                    </a>
+                                                    <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Email", appid = app.Token })" class="dropdown-item">
+                                                        <i class="bi bi-envelope me-2"></i>Email
+                                                    </a>
+                                                    <a href="@Url.RouteUrl("AppRoute", new {controller = "Reports", action = "Index", appid = app.Token })" class="dropdown-item">
+                                                        <i class="bi bi-graph-up me-2"></i>Reports
+                                                    </a>
                                                     @if (app.UserID == User.Identity!.GetUserId())
                                                     {
-                                                        <li>
-                                                            <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Collaborate", action = "Index" })" class="dropdown-item">
-                                                                <i class="bi bi-people me-2"></i>Share
-                                                            </a>
-                                                        </li>
+                                                        <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Collaborate", action = "Index" })" class="dropdown-item">
+                                                            <i class="bi bi-people me-2"></i>Share
+                                                        </a>
                                                     }
-                                                    <li><hr class="dropdown-divider"></li>
-                                                    <li>
-                                                        <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Application", action = "Clone" })" class="dropdown-item">
-                                                            <i class="bi bi-copy me-2"></i>Clone
-                                                        </a>
-                                                    </li>
-                                                    <li>
-                                                        <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Application", action = "Rebuild" })" class="dropdown-item">
-                                                            <i class="bi bi-wrench me-2"></i>Rebuild
-                                                        </a>
-                                                    </li>
-                                                    <li>
-                                                        <a href="#" class="dropdown-item export-application-@app.Token">
-                                                            <i class="bi bi-cloud-arrow-down me-2"></i>Export
-                                                        </a>
-                                                    </li>
-                                                    <li><hr class="dropdown-divider"></li>
-                                                    <li>
-                                                        <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Edit", appid = app.Token })" class="dropdown-item">
-                                                            <i class="bi bi-pen me-2"></i>Edit
-                                                        </a>
-                                                    </li>
-                                                    <li>
-                                                        <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "SetStatus", appid = app.Token })" class="dropdown-item">
-                                                            <i class="@(app.Online ? "bi bi-lightbulb" : "bi bi-lightbulb-off") me-2"></i>@(app.Online ? "Go offline" : "Go online")
-                                                        </a>
-                                                    </li>
-                                                    <li>
-                                                        <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Application", action = "Delete" })" class="dropdown-item">
-                                                            <i class="bi bi-trash me-2"></i>Delete
-                                                        </a>
-                                                    </li>
-                                                </ul>
+                                                    <hr class="dropdown-divider" />
+                                                    <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Application", action = "Clone" })" class="dropdown-item">
+                                                        <i class="bi bi-copy me-2"></i>Clone
+                                                    </a>
+                                                    <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Application", action = "Rebuild" })" class="dropdown-item">
+                                                        <i class="bi bi-wrench me-2"></i>Rebuild
+                                                    </a>
+                                                    <a href="#" class="dropdown-item export-application-@app.Token">
+                                                        <i class="bi bi-cloud-arrow-down me-2"></i>Export
+                                                    </a>
+                                                    <hr class="dropdown-divider" />
+                                                    <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "Edit", appid = app.Token })" class="dropdown-item">
+                                                        <i class="bi bi-pen me-2"></i>Edit
+                                                    </a>
+                                                    <a href="@Url.RouteUrl("AppRoute", new {controller = "Application", action = "SetStatus", appid = app.Token })" class="dropdown-item">
+                                                        <i class="@(app.Online ? "bi bi-lightbulb" : "bi bi-lightbulb-off") me-2"></i>@(app.Online ? "Go offline" : "Go online")
+                                                    </a>
+                                                    <a href="@Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Application", action = "Delete" })" class="dropdown-item">
+                                                        <i class="bi bi-trash me-2"></i>Delete
+                                                    </a>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div class="list-group-item storage_@app.ID" id="storage_@app.ID" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-original-title="Size on disk">
+                                        <div class="list-group-item storage_@app.ID" id="storage_@app.ID" title="Size on disk">
                                             <div class="spinner-border spinner-border-sm">
                                                 <span class="visually-hidden">Loading...</span>
                                             </div>
@@ -225,17 +198,17 @@
 </div>
 
 
-<div class="modal fade" id="modal-application-compare" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+<div class="modal" id="modal-application-compare" x-show="$store.modal.activeId === 'modal-application-compare'" x-transition x-cloak>
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">Application comparison</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <button type="button" class="btn-close" @@click="$store.modal.close()" aria-label="Close"></button>
       </div>
       <div id="modal-application-compare-body" class="modal-body">
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-subtle" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-subtle" @@click="$store.modal.close()">Close</button>
       </div>
     </div>
   </div>
@@ -307,7 +280,7 @@
                     customClass: {
                         confirmButton: 'btn btn-primary',
                         cancelButton: 'btn',
-                        input: 'form-control mx-auto my-8 w-75'
+                        input: 'form-control mx-auto my-8 w-3/4'
                     },
                     inputValidator: function (value) {
                         if (!value) return 'Please select an application to compare to';
@@ -322,7 +295,7 @@
                 }).then(function (result) {
                     if (result.isConfirmed && result.value) {
                         $('#modal-application-compare-body').html(buildDiffHtml(result.value));
-                        $('#modal-application-compare').modal('show');
+                        Alpine.store('modal').open('modal-application-compare');
                     }
                 });
             });

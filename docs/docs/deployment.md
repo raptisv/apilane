@@ -25,7 +25,7 @@ You may then access the portal on [http://localhost:5000](http://localhost:5000)
 
 ### Docker images
 
-Both images are based on the official `mcr.microsoft.com/dotnet/aspnet:8.0` runtime image. The build process uses a multi-stage Dockerfile with the `mcr.microsoft.com/dotnet/sdk:8.0` image for compilation.
+Both images are based on the official `mcr.microsoft.com/dotnet/aspnet:10.0` runtime image. The build process uses a multi-stage Dockerfile with the `mcr.microsoft.com/dotnet/sdk:10.0` image for compilation.
 
 | Image Tag | Service |
 |---|---|
@@ -133,7 +133,7 @@ The API service supports OpenTelemetry for metrics and distributed tracing:
 | **Tracing** | Enabled via `OpenTelemetry:Tracing:Enabled`, with configurable endpoint (`Url`) and sample ratio (`SampleRatio`, default `0.1`) |
 | **Prometheus** | Metrics scraping at `/metrics` |
 
-### Orleans Dashboard
+### Orleans clustering
 
 The API uses [Microsoft Orleans](https://github.com/dotnet/orleans) for distributed actor state management. Orleans requires a clustering provider for multi-server deployments. The system supports three clustering options with automatic fallback:
 
@@ -151,8 +151,7 @@ The clustering behavior is configured via the `Clustering` section in `appsettin
   "ServiceId": "apilane_api_service",
   "Type": "Localhost",
   "SiloPort": 11111,
-  "GatewayPort": 30000,
-  "DashboardPort": 8080
+  "GatewayPort": 30000
 }
 ```
 
@@ -165,7 +164,6 @@ The clustering behavior is configured via the `Clustering` section in `appsettin
 | `Type` | Clustering type: `Localhost`, `Redis`, or `AdoNet` | `Localhost` |
 | `SiloPort` | Grain-to-grain communication port | `11111` |
 | `GatewayPort` | Client-to-silo communication port | `30000` |
-| `DashboardPort` | Orleans dashboard UI port | `8080` |
 
 #### Redis Clustering
 
@@ -178,7 +176,6 @@ For production deployments with multiple API instances, configure Redis clusteri
   "Type": "Redis",
   "SiloPort": 11111,
   "GatewayPort": 30000,
-  "DashboardPort": 8080,
   "Redis": {
     "ConnectionString": "localhost:6379"
   }
@@ -196,7 +193,6 @@ For production deployments using SQL databases:
   "Type": "AdoNet",
   "SiloPort": 11111,
   "GatewayPort": 30000,
-  "DashboardPort": 8080,
   "AdoNet": {
     "ConnectionString": "Server=localhost;Database=OrleansDb;User Id=sa;Password=YourPassword;",
     "Invariant": "System.Data.SqlClient"
@@ -217,7 +213,8 @@ If no `Clustering` section is present in configuration, the system defaults to *
 
 If the `Type` is specified, the system attempts to use that clustering provider. If the required configuration is missing (e.g., `Redis.ConnectionString` for Redis type), the system throws an exception at startup.
 
-The Orleans cluster exposes a dashboard (default port `8080`) that can be useful for debugging in development environments.
+!!!info "Grain observability"
+    There is no bundled Orleans dashboard. Use the [OpenTelemetry metrics and tracing](#metrics-and-tracing) described above (Prometheus `/metrics`, OTLP traces) for cluster and grain-level observability.
 
 ---
 

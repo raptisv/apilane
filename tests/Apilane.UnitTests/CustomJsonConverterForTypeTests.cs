@@ -36,14 +36,14 @@ namespace Apilane.UnitTests
         // ─── Read ────────────────────────────────────────────────────────────────
 
         [TestMethod]
-        [ExpectedException(typeof(NotSupportedException))]
         public void Read_ThrowsNotSupportedException()
         {
             var options = new JsonSerializerOptions();
             options.Converters.Add(new CustomJsonConverterForType());
 
             // Attempting to deserialize a Type should throw NotSupportedException
-            JsonSerializer.Deserialize<Type>("\"System.String\"", options);
+            Assert.ThrowsExactly<NotSupportedException>(() =>
+                JsonSerializer.Deserialize<Type>("\"System.String\"", options));
         }
     }
 }

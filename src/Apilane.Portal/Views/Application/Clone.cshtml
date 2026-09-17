@@ -34,8 +34,8 @@
     var cloneableEntities = (List<string>)ViewBag.CloneableEntities;
 }
 
-<div class="row clearfix">
-    <div class="col-12 col-xl-6">
+<div>
+    <div class="xl:max-w-2xl">
         <div class="card">
             <h4 class="card-header">
                 Clone application @Application.Name
@@ -58,7 +58,7 @@
                     </div>
                 </div>
 
-                <div class="alert alert-warning" role="alert">
+                <div class="alert alert-warning mt-3" role="alert">
                     <div class="d-flex gap-4">
                         <span><i class="bi bi-exclamation-triangle-fill icon-warning"></i></span>
                         If you change storage provider (e.g. from SQLite to MySql) you may encounter several compatibility issues due to differences in how the two databases handle data types.
@@ -69,7 +69,7 @@
 
                 @using (Html.BeginRouteForm("AppRoute", new { appid = Application.Token, action = "Clone", controller = "Application" }, FormMethod.Post, true, new { role = "form" }))
                 {
-                    <div class="form-group mb-3">
+                    <div class="form-group mb-3 mt-3">
                         <div class="form-line">
                             @Html.DropDownList("ServerID", Servers, null, new { @class = "form-select" })
                         </div>

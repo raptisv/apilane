@@ -9,9 +9,9 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
-<div class="clearfix">
-    <div class="row">
-        <div class="col-lg-12">
+<div>
+    <div>
+        <div>
             <div class="page-header">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
@@ -23,8 +23,8 @@
                     </ol>
                 </nav>
             </div>
-            <div class="row clearfix">
-                <div class="col-12 col-xl-6">
+            <div>
+                <div class="xl:max-w-2xl">
                     <div class="card">
                         <h4 class="card-header">
                             Share with another user
@@ -45,22 +45,22 @@
                                     The user will be notified by email that he/she has administrator rights to the application.
                                 </div>
                             }
-                            <button type="submit" class="btn_save btn btn-primary" title="Send request">
+                            <button type="submit" class="btn_save btn btn-primary mt-3" title="Send request">
                                 <i class="bi bi-send me-1"></i><span>Send request</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <div class="col-12 col-xl-6 mt-4 mt-xl-0">
-                    <div class="accordion p-6 custom-border" id="accordion">
+                <div class="mt-4">
+                    <div class="accordion p-6 custom-border" x-data="{ openItem: null }">
                         <div class="accordion-item">
-                            <h2 class="accordion-header" id="headingOne">
-                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="false" aria-controls="collapse1">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button" :class="{ collapsed: openItem !== 'c1' }" type="button" @@click="openItem = (openItem === 'c1' ? null : 'c1')">
                                     What is an application collaborator?
                                 </button>
                             </h2>
-                            <div id="collapse1" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordion">
+                            <div x-show="openItem === 'c1'" x-collapse x-cloak>
                                 <div class="accordion-body">
                                     When you add a user as an application collaborator, you give that user administrator access to that application.
                                     <br />
@@ -79,12 +79,12 @@
                             </div>
                         </div>
                         <div class="accordion-item">
-                            <h2 class="accordion-header" id="headingTwo">
-                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button" :class="{ collapsed: openItem !== 'c2' }" type="button" @@click="openItem = (openItem === 'c2' ? null : 'c2')">
                                     Can I remove a collaborator?
                                 </button>
                             </h2>
-                            <div id="collapse2" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordion">
+                            <div x-show="openItem === 'c2'" x-collapse x-cloak>
                                 <div class="accordion-body">
                                     Yes you can remove any collaborator at any time.
                                 </div>

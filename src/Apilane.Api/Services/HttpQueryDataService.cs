@@ -49,7 +49,9 @@ namespace Apilane.Api.Services
                     return tokenFromHeader.Split(' ', StringSplitOptions.RemoveEmptyEntries).Last();
                 }
 
-                return string.Empty;
+                // A plain navigation (e.g. a file download link built as an <a href>, which can't
+                // set custom headers) falls back to the query string, same as AppToken does.
+                return GetUriValue(Globals.AuthTokenQueryParam);
             }
         }
 
@@ -119,6 +121,13 @@ namespace Apilane.Api.Services
             get
             {
                 var clientId = GetHeaderValue(Globals.ClientIdHeaderName);
+
+                if (string.IsNullOrWhiteSpace(clientId))
+                {
+                    // Same fallback reasoning as AuthToken above.
+                    clientId = GetUriValue(Globals.ClientIdQueryParam);
+                }
+
                 return !string.IsNullOrWhiteSpace(clientId) && clientId.Equals(Globals.ClientIdHeaderValuePortal, StringComparison.OrdinalIgnoreCase);
             }
         }

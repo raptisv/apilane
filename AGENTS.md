@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Apilane is a .NET 8 backend-as-a-service platform (ASP.NET Core API + Blazor Portal).
+Apilane is a .NET 10 backend-as-a-service platform (ASP.NET Core API + ASP.NET MVC Portal).
 It uses Microsoft Orleans for distributed actor state and targets SQLite, SQL Server, and MySQL.
 
 **Solution:** `Apilane.sln`
@@ -76,7 +76,7 @@ dotnet test --logger "console;verbosity=detailed"
 ## Code Style
 
 ### Language & Framework
-- **Target:** .NET 8.0, `LangVersion: latest`
+- **Target:** .NET 10.0 (`Apilane.Net` SDK targets `netstandard2.0` for broad consumer compatibility), `LangVersion: latest`
 - **Nullable:** `enable` in every project — no `#nullable disable` suppressions
 - **Serialization:** `System.Text.Json` only (no Newtonsoft.Json)
 - **Logging:** Serilog structured logging (`_logger.LogInformation(...)`)

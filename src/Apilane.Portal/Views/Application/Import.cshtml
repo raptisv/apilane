@@ -7,9 +7,9 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
-<div class="clearfix">
-    <div class="row">
-        <div class="col-lg-12">
+<div>
+    <div>
+        <div>
             <div class="page-header">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
@@ -25,8 +25,8 @@
                 await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Model);
             }
 
-            <div class="row clearfix">
-                <div class="col-12 col-xl-8">
+            <div class="grid grid-cols-1 gap-4 xl:grid-cols-12">
+                <div class="xl:col-span-8">
                     <div class="card">
                         <h4 class="card-header">
                             Import schema
@@ -87,7 +87,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-xl-4 mt-3 mt-xl-0">
+                <div class="xl:col-span-4 mt-3 xl:mt-0">
                     <div class="alert alert-primary" role="alert">
                         <div class="d-flex gap-4">
                             <span><i class="bi bi-info-circle-fill"></i></span>

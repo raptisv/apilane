@@ -59,12 +59,7 @@ namespace Apilane.Api.Extensions
                     options.SiloPort = appConfig.Clustering.SiloPort;
                     options.GatewayPort = appConfig.Clustering.GatewayPort;
                 })
-                .ConfigureClustering(appConfig.Clustering)
-                .UseDashboard(options =>
-                {
-                    options.CounterUpdateIntervalMs = 5000;
-                    options.Port = appConfig.Clustering.DashboardPort;
-                });
+                .ConfigureClustering(appConfig.Clustering);
             });
 
             return builder.Services;

@@ -6,7 +6,7 @@
     var ALL_ACTIONS = ['get', 'post', 'put', 'delete'];
 
     function isDarkTheme() {
-        return document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        return true; // Portal is dark-only now
     }
 
     function getColors() {
@@ -69,7 +69,9 @@
         return { included: included, excluded: excluded };
     }
 
-    function buildTooltipHtml(rule, action, entity) {
+    // Builds text for a native title="" tooltip (see the cell setup below) — browsers render
+    // title attributes as plain text, not HTML, so this uses "\n" line breaks, not <br>/<strong>.
+    function buildTooltipText(rule, action, entity) {
         var cfgProps = (action === 'get') ? (entity && entity.PropsGet) : (entity && entity.PropsPostPut);
         var allRecords = rule.Record === 0;
         var allProps = (action === 'delete') || isAllProps(rule.Properties, cfgProps);
@@ -79,15 +81,15 @@
 
         var parts = [];
         var record = RECORD_LABELS[rule.Record] || 'All records';
-        parts.push('<strong>Record:</strong> ' + record);
+        parts.push('Record: ' + record);
 
         if (action !== 'delete' && !allProps && cfgProps) {
             var split = splitProps(rule.Properties, cfgProps);
-            if (split.included.length > 0) parts.push('<strong>Included:</strong> ' + split.included.join(', '));
-            if (split.excluded.length > 0) parts.push('<strong>Excluded:</strong> ' + split.excluded.join(', '));
+            if (split.included.length > 0) parts.push('Included: ' + split.included.join(', '));
+            if (split.excluded.length > 0) parts.push('Excluded: ' + split.excluded.join(', '));
         }
 
-        return parts.join('<br>');
+        return parts.join('\n');
     }
 
     // Compute per-entity which actions from the requested list are enabled
@@ -103,7 +105,7 @@
 
         if (entityCols.length === 0) {
             var noData = document.createElement('p');
-            noData.className = 'text-muted fst-italic';
+            noData.className = 'empty-state';
             noData.textContent = 'No items configured for this category.';
             container.appendChild(noData);
             return;
@@ -213,11 +215,8 @@
                         td.style.color = isFullAccess ? colors.fullAccessFg : colors.restrictedFg;
                         td.style.fontWeight = 'bold';
                         if (!rateOnly) {
-                            var tooltipContent = buildTooltipHtml(rule, action, ent);
+                            var tooltipContent = buildTooltipText(rule, action, ent);
                             if (tooltipContent) {
-                                td.setAttribute('data-bs-toggle', 'tooltip');
-                                td.setAttribute('data-bs-html', 'true');
-                                td.setAttribute('data-bs-placement', 'top');
                                 td.setAttribute('title', tooltipContent);
                             }
                         }
@@ -235,11 +234,8 @@
         wrapper.appendChild(table);
         container.appendChild(wrapper);
 
-        // Initialize Bootstrap tooltips for this table
-        var tooltipEls = table.querySelectorAll('[data-bs-toggle="tooltip"]');
-        for (var ti = 0; ti < tooltipEls.length; ti++) {
-            new bootstrap.Tooltip(tooltipEls[ti]);
-        }
+        // Cells with rich tooltip content already carry a plain-text title attribute
+        // (see above) as the native browser tooltip — no further init needed.
     }
 
     // ---- BIND BUTTON ----
@@ -247,8 +243,7 @@
         var modalEl = document.getElementById('securityMatrixModal');
         if (!modalEl) { return; }
 
-        var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        modal.show();
+        window.Alpine.store('modal').open('securityMatrixModal');
 
         var container = document.getElementById('securityMatrixContainer');
         if (!container) { return; }

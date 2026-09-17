@@ -7,7 +7,6 @@
 @model List<DBWS_Entity>
 @{
     var Application = (DBWS_Application)ViewBag.Application;
-    var isDarkTheme = Html.IsDarkTheme(Context.Request);
 }
 
 @if (Model.Count > 0)
@@ -34,44 +33,32 @@
                     {
                         <tr>
                             <td>
-                                <div class="btn-group position-static">
-                                    <button class="btn btn-sm dropdown-toggle btn-default" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <div class="dropdown" x-data="{ open: false }" @@click.outside="open = false">
+                                    <button class="btn btn-sm btn-default" type="button" @@click="open = !open">
                                         <i class="bi bi-three-dots"></i>
                                     </button>
-                                    <ul class="dropdown-menu">
-                                        <li>
-                                            <a class="dropdown-item" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Edit", appid = Html.GetAppToken(), entid = entity.Name })">
-                                                Edit
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item @(entity.IsSystem ? "disabled" : "")" title="@(entity.IsSystem ? "Cannot rename system Entities" : "")" href="@(entity.IsSystem ? "#" : Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Rename", appid = Html.GetAppToken(), entid = entity.Name }))">
-                                                Rename
-                                            </a>
-                                        </li>
-                                        <li><div class="dropdown-divider"></div></li>
-                                        <li>
-                                            <a class="dropdown-item @(entity.IsSystem ? "disabled" : "")" title="@(entity.IsSystem ? "Cannot add constraint to system Entities" : "")" href="@(entity.IsSystem ? "#" : Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Constraints", appid = Html.GetAppToken(), entid = entity.Name }))">
-                                                Constraints
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "DefaultOrder", appid = Html.GetAppToken(), entid = entity.Name })">
-                                                Default sorting
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item" href="@Url.RouteUrl("AppRoute", new { controller = "Application", action = "Security", appid = Html.GetAppToken(), entity = $"Entity-{entity.Name}" })">
-                                                Security
-                                            </a>
-                                        </li>
-                                        <li><div class="dropdown-divider"></div></li>
-                                        <li>
-                                            <a class="dropdown-item @(entity.IsSystem ? "disabled" : "")" title="@(entity.IsSystem ? "Cannot delete system Entities" : "")" href="@(entity.IsSystem ? "#" : Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Delete", appid = Html.GetAppToken(), entid = entity.Name }))">
-                                                Delete
-                                            </a>
-                                        </li>
-                                    </ul>
+                                    <div class="dropdown-menu" x-show="open" x-transition x-cloak @@click="open = false">
+                                        <a class="dropdown-item" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Edit", appid = Html.GetAppToken(), entid = entity.Name })">
+                                            Edit
+                                        </a>
+                                        <a class="dropdown-item @(entity.IsSystem ? "disabled" : "")" title="@(entity.IsSystem ? "Cannot rename system Entities" : "")" href="@(entity.IsSystem ? "#" : Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Rename", appid = Html.GetAppToken(), entid = entity.Name }))">
+                                            Rename
+                                        </a>
+                                        <hr class="dropdown-divider" />
+                                        <a class="dropdown-item @(entity.IsSystem ? "disabled" : "")" title="@(entity.IsSystem ? "Cannot add constraint to system Entities" : "")" href="@(entity.IsSystem ? "#" : Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Constraints", appid = Html.GetAppToken(), entid = entity.Name }))">
+                                            Constraints
+                                        </a>
+                                        <a class="dropdown-item" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "DefaultOrder", appid = Html.GetAppToken(), entid = entity.Name })">
+                                            Default sorting
+                                        </a>
+                                        <a class="dropdown-item" href="@Url.RouteUrl("AppRoute", new { controller = "Application", action = "Security", appid = Html.GetAppToken(), entity = $"Entity-{entity.Name}" })">
+                                            Security
+                                        </a>
+                                        <hr class="dropdown-divider" />
+                                        <a class="dropdown-item @(entity.IsSystem ? "disabled" : "")" title="@(entity.IsSystem ? "Cannot delete system Entities" : "")" href="@(entity.IsSystem ? "#" : Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Delete", appid = Html.GetAppToken(), entid = entity.Name }))">
+                                            Delete
+                                        </a>
+                                    </div>
                                 </div>
                             </td>
                             <td>
@@ -84,7 +71,7 @@
                                     <strong class="text-primary">@entity.Name</strong>
                                     @if (!string.IsNullOrWhiteSpace(entity.Description))
                                     {
-                                        <i class="bi bi-info-circle text-primary" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-original-title="@entity.Description"></i>
+                                        <i class="bi bi-info-circle text-primary" title="@entity.Description"></i>
                                     }
                                 </a>
                             </td>

@@ -120,7 +120,7 @@ namespace Apilane.UnitTests
         public async Task GetAsync_NonExistent_File_Should_Throw_ApilaneException_NotFound()
         {
             // Act & Assert
-            var ex = await Assert.ThrowsExceptionAsync<ApilaneException>(
+            var ex = await Assert.ThrowsExactlyAsync<ApilaneException>(
                 () => _provider.GetAsync("ghost-app", "ghost-file.txt"));
 
             Assert.AreEqual(AppErrors.NOT_FOUND, ex.Error);

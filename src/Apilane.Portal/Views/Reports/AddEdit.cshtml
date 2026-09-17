@@ -26,9 +26,9 @@
         .ToList();
 }
 
-<div class="clearfix">
-    <div class="row">
-        <div class="col-lg-12">
+<div>
+    <div>
+        <div>
             <div class="page-header">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
@@ -40,8 +40,8 @@
                     </ol>
                 </nav>
             </div>
-            <div class="row clearfix">
-                <div class="col-12 col-xl-10">
+            <div>
+                <div class="xl:max-w-5xl">
                     <div class="card">
                         <h4 class="card-header">
                             @if (IsEdit)
@@ -59,27 +59,27 @@
                                 @Html.HiddenFor(m => m.AppID)
                                 <input type="hidden" name="seriesJson" id="seriesJson" />
 
-                                <div class="row">
-                                    <div class="form-group mb-3 col-md-6">
+                                <div class="grid grid-cols-1 gap-2 md:grid-cols-12">
+                                    <div class="form-group mb-3 md:col-span-6">
                                         <label class="form-label">Title</label>
                                         @Html.TextBoxFor(m => m.Title, new { @class = "form-control", placeholder = "Report title", autofocus = "autofocus" })
                                         @Html.ValidationMessageFor(m => m.Title, "", new { @class = "text-danger" })
                                     </div>
-                                    <div class="form-group mb-3 col-md-2">
+                                    <div class="form-group mb-3 md:col-span-2">
                                         <label class="form-label">Visualization</label>
                                         @Html.DropDownListFor(m => m.TypeID, ReportTypes, null, new { @class = "form-select" })
                                         @Html.ValidationMessageFor(m => m.TypeID, "", new { @class = "text-danger" })
                                     </div>
-                                    <div class="form-group mb-3 col-md-2">
+                                    <div class="form-group mb-3 md:col-span-2">
                                         <label class="form-label">Time range</label>
                                         @Html.HiddenFor(m => m.TimeRange)
-                                        <button type="button" id="time-range-btn" class="btn btn-outline-secondary w-100 text-truncate d-flex align-items-center justify-content-between">
+                                        <button type="button" id="time-range-btn" class="btn btn-outline-secondary w-full text-truncate d-flex align-items-center justify-content-between">
                                             <span id="time-range-label">@timeRangeLabel</span>
                                             <i class="bi bi-clock-history ms-1"></i>
                                         </button>
                                         <small class="text-muted">Date group-bys only.</small>
                                     </div>
-                                    <div class="form-group mb-3 col-md-2">
+                                    <div class="form-group mb-3 md:col-span-2">
                                         <label class="form-label">Max points per series</label>
                                         @Html.TextBoxFor(m => m.MaxRecords, new { @class = "form-control", placeholder = "Max points", type = "number", min = "1", max = "1000" })
                                         <small class="text-muted">Used when no time range.</small>
@@ -105,7 +105,7 @@
                                         <tbody></tbody>
                                     </table>
                                 </div>
-                                <button type="button" id="add-series" class="btn btn-sm btn-secondary mb-3"><i class="bi bi-plus me-1"></i>Add series</button>
+                                <button type="button" id="add-series" class="btn btn-sm btn-secondary mt-2 mb-3"><i class="bi bi-plus me-1"></i>Add series</button>
 
                                 <div class="form-group mb-3">
                                     @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
@@ -167,7 +167,7 @@
                 showCancelButton: true,
                 cancelButtonText: 'Cancel',
                 html:
-                    '<div class="text-start">' +
+                    '<div class="text-start px-2">' +
                     '<div class="fw-bold mb-1">Quick ranges</div>' +
                     '<div class="d-flex flex-wrap gap-1 mb-3">' + buttons + '</div>' +
                     '<div class="fw-bold mb-1">Custom</div>' +
@@ -265,7 +265,7 @@
                         var html = '<li class="list-group-item">';
                         html += '<label class="custom-control custom-checkbox"><input type="checkbox" id="check-' + prop + '" class="check-property custom-control-input" data-id="' + (value.Subs.length == 0 ? prop : '') + '" data-sublist="sub-list-' + prop + '"/><span class="custom-control-label ms-2">' + prop + '</span></label>';
                         if (value.Subs.length > 0) {
-                            html += '<ul style="list-style:none;display:none;" class="sub-list-list sub-list-' + prop + '">';
+                            html += '<ul style="list-style:none;display:none;" class="sub-list-list sub-list-' + prop + ' pl-6 mt-1">';
                             $.each(value.Subs, function (j, sub) {
                                 html += '<li><label class="custom-control custom-checkbox"><input type="checkbox" id="check-' + prop + '-' + sub + '" class="check-sub custom-control-input" data-id="' + prop + '.' + sub + '"/><span class="custom-control-label ms-2">' + sub + '</span></label></li>';
                             });

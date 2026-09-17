@@ -10,9 +10,9 @@
     int totalPages = totalCount > 0 ? (int)Math.Ceiling((double)totalCount / pageSize) : 1;
 }
 
-<div class="clearfix">
-    <div class="row">
-        <div class="col-lg-12">
+<div>
+    <div>
+        <div>
             <div class="page-header">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
@@ -42,24 +42,23 @@
                                         <th style="width: 50px;"></th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    @for (int i = 0; i < Model.Count; i++)
+                                @for (int i = 0; i < Model.Count; i++)
+                                {
+                                    var log = Model[i];
+                                    var actionClass = log.Action switch
                                     {
-                                        var log = Model[i];
-                                        var rowId = $"audit-detail-{i}";
-                                        var actionClass = log.Action switch
-                                        {
-                                            "Created" => "text-success",
-                                            "Deleted" => "text-danger",
-                                            _ => "text-warning"
-                                        };
-                                        var actionIcon = log.Action switch
-                                        {
-                                            "Created" => "bi-plus-circle",
-                                            "Deleted" => "bi-trash",
-                                            _ => "bi-pencil"
-                                        };
-                                        <tr style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#@rowId" aria-expanded="false">
+                                        "Created" => "text-success",
+                                        "Deleted" => "text-danger",
+                                        _ => "text-warning"
+                                    };
+                                    var actionIcon = log.Action switch
+                                    {
+                                        "Created" => "bi-plus-circle",
+                                        "Deleted" => "bi-trash",
+                                        _ => "bi-pencil"
+                                    };
+                                    <tbody x-data="{ open: false }">
+                                        <tr style="cursor: pointer;" @@click="open = !open">
                                             <td><small>@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</small></td>
                                             <td><small>@log.UserEmail</small></td>
                                             <td><span class="@actionClass"><i class="bi @actionIcon me-1"></i>@log.Action</span></td>
@@ -67,13 +66,13 @@
                                             <td><strong>@log.EntityIdentifier</strong></td>
                                             <td class="text-end"><i class="bi bi-chevron-down"></i></td>
                                         </tr>
-                                        <tr class="collapse" id="@rowId">
+                                        <tr x-show="open" x-collapse x-cloak>
                                             <td colspan="6" class="p-0">
                                                 @await Html.PartialAsync("~/Views/Shared/_AuditLogDetail.cshtml", log)
                                             </td>
                                         </tr>
-                                    }
-                                </tbody>
+                                    </tbody>
+                                }
                             </table>
                         </div>
 
@@ -100,7 +99,7 @@
                     }
                     else
                     {
-                        <div class="text-center text-muted">
+                        <div class="empty-state">
                             No audit log entries found.
                         </div>
                     }

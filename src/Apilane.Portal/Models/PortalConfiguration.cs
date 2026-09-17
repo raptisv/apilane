@@ -13,6 +13,7 @@ namespace Apilane.Portal.Models
         public string ApiUrl { get; }
         public int? MinThreads { get; set; }
         public string? AuthCookieDomain { get; }
+        public OpenTelemetryConfiguration OpenTelemetry { get; }
 
         public PortalConfiguration(IConfiguration configuration)
         {
@@ -23,7 +24,29 @@ namespace Apilane.Portal.Models
             AdminEmail = configuration.GetValue<string>("AdminEmail") ?? throw new ArgumentNullException("AdminEmail");
             ApiUrl = configuration.GetValue<string>("ApiUrl") ?? throw new ArgumentNullException("ApiUrl");
             MinThreads = configuration.GetValue<int?>("MinThreads");
-            AuthCookieDomain = configuration.GetValue<string>("AuthCookieDomain"); 
+            AuthCookieDomain = configuration.GetValue<string>("AuthCookieDomain");
+            OpenTelemetry = configuration.GetSection("OpenTelemetry").Get<OpenTelemetryConfiguration>() ?? new OpenTelemetryConfiguration();
+        }
+
+        public class OpenTelemetryConfiguration
+        {
+            public OpenTelemetryMetricsConfiguration Metrics { get; set; } = new();
+            public OpenTelemetryTracingConfiguration Tracing { get; set; } = new();
+
+            public class OpenTelemetryTracingConfiguration
+            {
+                public bool Enabled { get; set; } = false;
+                public string Url { get; set; } = null!;
+                public double SampleRatio { get; set; } = 0.1;
+                // When true (default), every finished span is also written as a Serilog log event
+                // (carrying TraceId/SpanId/ParentId), so the request flow is logged.
+                public bool LogSpans { get; set; } = true;
+            }
+
+            public class OpenTelemetryMetricsConfiguration
+            {
+                public bool Enabled { get; set; } = false;
+            }
         }
     }
 }

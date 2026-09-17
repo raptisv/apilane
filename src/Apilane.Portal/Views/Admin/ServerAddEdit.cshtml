@@ -12,8 +12,8 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
-<div class="row clearfix">
-    <div class="col-12 col-xl-6">
+<div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <div>
         <div class="card">
             <h4 class="card-header">
                 @(IsEdit ? "Edit server" : "Create server")
@@ -58,27 +58,27 @@
         </div>
     </div>
 
-    <div class="col-12 col-xl-6 mt-4 mt-xl-0">
-        <div class="accordion p-6 custom-border" id="accordion">
+    <div class="mt-4 xl:mt-0">
+        <div class="accordion p-6 custom-border" x-data="{ openItem: null }">
             <div class="accordion-item">
-                <h2 class="accordion-header" id="headingOne">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="false" aria-controls="collapse1">
+                <h2 class="accordion-header">
+                    <button class="accordion-button" :class="{ collapsed: openItem !== 'collapse1' }" type="button" @@click="openItem = (openItem === 'collapse1' ? null : 'collapse1')">
                         Can I change the server name later?
                     </button>
                 </h2>
-                <div id="collapse1" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordion">
+                <div x-show="openItem === 'collapse1'" x-collapse x-cloak>
                     <div class="accordion-body">
                         You can change the server name at any time.
                     </div>
                 </div>
             </div>
             <div class="accordion-item">
-                <h2 class="accordion-header" id="headingTwo">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
+                <h2 class="accordion-header">
+                    <button class="accordion-button" :class="{ collapsed: openItem !== 'collapse2' }" type="button" @@click="openItem = (openItem === 'collapse2' ? null : 'collapse2')">
                         Can I change the server url later?
                     </button>
                 </h2>
-                <div id="collapse2" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordion">
+                <div x-show="openItem === 'collapse2'" x-collapse x-cloak>
                     <div class="accordion-body">
                         You can change the server url at any time but be carefull. If the server url is invalid, any application on that server will not work.
                     </div>

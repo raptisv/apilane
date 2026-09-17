@@ -14,9 +14,9 @@
     }
 }
 
-<div class="clearfix">
-    <div class="row">
-        <div class="col-lg-12">
+<div>
+    <div>
+        <div>
             <div class="page-header">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
@@ -32,26 +32,25 @@
                 await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Model);
             }
 
-            <div class="row data-browser">
-                <div class='col-lg-12 col-md-12 col-sm-12 col-xs-12'>
+            <div class="data-browser" x-data="{ activeTab: '@SelectedEntity' }">
+                <div>
                     <ul class="nav-entities nav nav-pills" role="tablist">
 
                         @for (int i = 0; i < AvailableEntities.Count; i++)
                         {
                             DBWS_Entity ent = AvailableEntities[i];
-                            var active = SelectedEntity.Equals(ent.Name) ? "active" : "";
                             <li class="nav-item" role="presentation">
-                                <a id="link-entity-@ent.Name" class="nav-link @(SelectedEntity.Equals(ent.Name) ? "active" : "")" href="#@ent.Name" data-bs-toggle="tab" role="tab" data-entity="@ent.Name" data-toggle="tab" rel="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Data", appid = Model.Token, entid = ent.Name })">@ent.Name</a>
+                                <a id="link-entity-@ent.Name" class="nav-link" :class="{ active: activeTab === '@ent.Name' }" href="#@ent.Name" @@click="activeTab = '@ent.Name'" role="tab" data-entity="@ent.Name" rel="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Data", appid = Model.Token, entid = ent.Name })">@ent.Name</a>
 
                             </li>
                         }
 
                     </ul>
-                    <div class="tab-content mt-4" style="border-color: rgb(222, 226, 230); border-style: solid; border-width: 1px;">
+                    <div class="tab-content mt-4 border border-zinc-800">
                         @for (int i = 0; i < AvailableEntities.Count; i++)
                         {
                             DBWS_Entity ent = AvailableEntities[i];
-                            <div class="tab-pane fade @(SelectedEntity.Equals(ent.Name) ? "active show" : "")" id="@ent.Name" role="tabpanel"></div>
+                            <div class="tab-pane" x-show="activeTab === '@ent.Name'" id="@ent.Name" role="tabpanel"></div>
                         }
                     </div>
                 </div>
@@ -76,7 +75,7 @@
             //tab switching function
             function loadTabFrame(tab, url) {
                 if ($(tab).find("iframe").length == 0) {
-                    $(tab).append(`<div class="openout"></div><iframe class="iframetab w-100" src="${url}"></iframe>`);
+                    $(tab).append(`<div class="openout"></div><iframe class="iframetab w-full" src="${url}"></iframe>`);
                 }
                 $(tab).find("iframe").height($(window).height() - $('.nav-entities').offset().top - 150);
                 return false;

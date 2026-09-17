@@ -30,10 +30,10 @@ namespace Apilane.UnitTests
         }
 
         [TestMethod]
-        [ExpectedException(typeof(ArgumentException))]
         public void Parse_InvalidName_ThrowsArgumentException()
         {
-            EnumProvider<AppErrors>.Parse("DOES_NOT_EXIST");
+            Assert.ThrowsExactly<ArgumentException>(() =>
+                EnumProvider<AppErrors>.Parse("DOES_NOT_EXIST"));
         }
 
         // ─── GetDisplayValue ─────────────────────────────────────────────────────

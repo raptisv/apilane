@@ -28,17 +28,16 @@
     }
 }
 
-<div class="row clearfix entity-data-wrapper my-4">
-
-    <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
-        <h6>@Model.Application.Name - @Model.Entity.Name</h6>
-    </div>
-
-    <hr />
-
-    <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
-        <div class="entity-data-wrapper">
-            <div class="body">
+<div class="entity-data-wrapper">
+    <div class="card">
+        <div class="card-header flex flex-wrap items-center justify-between gap-2">
+            <h6 class="mb-0 font-semibold text-zinc-100">@Model.Application.Name - @Model.Entity.Name</h6>
+            <div class="open_new_tab" style="display:none;" title="Open in a new tab">
+                <a href="@string.Format("{0}://{1}{2}{3}{4}", Context.Request.Scheme, Context.Request.Host, Context.Request.PathBase, Context.Request.Path, Context.Request.QueryString)" target="_blank" class="btn btn-sm btn-secondary"><i class="bi bi-box-arrow-in-up-right"></i></a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="flex flex-wrap items-center gap-2">
                 <button id="btn-refresh-@Model.Entity.ID" type="button" class="btn btn-default" title="Refresh grid">
                     <i class="bi bi-arrow-clockwise"></i>
                     <span>Refresh</span>
@@ -50,11 +49,11 @@
                         <span>@NewRecordLabel</span>
                     </button>
                 }
-                <div class="btn-group data-more-options-group" role="group">
-                    <button type="button" class="btn btn-default dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <div class="dropdown data-more-options-group" x-data="{ open: false }" @@click.outside="open = false">
+                    <button type="button" class="btn btn-default" @@click="open = !open">
                         <i class="bi bi-three-dots"></i>
                     </button>
-                    <div class="dropdown-menu">
+                    <div class="dropdown-menu" x-show="open" x-transition x-cloak @@click="open = false">
                         @if (Model.Entity.RequireChangeTracking)
                         {
                             <a id="btn-clearallhistory-@Model.Entity.ID" href="#" class="dropdown-item" title="Clear all records history">
@@ -66,65 +65,62 @@
                         </a>
                     </div>
                 </div>
-                <div class="open_new_tab btn" style="display:none;float:right;" title="Open in a new tab">
-                    <a href="@string.Format("{0}://{1}{2}{3}{4}", Context.Request.Scheme, Context.Request.Host, Context.Request.PathBase, Context.Request.Path, Context.Request.QueryString)" target="_blank"><i class="bi bi-box-arrow-in-up-right"></i></a>
-                </div>
-                <div class="datatable-wrapper mt-2">
-                    <div id="overlay"><div class="loader"></div></div>
-                    <table id="datatable" class="table table-condensed table-hover" style="width:100%">
-                        <thead>
-                            <tr class="header-row">
-                                <th style="width:110px;"></th>
-                                @foreach (var prop in Model.Entity.Properties)
-                                {
-                                    <th><div data-id="@prop.Name" class="sort-item" title="@Utils.GetString(prop.Description)"><span>@prop.Name</span></div></th>
-                                }
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr class="filter-row">
-                                <td><button title="Clear filters" type="button" class="btn-clear-filters btn btn-sm btn-secondary "><i class="bi bi-x"></i></button></td>
-                                @foreach (var prop in Model.Entity.Properties)
-                                {
-                                    <td>
-                                        @switch (prop.TypeID_Enum)
-                                        {
-                                            case PropertyType.Boolean:
-                                                @: <select id="filter_@prop.Name" data-id="@prop.Name" class="boolean_filter"><option value="-1"></option><option value="1">True</option><option value="0">False</option></select>
-                                                break;
-                                            case PropertyType.Number:
-                                                @: <input id="filter_@prop.Name" data-id="@prop.Name" data-operator="equal" class="text_filter" type="number" step="1" @(Utils.GetInt(prop.DecimalPlaces, 0) == 0 ? Html.Raw("onkeypress='return event.charCode >= 48 && event.charCode <= 57'") : new HtmlString("")) />
-                                                break;
-                                            case PropertyType.Date:
-                                                @:<input id="filter_@prop.Name" data-id="@prop.Name" data-operator="equal" class="text_filter" type="text" />
-                                                break;
-                                            case PropertyType.String:
-                                            default:
-                                                @:<input id="filter_@prop.Name" data-id="@prop.Name" data-operator="@(prop.Encrypted ? "equal" : "contains")" class="text_filter" type="text" />
-                                                break;
-                                        }
-                                    </td>
-                                }
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div id="paging-wrapper" class="d-flex justify-content-between">
-                    <div class="d-flex align-items-center">
-                        <span class="me-2 text-nowrap">
-                            page size
-                        </span>
-                        <select id="paging-size" class="form-control form-control-sm">
-                            <option value="15">15</option>
-                            <option value="30">30</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                            <option value="1000">1000</option>
-                        </select>
-                        <span class="ms-2 text-nowrap">
-                            total records <span id="text-total-records"></span>
-                        </span>
-                    </div>
+            </div>
+            <div class="datatable-wrapper mt-3 max-h-[65vh]">
+                <div id="overlay"><div class="loader"></div></div>
+                <table id="datatable" class="table table-condensed table-hover" style="width:100%">
+                    <thead>
+                        <tr class="header-row">
+                            <th style="width:90px;"></th>
+                            @foreach (var prop in Model.Entity.Properties)
+                            {
+                                <th><div data-id="@prop.Name" class="sort-item" title="@Utils.GetString(prop.Description)"><span>@prop.Name</span></div></th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="filter-row">
+                            <td><button title="Clear filters" type="button" class="btn-clear-filters btn btn-sm btn-secondary "><i class="bi bi-x"></i></button></td>
+                            @foreach (var prop in Model.Entity.Properties)
+                            {
+                                <td>
+                                    @switch (prop.TypeID_Enum)
+                                    {
+                                        case PropertyType.Boolean:
+                                            @: <select id="filter_@prop.Name" data-id="@prop.Name" class="boolean_filter"><option value="-1"></option><option value="1">True</option><option value="0">False</option></select>
+                                            break;
+                                        case PropertyType.Number:
+                                            @: <input id="filter_@prop.Name" data-id="@prop.Name" data-operator="equal" class="text_filter" type="number" step="1" @(Utils.GetInt(prop.DecimalPlaces, 0) == 0 ? Html.Raw("onkeypress='return event.charCode >= 48 && event.charCode <= 57'") : new HtmlString("")) />
+                                            break;
+                                        case PropertyType.Date:
+                                            @:<input id="filter_@prop.Name" data-id="@prop.Name" data-operator="equal" class="text_filter" type="text" />
+                                            break;
+                                        case PropertyType.String:
+                                        default:
+                                            @:<input id="filter_@prop.Name" data-id="@prop.Name" data-operator="@(prop.Encrypted ? "equal" : "contains")" class="text_filter" type="text" />
+                                            break;
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="paging-wrapper" class="d-flex justify-content-between mt-3 border-top pt-3">
+                <div class="d-flex align-items-center">
+                    <span class="me-2 text-nowrap">
+                        page size
+                    </span>
+                    <select id="paging-size" class="form-control form-control-sm">
+                        <option value="15">15</option>
+                        <option value="30">30</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="1000">1000</option>
+                    </select>
+                    <span class="ms-2 text-nowrap">
+                        total records <span id="text-total-records"></span>
+                    </span>
                 </div>
             </div>
         </div>
@@ -145,7 +141,7 @@
                     <i class="bi bi-trash"></i>
                     <span>Clear</span>
                 </button>
-                <table class="table table-condensed table-hover w-100">
+                <table class="table table-condensed table-hover w-full">
                     <thead>
                         <tr>
                             <th>Timestamp</th>
@@ -225,23 +221,6 @@
     </div>
 </script>
 
-<script id="Refresh" type="text/x-jsrender">
-    <a class="e-toolbaricons e-icon refresh" />
-</script>
-
-<script type="text/x-kendo-template" id="detail_template">
-    <div class="tabstrip">
-        <ul>
-            <li class="k-state-active">
-                Record history
-            </li>
-        </ul>
-        <div>
-            <div class="gridHistory"></div>
-        </div>
-    </div>
-</script>
-
 @section scripts{
 
     <script type="text/javascript">
@@ -282,30 +261,30 @@
         });
 
         $('#btn-clearallhistory-@Model.Entity.ID').click(function () {
-            swal({
-                type: 'error',
+            Swal.fire({
+                icon: 'error',
                 title: 'Confirm delete',
                 text: 'Clear history for entity @Model.Entity.Name?',
                 showCancelButton: true,
-                closeOnConfirm: false,
                 showLoaderOnConfirm: true,
                 confirmButtonText: 'Clear',
-                confirmButtonColor: '#fb483a'
-            }, function (submit) {
-                if (submit) {
-                    $.ajax({
-                        url: '@Model.Application.Server.ServerUrl/api/EntityHistory/Delete?&entity=@Model.Entity.Name',
-                        type: 'DELETE',
-                        success: function () {
-                            RefreshData();
-                            swal.close();
-                        },
-                        error: function (e) {
-                            handleDataError(e);
-                        }
+                confirmButtonColor: '#fb483a',
+                preConfirm: function () {
+                    return new Promise(function (resolve) {
+                        $.ajax({
+                            url: '@Model.Application.Server.ServerUrl/api/EntityHistory/Delete?&entity=@Model.Entity.Name',
+                            type: 'DELETE',
+                            success: function () {
+                                RefreshData();
+                                resolve(true);
+                            },
+                            error: function (e) {
+                                handleDataError(e);
+                                resolve(false);
+                            }
+                        });
                     });
                 }
-                return true;
             });
         });
 
@@ -484,7 +463,7 @@
 
                 $('#datatable').removeClass('blurred');
                 if (data.Data.length == 0) {
-                    $('#datatable tbody').append('<tr class="data-row"><td colspan="@(Model.Entity.Properties.Count + 1)"><div style="text-align:center;color:gray;">No records found!<div></td></tr>');
+                    $('#datatable tbody').append('<tr class="data-row"><td colspan="@(Model.Entity.Properties.Count + 1)"><div class="empty-state">No records found!</div></td></tr>');
                     $('#paging-wrapper').removeClass('d-flex');
                     $('#paging-wrapper').addClass('d-none');
                 } else {
@@ -563,7 +542,7 @@
 
                     $('.btn-download').click(function () {
                         var fileID = $(this).data().id;
-                        var downloadUrl = '@Model.Application.Server.ServerUrl/api/Files/Download?AppToken=@Model.Application.Token&AuthToken=@Html.GetPortalUserAuthToken(User.Identity!)&fileID=' + fileID;
+                        var downloadUrl = '@Model.Application.Server.ServerUrl/api/Files/Download?AppToken=@Model.Application.Token&AuthToken=@Html.GetPortalUserAuthToken(User.Identity!)&ClientId=@Globals.ClientIdHeaderValuePortal&fileID=' + fileID;
                         console.log(downloadUrl);
                         downloadDataUrlFromJavascript(name, downloadUrl);
                     });
@@ -687,7 +666,7 @@
                 success: function (data) {
 
                     if (data.Data.length == 0) {
-                        $tablewrapper.html('<div class="no-records-found">No history records found</div>');
+                        $tablewrapper.html('<div class="empty-state">No history records found</div>');
                         $tablewrapper.fadeIn();
                         return;
                     }
@@ -742,33 +721,33 @@
         }
 
         function openDelete(itemID) {
-            swal({
-                type: 'error',
+            Swal.fire({
+                icon: 'error',
                 title: 'Confirm delete',
                 text: 'Delete record ' + itemID + '?',
                 showCancelButton: true,
-                closeOnConfirm: false,
                 showLoaderOnConfirm: true,
                 confirmButtonText: 'Delete',
-                confirmButtonColor: '#fb483a'
-            }, function (submit) {
-                if (submit) {
-                    $.ajax({
-                        url: '@Model.Application.Server.ServerUrl/api/@(IsFiles ? "Files" : "Data" )/Delete?@Html.Raw(IsFiles ? "" : "&entity=" + Model.Entity.Name)&ids=' + itemID,
-                        type: 'DELETE',
-                        dataType: 'json',
-                        contentType: 'application/json; charset=utf-8',
-                        success: function (data) {
-                            PageIndex = 1;
-                            RefreshData();
-                            swal.close();
-                        },
-                        error: function (e) {
-                            handleDataError(e);
-                        }
+                confirmButtonColor: '#fb483a',
+                preConfirm: function () {
+                    return new Promise(function (resolve) {
+                        $.ajax({
+                            url: '@Model.Application.Server.ServerUrl/api/@(IsFiles ? "Files" : "Data" )/Delete?@Html.Raw(IsFiles ? "" : "&entity=" + Model.Entity.Name)&ids=' + itemID,
+                            type: 'DELETE',
+                            dataType: 'json',
+                            contentType: 'application/json; charset=utf-8',
+                            success: function (data) {
+                                PageIndex = 1;
+                                RefreshData();
+                                resolve(true);
+                            },
+                            error: function (e) {
+                                handleDataError(e);
+                                resolve(false);
+                            }
+                        });
                     });
                 }
-                return true;
             });
         }
 
@@ -787,18 +766,16 @@
                 btnTitle = 'Update';
             }
 
-            swal({
+            Swal.fire({
                 title: title,
-                text: $(IsFiles ? '#template-files' : '#template-data').html(),
+                html: $(IsFiles ? '#template-files' : '#template-data').html(),
                 showCancelButton: true,
-                closeOnConfirm: false,
                 showLoaderOnConfirm: true,
-                html: true,
                 confirmButtonText: btnTitle,
-                confirmButtonColor: '#4CAF50'
-            }, function (submit) {
-                $('.inpIsPortalRequestHeaderNameIsPortalRequestHeaderNamet-data').removeClass('border-red');
-                if (submit) {
+                confirmButtonColor: '#4CAF50',
+                preConfirm: function () {
+                    $('.input-data').removeClass('border-red');
+
                     var data = {
                         @if (!IsFiles)
                         {
@@ -832,8 +809,12 @@
 
                             CurrentFileData.submit();
 
+                            // The fileupload plugin's done/fail callbacks close this dialog themselves.
+                            return new Promise(function () { });
+
                         } else {
-                            swal.showInputError('No file selected');
+                            Swal.showValidationMessage('No file selected');
+                            return false;
                         }
                     }
                     else
@@ -850,25 +831,26 @@
                             url = '@Html.Raw(PutUrl)';
                         }
 
-                        $.ajax({
-                            url: url,
-                            type: method,
-                            data: JSON.stringify(data),
-                            dataType: 'json',
-                            contentType: 'application/json',
-                            success: function (data) {
-                                PageIndex = 1;
-                                RefreshData();
-                                swal.close();
-                            },
-                            error: function (e) {
-                                handleDataError(e);
-                            }
+                        return new Promise(function (resolve) {
+                            $.ajax({
+                                url: url,
+                                type: method,
+                                data: JSON.stringify(data),
+                                dataType: 'json',
+                                contentType: 'application/json',
+                                success: function (data) {
+                                    PageIndex = 1;
+                                    RefreshData();
+                                    resolve(true);
+                                },
+                                error: function (e) {
+                                    handleDataError(e);
+                                    resolve(false);
+                                }
+                            });
                         });
                     }
                 }
-
-                return true;
             });
 
             if (action == 'CREATE') {
@@ -903,7 +885,7 @@
                         replaceFileInput: false,
                         fileInput: $("input:file"),
                         done: function (e, data) {
-                        swal.close();
+                        Swal.close();
                         RefreshData();
                     },
                         fail: function (e, data) {
@@ -912,17 +894,17 @@
                             try {
                                 handleDataError({ xhr: { responseText: data.errorThrown } });
                             } catch (err) {
-                                swal.showInputError(data.errorThrown);
+                                Swal.showValidationMessage(data.errorThrown);
                             }
                         } else {
-                            swal.showInputError('Error');
+                            Swal.showValidationMessage('Error');
                         }
                     },
                     add: function (e, data) {
                         $('#file-upload-name').val(data.files[0].name);
                         CurrentFileData = null;
                         if (data.files[0].size > @(Model.Application.MaxAllowedFileSizeInKB * 1000)) {
-                            swal.showInputError('Maximum file size @Model.Application.MaxAllowedFileSizeInKB KB');
+                            Swal.showValidationMessage('Maximum file size @Model.Application.MaxAllowedFileSizeInKB KB');
                         } else {
                             CurrentFileData = data;
                             $('#string-Name').val(CurrentFileData.files[0].name);
@@ -1058,10 +1040,10 @@
         }
 
         function displayErrorToUser(msg) {
-            if ($(".sweet-alert.visible").length > 0) {
-                swal.showInputError(msg);
+            if (Swal.isVisible()) {
+                Swal.showValidationMessage(msg);
             } else {
-                $('#datatable tbody').append('<tr class="data-row"><td colspan="@(Model.Entity.Properties.Count + 1)"><div style="text-align:center;color:red;">' + msg + '<div></td></tr>');
+                $('#datatable tbody').append('<tr class="data-row"><td colspan="@(Model.Entity.Properties.Count + 1)"><div style="text-align:center;color:#f87171;padding:16px 0;">' + msg + '</div></td></tr>');
             }
         }
 

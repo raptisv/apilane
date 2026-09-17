@@ -24,6 +24,15 @@
 
         public const string ClientIdHeaderValuePortal = "portal";
 
+        // Query-string fallbacks for the two above: a plain browser navigation (e.g. a file
+        // download link built as an <a href>) can't set custom request headers, so anything meant
+        // to be reachable that way needs these as an alternative to the Authorization/x-client-id
+        // headers — same reasoning as ApplicationTokenQueryParam already being a fallback for
+        // ApplicationTokenHeaderName.
+        public const string AuthTokenQueryParam = "authToken";
+
+        public const string ClientIdQueryParam = "clientId";
+
         // Signed-request (HMAC proof-of-possession) authentication headers.
         // The secret (AuthTokens.Token) is never transmitted; the client sends only these.
         public const string AuthKeyIdHeaderName = "x-auth-keyid";          // public identifier = AuthTokens.ID

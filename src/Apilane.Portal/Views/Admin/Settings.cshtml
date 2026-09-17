@@ -8,8 +8,8 @@
 
 @using (Html.BeginForm("Settings", "Admin", new { }, FormMethod.Post, true, new { role = "form" }))
 {
-    <div class="row clearfix">
-        <div class="col-12 col-xl-6">
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div>
             <div class="card">
                 <h4 class="card-header">
                     General Settings
@@ -54,7 +54,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-12 col-xl-6 mt-4 mt-xl-0">
+        <div class="mt-4 xl:mt-0">
             <div class="card">
                 <h4 class="card-header">
                     Mail Settings

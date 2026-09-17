@@ -25,16 +25,16 @@ namespace Apilane.Portal.Extensions
             // js
             var jsList = new List<string>()
             {
-                "assets/vendor/bootstrap/bootstrap.bundle.min.js",
                 "assets/vendor/jquery/jquery-3.7.1.min.js"
             };
             pipeline.MinifyJsFiles(jsList.ToArray());
             pipeline.AddJavaScriptBundle("account.min.js", jsList.ToArray());
 
             // css
+            // Tailwind is NOT bundled here: it is loaded raw via a <link> tag, like GridStack/Chart.js
+            // below — WebOptimizer's NUglify re-minifying an already-minified build corrupts it.
             var cssList = new List<string>()
             {
-                "assets/vendor/fastbootstrap/fastbootstrap.min.css",
                 "assets/account.css"
             };
             pipeline.MinifyCssFiles(cssList.ToArray());
@@ -68,12 +68,13 @@ namespace Apilane.Portal.Extensions
         private static void Data(IAssetPipeline pipeline)
         {
             // css
+            // SweetAlert2's dark theme is loaded raw via a <link> tag on _LayoutData.cshtml, like
+            // on _Layout.cshtml — same reasoning as Tailwind: NUglify re-minifying an already
+            // vendor-optimized build corrupts it.
             var cssList = new List<string>()
             {
-                "assets/data.css",
-                "assets/vendor/sweetalert/sweetalert.css",
-                "assets/vendor/fastbootstrap/fastbootstrap.min.css",
-                "assets/vendor/bootstrap-icons/font/bootstrap-icons.css"
+                "assets/vendor/bootstrap-icons/font/bootstrap-icons.css",
+                "assets/data.css"
             };
             pipeline.MinifyCssFiles(cssList.ToArray());
             pipeline.AddCssBundle("data.min.css", cssList.ToArray());
@@ -81,9 +82,8 @@ namespace Apilane.Portal.Extensions
             // js
             var jsList = new List<string>()
             {
-                "assets/vendor/sweetalert/sweetalert.min.js",
                 "assets/vendor/jquery/jquery-3.7.1.min.js",
-                "assets/vendor/bootstrap/bootstrap.bundle.min.js",
+                "assets/vendor/sweetalert/sweetalert2.min.js",
                 "assets/vendor/moment/moment.js",
                 "assets/custom.js",
                 "assets/vendor/magnific-popup/jquery.magnific-popup.min.js",
@@ -98,9 +98,11 @@ namespace Apilane.Portal.Extensions
         private static void Main(IAssetPipeline pipeline)
         {
             // css
+            // Tailwind is NOT bundled here: it is loaded raw via a <link> tag on every layout —
+            // re-minifying its already-minified/optimized build with NUglify corrupts it, same
+            // reason Chart.js/GridStack are loaded raw below instead of through this bundle.
             var cssList = new List<string>()
             {
-                "assets/vendor/fastbootstrap/fastbootstrap.min.css",
                 "assets/vendor/bootstrap-icons/font/bootstrap-icons.css",
                 "assets/vendor/magnific-popup/magnific-popup.css",
                 "assets/custom.css"
@@ -109,9 +111,11 @@ namespace Apilane.Portal.Extensions
             pipeline.AddCssBundle("site.min.css", cssList.ToArray());
 
             // js
+            // Alpine.js (+ its Collapse plugin) replaces Bootstrap's JS bundle for all interactive
+            // components (dropdowns, collapses/accordions, modals, tabs) and is loaded raw via
+            // <script> tags on every layout, in the required load order — see _Layout.cshtml.
             var jsList = new List<string>()
             {
-                "assets/vendor/bootstrap/bootstrap.bundle.min.js",
                 "assets/vendor/jquery/jquery-3.7.1.min.js",
                 "assets/vendor/magnific-popup/jquery.magnific-popup.min.js",
                 "assets/vendor/sweetalert/sweetalert2.min.js",
@@ -120,7 +124,6 @@ namespace Apilane.Portal.Extensions
                 // Chart.js is NOT bundled here: re-minifying its already-minified ES build with
                 // NUglify breaks the Filler plugin. It is loaded raw via a <script> tag on the
                 // Reports page (the only page that draws charts), like GridStack.
-                "assets/vendor/bootstrap-notify/bootstrap-notify.min.js",
                 "assets/vendor/jquery-file-upload/jquery.ui.widget.js",
                 "assets/vendor/jquery-file-upload/jquery.iframe-transport.js",
                 "assets/vendor/jquery-file-upload/jquery.fileupload.js"

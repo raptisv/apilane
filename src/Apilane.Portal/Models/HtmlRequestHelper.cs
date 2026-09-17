@@ -27,6 +27,17 @@ namespace Apilane.Portal.Models
             return Versioning.GetVersion(Assembly.GetEntryAssembly()!);
         }
 
+        // A cache-busting value for static asset URLs (?v=...). AssemblyVersion() only changes
+        // when someone bumps the project's version number, so CSS/JS edits between releases were
+        // never actually busting anyone's browser cache — this changes once per process start
+        // instead, which lines up with when a deploy (or a local restart) actually ships new files.
+        private static readonly string _assetCacheBuster = DateTime.UtcNow.Ticks.ToString();
+
+        public static string AssetVersion(this IHtmlHelper _)
+        {
+            return _assetCacheBuster;
+        }
+
         public static string Controller(this IHtmlHelper htmlHelper)
         {
             var routeValues = htmlHelper.ViewContext.HttpContext.Request.RouteValues;

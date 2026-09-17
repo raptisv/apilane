@@ -7,7 +7,6 @@
 @{
     ViewBag.Title = "Constraints";
     Layout = "~/Views/Shared/_Layout.cshtml";
-    var isDarkTheme = Html.IsDarkTheme(Context.Request);
 
     var application = (DBWS_Application)ViewBag.Application;
     var entity = (DBWS_Entity)ViewBag.Entity;
@@ -25,9 +24,9 @@
     var foreignKeyLogics = EnumProvider<ForeignKeyLogic>.GetValues(ForeignKeyLogic.ON_DELETE_CASCADE).Select(x => new { Key = ((ForeignKeyLogic)x.Key).ToString(), Text = x.Value }).ToList();
 }
 
-<div class="clearfix">
-    <div class="row">
-        <div class="col-lg-12">
+<div>
+    <div>
+        <div>
             <div class="page-header">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
@@ -41,8 +40,8 @@
 
             @using (Html.BeginRouteForm("EntRoute", new { controller = "Entity", action = "Constraints", appid = Html.GetAppToken(), entid = entity.Name }, FormMethod.Post, true, new { role = "form" }))
             {
-                <div class="row">
-                    <div class="col-12 col-xl-8">
+                <div>
+                    <div class="xl:max-w-4xl">
                         <div class="card">
                             <div class="card-header">
                                 <h5 class="mb-0">
@@ -54,8 +53,8 @@
                                 {
                                     @Html.HiddenFor(m => m[i].IsSystem)
 
-                                    <div class="row">
-                                        <div class="col-12 col-md-3 col-lg-3 mt-3 mt-lg-0">
+                                    <div class="grid grid-cols-1 gap-2 lg:grid-cols-12 lg:items-start">
+                                        <div class="lg:col-span-3 mt-3 lg:mt-0">
                                             @if (Model[i].IsSystem)
                                             {
                                                 @Html.DropDownListFor(m => m[i].TypeID, constraintTypes, null, new { @class = "form-select", data_id = i, disabled = "disabled" })
@@ -67,7 +66,7 @@
                                             }
                                             @Html.ValidationMessageFor(m => m[i].TypeID, "", new { @class = "text-danger" })
                                         </div>
-                                        <div class="col-12 col-md-7 col-lg-7 mt-3 mt-lg-0">
+                                        <div class="lg:col-span-7 mt-3 lg:mt-0">
                                             <div class="form-line">
                                                 @if (Model[i].IsSystem)
                                                 {
@@ -81,7 +80,7 @@
                                             </div>
                                             @Html.ValidationMessageFor(m => m[i].Properties, "", new { @class = "text-danger" })
                                         </div>
-                                        <div class="col-12 col-md-2 col-lg-2 mt-3 mt-lg-0">
+                                        <div class="lg:col-span-2 mt-3 lg:mt-0">
                                             @if (!Model[i].IsSystem)
                                             {
                                                 <div class="d-flex justify-content-end align-items-center">
@@ -108,8 +107,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="row mt-4">
-                    <div class="col-12 col-xl-8">
+                <div class="mt-4">
+                    <div class="xl:max-w-4xl">
                         <div class="card">
                             <div class="card-header">
                                 <h5 class="mb-0">
@@ -121,8 +120,8 @@
                                     {
                                         @Html.HiddenFor(m => m[i].IsSystem)
 
-                                        <div class="row">
-                                        <div class="col-12 col-md-3 col-lg-3 mt-3 mt-lg-0">
+                                        <div class="grid grid-cols-1 gap-2 lg:grid-cols-12 lg:items-start">
+                                        <div class="lg:col-span-3 mt-3 lg:mt-0">
                                                 @if (Model[i].IsSystem)
                                                 {
                                                     @Html.DropDownListFor(m => m[i].TypeID, constraintTypes, null, new { @class = "form-select", data_id = i, disabled = "disabled" })
@@ -134,7 +133,7 @@
                                                 }
                                                 @Html.ValidationMessageFor(m => m[i].TypeID, "", new { @class = "text-danger" })
                                             </div>
-                                            <div class="col-12 col-md-7 col-lg-7 mt-3 mt-lg-0">
+                                            <div class="lg:col-span-7 mt-3 lg:mt-0">
                                                 <div class="form-line">
                                                     @if (Model[i].IsSystem)
                                                     {
@@ -148,7 +147,7 @@
                                                 </div>
                                                 @Html.ValidationMessageFor(m => m[i].Properties, "", new { @class = "text-danger" })
                                             </div>
-                                            <div class="col-12 col-md-2 col-lg-2 mt-3 mt-lg-0">
+                                            <div class="lg:col-span-2 mt-3 lg:mt-0">
                                                 @if (!Model[i].IsSystem)
                                                 {
                                                 <div class="d-flex justify-content-end align-items-center">

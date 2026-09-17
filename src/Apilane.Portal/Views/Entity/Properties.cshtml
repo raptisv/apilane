@@ -12,9 +12,9 @@
     DBWS_Entity Entity = ViewBag.Entity;
 }
 
-<div class="clearfix">
-    <div class="row">
-        <div class="col-lg-12">
+<div>
+    <div>
+        <div>
             <div class="page-header">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
@@ -38,8 +38,8 @@
                 <a title="@Entity.Name data" href="@Url.RouteUrl("EntRoute", new { controller = "Entity", action = "Data", appid = Html.GetAppToken(), entid = Entity.Name, inFrame = true })" class="btn btn-default iframe-link-popup"><i class="bi bi-database"></i></a>
             </div>
 
-            <div class="row clearfix">
-                <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+            <div>
+                <div>
                     @if (Entity.AllowAddProperties())
                     {
                         <div class="card mb-4 bg-transparent">
@@ -53,7 +53,7 @@
                                 }
                                 else
                                 {
-                                    <div class="text-center text-muted">
+                                    <div class="empty-state">
                                         No data
                                     </div>
                                 }

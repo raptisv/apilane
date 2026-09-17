@@ -45,21 +45,6 @@ $(document).ready(function () {
         }
     });
 
-    // Theme menu
-    document.querySelectorAll('[data-bs-theme-value]').forEach(value => {
-        value.addEventListener('click', () => {
-            const theme = value.getAttribute('data-bs-theme-value');
-            document.documentElement.setAttribute('data-bs-theme', theme);
-            Cookies.set('theme', theme);
-            location.reload();
-        });
-    });
-
-    // Tooltips
-    const tooltipElements = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-    for (const tooltip of tooltipElements) {
-        new bootstrap.Tooltip(tooltip);
-    }
 });
 
 
@@ -209,7 +194,7 @@ function loadApplicationReportPanel(reportID, appToken, portalUserAuthToken, typ
         var urls = seriesDefs.map(function (s) { return s.url + '&AppToken=' + appToken; }).join('\n\n');
         Swal.fire({
             title: 'API endpoint' + (seriesDefs.length > 1 ? 's' : ''),
-            html: '<textarea readonly rows="10" class="w-100 form-control">' + urls + '</textarea>',
+            html: '<textarea readonly rows="10" class="w-full form-control">' + urls + '</textarea>',
             showCancelButton: false,
             confirmButtonText: 'Close',
             buttonsStyling: false,
@@ -229,7 +214,7 @@ function renderReportPanel(reportID, appToken, portalUserAuthToken, type, series
     el.html('<div class="text-center"><div class="spinner-border"><span class="visually-hidden">Loading...</span></div></div>');
 
     if (!seriesDefs || seriesDefs.length === 0) {
-        el.html('<div class="text-center"><span class="text-muted">No series</span></div>');
+        el.html('<div class="empty-state h-full flex items-center justify-center">No series</div>');
         return;
     }
 
@@ -288,7 +273,7 @@ function renderCombinedReport(reportID, type, results) {
 
     var allEmpty = results.every(function (r) { return !r.response || r.response.length === 0; });
     if (allEmpty) {
-        el.html('<div class="text-center"><span class="text-muted" style="position:absolute; top:50%;">No data</span></div>');
+        el.html('<div class="empty-state h-full flex items-center justify-center">No data</div>');
         return;
     }
 
@@ -403,7 +388,7 @@ function hexWithAlpha(hex, alpha) {
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
 }
 
-function loadApplicationDisplayToken(appId, appToken, appEncryptionKey) {
+function loadApplicationDisplayToken(appId, appToken, appEncryptionKey, apiServerUrl) {
     $('.swal-display-token-' + appId).click(function () {
         // Read-only inputs so the values can be selected/copied (a <b> tag cannot be
         // reliably double-click selected), each with a one-click copy button.
@@ -419,7 +404,7 @@ function loadApplicationDisplayToken(appId, appToken, appEncryptionKey) {
 
         Swal.fire({
             title: "Application info",
-            html: copyField('Token', appToken) + copyField('Encryption key', appEncryptionKey),
+            html: copyField('API server url', apiServerUrl) + copyField('Token', appToken) + copyField('Encryption key', appEncryptionKey),
             showCancelButton: false,
             showConfirmButton: true,
             confirmButtonText: "OK",

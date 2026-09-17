@@ -1,35 +1,24 @@
-﻿
 @{
-    ViewBag.Title = "";
+    ViewBag.Title = "Error";
     Layout = null;
 }
 
 <!DOCTYPE html>
-<html>
+<html class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
     <title>500 | Error</title>
-    <link rel="icon" href="../favicon.ico" type="image/x-icon">
-    <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&subset=latin,cyrillic-ext" rel="stylesheet" type="text/css">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" type="text/css">
-    <link href="~/Scripts/plugins/bootstrap/css/bootstrap.css" rel="stylesheet">
-    <link href="~/Scripts/plugins/bootstrap/css/bootstrap.css" rel="stylesheet">
-    <link href="~/Scripts/plugins/node-waves/waves.css" rel="stylesheet" />
-    <link href="~/Content/style.css" rel="stylesheet">
+    <link rel="icon" href="~/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="~/assets/vendor/tailwind/tailwind.css">
 </head>
 
-<body class="five-zero-zero">
-    <div class="five-zero-zero-container">
-        <div class="error-code">500</div>
-        <div class="error-message">Internal Server Error</div>
-        <div class="button-place">
-            <a href="@Url.Action("Index", "Application")" class="btn btn-lg btn-primary">GO TO HOMEPAGE</a>
-        </div>
+<body class="flex min-h-screen items-center justify-center bg-black p-4 text-zinc-200">
+    <div class="card w-full max-w-sm p-8 text-center">
+        <div class="text-5xl font-bold text-red-400">500</div>
+        <div class="mt-2 text-zinc-300">Internal Server Error</div>
+        <a href="@Url.Action("Index", "Applications")" class="btn btn-primary mt-6 w-full">Go to homepage</a>
     </div>
-    <script src="~/Scripts/plugins/jquery/jquery.min.js"></script>
-    <script src="~/Scripts/plugins/bootstrap/js/bootstrap.js"></script>
-    <script src="~/Scripts/plugins/node-waves/waves.js"></script>
 </body>
 </html>

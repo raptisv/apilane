@@ -12,7 +12,6 @@
     ViewBag.Title = "Security";
     Layout = "~/Views/Shared/_Layout.cshtml";
 
-    var isDarkTheme = Html.IsDarkTheme(Context.Request);
 
     var ApplicationRoles = (List<string>)ViewBag.AplicationRoles;
 
@@ -147,7 +146,7 @@
         }
 
         return new HtmlString($@"<div class='{prefix} {hidden} mt-3'>
-                                    <span class='text-primary'>Record level access</span>
+                                    <span class='section-label'>Record level access</span>
                                     <div class='{prefix} {hidden}' data-id='{RoleID}'>{radiosHtml}</div>");
     }
 
@@ -170,14 +169,14 @@
         string prefix = $"record-auth-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}";
         var checkedProperties = Item?.GetProperties();
 
-        string html = $"<div class='mt-3 {prefix} {Hidden}'><span class='text-primary'>Property level access</span></div>";
+        string html = $"<div class='mt-3 {prefix} {Hidden}'><span class='section-label'>Property level access</span></div>";
 
         foreach (var prop in propertiesAllowed)
         {
             string isPropertyChecked = checkedProperties != null && checkedProperties.Any(x => x.Equals(prop.Name)) ? "checked" : "";
 
             string propertyLabel = (!string.IsNullOrWhiteSpace(application.DifferentiationEntity) && SecurityItem.HasDifferentiationProperty && prop.Name.Equals(application.DifferentiationEntity.GetDifferentiationPropertyName())
-                ? " <span style='color:lightgray;' title='Differentiation property'>(DP)</span>"
+                ? " <span class='text-zinc-500' title='Differentiation property'>(DP)</span>"
                 : string.Empty);
 
             html += $@"<div class='form-check {prefix} {Hidden}'>
@@ -189,7 +188,6 @@
                             data-typeid='{(int)SecurityTypes.Entity}'
                             class='form-check-input prevent-post-form-data something-has-changed'
                             type='checkbox' value=''
-                            id='flexCheckChecked' 
                         {isPropertyChecked}
                             name='properties-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}'
                         >
@@ -217,7 +215,7 @@
             (EndpointRateLimit.Per_Hour, "Per hour")
         };
 
-        var html = $"<div class='mt-3 {prefix} {hidden}'><span class='text-primary'>Rate limiting</span></div>";
+        var html = $"<div class='mt-3 {prefix} {hidden}'><span class='section-label'>Rate limiting</span></div>";
         html += $"<div class='{prefix} {hidden} radio-ratelimit-wrapper'>";
 
         foreach (var (type, label) in options)
@@ -238,7 +236,7 @@
                 int inputValue = isSelected && Item?.RateLimit != null ? Item.RateLimit.MaxRequests : 1;
                 string inputHidden = isSelected ? string.Empty : "d-none";
                 html += $@"<input id='input-ratelimit-{(int)SecurityItem.TypeID}-{SecurityItem.Name}-{Endpoint}-{RoleID}-{typeVal}'
-                        class='input-ratelimit-value ms-2 w-25 something-has-changed {inputHidden}'
+                        class='input-ratelimit-value form-control form-control-sm ms-2 w-1/4 something-has-changed {inputHidden}'
                         type='number' value='{inputValue}' {dataAttrs}/>";
             }
 
@@ -263,9 +261,9 @@
 }
 }
 
-<div class="clearfix">
-    <div class="row">
-        <div class="col-lg-12">
+<div>
+    <div>
+        <div>
             <div class="page-header">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
@@ -283,21 +281,21 @@
 
             @using (Html.BeginRouteForm("AppRoute", new { controller = "Application", action = "Security", appid = Model.Token }, FormMethod.Post, null, new { role = "form" }))
             {
-                <div class="accordion p-6 custom-border" id="accordionExample">
+                <div class="accordion p-6 custom-border" x-data="{ openItem: null }">
 
                     <div class="accordion-item">
-                        <h2 class="accordion-header" id="heading1">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse1" aria-expanded="false" aria-controls="collapse1">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" :class="{ collapsed: openItem !== 'c1' }" type="button" @@click="openItem = (openItem === 'c1' ? null : 'c1')">
                                 Sign-in
                             </button>
                         </h2>
-                        <div id="collapse1" class="accordion-collapse collapse" aria-labelledby="heading1" data-bs-parent="#accordionExample">
+                        <div x-show="openItem === 'c1'" x-collapse x-cloak>
                             <div class="accordion-body">
                                 <div class="card-body">
                                     <div>
                                         <div class="form-group mb-3">
                                             When a user signs-in, keep the authentication token alive for at least
-                                            <input type="number" , id="@(nameof(DBWS_Application.AuthTokenExpireMinutes))" min="1" max="@int.MaxValue" style="width: 70px;" name="@(nameof(DBWS_Application.AuthTokenExpireMinutes))" value="@Model.AuthTokenExpireMinutes" />
+                                            <input type="number" id="@(nameof(DBWS_Application.AuthTokenExpireMinutes))" min="1" max="@int.MaxValue" class="form-control" style="width: 70px;" name="@(nameof(DBWS_Application.AuthTokenExpireMinutes))" value="@Model.AuthTokenExpireMinutes" />
                                             minutes. After that time of inactivity, the user will be forced to sign-in again.
                                         </div>
                                         @Html.ValidationMessageFor(m => m.AuthTokenExpireMinutes, "", new { @class = "text-danger" })
@@ -319,12 +317,12 @@
                     </div>
 
                     <div class="accordion-item">
-                        <h2 class="accordion-header" id="heading2">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse2" aria-expanded="false" aria-controls="collapse2">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" :class="{ collapsed: openItem !== 'c2' }" type="button" @@click="openItem = (openItem === 'c2' ? null : 'c2')">
                                 Register
                             </button>
                         </h2>
-                        <div id="collapse2" class="accordion-collapse collapse" aria-labelledby="heading2" data-bs-parent="#accordionExample">
+                        <div x-show="openItem === 'c2'" x-collapse x-cloak>
                             <div class="accordion-body">
                                 <div class="card-body">
                                     <div class="form-check form-switch mb-3">
@@ -340,12 +338,12 @@
                     </div>
 
                     <div class="accordion-item">
-                        <h2 class="accordion-header" id="heading3">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse3" aria-expanded="false" aria-controls="collapse3">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" :class="{ collapsed: openItem !== 'c3' }" type="button" @@click="openItem = (openItem === 'c3' ? null : 'c3')">
                                 Forgot password
                             </button>
                         </h2>
-                        <div id="collapse3" class="accordion-collapse collapse" aria-labelledby="heading3" data-bs-parent="#accordionExample">
+                        <div x-show="openItem === 'c3'" x-collapse x-cloak>
                             <div class="accordion-body">
                                 <div class="card-body">
                                     <div>
@@ -371,18 +369,18 @@
                     </div>
 
                     <div class="accordion-item">
-                        <h2 class="accordion-header" id="heading4">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse4" aria-expanded="false" aria-controls="collapse4">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" :class="{ collapsed: openItem !== 'c4' }" type="button" @@click="openItem = (openItem === 'c4' ? null : 'c4')">
                                 Files
                             </button>
                         </h2>
-                        <div id="collapse4" class="accordion-collapse collapse" aria-labelledby="heading4" data-bs-parent="#accordionExample">
+                        <div x-show="openItem === 'c4'" x-collapse x-cloak>
                             <div class="accordion-body">
                                 <div class="card-body">
                                     <div>
                                         <div class="form-group mb-3">
                                             The maximum allowed size of file is
-                                            <input type="number" , id="@(nameof(DBWS_Application.MaxAllowedFileSizeInKB))" min="1" max="@int.MaxValue" style="width: 100px;" name="@(nameof(DBWS_Application.MaxAllowedFileSizeInKB))" value="@Model.MaxAllowedFileSizeInKB" />
+                                            <input type="number" id="@(nameof(DBWS_Application.MaxAllowedFileSizeInKB))" min="1" max="@int.MaxValue" class="form-control" style="width: 100px;" name="@(nameof(DBWS_Application.MaxAllowedFileSizeInKB))" value="@Model.MaxAllowedFileSizeInKB" />
                                             KB.
                                         </div>
                                         @Html.ValidationMessageFor(m => m.MaxAllowedFileSizeInKB, "", new { @class = "text-danger" })
@@ -396,12 +394,12 @@
                     </div>
 
                     <div class="accordion-item">
-                        <h2 class="accordion-header" id="heading5">
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse5" aria-expanded="false" aria-controls="collapse5">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" :class="{ collapsed: openItem !== 'c5' }" type="button" @@click="openItem = (openItem === 'c5' ? null : 'c5')">
                                 IP block
                             </button>
                         </h2>
-                        <div id="collapse5" class="accordion-collapse collapse" aria-labelledby="heading5" data-bs-parent="#accordionExample">
+                        <div x-show="openItem === 'c5'" x-collapse x-cloak>
                             <div class="accordion-body">
                                 <div class="card-body">
                                     <div>
@@ -424,20 +422,19 @@
 
                 </div>
 
-                <div class="row mt-4">
-                    <div class="col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                <div class="mt-4" x-data="{ activeTab: '@(string.IsNullOrWhiteSpace(SelectedEntity) ? (SecurityItems.Count > 0 ? $"{SecurityItems[0].TypeID}-{SecurityItems[0].Name}" : "") : SelectedEntity)' }">
+                    <div>
                         <div class="card">
                             <div class="card-body">
                                <h5 class="card-title">
                                     Entity/Endpoints authorization
                                 </h5>
                                 <h6 class="card-subtitle text-muted mb-3">Set specific level of access for each entity and custom endpoint</h6>
-                                
+
                                     <ul class="nav nav-pills mb-3" role="tablist">
                                         @for (int i = 0; i < SecurityItems.Count; i++)
                                         {
                                             SecurityItem_DTO ent = SecurityItems[i];
-                                            string active = string.IsNullOrWhiteSpace(SelectedEntity) ? (i == 0 ? " active " : "") : (SelectedEntity.Equals($"{ent.TypeID}-{ent.Name}") ? " active " : "");
                                             var tooltipHtml = ent.TypeID switch
                                             {
                                                 SecurityTypes.Entity => "Entity" + (ent.IsSystem ? " (system)" : ""),
@@ -446,11 +443,8 @@
                                                 _ => ""
                                             };
 
-                                            <li class="nav-item" role="presentation"
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                data-bs-title="@tooltipHtml">
-                                                <button class="nav-link position-relative @active" data-bs-toggle="pill" data-bs-target="#@(ent.TypeID)-@(ent.Name)" type="button" role="tab" data-entity="@($"{ent.TypeID}-{ent.Name}")">
+                                            <li class="nav-item" role="presentation" title="@tooltipHtml">
+                                                <button class="nav-link position-relative" :class="{ active: activeTab === '@($"{ent.TypeID}-{ent.Name}")' }" @@click="activeTab = '@($"{ent.TypeID}-{ent.Name}")'" type="button" role="tab" data-entity="@($"{ent.TypeID}-{ent.Name}")">
                                                     @ent.Name
                                                 </button>
                                             </li>
@@ -461,9 +455,8 @@
                                         @for (int i = 0; i < SecurityItems.Count; i++)
                                         {
                                             SecurityItem_DTO ent = SecurityItems[i];
-                                            string active = string.IsNullOrWhiteSpace(SelectedEntity) ? (i == 0 ? " show active " : "") : (SelectedEntity.Equals($"{ent.TypeID}-{ent.Name}") ? " show active " : "");
 
-                                            <div role="tabpanel" class="tab-pane @active" id="@(ent.TypeID)-@(ent.Name)">
+                                            <div role="tabpanel" class="tab-pane" x-show="activeTab === '@($"{ent.TypeID}-{ent.Name}")'" id="@(ent.TypeID)-@(ent.Name)">
 
                                                 <table id="auth-table" class="table table-bordered mb-0">
                                                     <thead>
@@ -492,7 +485,7 @@
                                                                     @displayName
                                                                     @if (!string.IsNullOrEmpty(tooltip))
                                                                     {
-                                                                        <i class="bi bi-info-circle text-primary security-role-help" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-original-title="@tooltip"></i>
+                                                                        <i class="bi bi-info-circle text-primary security-role-help" title="@tooltip"></i>
                                                                     }
                                                                 </td>
                                                                 @RenderSecurityCell(ent, "get", roleId)
@@ -543,13 +536,13 @@
 
 
 @* --- Security Tree Modal (D3.js) --- *@
-<div class="modal fade p-0" id="securityTreeModal" tabindex="-1" aria-hidden="true">
+<div class="modal p-0" id="securityTreeModal" x-show="$store.modal.activeId === 'securityTreeModal'" x-transition x-cloak>
     <div class="modal-dialog modal-fullscreen p-4">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-diagram-3 me-2"></i>Security Tree</h5>
                 <small class="text-muted ms-3">Click nodes to expand/collapse · Scroll to zoom · Drag to pan</small>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" @@click="$store.modal.close()" aria-label="Close"></button>
             </div>
             <div class="modal-body p-0">
                 <div id="securityTreeContainer" style="width:100%;height:100%;"></div>
@@ -559,13 +552,13 @@
 </div>
 
 @* --- Security Matrix Modal --- *@
-        <div class="modal fade p-0" id="securityMatrixModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-fullscreen p-4">
+<div class="modal p-0" id="securityMatrixModal" x-show="$store.modal.activeId === 'securityMatrixModal'" x-transition x-cloak>
+    <div class="modal-dialog modal-fullscreen p-4">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-grid-3x3 me-2"></i>Security Matrix</h5>
                 <small class="text-muted ms-3">Hover cells for details</small>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" @@click="$store.modal.close()" aria-label="Close"></button>
             </div>
             <div class="modal-body" style="overflow:auto;">
                 <div id="securityMatrixContainer"></div>
@@ -595,10 +588,12 @@
                 dataEntity = `Entity-${name}`;
             } else if (typeid == 1 && name != '') {
                 dataEntity = `CustomEndpoint-${name}`;
+            } else if (typeid == 2 && name != '') {
+                dataEntity = `Schema-${name}`;
             }
 
             if ($(`button[data-entity="${dataEntity}"]`).find('.badge-changes').length == 0) {
-                $(`button[data-entity="${dataEntity}"]`).append('<span class="position-absolute top-0 start-100 translate-middle p-1 text-bg-warning border border-light rounded-circle badge-changes"></span>');
+                $(`button[data-entity="${dataEntity}"]`).append('<span class="position-absolute top-0 left-full translate-middle p-1 text-bg-warning border border-light rounded-circle badge-changes"></span>');
             }
         });
 
@@ -763,48 +758,8 @@
 
 @section styles{
     <style>
-
-        .panel {
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2) !important;
-        }
-
-        .panel-body {
-            border: 0 !important;
-        }
-
-        .panel-group .card {
-            margin: 0 !important;
-            box-shadow: none !important;
-        }
-
-        .panel-group .btn_save:hover {
-            color: #ffffff !important;
-        }
-
-        .panel-group .header {
-            padding: 4px !important;
-            border: none !important;
-        }
-
-        label.font-size-inherit {
-            font-size: inherit !important;
-        }
-
-        .width-fixed {
-            max-width: 50px;
-        }
-
         #auth-table label {
             margin-bottom: 0 !important;
-        }
-
-
-        .tabbed {
-            margin-left: 20px;
-        }
-
-        .change-selector {
-            border: none !important;
         }
     </style>
 }

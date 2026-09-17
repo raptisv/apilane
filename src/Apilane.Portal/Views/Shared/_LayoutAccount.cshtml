@@ -6,7 +6,7 @@
 }
 
 <!DOCTYPE html>
-<html>
+<html class="dark">
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
@@ -15,15 +15,19 @@
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="~/favicon.ico" type="image/x-icon">
-    <link rel="stylesheet" href="~/account.min.css?v=@Html.AssemblyVersion()">
+    <link rel="stylesheet" href="~/assets/vendor/tailwind/tailwind.css?v=@Html.AssetVersion()">
+    <link rel="stylesheet" href="~/account.min.css?v=@Html.AssetVersion()">
     @RenderSection("styles", required: false)
 </head>
-<body>
-    <div class="login-dark" style="background-image: linear-gradient(to top, #09203f 0%, #537895 100%);">
+<body class="min-h-screen bg-black text-zinc-200" x-data="{}">
+    <div class="flex min-h-screen items-center justify-center p-4">
         @RenderBody()
-    </div>   
+    </div>
 
-    <script src="~/account.min.js?v=@Html.AssemblyVersion()"></script>
+    <script src="~/assets/vendor/alpinejs/alpine-collapse.min.js" defer></script>
+    <script src="~/assets/alpine-app.js" defer></script>
+    <script src="~/assets/vendor/alpinejs/alpine.min.js" defer></script>
+    <script src="~/account.min.js?v=@Html.AssetVersion()"></script>
     @RenderSection("scripts", required: false)
 </body>
 </html>

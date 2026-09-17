@@ -6,7 +6,7 @@
 }
 
 <!DOCTYPE html>
-<html>
+<html class="dark">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=Edge">
@@ -15,26 +15,24 @@
     <link rel="icon" href="@Url.Action("~/favicon.ico")" type="image/x-icon">
 
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" type="text/css">
-    <link rel="stylesheet" href="~/data.min.css?v=@Html.AssemblyVersion()" />
+    <link rel="stylesheet" href="~/assets/vendor/tailwind/tailwind.css?v=@Html.AssetVersion()">
+    <link rel="stylesheet" href="~/assets/vendor/sweetalert/sweetalert2.dark.css?v=@Html.AssetVersion()">
+    <link rel="stylesheet" href="~/data.min.css?v=@Html.AssetVersion()" />
     @RenderSection("styles", required: false)
 </head>
-<body>
+<body class="bg-black text-zinc-200 font-sans" x-data="{}">
 
-    <section class="content" style="margin:0;">
-        <div class="container-fluid">
+    <section>
+        <div class="p-3">
             @RenderBody()
         </div>
     </section>
-    
-</body>
-<script type="text/javascript" src="~/data.min.js?v=@Html.AssemblyVersion()"></script>
+
+    <script src="~/assets/vendor/alpinejs/alpine-collapse.min.js" defer></script>
+    <script src="~/assets/alpine-app.js" defer></script>
+    <script src="~/assets/vendor/alpinejs/alpine.min.js" defer></script>
+    <script type="text/javascript" src="~/data.min.js?v=@Html.AssetVersion()"></script>
     @RenderSection("scripts", required: false)
     @Html.PageScripts()
+</body>
 </html>
-
-
-<style>
-    body {
-        font-family: 'Roboto', Arial, Tahoma, sans-serif;
-    }
-</style>

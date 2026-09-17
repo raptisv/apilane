@@ -4,10 +4,6 @@
 @using Microsoft.AspNetCore.Http;
 @model List<DBWS_EntityProperty>
 
-@{
-    var isDarkTheme = Html.IsDarkTheme(Context.Request);
-}
-
 <div class="table-responsive">
     <table class="table table-sm table-borderless table-hover m-0">
         <thead>
@@ -25,45 +21,39 @@
             @foreach (var item in Model.OrderByDescending(x => x.IsPrimaryKey).ThenBy(x => x.IsSystem).ThenBy(x => x.Name))
             {
                 var df = item.Descr().Select(x => Html.Raw(x.Replace("'", "&#39;")));
-                string descr = string.Join("", df.Select(x => $"<div class='badge {(isDarkTheme ? "text-bg-dark" : "text-bg-light")} me-1'>{x}</div>"));
+                string descr = string.Join("", df.Select(x => $"<div class='badge bg-zinc-800 text-zinc-200 me-1'>{x}</div>"));
                 <tr>
                     <td>
                         <strong class="text-primary">@item.Name</strong>
                         @if (!string.IsNullOrWhiteSpace(item.Description))
                         {
-                            <i class="bi bi-info-circle text-primary" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-original-title="@item.Description"></i>
+                            <i class="bi bi-info-circle text-primary" title="@item.Description"></i>
                         }
                     </td>
-                    <td><div class="badge @(isDarkTheme ? "text-bg-dark" : "text-bg-light")">@item.TypeID_Enum.ToString()</div></td>
+                    <td><div class="badge bg-zinc-800 text-zinc-200">@item.TypeID_Enum.ToString()</div></td>
                     <td>@Html.Raw(descr)</td>
-                    
+
                     @if (Model.Any(x => !x.IsSystem))
                     {
                         <td>
                             @if (item.IsSystem == false)
                             {
-                                <div class="btn-group position-static">
-                                    <button class="btn btn-sm dropdown-toggle btn-default" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <div class="dropdown" x-data="{ open: false }" @@click.outside="open = false">
+                                    <button class="btn btn-sm btn-default" type="button" @@click="open = !open">
                                         <i class="bi bi-three-dots"></i>
                                     </button>
-                                    <ul class="dropdown-menu">
-                                        <li>
-                                            <a class="dropdown-item" href="@Url.RouteUrl("PropRoute", new { controller = "Property", action = "Edit", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = item.Name })" title="Edit">
-                                                Edit
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item @(item.IsSystem ? "disabled" : "")" title="@(item.IsSystem ? "Cannot rename system Properties" : "")" href="@(item.IsSystem ? "#" : Url.RouteUrl("PropRoute", new { controller = "Property", action = "Rename", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = item.Name }))">
-                                                Rename
-                                            </a>
-                                        </li>
-                                        <li><div class="dropdown-divider"></div></li>
-                                        <li>
-                                            <a class="dropdown-item" href="@Url.RouteUrl("PropRoute", new { controller = "Property", action = "Delete", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = item.Name })" title="Delete">
-                                                Delete
-                                            </a>
-                                        </li>
-                                    </ul>
+                                    <div class="dropdown-menu" x-show="open" x-transition x-cloak @@click="open = false">
+                                        <a class="dropdown-item" href="@Url.RouteUrl("PropRoute", new { controller = "Property", action = "Edit", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = item.Name })" title="Edit">
+                                            Edit
+                                        </a>
+                                        <a class="dropdown-item @(item.IsSystem ? "pointer-events-none opacity-40" : "")" title="@(item.IsSystem ? "Cannot rename system Properties" : "")" href="@(item.IsSystem ? "#" : Url.RouteUrl("PropRoute", new { controller = "Property", action = "Rename", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = item.Name }))">
+                                            Rename
+                                        </a>
+                                        <hr class="dropdown-divider" />
+                                        <a class="dropdown-item" href="@Url.RouteUrl("PropRoute", new { controller = "Property", action = "Delete", appid = Html.GetAppToken(), entid = Html.GetEntName(), propid = item.Name })" title="Delete">
+                                            Delete
+                                        </a>
+                                    </div>
                                 </div>
                             }
                         </td>
