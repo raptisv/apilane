@@ -23,7 +23,7 @@
                 var df = item.Descr().Select(x => Html.Raw(x.Replace("'", "&#39;")));
                 string descr = string.Join("", df.Select(x => $"<div class='badge bg-zinc-800 text-zinc-200 me-1'>{x}</div>"));
                 <tr>
-                    <td>
+                    <td class="whitespace-nowrap">
                         <strong class="text-primary">@item.Name</strong>
                         @if (!string.IsNullOrWhiteSpace(item.Description))
                         {

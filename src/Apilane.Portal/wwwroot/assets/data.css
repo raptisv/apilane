@@ -187,6 +187,12 @@ input[type="file"]::file-selector-button {
     border-bottom: 1px solid #3f3f46;
 }
 
+/* The history/edit/delete buttons in a data row's first cell were wrapping onto separate
+   lines once the column got too narrow for all of them side by side. */
+#datatable tr.data-row td:first-child {
+    white-space: nowrap;
+}
+
 .text_filter {
     margin: 4px 0;
 }

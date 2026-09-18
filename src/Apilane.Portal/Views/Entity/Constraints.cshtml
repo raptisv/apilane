@@ -1,7 +1,8 @@
-﻿@using Apilane.Portal.Models;
+@using Apilane.Portal.Models;
 @using Apilane.Common.Models;
 @using Apilane.Common.Enums;
 @using Apilane.Common.Utilities;
+@using Apilane.Common.Extensions;
 @model List<EntityConstraint>
 
 @{
@@ -17,11 +18,13 @@
     // Encrypted properties cannot be unique due to the property length issue
     var entityPropertiesThanCanBeUnique = entity.Properties.Where(x => !x.Encrypted);
 
-    var constraintTypes = EnumProvider<ConstraintType>.GetValues(ConstraintType.Unique).Select(x => new SelectListItem { Text = x.Value, Value = x.Key.ToString() }).ToList();
-
     var availableFKEntities = application.Entities.Where(x => !x.Name.Equals("Files")).Select(x => x.Name).ToList();
 
     var foreignKeyLogics = EnumProvider<ForeignKeyLogic>.GetValues(ForeignKeyLogic.ON_DELETE_CASCADE).Select(x => new { Key = ((ForeignKeyLogic)x.Key).ToString(), Text = x.Value }).ToList();
+
+    string FKLogicDisplay(ForeignKeyLogic logic) => foreignKeyLogics.FirstOrDefault(x => x.Key == logic.ToString())?.Text ?? logic.ToString();
+
+    var newRowIndex = Model.Count - 1;
 }
 
 <div>
@@ -43,127 +46,72 @@
                 <div>
                     <div class="xl:max-w-4xl">
                         <div class="card">
-                            <div class="card-header">
+                            <div class="card-header flex items-center justify-between">
                                 <h5 class="mb-0">
-                                    Existing constraints
+                                    Constraints
                                 </h5>
-                            </div>
-                            <div class="card-body">
-                                @for (int i = 0; i < Model.Count - 1; i++)
-                                {
-                                    @Html.HiddenFor(m => m[i].IsSystem)
-
-                                    <div class="grid grid-cols-1 gap-2 lg:grid-cols-12 lg:items-start">
-                                        <div class="lg:col-span-3 mt-3 lg:mt-0">
-                                            @if (Model[i].IsSystem)
-                                            {
-                                                @Html.DropDownListFor(m => m[i].TypeID, constraintTypes, null, new { @class = "form-select", data_id = i, disabled = "disabled" })
-                                                @Html.HiddenFor(m => m[i].TypeID)
-                                            }
-                                            else
-                                            {
-                                                @Html.DropDownListFor(m => m[i].TypeID, constraintTypes, null, new { @class = "form-select select-type", data_id = i })
-                                            }
-                                            @Html.ValidationMessageFor(m => m[i].TypeID, "", new { @class = "text-danger" })
-                                        </div>
-                                        <div class="lg:col-span-7 mt-3 lg:mt-0">
-                                            <div class="form-line">
-                                                @if (Model[i].IsSystem)
-                                                {
-                                                    @Html.TextBoxFor(m => m[i].Properties, new { @class = "form-control item-properties", data_id = i, placeholder = "No properties selected", @readonly = true })
-                                                    @Html.HiddenFor(m => m[i].Properties)
-                                                }
-                                                else
-                                                {
-                                                    @Html.TextBoxFor(m => m[i].Properties, new { @class = "form-control item-properties", data_id = i, placeholder = "No properties selected", @readonly = true })
-                                                }
-                                            </div>
-                                            @Html.ValidationMessageFor(m => m[i].Properties, "", new { @class = "text-danger" })
-                                        </div>
-                                        <div class="lg:col-span-2 mt-3 lg:mt-0">
-                                            @if (!Model[i].IsSystem)
-                                            {
-                                                <div class="d-flex justify-content-end align-items-center">
-                                                    <a href="#" class="btn btn-outline-primary select-properties" data-id="@i" title="Edit">
-                                                        <i class="bi bi-pencil"></i>
-                                                    </a>
-                                                    <a href="#" class="btn btn-outline-danger clear-properties ms-2" data-id="@i" title="Clear">
-                                                        <i class="bi bi-x"></i>
-                                                    </a>
-                                                </div>
-                                            }
-                                        </div>
-                                    </div>
-                                    @if (i < Model.Count - 2)
-                                    {
-                                        <hr class="text-muted" />
-                                    }
-                                }
-                                <div class="form-group">&nbsp;</div>
-                                <button type="submit" class="btn_save btn btn-primary" title="Save">
-                                    <i class="bi bi-floppy"></i>
+                                <button type="button" id="btn-add-constraint" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-plus me-1"></i>Add constraint
                                 </button>
                             </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-4">
-                    <div class="xl:max-w-4xl">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0">
-                                    New constraint
-                                </h5>
-                            </div>
                             <div class="card-body">
-                                    @for (int i = Model.Count - 1; i < Model.Count; i++)
+                                <div id="constraints-list" class="flex flex-col gap-2">
+                                    @for (int i = 0; i < newRowIndex; i++)
                                     {
-                                        @Html.HiddenFor(m => m[i].IsSystem)
+                                        var c = Model[i];
 
-                                        <div class="grid grid-cols-1 gap-2 lg:grid-cols-12 lg:items-start">
-                                        <div class="lg:col-span-3 mt-3 lg:mt-0">
-                                                @if (Model[i].IsSystem)
-                                                {
-                                                    @Html.DropDownListFor(m => m[i].TypeID, constraintTypes, null, new { @class = "form-select", data_id = i, disabled = "disabled" })
-                                                    @Html.HiddenFor(m => m[i].TypeID)
-                                                }
-                                                else
-                                                {
-                                                    @Html.DropDownListFor(m => m[i].TypeID, constraintTypes, null, new { @class = "form-select select-type", data_id = i })
-                                                }
-                                                @Html.ValidationMessageFor(m => m[i].TypeID, "", new { @class = "text-danger" })
-                                            </div>
-                                            <div class="lg:col-span-7 mt-3 lg:mt-0">
-                                                <div class="form-line">
-                                                    @if (Model[i].IsSystem)
+                                        <div class="constraint-row flex flex-wrap items-center justify-between gap-3 rounded-md border border-zinc-800 px-3 py-2" data-id="@i">
+                                            <div class="row-visible flex flex-wrap items-center justify-between gap-3 w-full">
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    @if (c.IsSystem)
                                                     {
-                                                        @Html.TextBoxFor(m => m[i].Properties, new { @class = "form-control item-properties", data_id = i, placeholder = "No properties selected", @readonly = true })
-                                                        @Html.HiddenFor(m => m[i].Properties)
+                                                        <span class="badge bg-zinc-800 text-zinc-400 fw-normal" title="System constraint">
+                                                            <i class="bi bi-lock-fill me-1"></i>System
+                                                        </span>
+                                                    }
+                                                    @if ((ConstraintType)c.TypeID == ConstraintType.Unique)
+                                                    {
+                                                        <span class="badge bg-info-subtle text-info fw-normal" title="Unique: @c.Properties">
+                                                            <i class="bi bi-check2-all me-1"></i>@string.Join(", ", c.GetUniqueProperties())
+                                                        </span>
                                                     }
                                                     else
                                                     {
-                                                        @Html.TextBoxFor(m => m[i].Properties, new { @class = "form-control item-properties", data_id = i, placeholder = "No properties selected", @readonly = true })
+                                                        var fk = c.GetForeignKeyProperties();
+                                                        <span class="badge bg-warning-subtle text-warning-emphasis fw-normal" title="Foreign key: @c.Properties">
+                                                            <i class="bi bi-link me-1"></i>@fk.Property &rarr; @fk.FKEntity
+                                                        </span>
+                                                        <span class="badge bg-zinc-800 text-zinc-400 fw-normal">@FKLogicDisplay(fk.FKLogic)</span>
                                                     }
                                                 </div>
-                                                @Html.ValidationMessageFor(m => m[i].Properties, "", new { @class = "text-danger" })
-                                            </div>
-                                            <div class="lg:col-span-2 mt-3 lg:mt-0">
-                                                @if (!Model[i].IsSystem)
+                                                @if (!c.IsSystem)
                                                 {
-                                                <div class="d-flex justify-content-end align-items-center">
+                                                    <div class="flex items-center gap-2 shrink-0">
                                                         <a href="#" class="btn btn-outline-primary select-properties" data-id="@i" title="Edit">
                                                             <i class="bi bi-pencil"></i>
                                                         </a>
-                                                        <a href="#" class="btn btn-outline-danger clear-properties ms-2" data-id="@i" title="Clear">
+                                                        <a href="#" class="btn btn-outline-danger clear-properties" data-id="@i" title="Remove">
                                                             <i class="bi bi-x"></i>
                                                         </a>
                                                     </div>
                                                 }
                                             </div>
+                                            @Html.HiddenFor(m => m[i].IsSystem, new { @class = "item-issystem", data_id = i })
+                                            @Html.HiddenFor(m => m[i].TypeID, new { @class = "item-typeid", data_id = i })
+                                            @Html.HiddenFor(m => m[i].Properties, new { @class = "item-properties", data_id = i })
                                         </div>
                                     }
-                                <br>
-                                <div class="form-group">
+                                </div>
+
+                                @* Hidden fields for the not-yet-created constraint. JS moves these into a real
+                                   .constraint-row once the "Add constraint" wizard is confirmed. *@
+                                <div id="new-constraint-hidden-fields" class="hidden">
+                                    @Html.HiddenFor(m => m[newRowIndex].IsSystem, new { @class = "item-issystem", data_id = newRowIndex })
+                                    @Html.HiddenFor(m => m[newRowIndex].TypeID, new { @class = "item-typeid", data_id = newRowIndex })
+                                    @Html.HiddenFor(m => m[newRowIndex].Properties, new { @class = "item-properties", data_id = newRowIndex })
+                                </div>
+
+                                <div class="form-group mt-4">
                                     @Html.ValidationMessage("CustomError", new { @class = "text-danger" })
                                 </div>
                                 <button type="submit" class="btn_save btn btn-primary" title="Save">
@@ -207,53 +155,125 @@
 @section scripts {
 
     <script>
-        $('.select-type').change(function(){
-            var itemId = $(this).data().id;
-            $(`.item-properties[data-id="${itemId}"]`).val('');
-        });
+        var CONSTRAINT_TYPE_UNIQUE = @((int)ConstraintType.Unique);
+        var CONSTRAINT_TYPE_FK = @((int)ConstraintType.ForeignKey);
 
-        $('.clear-properties').on('click', function(){
-            var itemId = $(this).data().id;
-            $(`.item-properties[data-id="${itemId}"]`).val('');
-        });
+        var availablePropertiesForUnique = @Html.Raw(Json.Serialize(entityPropertiesThanCanBeUnique.Select(x => x.Name)));
+        var availablePropertiesForFK = @Html.Raw(Json.Serialize(entityPropertiesThanCanBeFKs.Select(x => x.Name)));
+        var availableFKEntities = @Html.Raw(Json.Serialize(availableFKEntities));
+        var availableFKLogics = @Html.Raw(Json.Serialize(foreignKeyLogics));
 
-        $('.select-properties').on('click', function () {
-            var itemId = $(this).data().id;
-            var typeId = $(`.select-type[data-id="${itemId}"]`).val();
+        function fkLogicText(key) {
+            var found = availableFKLogics.find(function (x) { return x.Key === key; });
+            return found ? found.Text : key;
+        }
 
-            if (typeId == @((int)ConstraintType.Unique)){
-                loadUniqueConstraintProperties(itemId);
-            } else if (typeId == @((int)ConstraintType.ForeignKey)) {
-                loadForeignKeyConstraintProperties(itemId);
-            }
-        });
+        // Step 1 of the "add/edit constraint" flow: what kind of constraint is this. Picking one
+        // immediately opens the matching step-2 picker below, instead of a dropdown sitting in the
+        // row permanently — the row itself only ever shows the finished result, as a badge.
+        function openConstraintWizard(itemId, currentTypeId) {
+            var typeHtml = `
+                <div class="grid grid-cols-2 gap-3">
+                    <button type="button" class="btn ${currentTypeId == CONSTRAINT_TYPE_UNIQUE ? 'btn-info' : 'btn-outline-info'} wizard-pick-type flex flex-col items-center gap-2 py-4" data-type="${CONSTRAINT_TYPE_UNIQUE}">
+                        <i class="bi bi-check2-all text-2xl"></i>
+                        <span>Unique</span>
+                    </button>
+                    <button type="button" class="btn ${currentTypeId == CONSTRAINT_TYPE_FK ? 'btn-warning' : 'btn-outline-warning'} wizard-pick-type flex flex-col items-center gap-2 py-4" data-type="${CONSTRAINT_TYPE_FK}">
+                        <i class="bi bi-link text-2xl"></i>
+                        <span>Foreign key</span>
+                    </button>
+                </div>`;
 
-        function loadForeignKeyConstraintProperties(itemId) {
-            var availableProperties = @Html.Raw(Json.Serialize(entityPropertiesThanCanBeFKs.Select(x => x.Name)));
-            var properties = [];
-            $.each(availableProperties, function (i, prop) {
-                properties.push(`<div class="form-check">
-                    <input type="radio" name="radio-select-property" value="${prop}" class="form-check-input" id="fk-prop-${prop}"/>
+            Swal.fire({
+                position: 'top',
+                title: 'What kind of constraint?',
+                html: typeHtml,
+                showConfirmButton: false,
+                showCancelButton: true,
+                buttonsStyling: false,
+                customClass: {
+                    popup: 'swal-wide',
+                    cancelButton: 'btn'
+                },
+                didOpen: function (popup) {
+                    popup.querySelectorAll('.wizard-pick-type').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            var typeId = parseInt(btn.getAttribute('data-type'), 10);
+                            Swal.close();
+                            if (typeId === CONSTRAINT_TYPE_UNIQUE) {
+                                openUniqueStep(itemId);
+                            } else {
+                                openForeignKeyStep(itemId);
+                            }
+                        });
+                    });
+                }
+            });
+        }
+
+        function openUniqueStep(itemId) {
+            var currentValues = ($(`.item-properties[data-id="${itemId}"]`).val() || '').split(',').map(function (s) { return s.trim(); });
+
+            var properties = availablePropertiesForUnique.map(function (prop) {
+                var checked = currentValues.indexOf(prop) !== -1 ? 'checked' : '';
+                return `<div class="form-check">
+                    <input type="checkbox" id="check-${prop}" class="check-property form-check-input" data-id="${prop}" ${checked}/>
+                    <label class="form-check-label" for="check-${prop}">${prop}</label>
+                </div>`;
+            });
+
+            Swal.fire({
+                position: 'top',
+                title: 'Select unique properties',
+                html: $('#template-select-unique').html(),
+                showCancelButton: true,
+                confirmButtonText: 'OK',
+                buttonsStyling: false,
+                customClass: {
+                    popup: 'swal-wide',
+                    confirmButton: 'btn btn-primary',
+                    cancelButton: 'btn ms-2'
+                }
+            }).then((submit) => {
+                if (submit.isConfirmed) {
+                    var picked = [];
+                    $('.check-property:checked').each(function () {
+                        picked.push($(this).data().id);
+                    });
+                    if (picked.length === 0) { return; }
+                    upsertConstraintRow(itemId, CONSTRAINT_TYPE_UNIQUE, picked.join(','), false);
+                }
+            });
+
+            $('#sortable').html(properties.join(''));
+        }
+
+        function openForeignKeyStep(itemId) {
+            var current = ($(`.item-properties[data-id="${itemId}"]`).val() || '').split(',');
+            var currentProp = current[0], currentEntity = current[1], currentLogic = current[2] || 'ON_DELETE_NO_ACTION';
+
+            var properties = availablePropertiesForFK.map(function (prop) {
+                var checked = prop === currentProp ? 'checked' : '';
+                return `<div class="form-check">
+                    <input type="radio" name="radio-select-property" value="${prop}" class="form-check-input" id="fk-prop-${prop}" ${checked}/>
                     <label class="form-check-label" for="fk-prop-${prop}">${prop}</label>
-                </div>`);
+                </div>`;
             });
 
-            var availableFKEntities = @Html.Raw(Json.Serialize(availableFKEntities));
-            var entities = [];
-            $.each(availableFKEntities, function (i, entity) {
-                entities.push(`<div class="form-check">
-                    <input type="radio" name="radio-select-entity" value="${entity}" class="form-check-input" id="fk-ent-${entity}"/>
-                    <label class="form-check-label" for="fk-ent-${entity}">${entity}</label>
-                </div>`);
+            var entities = availableFKEntities.map(function (ent) {
+                var checked = ent === currentEntity ? 'checked' : '';
+                return `<div class="form-check">
+                    <input type="radio" name="radio-select-entity" value="${ent}" class="form-check-input" id="fk-ent-${ent}" ${checked}/>
+                    <label class="form-check-label" for="fk-ent-${ent}">${ent}</label>
+                </div>`;
             });
 
-            var availableFKLogics = @Html.Raw(Json.Serialize(foreignKeyLogics));
-            var fkLogics = [];
-            $.each(availableFKLogics, function (i, fkLogic) {
-                fkLogics.push(`<div class="form-check">
-                    <input type="radio" name="radio-select-fklogic" value="${fkLogic.Key}" class="form-check-input" id="fk-logic-${fkLogic.Key}"/>
+            var fkLogics = availableFKLogics.map(function (fkLogic) {
+                var checked = fkLogic.Key === currentLogic ? 'checked' : '';
+                return `<div class="form-check">
+                    <input type="radio" name="radio-select-fklogic" value="${fkLogic.Key}" class="form-check-input" id="fk-logic-${fkLogic.Key}" ${checked}/>
                     <label class="form-check-label" for="fk-logic-${fkLogic.Key}">${fkLogic.Text}</label>
-                </div>`);
+                </div>`;
             });
 
             Swal.fire({
@@ -274,12 +294,9 @@
                     var selectedEntity = $('input[name=radio-select-entity]:checked').val();
                     var selectedFKLogic = $('input[name=radio-select-fklogic]:checked').val();
 
-                    var value = (selectedProperty != undefined && selectedEntity != undefined && selectedFKLogic != undefined)
-                        ? selectedProperty + ',' + selectedEntity + ',' + selectedFKLogic
-                        : '';
+                    if (!selectedProperty || !selectedEntity || !selectedFKLogic) { return; }
 
-                    $(`.item-properties[data-id="${itemId}"]`).val(value);
-                    swal.close();
+                    upsertConstraintRow(itemId, CONSTRAINT_TYPE_FK, `${selectedProperty},${selectedEntity},${selectedFKLogic}`, false);
                 }
             });
 
@@ -288,73 +305,89 @@
             $('#radio-fklogic').html(fkLogics.join(''));
         }
 
-        function loadUniqueConstraintProperties(itemId) {
-            var availableValues = @Html.Raw(Json.Serialize(entityPropertiesThanCanBeUnique.Select(x => x.Name)));
-            var properties = [];
-            $.each(availableValues, function (i, prop) {
-                var html = `<div class="form-check">
-                    <input type="checkbox" id="check-${prop}" class="check-property form-check-input" data-id="${prop}"/>
-                    <label class="form-check-label" for="check-${prop}">${prop}</label>
-                </div>`;
-
-                properties.push(html);
-            });
-
-            Swal.fire({
-                position: 'top',
-                title: 'Select unique properties',
-                html: $('#template-select-unique').html(),
-                showCancelButton: true,
-                confirmButtonText: 'OK',
-                buttonsStyling: false,
-                customClass: {
-                    popup: 'swal-wide',
-                    confirmButton: 'btn btn-primary',
-                    cancelButton: 'btn ms-2'
-                }
-            }).then((submit) => {
-                if (submit.isConfirmed) {
-                    var txt = [];
-                    $.each($('.check-property:checked'), function (index, element) {
-                        var item = $(element).data().id;
-                        if (item != null && item.trim() != '')
-                            txt.push(item);
-                    });
-
-                    $(`.item-properties[data-id="${itemId}"]`).val(txt.join(','));
-                    swal.close();
-                }
-            });
-
-            $('#sortable').html(properties.join(''));
+        // Builds the same badge markup the server renders for existing rows, so a freshly
+        // confirmed constraint (new or edited) looks identical without a page reload.
+        function badgesHtml(typeId, propertiesValue, isSystem) {
+            var html = '';
+            if (isSystem) {
+                html += `<span class="badge bg-zinc-800 text-zinc-400 fw-normal" title="System constraint"><i class="bi bi-lock-fill me-1"></i>System</span>`;
+            }
+            if (typeId == CONSTRAINT_TYPE_UNIQUE) {
+                var props = propertiesValue.split(',').filter(Boolean);
+                html += `<span class="badge bg-info-subtle text-info fw-normal" title="Unique: ${propertiesValue}"><i class="bi bi-check2-all me-1"></i>${props.join(', ')}</span>`;
+            } else {
+                var parts = propertiesValue.split(',');
+                var prop = parts[0], ent = parts[1], logic = parts[2] || 'ON_DELETE_NO_ACTION';
+                html += `<span class="badge bg-warning-subtle text-warning-emphasis fw-normal" title="Foreign key: ${propertiesValue}"><i class="bi bi-link me-1"></i>${prop} &rarr; ${ent}</span>`;
+                html += `<span class="badge bg-zinc-800 text-zinc-400 fw-normal">${fkLogicText(logic)}</span>`;
+            }
+            return html;
         }
+
+        function rowVisibleHtml(itemId, typeId, propertiesValue, isSystem) {
+            var actions = isSystem ? '' : `
+                <div class="flex items-center gap-2 shrink-0">
+                    <a href="#" class="btn btn-outline-primary select-properties" data-id="${itemId}" title="Edit"><i class="bi bi-pencil"></i></a>
+                    <a href="#" class="btn btn-outline-danger clear-properties" data-id="${itemId}" title="Remove"><i class="bi bi-x"></i></a>
+                </div>`;
+            return `<div class="flex flex-wrap items-center gap-2">${badgesHtml(typeId, propertiesValue, isSystem)}</div>${actions}`;
+        }
+
+        // Writes the confirmed type/properties back into the row's (always-present) hidden
+        // fields, and updates or creates its visible badge row to match.
+        function upsertConstraintRow(itemId, typeId, propertiesValue, isSystem) {
+            $(`.item-properties[data-id="${itemId}"]`).val(propertiesValue);
+            $(`.item-typeid[data-id="${itemId}"]`).val(typeId);
+
+            var $row = $(`.constraint-row[data-id="${itemId}"]`);
+
+            if ($row.length === 0) {
+                $row = $(`<div class="constraint-row flex flex-wrap items-center justify-between gap-3 rounded-md border border-zinc-800 px-3 py-2" data-id="${itemId}">
+                    <div class="row-visible flex flex-wrap items-center justify-between gap-3 w-full"></div>
+                </div>`);
+                // Relocate the already-existing hidden fields into the new row rather than
+                // creating duplicates — they carry the values just set above.
+                $row.append(
+                    $(`.item-issystem[data-id="${itemId}"]`),
+                    $(`.item-typeid[data-id="${itemId}"]`),
+                    $(`.item-properties[data-id="${itemId}"]`)
+                );
+                $('#constraints-list').append($row);
+                $('#new-constraint-hidden-fields').remove();
+            }
+
+            $row.find('.row-visible').html(rowVisibleHtml(itemId, typeId, propertiesValue, isSystem));
+            $row.show();
+        }
+
+        $('#btn-add-constraint').on('click', function (e) {
+            e.preventDefault();
+            var itemId = @(newRowIndex);
+            var currentTypeId = $(`.item-typeid[data-id="${itemId}"]`).val();
+            openConstraintWizard(itemId, currentTypeId);
+        });
+
+        // Delegated: rows (and their edit/remove buttons) can be created dynamically after load.
+        $('#constraints-list').on('click', '.select-properties', function (e) {
+            e.preventDefault();
+            var itemId = $(this).data().id;
+            var typeId = $(`.item-typeid[data-id="${itemId}"]`).val();
+            openConstraintWizard(itemId, typeId);
+        });
+
+        $('#constraints-list').on('click', '.clear-properties', function (e) {
+            e.preventDefault();
+            var itemId = $(this).data().id;
+            // Clearing the value (never removing the hidden field itself) is what makes the
+            // server drop this constraint on Save — same contract the row used before the redesign.
+            $(`.item-properties[data-id="${itemId}"]`).val('');
+            $(`.constraint-row[data-id="${itemId}"]`).hide();
+        });
     </script>
 }
 
 @section styles {
     <style>
-
-        input#Properties,
-        input#GroupBy {
-            cursor: pointer;
-        }
-
-        .list-group {
-            max-height: 250px;
-            overflow-y: auto;
-        }
-
-        .list-group-item {
-            transition: unset !important;
-            text-align: left !important;
-            padding: 6px 12px;
-        }
-
-        #Filter,
-        #Properties,
-        #GroupBy {
-            font-family: Consolas;
-        }
 
         .swal-wide {
             width: 420px !important;

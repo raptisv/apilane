@@ -6,6 +6,15 @@
 @{
     ViewBag.Title = "Custom endpoints";
     Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var editUrlBase = Url.RouteUrl("AppRoute", new { controller = "CustomEndpoints", action = "Edit", appid = Html.GetAppToken() });
+
+    var endpointsForSearch = Model.CustomEndpoints.Select(x => new
+    {
+        x.Name,
+        x.Query,
+        EditUrl = $"{editUrlBase}?ID={x.ID}"
+    }).ToList();
 }
 
 <div>
@@ -24,8 +33,14 @@
         await Html.RenderPartialAsync("~/Views/Application/OptionsPartial.cshtml", Model);
     }
 
-    <div class="mb-4">
+    <div class="mb-4 flex items-center gap-2">
         <a href="@Url.RouteUrl("AppRoute", new {controller = "CustomEndpoints", action = "Create", appid = Html.GetAppToken() })" class="btn btn-primary"><span class="bi bi-plus me-1"></span>New custom endpoint</a>
+        @if (Model.CustomEndpoints.Count > 0)
+        {
+            <button type="button" id="btn-search-endpoints" class="btn btn-outline-primary" title="Search custom endpoints">
+                <i class="bi bi-search"></i>
+            </button>
+        }
     </div>
 
     @if (Model.CustomEndpoints.Count > 0)
@@ -38,6 +53,7 @@
                         <th>Query</th>
                         <th></th>
                         <th></th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -47,33 +63,29 @@
                         {
                             <tr>
                                 <td>
-                                    <a class="app-grid-link text-decoration-none text-primary" target="_blank" href="@item.GetUrl(Model.Server.ServerUrl, Model.Token, true)">
-                                        <strong class="text-primary">@item.Name</strong>
-                                    </a>
+                                    <strong class="text-primary">@item.Name</strong>
                                     @if (!string.IsNullOrWhiteSpace(item.Description))
                                     {
                                         <i class="bi bi-info-circle text-primary" title="@item.Description"></i>
                                     }
                                 </td>
                                 <td>
-                                    @*
-                                        A <pre> renders the query as real page text, unlike the <textarea> this
-                                        replaced — browser find-in-page (Ctrl+F) cannot search inside form control
-                                        values at all, so a scrolled/wrapped textarea silently wasn't searchable
-                                        even though it looked like it should be. Capped + scrollable so a huge
-                                        query doesn't blow up the row height; Ctrl+F still auto-scrolls this
-                                        container to reveal a match inside it.
-                                    *@
-                                    <pre class="max-h-24 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-zinc-300">@item.Query</pre>
+                                    @* One line only — use the search icon above to find/read a full query. *@
+                                    <div class="truncate max-w-xs font-mono text-xs text-zinc-300" title="@item.Query">@item.Query</div>
                                 </td>
                                 <td>
-                                    <a href="@Url.RouteUrl("AppRoute", new { controller = "CustomEndpoints", action = "Edit", appid = Html.GetAppToken() })?ID=@item.ID" class="btn btn-default" title="Edit">
+                                    <a href="@editUrlBase?ID=@item.ID" class="btn btn-default" title="Edit">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                 </td>
                                 <td>
                                     <a href="@Url.RouteUrl("AppRoute", new { controller = "CustomEndpoints", action = "Delete", appid = Html.GetAppToken() })?ID=@item.ID" class="btn btn-danger" title="Delete">
                                         <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                                <td>
+                                    <a href="@item.GetUrl(Model.Server.ServerUrl, Model.Token, true)" target="_blank" class="btn btn-outline-success" title="Call endpoint">
+                                        <i class="bi bi-play-fill"></i>
                                     </a>
                                 </td>
                             </tr>
@@ -90,4 +102,90 @@
         </div>
     }
 </div>
+
+<script type="text/template" id="template-search-endpoints">
+    <div class="text-start">
+        <input type="text" id="endpoint-search-input" class="form-control mb-3" placeholder="Search by name or query text..." autocomplete="off" />
+        <div id="endpoint-search-results" class="flex flex-col gap-2 endpoint-search-results"></div>
+        <div id="endpoint-search-empty" class="empty-state hidden">No matches</div>
+    </div>
+</script>
+
+@section scripts {
+    <script>
+        var allCustomEndpoints = @Html.Raw(Json.Serialize(endpointsForSearch));
+
+        function escapeHtml(text) {
+            return $('<div>').text(text).html();
+        }
+
+        function renderEndpointSearchResults(filterText) {
+            var needle = (filterText || '').trim().toLowerCase();
+
+            var matches = needle === ''
+                ? []
+                : allCustomEndpoints.filter(function (ep) {
+                    return ep.Name.toLowerCase().indexOf(needle) !== -1 || ep.Query.toLowerCase().indexOf(needle) !== -1;
+                });
+
+            var $results = $('#endpoint-search-results');
+            var $empty = $('#endpoint-search-empty');
+
+            if (needle !== '' && matches.length === 0) {
+                $results.empty();
+                $empty.removeClass('hidden');
+                return;
+            }
+
+            $empty.addClass('hidden');
+
+            $results.html(matches.map(function (ep) {
+                return `<div class="rounded-md border border-zinc-800 px-3 py-2">
+                    <div class="flex items-center justify-between gap-3">
+                        <strong class="text-primary">${escapeHtml(ep.Name)}</strong>
+                        <a href="${ep.EditUrl}" target="_blank" class="btn btn-outline-primary btn-sm" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                    </div>
+                    <pre class="whitespace-pre-wrap break-all font-mono text-xs text-zinc-300 mt-1 mb-0">${escapeHtml(ep.Query)}</pre>
+                </div>`;
+            }).join(''));
+        }
+
+        $('#btn-search-endpoints').on('click', function () {
+            Swal.fire({
+                position: 'top',
+                title: 'Search custom endpoints',
+                html: $('#template-search-endpoints').html(),
+                showConfirmButton: false,
+                showCancelButton: true,
+                cancelButtonText: 'Close',
+                buttonsStyling: false,
+                customClass: {
+                    popup: 'swal-endpoint-search',
+                    cancelButton: 'btn'
+                },
+                didOpen: function () {
+                    $('#endpoint-search-input').on('input', function () {
+                        renderEndpointSearchResults($(this).val());
+                    }).trigger('focus');
+                }
+            });
+        });
+    </script>
+}
+
+@section styles {
+    <style>
+        .swal-endpoint-search {
+            width: 560px !important;
+            max-width: 90vw !important;
+        }
+
+        .endpoint-search-results {
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+    </style>
+}
 
