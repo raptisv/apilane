@@ -73,7 +73,35 @@ namespace Apilane.Api.Core.Services
                 }
             }
 
+            // Non-owner callers must never read the Users.Password column, even when a role's
+            // property list includes it: it is a one-way hash with no legitimate client use.
+            if (actionType == SecurityActionType.get &&
+                type == SecurityTypes.Entity &&
+                name.Equals(Globals.UsersEntityName, StringComparison.OrdinalIgnoreCase))
+            {
+                securityList = securityList.Select(WithoutPasswordProperty).ToList();
+            }
+
             return securityList;
+        }
+
+        private static DBWS_Security WithoutPasswordProperty(DBWS_Security security)
+        {
+            var properties = security.GetProperties()
+                .Where(p => !p.Trim().Equals(Globals.PasswordColumn, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            // Return a copy: the input objects belong to the cached application definition.
+            return new DBWS_Security
+            {
+                Name = security.Name,
+                TypeID = security.TypeID,
+                RoleID = security.RoleID,
+                Action = security.Action,
+                Record = security.Record,
+                Properties = string.Join(",", properties),
+                RateLimit = security.RateLimit
+            };
         }
     }
 }

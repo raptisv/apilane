@@ -9,6 +9,7 @@ using Apilane.Common.Enums;
 using Apilane.Common.Helpers;
 using Apilane.Common.Models;
 using Apilane.Common.Models.Dto;
+using Apilane.Common.Security;
 using Apilane.Common.Utilities;
 using Apilane.Data.Abstractions;
 using System;
@@ -165,7 +166,8 @@ namespace Apilane.Api.Core
             {
                 var entity = application.Entities.Single(x => x.Name.Equals(nameof(Users)));
 
-                foreach (var property in entity.Properties.Where(x => x.Encrypted))
+                // The password is a one-way hash (never decryptable) and is removed below.
+                foreach (var property in entity.Properties.Where(x => x.Encrypted && !PasswordHasher.IsUsersPasswordProperty(entity.Name, x.Name)))
                 {
                     var propertyValue = drUser[property.Name];
                     if (propertyValue is not null)

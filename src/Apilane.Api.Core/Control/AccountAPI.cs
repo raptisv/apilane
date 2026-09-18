@@ -11,6 +11,7 @@ using Apilane.Common.Helpers;
 using Apilane.Common.Models;
 using Apilane.Common.Models.AppModules.Authentication;
 using Apilane.Common.Models.Dto;
+using Apilane.Common.Security;
 using Apilane.Common.Utilities;
 using Apilane.Data.Abstractions;
 using Apilane.Data.Utilities;
@@ -76,21 +77,39 @@ namespace Apilane.Api.Core
                     throw new ApilaneException(AppErrors.VALIDATION, "Email is not valid", nameof(email));
                 }
 
-                drUser = await GetUserByEmailAndPasswordAsync(application, email, password);
+                drUser = await GetUserByPropertyAsync(nameof(Users.Email), email);
             }
             else if (!string.IsNullOrWhiteSpace(username))
             {
-                drUser = await GetUserByNameAndPasswordAsync(application, username, password);
+                drUser = await GetUserByPropertyAsync(nameof(Users.Username), username);
             }
             else // If both email and user name are missing
             {
                 throw new ApilaneException(AppErrors.REQUIRED, "User name or email is required to login", nameof(email));
             }
 
-            if (drUser is null)
+            // Verify the password in code, never in SQL: stored values are one-way hashes, or the
+            // legacy reversible format for users that have not logged in since the upgrade.
+            if (drUser is null ||
+                !PasswordHasher.VerifyAny(password, Utils.GetString(drUser[nameof(Users.Password)]), application.EncryptionKey, out var needsRehash))
             {
                 throw new ApilaneException(AppErrors.ERROR, "Invalid login attempt");
             }
+
+            if (needsRehash)
+            {
+                // Transparently migrate the legacy value to a one-way hash on first successful login.
+                await _dataStore.UpdateDataAsync(
+                    nameof(Users),
+                    new Dictionary<string, object?>()
+                    {
+                        { nameof(Users.Password), PasswordHasher.Hash(password) }
+                    },
+                    new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, Utils.GetLong(drUser[nameof(Users.ID)]), PropertyType.Number));
+            }
+
+            drUser = ClearUserData(application, drUser)
+                ?? throw new ApilaneException(AppErrors.ERROR, "Invalid login attempt");
 
             if (!application.AllowLoginUnconfirmedEmail)
             {
@@ -432,7 +451,13 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.REQUIRED, null, nameof(currentPassword));
             }
 
-            if (!currentUser.Password.Equals(appEncryptionKey.ApplicationEncrypt(currentPassword)))
+            // The cached user (from the auth token grain) never carries the password, so load the
+            // stored value explicitly and verify it in code (one-way hash, or the legacy value for
+            // users that have not logged in since the upgrade).
+            var storedUser = await _dataStore.GetDataByIdAsync(nameof(Users), currentUser.ID, new List<string>() { nameof(Users.Password) });
+            var storedPassword = storedUser is not null ? Utils.GetString(storedUser[nameof(Users.Password)]) : null;
+
+            if (!PasswordHasher.VerifyAny(currentPassword, storedPassword, appEncryptionKey, out _))
             {
                 throw new ApilaneException(AppErrors.VALIDATION, "Invalid password", nameof(currentPassword));
             }
@@ -456,7 +481,7 @@ namespace Apilane.Api.Core
                 nameof(Users),
                 new Dictionary<string, object?>()
                 {
-                    { nameof(Users.Password), SqlUtilis.GetString(appEncryptionKey.ApplicationEncrypt(newPassword)) }
+                    { nameof(Users.Password), PasswordHasher.Hash(newPassword) }
                 },
                 new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, currentUser.ID, PropertyType.Number));
 
@@ -475,40 +500,22 @@ namespace Apilane.Api.Core
             return result.Select(x => Utils.GetString(x[nameof(AuthTokens.Token)])).ToList();
         }
 
-        private async Task<Dictionary<string, object?>?> GetUserByEmailAndPasswordAsync(
-            DBWS_Application application,
-            string userEmail,
-            string userPassword)
+        /// <summary>
+        /// Loads the raw user row (including the stored password value) matching the given
+        /// identifying property. Callers must verify the password with <see cref="PasswordHasher"/>
+        /// and then strip it with <see cref="ClearUserData"/> before returning the row.
+        /// </summary>
+        private async Task<Dictionary<string, object?>?> GetUserByPropertyAsync(
+            string propertyName,
+            string value)
         {
             var result = await _dataStore.GetPagedDataAsync(
                 nameof(Users),
                 null,
-                new FilterData(FilterData.FilterLogic.AND, new List<FilterData>()
-                {
-                    new(nameof(Users.Email), FilterData.FilterOperators.equal, userEmail, PropertyType.String),
-                    new(nameof(Users.Password), FilterData.FilterOperators.equal, application.EncryptionKey.ApplicationEncrypt(userPassword), PropertyType.String)
-                }),
+                new FilterData(propertyName, FilterData.FilterOperators.equal, value, PropertyType.String),
                 null, 1, 1);
 
-            return ClearUserData(application, result?.Count == 1 ? result.Single() : null);
-        }
-
-        private async Task<Dictionary<string, object?>?> GetUserByNameAndPasswordAsync(
-            DBWS_Application application,
-            string userName,
-            string userPassword)
-        {
-            var result = await _dataStore.GetPagedDataAsync(
-                nameof(Users),
-                null,
-                new FilterData(FilterData.FilterLogic.AND, new List<FilterData>()
-                {
-                    new(nameof(Users.Username), FilterData.FilterOperators.equal, userName, PropertyType.String),
-                    new(nameof(Users.Password), FilterData.FilterOperators.equal, application.EncryptionKey.ApplicationEncrypt(userPassword), PropertyType.String)
-                }),
-                null, 1, 1);
-
-            return ClearUserData(application, result?.Count == 1 ? result.Single() : null);
+            return result?.Count == 1 ? result.Single() : null;
         }
 
         private Dictionary<string, object?>? ClearUserData(
@@ -519,7 +526,8 @@ namespace Apilane.Api.Core
             {
                 var entity = application.Entities.Single(x => x.Name.Equals(nameof(Users)));
 
-                foreach (var property in entity.Properties.Where(x => x.Encrypted))
+                // The password is a one-way hash (never decryptable) and is removed below.
+                foreach (var property in entity.Properties.Where(x => x.Encrypted && !PasswordHasher.IsUsersPasswordProperty(entity.Name, x.Name)))
                 {
                     var propertyValue = drUser[property.Name];
                     if (propertyValue is not null)

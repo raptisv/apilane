@@ -7,6 +7,7 @@ using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Helpers;
 using Apilane.Common.Models;
+using Apilane.Common.Security;
 using Apilane.Common.Utilities;
 using Apilane.Data.Abstractions;
 using Apilane.Data.Helper.Models;
@@ -388,8 +389,10 @@ namespace Apilane.Api.Core.Services
 
             // Important! Import endpoint accepts all values as they arrive.
             // This is the place to encrypt any encrypted properties.
+            // Users.Password is excluded: imported/cloned rows already carry the stored value (a
+            // one-way hash, or a legacy value that still verifies), which must be kept verbatim.
             var encryptedProperties = entity.Properties
-                .Where(x => x.TypeID_Enum == PropertyType.String && x.Encrypted)
+                .Where(x => x.TypeID_Enum == PropertyType.String && x.Encrypted && !PasswordHasher.IsUsersPasswordProperty(entity.Name, x.Name))
                 .Select(x => x.Name);
 
             foreach (var item in data)
