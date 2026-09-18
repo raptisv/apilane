@@ -246,7 +246,9 @@ namespace Apilane.Portal.Controllers
         {
             try
             {
-                DBWS_Application application = DBContext.Applications.Single(x => x.ID == model.ID);
+                // Delete the application resolved from the route (the one the user is a member of),
+                // never the application whose id happened to be posted in the form.
+                DBWS_Application application = DBContext.Applications.Single(x => x.ID == Application.ID);
 
                 DBContext.Remove(application);
 
