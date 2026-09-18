@@ -388,53 +388,78 @@ function hexWithAlpha(hex, alpha) {
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
 }
 
-function loadApplicationDisplayToken(appId, appToken, appEncryptionKey, apiServerUrl) {
+// Escapes text for safe insertion into HTML content and double-quoted attribute values.
+function apilaneEscapeHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function loadApplicationDisplayToken(appId, appToken, apiServerUrl, infoUrl) {
     $('.swal-display-token-' + appId).click(function () {
         // Read-only inputs so the values can be selected/copied (a <b> tag cannot be
         // reliably double-click selected), each with a one-click copy button.
         function copyField(label, value) {
+            var safeValue = apilaneEscapeHtml(value);
             return '<div class="mb-3 text-start">' +
-                '<label class="form-label mb-1">' + label + '</label>' +
+                '<label class="form-label mb-1">' + apilaneEscapeHtml(label) + '</label>' +
                 '<div class="input-group">' +
-                '<input type="text" class="form-control" readonly value="' + value + '" onclick="this.select();" />' +
-                '<button type="button" class="btn btn-outline-secondary copy-btn" data-copy="' + value + '" title="Copy">' +
+                '<input type="text" class="form-control" readonly value="' + safeValue + '" onclick="this.select();" />' +
+                '<button type="button" class="btn btn-outline-secondary copy-btn" data-copy="' + safeValue + '" title="Copy">' +
                 '<i class="bi bi-clipboard"></i></button>' +
                 '</div></div>';
         }
 
-        Swal.fire({
-            title: "Application info",
-            html: copyField('API server url', apiServerUrl) + copyField('Token', appToken) + copyField('Encryption key', appEncryptionKey),
-            showCancelButton: false,
-            showConfirmButton: true,
-            confirmButtonText: "OK",
-            allowOutsideClick: true,
-            buttonsStyling: false,
-            customClass: {
-                confirmButton: 'btn btn-primary'
-            },
-            didOpen: function (popup) {
-                popup.querySelectorAll('.copy-btn').forEach(function (btn) {
-                    btn.addEventListener('click', function () {
-                        var value = btn.getAttribute('data-copy');
-                        var flash = function () {
-                            var icon = btn.querySelector('i');
-                            if (!icon) { return; }
-                            icon.className = 'bi bi-check2';
-                            setTimeout(function () { icon.className = 'bi bi-clipboard'; }, 1200);
-                        };
-                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                            navigator.clipboard.writeText(value).then(flash).catch(function () { });
-                        } else {
-                            var input = btn.closest('.input-group').querySelector('input');
-                            input.select();
-                            document.execCommand('copy');
-                            flash();
-                        }
+        function showDialog(encryptionKey) {
+            Swal.fire({
+                title: "Application info",
+                html: copyField('API server url', apiServerUrl) +
+                    copyField('Token', appToken) +
+                    (encryptionKey != null ? copyField('Encryption key', encryptionKey) : ''),
+                showCancelButton: false,
+                showConfirmButton: true,
+                confirmButtonText: "OK",
+                allowOutsideClick: true,
+                buttonsStyling: false,
+                customClass: {
+                    confirmButton: 'btn btn-primary'
+                },
+                didOpen: function (popup) {
+                    popup.querySelectorAll('.copy-btn').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            var value = btn.getAttribute('data-copy');
+                            var flash = function () {
+                                var icon = btn.querySelector('i');
+                                if (!icon) { return; }
+                                icon.className = 'bi bi-check2';
+                                setTimeout(function () { icon.className = 'bi bi-clipboard'; }, 1200);
+                            };
+                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                                navigator.clipboard.writeText(value).then(flash).catch(function () { });
+                            } else {
+                                var input = btn.closest('.input-group').querySelector('input');
+                                input.select();
+                                document.execCommand('copy');
+                                flash();
+                            }
+                        });
                     });
-                });
-            }
-        });
+                }
+            });
+        }
+
+        // The encryption key is fetched on demand, for members of the application only, instead
+        // of being embedded in the markup of every portal page.
+        $.getJSON(infoUrl)
+            .done(function (info) {
+                showDialog(info && info.EncryptionKey != null ? info.EncryptionKey : null);
+            })
+            .fail(function () {
+                showDialog(null);
+            });
     });
 }
 

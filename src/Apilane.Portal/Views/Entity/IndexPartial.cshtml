@@ -153,7 +153,7 @@
                     var message = js !== null && js.Message && js.Message !== null
                         ? js.Message
                         : 'Error';
-                    $(`#entity-records-${entityId}`).html(`<div style="color:red;">${message}</div>`);
+                    $(`#entity-records-${entityId}`).empty().append($('<div style="color:red;"></div>').text(message));
                 }
             });
         }

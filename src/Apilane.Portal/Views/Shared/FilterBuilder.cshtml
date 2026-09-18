@@ -4,8 +4,19 @@
 @using Microsoft.AspNetCore.Http;
 @model DBWS_Entity
 
-@{ 
-    string ExistingFilter = (string)ViewBag.ExistingFilter;
+@{
+    // The existing filter arrives from the query string. Parse it into the FilterData model and let
+    // the JSON helper re-serialize it with HTML-safe escaping below, so nothing from the request is
+    // ever written into the script block verbatim.
+    FilterData? ExistingFilter = null;
+    try
+    {
+        ExistingFilter = FilterData.Parse((string?)ViewBag.ExistingFilter);
+    }
+    catch (Exception)
+    {
+        ExistingFilter = null;
+    }
 }
 
 <div id="filters-wrapper" class="px-2 text-left">
@@ -45,11 +56,11 @@
 
     var currentFilterIndex = 1;
 
-    @if (string.IsNullOrWhiteSpace(ExistingFilter) == false)
+    @if (ExistingFilter is not null)
     {
         <text>
         try {
-            var existingFilter = @Html.Raw(ExistingFilter);
+            var existingFilter = @Json.Serialize(ExistingFilter);
             $.each(existingFilter.Filters, function (index, value) {
                 appendNewFilter(value.Property, value.Operator, value.Value);
             });

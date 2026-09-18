@@ -683,7 +683,7 @@
                             switch (prop.TypeID_Enum)
                             {
                                 case PropertyType.Boolean:
-                                    @:html += row.@prop.Name != null ? '<td>' + row.@prop.Name + '</td>' : '<td><span class="null-value">null<span></td>'
+                                    @:html += row.@prop.Name != null ? '<td>' + $('<div/>').text(String(row.@prop.Name)).html() + '</td>' : '<td><span class="null-value">null<span></td>'
                                     break;
                                 case PropertyType.Date:
                                     @: html += '<td>' + (row.@prop.Name != null ? moment(row.@prop.Name)@(prop.IsOnUTC() ? "" : ".utc()").format('YYYY-MM-DD HH:mm:ss.SSS') : '<span class="null-value">null<span>') + '</td>';
@@ -691,7 +691,7 @@
                                 case PropertyType.Number:
                                 case PropertyType.String:
                                 default:
-                                    @: html += '<td>' + (row.@prop.Name != null ? row.@prop.Name : '<span class="null-value">null<span>') + '</td>';
+                                    @: html += '<td>' + (row.@prop.Name != null ? $('<div/>').text(row.@prop.Name).html() : '<span class="null-value">null<span>') + '</td>';
                                     break;
                             }
                         }

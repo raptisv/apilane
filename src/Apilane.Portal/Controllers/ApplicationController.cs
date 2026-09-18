@@ -3,6 +3,7 @@ using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Common.Models.Dto;
+using Apilane.Common.Utilities;
 using Apilane.Portal.Abstractions;
 using Apilane.Portal.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -419,6 +420,22 @@ namespace Apilane.Portal.Controllers
                 ModelState.AddModelError("CustomError", ex.Message);
                 return await Security(returnSection, returnEntity);
             }
+        }
+
+        /// <summary>
+        /// Application details for the "Application info" dialog. Served on demand to members of the
+        /// application (enforced by the base controller) instead of being embedded in the markup of
+        /// every portal page, so a script injection elsewhere cannot harvest the encryption key.
+        /// </summary>
+        [HttpGet]
+        public JsonResult Info()
+        {
+            return Json(new
+            {
+                Application.Token,
+                Application.Server.ServerUrl,
+                EncryptionKey = Application.EncryptionKey.Decrypt(Globals.EncryptionKey)
+            });
         }
 
         [HttpGet]

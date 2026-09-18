@@ -251,15 +251,8 @@
                 autofocus: true,
                 extraKeys: {"Ctrl-Space": "autocomplete"},
                 hintOptions: {
-                    tables: {
-                    @foreach (var entity in Application.Entities)
-                    {
-                        @entity.Name
-                        @: :[
-                            @Html.Raw(string.Join(",", entity.Properties.Select(x => $"\"{x.Name}\"")))
-                        @: ],
-                    }
-                }}
+                    tables: @Json.Serialize(Application.Entities.ToDictionary(e => e.Name, e => e.Properties.Select(p => p.Name).ToList()))
+                }
             });
 
             Query.on('change', editor => {
