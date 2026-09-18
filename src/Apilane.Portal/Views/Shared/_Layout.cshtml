@@ -131,7 +131,7 @@
         var UrlSiteBase = '@(Context.Request.Scheme + "://" + Context.Request.Host + Context.Request.PathBase)';
         @foreach (var app in Applications)
         {
-            @:loadApplicationDisplayToken(@app.ID, '@app.Token', '@(app.EncryptionKey.Decrypt(Globals.EncryptionKey))', '@app.Server.ServerUrl');
+            @:loadApplicationDisplayToken(@app.ID, @Json.Serialize(app.Token), @Json.Serialize(app.Server.ServerUrl), @Json.Serialize(Url.RouteUrl("AppRoute", new { appid = app.Token, controller = "Application", action = "Info" })));
         }
 
             jQuery.fn.addHidden = function (name, value) {

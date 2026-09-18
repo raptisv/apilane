@@ -160,6 +160,29 @@ namespace Apilane.Portal
 
             app.UseSerilogRequestLogging();
 
+            // Defensive response headers on every portal response, static files included.
+            app.Use(async (context, next) =>
+            {
+                var headers = context.Response.Headers;
+
+                static void SetIfMissing(IHeaderDictionary headers, string name, string value)
+                {
+                    if (!headers.ContainsKey(name))
+                    {
+                        headers[name] = value;
+                    }
+                }
+
+                SetIfMissing(headers, "X-Content-Type-Options", "nosniff");
+                SetIfMissing(headers, "X-Frame-Options", "SAMEORIGIN");
+                SetIfMissing(headers, "Referrer-Policy", "strict-origin-when-cross-origin");
+                // Script sources are intentionally not restricted yet: the views rely on inline
+                // scripts and inline event handlers, so a nonce-based script-src is a separate step.
+                SetIfMissing(headers, "Content-Security-Policy", "frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
+
+                await next();
+            });
+
             // Expose the Prometheus scrape endpoint (before auth so /metrics is not behind login).
             app.UseOpenTelemetryPrometheusScrapingEndpoint(context => context.Request.Path == "/metrics");
 

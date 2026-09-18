@@ -75,7 +75,7 @@
         });
 
         $('button.btn_delete').on('click', function () {
-            var name = '@Html.Raw(Model.Name)';
+            var name = @Json.Serialize(Model.Name);
             Swal.fire({
                 title: "Confirm",
                 text: "Please type the application name",
