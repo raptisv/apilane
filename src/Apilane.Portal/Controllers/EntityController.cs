@@ -177,11 +177,15 @@ namespace Apilane.Portal.Controllers
 
             try
             {
-                DBContext.Entry(Entity).State = EntityState.Detached;
+                // Apply the posted values to the entity resolved from the route (application and
+                // entity name), never to whatever ID the form posted, so an entity that belongs to
+                // another application cannot be modified.
+                Entity.Description = model.Description;
+                Entity.RequireChangeTracking = model.RequireChangeTracking;
 
-                DBContext.Attach(model);
-                DBContext.Entry(model).Property(x => x.Description).IsModified = true;
-                DBContext.Entry(model).Property(x => x.RequireChangeTracking).IsModified = true;
+                DBContext.Attach(Entity);
+                DBContext.Entry(Entity).Property(x => x.Description).IsModified = true;
+                DBContext.Entry(Entity).Property(x => x.RequireChangeTracking).IsModified = true;
                 await DBContext.SaveChangesAsync();
 
                 return RedirectToIndex();
@@ -356,7 +360,8 @@ namespace Apilane.Portal.Controllers
                 DBContext.Attach(Entity);
                 DBContext.Entry(Entity).Property(x => x.Name).IsModified = true;
 
-                var apiResponse = await ApiHttpService.GetAsync($"{Application.Server.ServerUrl}/api/Application/RenameEntity?ID={model.ID}&NewName={model.Name}", Application.Token, PortalUserAuthToken);
+                // Use the route-resolved entity id, not the posted one.
+                var apiResponse = await ApiHttpService.GetAsync($"{Application.Server.ServerUrl}/api/Application/RenameEntity?ID={Entity.ID}&NewName={Entity.Name}", Application.Token, PortalUserAuthToken);
 
                 apiResponse.Match(
                     jsonString => "OK",

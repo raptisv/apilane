@@ -144,7 +144,12 @@ namespace Apilane.Portal.Controllers
 
             try
             {
-                DBContext.Remove(DBContext.Collaborations.Single(x => x.ID == model.ID));
+                // Resolve the collaboration within the current application only, so a collaborator
+                // of another application cannot be removed by posting its id.
+                var collaboration = DBContext.Collaborations.SingleOrDefault(x => x.AppID == Application.ID && x.ID == model.ID)
+                    ?? throw new InvalidOperationException($"Collaboration with id '{model.ID}' was not found in application '{Application.Name}'");
+
+                DBContext.Remove(collaboration);
                 await DBContext.SaveChangesAsync();
 
                 return RedirectToIndex();

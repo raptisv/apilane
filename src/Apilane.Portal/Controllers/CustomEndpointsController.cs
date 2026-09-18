@@ -33,6 +33,16 @@ namespace Apilane.Portal.Controllers
             return RedirectToRoute("AppRoute", new { appid = Application.Token, controller = "CustomEndpoints", action = "Index" });
         }
 
+        /// <summary>
+        /// Resolves a custom endpoint strictly within the application of the current route, so an
+        /// id that belongs to another application can never be viewed, edited or deleted.
+        /// </summary>
+        private DBWS_CustomEndpoint GetCustomEndpoint(long id)
+        {
+            return DBContext.CustomEndpoints.SingleOrDefault(x => x.AppID == Application.ID && x.ID == id)
+                ?? throw new InvalidOperationException($"Custom endpoint with id '{id}' was not found in application '{Application.Name}'");
+        }
+
         [HttpGet]
         public ActionResult Create()
         {
@@ -96,7 +106,7 @@ namespace Apilane.Portal.Controllers
         [HttpGet]
         public ActionResult Edit(long id)
         {
-            var item = DBContext.CustomEndpoints.Single(x => x.ID == id);
+            var item = GetCustomEndpoint(id);
             return View("AddEdit", item);
         }
 
@@ -124,7 +134,7 @@ namespace Apilane.Portal.Controllers
 
             try
             {
-                var current = DBContext.CustomEndpoints.Single(x => x.ID == model.ID);
+                var current = GetCustomEndpoint(model.ID);
 
                 DBContext.Entry(current).State = EntityState.Detached;
 
@@ -151,7 +161,7 @@ namespace Apilane.Portal.Controllers
         [HttpGet]
         public IActionResult Delete(long id)
         {
-            var item = DBContext.CustomEndpoints.Single(x => x.ID == id);
+            var item = GetCustomEndpoint(id);
             return View(item);
         }
 
@@ -161,7 +171,7 @@ namespace Apilane.Portal.Controllers
         {
             try
             {
-                var item = DBContext.CustomEndpoints.Single(x => x.ID == model.ID);
+                var item = GetCustomEndpoint(model.ID);
                 DBContext.Remove(item);
                 await DBContext.SaveChangesAsync();
 

@@ -115,15 +115,24 @@ namespace Apilane.Portal.Controllers
 
             try
             {
-                DBContext.Entry(EntityProperty).State = EntityState.Detached;
-
-                DBContext.Attach(model);
-                DBContext.Entry(model).Property(x => x.Description).IsModified = true;
-                DBContext.Entry(model).Property(x => x.ValidationRegex).IsModified = true;
-                DBContext.Entry(model).Property(x => x.Minimum).IsModified = true;
+                // Apply the posted values to the property resolved from the route (application,
+                // entity and property name), never to whatever ID the form posted, so a property
+                // that belongs to another application cannot be modified.
+                EntityProperty.Description = model.Description;
+                EntityProperty.ValidationRegex = model.ValidationRegex;
+                EntityProperty.Minimum = model.Minimum;
                 if (allowMaxEdit)
                 {
-                    DBContext.Entry(model).Property(x => x.Maximum).IsModified = true;
+                    EntityProperty.Maximum = model.Maximum;
+                }
+
+                DBContext.Attach(EntityProperty);
+                DBContext.Entry(EntityProperty).Property(x => x.Description).IsModified = true;
+                DBContext.Entry(EntityProperty).Property(x => x.ValidationRegex).IsModified = true;
+                DBContext.Entry(EntityProperty).Property(x => x.Minimum).IsModified = true;
+                if (allowMaxEdit)
+                {
+                    DBContext.Entry(EntityProperty).Property(x => x.Maximum).IsModified = true;
                 }
 
                 await DBContext.SaveChangesAsync();
