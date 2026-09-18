@@ -29,11 +29,13 @@ Developers can quickly integrate backend services into their applications withou
 
 # Quick Start
 
-Execute the provided [docker-compose.yaml](docs/docs/assets/docker-compose.yaml) using the command:
+Execute the provided [docker-compose.yaml](docs/docs/assets/docker-compose.yaml). The Portal and the API authenticate each other with a shared **installation key**; generate a long random one and pass it as `APILANE_INSTALLATION_KEY` (or put it in a `.env` file next to the compose file):
 
 ```bash
-docker-compose -p apilane up -d
+APILANE_INSTALLATION_KEY=$(uuidgen) docker-compose -p apilane up -d
 ```
+
+Never use an example value from documentation or a public repository as the key: it is the only thing standing between the network and every application's configuration.
 
 This will set up the Portal and the API services on Docker.
 You may then access the portal on [http://localhost:5000](http://localhost:5000) with default credentials:

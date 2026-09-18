@@ -2,7 +2,9 @@
 using Apilane.Api.Core.AppModules;
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Exceptions;
+using Apilane.Common;
 using Apilane.Common.Models;
+using Apilane.Common.Security;
 using Apilane.Api.Filters;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
@@ -26,9 +28,14 @@ namespace Apilane.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<bool> Generate([FromBody] DBWS_Application application, [FromQuery] string installationKey)
+        public async Task<bool> Generate([FromBody] DBWS_Application application, [FromQuery] string? installationKey = null)
         {
-            if (!_apiConfiguration.InstallationKey.Equals(installationKey))
+            // The key is expected in the x-installation-key header. The query parameter is only a
+            // fallback for portal instances that have not been upgraded yet (it ends up in logs).
+            var headerKey = Request.Headers[Globals.InstallationKeyHeaderName].ToString();
+            var providedKey = !string.IsNullOrWhiteSpace(headerKey) ? headerKey : installationKey;
+
+            if (!SecureCompare.AreEqual(_apiConfiguration.InstallationKey, providedKey))
             {
                 throw new ApilaneException(Apilane.Api.Core.Enums.AppErrors.UNAUTHORIZED);
             }

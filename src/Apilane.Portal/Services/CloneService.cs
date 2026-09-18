@@ -1,3 +1,4 @@
+using Apilane.Common;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Portal.Abstractions;
@@ -107,10 +108,11 @@ namespace Apilane.Portal.Services
                 progress.OperationId, systemEntities.Count);
 
             var apiResponseGenerate = await _apiHttpService.PostAsync(
-                $"{targetServer.ServerUrl}/api/ApplicationNew/Generate?installationKey={_portalConfiguration.InstallationKey}",
+                $"{targetServer.ServerUrl}/api/ApplicationNew/Generate",
                 applicationToClone.Token,
                 portalUserAuthToken,
-                skeletonApp);
+                skeletonApp,
+                new Dictionary<string, string> { [Globals.InstallationKeyHeaderName] = _portalConfiguration.InstallationKey });
 
             if (apiResponseGenerate.IsError(out var generateError))
             {

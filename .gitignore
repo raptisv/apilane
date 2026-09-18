@@ -341,3 +341,10 @@ ASALocalRun/
 
 # Tailwind CLI binary (platform-specific, ~100MB+) — download via build-tools/README.md, never commit.
 /build-tools/tailwindcss*
+
+# Environment-specific settings hold secrets (installation key, connection strings, mail passwords).
+# Copy the matching appsettings.<Environment>.example.json and fill it in; never commit the real file.
+src/Apilane.Api/appsettings.Development.json
+src/Apilane.Api/appsettings.Production.json
+src/Apilane.Portal/appsettings.Development.json
+src/Apilane.Portal/appsettings.Production.json

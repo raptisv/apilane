@@ -167,7 +167,8 @@ namespace Apilane.Portal.Services
             string url,
             string appToken,
             string portalUserAuthToken,
-            object postData)
+            object postData,
+            IDictionary<string, string>? headers = null)
         {
             using (var client = _clientFactory.CreateClient("Api"))
             {
@@ -179,6 +180,14 @@ namespace Apilane.Portal.Services
                 request.Headers.Add(Globals.ClientIdHeaderName, Globals.ClientIdHeaderValuePortal);
                 request.Headers.Add(Globals.ApplicationTokenHeaderName, appToken);
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", portalUserAuthToken);
+
+                if (headers is not null)
+                {
+                    foreach (var header in headers)
+                    {
+                        request.Headers.Add(header.Key, header.Value);
+                    }
+                }
 
                 var httpResponse = await client.SendAsync(request);
 

@@ -139,7 +139,7 @@ Regardless of deployment method (Docker, k8s, cloud), you can override default s
 | `Url` | `http://0.0.0.0:5000` | URL where the Portal is served |
 | `ApiUrl` | `http://127.0.0.1:5001` | URL to the initial API service |
 | `FilesPath` | `/etc/apilanewebportal` | Path for Portal database files (SQLite) |
-| `InstallationKey` | `8dc64403-...` | Shared key between Portal and API. **Change this and keep it secret.** |
+| `InstallationKey` | *(required, no default)* | Shared secret between Portal and API; the compose file reads it from `APILANE_INSTALLATION_KEY`. Generate a long random value (e.g. `uuidgen`) and **never reuse a published example**. |
 | `AdminEmail` | `admin@admin.com` | Admin email, created on first deployment. Change before deploying. |
 
 ### API
@@ -149,7 +149,7 @@ Regardless of deployment method (Docker, k8s, cloud), you can override default s
 | `Url` | `http://0.0.0.0:5001` | URL where the API is served |
 | `PortalUrl` | `http://127.0.0.1:5000` | URL to the Portal |
 | `FilesPath` | `/etc/apilanewebapi/Files` | Path for API-generated files |
-| `InstallationKey` | `8dc64403-...` | Must match the Portal's key |
+| `InstallationKey` | *(required, no default)* | Must be identical to the Portal's key (`APILANE_INSTALLATION_KEY` in the compose file) |
 
 !!!info "Next steps"
     - Configure [Security](developer_guide/security.md) rules for your entities

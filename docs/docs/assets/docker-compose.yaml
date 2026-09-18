@@ -13,7 +13,7 @@ services:
       - Url=http://0.0.0.0:5000
       - ApiUrl=http://127.0.0.1:5001 # The url to the initial Api service. Change it according to your setup.
       - FilesPath=/etc/apilanewebportal # The portal server files path.
-      - InstallationKey=8dc64403-0f5b-4723-9aa7-42004841d838 # Can be any string, but should be the same for apilanewebapi.
+      - InstallationKey=${APILANE_INSTALLATION_KEY:?Set APILANE_INSTALLATION_KEY to a long random secret (e.g. uuidgen); it must be identical for the api and the portal} # Shared secret with apilanewebapi. Never use a published example value.
       - AdminEmail=admin@admin.com # Default email for instance administrator, change it with your email. Default password is "admin".
     volumes:
       - apilane-portal-data:/etc/apilanewebportal
@@ -30,7 +30,7 @@ services:
       - Url=http://0.0.0.0:5001
       - PortalUrl=http://127.0.0.1:5000 # The url to the Portal. Change it according to your setup.
       - FilesPath=/etc/apilanewebapi/Files # The api server files path.
-      - InstallationKey=8dc64403-0f5b-4723-9aa7-42004841d838 # Can be any string, but should be the same for apilanewebportal.
+      - InstallationKey=${APILANE_INSTALLATION_KEY:?Set APILANE_INSTALLATION_KEY to a long random secret (e.g. uuidgen); it must be identical for the api and the portal} # Shared secret with apilanewebportal. Never use a published example value.
     volumes:
       - apilane-api-data:/etc/apilanewebapi
 

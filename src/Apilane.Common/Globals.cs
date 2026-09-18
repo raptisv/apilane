@@ -24,6 +24,10 @@
 
         public const string ClientIdHeaderValuePortal = "portal";
 
+        // Shared secret between the portal and the API. Sent as a header so it never appears in
+        // URLs (request logs, proxies, browser history).
+        public const string InstallationKeyHeaderName = "x-installation-key";
+
         // Query-string fallbacks for the two above: a plain browser navigation (e.g. a file
         // download link built as an <a href>) can't set custom request headers, so anything meant
         // to be reachable that way needs these as an alternative to the Authorization/x-client-id
