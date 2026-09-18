@@ -7,6 +7,7 @@ using Apilane.Common.Abstractions;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
+using Apilane.Common.Security;
 using Apilane.Common.Utilities;
 using Apilane.Data.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -166,7 +167,9 @@ namespace Apilane.Api.Core.Services
                 filter: filter,
                 sort: sort);
 
-            var encryptedProperties = entityProperties.Where(x => x.Encrypted);
+            // The Users.Password column is a one-way hash: it is never decrypted, and non-owner
+            // callers never receive it at all (see EntityAccess.GetMaximum).
+            var encryptedProperties = entityProperties.Where(x => x.Encrypted && !PasswordHasher.IsUsersPasswordProperty(entity.Name, x.Name));
 
             if (encryptedProperties.Any())
             {
@@ -567,6 +570,16 @@ namespace Apilane.Api.Core.Services
                                     }
                                 }
 
+                                if (PasswordHasher.IsUsersPasswordProperty(entity.Name, property.Name))
+                                {
+                                    // Passwords are stored as one-way hashes. A value that is already a
+                                    // hash (e.g. a record re-saved from the portal, or data cloned from
+                                    // another application) is kept verbatim so it is never double-hashed.
+                                    return PasswordHasher.IsHash(strValue)
+                                        ? strValue
+                                        : PasswordHasher.Hash(strValue);
+                                }
+
                                 if (property.Encrypted)
                                 {
                                     string appEncryptionKey = applicationEncryptionKey.Decrypt(Globals.EncryptionKey);
@@ -832,7 +845,8 @@ namespace Apilane.Api.Core.Services
 
                     var entity = _application.Entities.Single(x => x.Name.Equals(nameof(Users)));
 
-                    foreach (var property in entity.Properties.Where(x => x.Encrypted))
+                    // The password is a one-way hash (never decryptable) and is removed below.
+                    foreach (var property in entity.Properties.Where(x => x.Encrypted && !PasswordHasher.IsUsersPasswordProperty(entity.Name, x.Name)))
                     {
                         var propertyValue = drUser[property.Name];
                         if (propertyValue is not null)
