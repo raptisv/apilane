@@ -4,6 +4,7 @@ using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
+using Apilane.Common.Security;
 using Apilane.Data.Abstractions;
 using Apilane.Api.Areas.Account.Models;
 using Apilane.Api.Services;
@@ -185,7 +186,7 @@ namespace Apilane.Api.Areas.Account.Controllers
 						nameof(Users),
 						new Dictionary<string, object?>()
 						{
-							{ nameof(Users.Password), Application.EncryptionKey.ApplicationEncrypt(model.Password) }
+							{ nameof(Users.Password), PasswordHasher.Hash(model.Password) }
 						},
 						new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, userId.Value, PropertyType.Number));
 
@@ -216,7 +217,7 @@ namespace Apilane.Api.Areas.Account.Controllers
         {
             var result = await _applicationDataStoreFactory.GetPagedDataAsync(
                 nameof(Users),
-                new List<string>() { nameof(Users.ID), nameof(Users.Username), nameof(Users.Email), nameof(Users.EmailConfirmed), nameof(Users.Roles), nameof(Users.Created), nameof(Users.LastLogin), nameof(Users.Password) },
+                new List<string>() { nameof(Users.ID), nameof(Users.Username), nameof(Users.Email), nameof(Users.EmailConfirmed), nameof(Users.Roles), nameof(Users.Created), nameof(Users.LastLogin) },
                 new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, userID, PropertyType.Number),
                 null, 1, 1);
 

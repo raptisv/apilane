@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Linq;
 using System.Net.Mail;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 
 namespace Apilane.Common
@@ -10,10 +11,27 @@ namespace Apilane.Common
     {
         public static readonly Random _random = new Random(DateTime.Now.Millisecond);
 
+        /// <summary>
+        /// Returns a random string of the given length from [A-Z0-9], drawn from a cryptographic
+        /// random number generator. This is used for security-relevant values such as application
+        /// encryption keys, so it must not be predictable.
+        /// </summary>
         public static string RandomString(int length)
         {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            return new string(Enumerable.Repeat(chars, length).Select(s => s[_random.Next(s.Length)]).ToArray());
+
+            if (length <= 0)
+            {
+                return string.Empty;
+            }
+
+            var result = new char[length];
+            for (int i = 0; i < length; i++)
+            {
+                result[i] = chars[RandomNumberGenerator.GetInt32(chars.Length)];
+            }
+
+            return new string(result);
         }
 
         public static string GetString(object? val)
