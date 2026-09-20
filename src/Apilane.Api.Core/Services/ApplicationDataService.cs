@@ -575,9 +575,20 @@ namespace Apilane.Api.Core.Services
                                     // Passwords are stored as one-way hashes. A value that is already a
                                     // hash (e.g. a record re-saved from the portal, or data cloned from
                                     // another application) is kept verbatim so it is never double-hashed.
-                                    return PasswordHasher.IsHash(strValue)
-                                        ? strValue
-                                        : PasswordHasher.Hash(strValue);
+                                    if (PasswordHasher.IsHash(strValue))
+                                    {
+                                        return strValue;
+                                    }
+
+                                    // The property's own Minimum/Maximum were checked above; apply the
+                                    // shared policy as well so every path enforces the same rule.
+                                    var passwordProblem = PasswordPolicy.Validate(strValue);
+                                    if (passwordProblem is not null)
+                                    {
+                                        throw new ApilaneException(AppErrors.VALIDATION, passwordProblem, property: property.Name, entity: entity.Name);
+                                    }
+
+                                    return PasswordHasher.Hash(strValue);
                                 }
 
                                 if (property.Encrypted)

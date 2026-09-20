@@ -156,6 +156,37 @@ namespace Apilane.Net.Services
             }
         }
 
+        /// <summary>
+        /// Changes the authenticated user's password. The current password is verified server-side
+        /// before the new one is stored; the new password must be 8 to 400 characters.
+        /// </summary>
+        /// <returns>True when the password was changed.</returns>
+        public async Task<Either<bool, ApilaneError>> AccountChangePasswordAsync(
+            AccountChangePasswordRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            using (var httpRequest = new HttpRequestMessage(HttpMethod.Put, request.GetUrl(_config.ApplicationApiUrl)))
+            {
+                httpRequest.Content = new StringContent(JsonSerializer.Serialize(request.ChangePasswordItem), Encoding.UTF8, "application/json");
+                await ApplyAuthAsync(httpRequest, request);
+                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                var jsonString = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
+                    if (request.ShouldThrowExceptionOnError())
+                    {
+                        throw new Exception(errorResponse.BuildErrorMessage());
+                    }
+                    return errorResponse;
+                }
+
+                return bool.TryParse(jsonString, out bool result) && result;
+            }
+        }
+
         public async Task<Either<int, ApilaneError>> AccountLogoutAsync(
             AccountLogoutRequest request,
             CancellationToken cancellationToken = default)

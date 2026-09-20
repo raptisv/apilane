@@ -467,14 +467,11 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.REQUIRED, null, nameof(newPassword));
             }
 
-            if (newPassword.Length < 8)
+            // Same length rule as registration, reset and Data/Put on Users (PasswordPolicy).
+            var passwordProblem = PasswordPolicy.Validate(newPassword);
+            if (passwordProblem is not null)
             {
-                throw new ApilaneException(AppErrors.VALIDATION, "Minimum 8 characters", nameof(newPassword));
-            }
-
-            if (newPassword.Length > 20)
-            {
-                throw new ApilaneException(AppErrors.VALIDATION, "Maximum 20 characters", nameof(newPassword));
+                throw new ApilaneException(AppErrors.VALIDATION, passwordProblem, nameof(newPassword));
             }
 
             var rowsAffected = await _dataStore.UpdateDataAsync(

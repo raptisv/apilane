@@ -420,6 +420,97 @@ namespace Apilane.Api.Component.Tests
                 error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
             }
 
+            // Change password: the current password is verified and the new one must satisfy the
+            // shared PasswordPolicy (8..400), the same rule as registration.
+
+            var changePasswordAuthToken = loginWithUsernameResult.Value.AuthToken;
+            var newPassword = new string('p', 30); // longer than the old 20-character change-password cap
+
+            var changeWithTooShortPassword = await ApilaneService.AccountChangePasswordAsync(AccountChangePasswordRequest.New(new ChangePasswordItem()
+            {
+                Password = userPassword,
+                NewPassword = new string('p', 7)
+            }).WithAuthToken(changePasswordAuthToken));
+
+            changeWithTooShortPassword.Match(success => throw new Exception("We should not be here"),
+            error =>
+            {
+                Assert.NotNull(error);
+                Assert.Equal(ValidationError.VALIDATION, error.Code);
+                Assert.Equal("newPassword", error.Property);
+            });
+
+            var changeWithTooLongPassword = await ApilaneService.AccountChangePasswordAsync(AccountChangePasswordRequest.New(new ChangePasswordItem()
+            {
+                Password = userPassword,
+                NewPassword = new string('p', 401)
+            }).WithAuthToken(changePasswordAuthToken));
+
+            changeWithTooLongPassword.Match(success => throw new Exception("We should not be here"),
+            error =>
+            {
+                Assert.NotNull(error);
+                Assert.Equal(ValidationError.VALIDATION, error.Code);
+                Assert.Equal("newPassword", error.Property);
+            });
+
+            var changeWithWrongCurrentPassword = await ApilaneService.AccountChangePasswordAsync(AccountChangePasswordRequest.New(new ChangePasswordItem()
+            {
+                Password = "not-the-current-password",
+                NewPassword = newPassword
+            }).WithAuthToken(changePasswordAuthToken));
+
+            changeWithWrongCurrentPassword.Match(success => throw new Exception("We should not be here"),
+            error =>
+            {
+                Assert.NotNull(error);
+                Assert.Equal(ValidationError.VALIDATION, error.Code);
+                Assert.Equal("currentPassword", error.Property);
+            });
+
+            var changePasswordResult = await ApilaneService.AccountChangePasswordAsync(AccountChangePasswordRequest.New(new ChangePasswordItem()
+            {
+                Password = userPassword,
+                NewPassword = newPassword
+            }).WithAuthToken(changePasswordAuthToken));
+
+            changePasswordResult.Match(success =>
+            {
+                Assert.True(success);
+            },
+            error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+
+            // The old password no longer works
+
+            var loginWithOldPasswordResult = await ApilaneService.AccountLoginAsync<UserItem>(AccountLoginRequest.New(new LoginItem()
+            {
+                Username = userName,
+                Password = userPassword
+            }));
+
+            loginWithOldPasswordResult.Match(success => throw new Exception("We should not be here"),
+            error =>
+            {
+                Assert.NotNull(error);
+                Assert.Equal(ValidationError.ERROR, error.Code);
+            });
+
+            // The new password works (4th login, 4th auth token)
+
+            var loginWithNewPasswordResult = await ApilaneService.AccountLoginAsync<UserItem>(AccountLoginRequest.New(new LoginItem()
+            {
+                Username = userName,
+                Password = newPassword
+            }));
+
+            loginWithNewPasswordResult.Match(success =>
+            {
+                Assert.NotNull(success);
+                Assert.NotEmpty(success.AuthToken);
+                Assert.Equal(userEmail, success.User.Email);
+            },
+            error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+
             // Logout
 
             var logoutResult = await ApilaneService.AccountLogoutAsync(AccountLogoutRequest.New(true)
@@ -427,7 +518,7 @@ namespace Apilane.Api.Component.Tests
 
             logoutResult.Match(logoutCount =>
             {
-                Assert.Equal(3, logoutCount); // User logged in 3 times, we expect 3 auth tokens to be deleted
+                Assert.Equal(4, logoutCount); // User logged in 4 times, we expect 4 auth tokens to be deleted
             },
             error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
         }

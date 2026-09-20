@@ -142,6 +142,22 @@ var updateResponse = await _apilaneService.AccountUpdateAsync<AppUser>(
     new { Firstname = "John", Lastname = "Doe" });
 ```
 
+### Change Password
+
+The current password is verified before the new one is stored. The new password must be 8 to 400 characters.
+
+```csharp
+var changePasswordResponse = await _apilaneService.AccountChangePasswordAsync(
+    AccountChangePasswordRequest.New(new ChangePasswordItem
+    {
+        Password = "current-password",
+        NewPassword = "a-much-longer-passphrase"
+    })
+    .WithAuthToken(authToken));
+
+bool changed = changePasswordResponse.Value;
+```
+
 ### Renew Auth Token
 
 ```csharp
