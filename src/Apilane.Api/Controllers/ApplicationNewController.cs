@@ -2,7 +2,9 @@
 using Apilane.Api.Core.AppModules;
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Exceptions;
+using Apilane.Common;
 using Apilane.Common.Models;
+using Apilane.Common.Security;
 using Apilane.Api.Filters;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
@@ -26,9 +28,12 @@ namespace Apilane.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<bool> Generate([FromBody] DBWS_Application application, [FromQuery] string installationKey)
+        public async Task<bool> Generate([FromBody] DBWS_Application application)
         {
-            if (!_apiConfiguration.InstallationKey.Equals(installationKey))
+            // The portal sends the installation key only in the x-installation-key header, never in the URL.
+            var providedKey = Request.Headers[Globals.InstallationKeyHeaderName].ToString();
+
+            if (!SecureCompare.AreEqual(_apiConfiguration.InstallationKey, providedKey))
             {
                 throw new ApilaneException(Apilane.Api.Core.Enums.AppErrors.UNAUTHORIZED);
             }

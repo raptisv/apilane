@@ -418,12 +418,19 @@ namespace Apilane.Api.Component.Tests
                     throw new Exception(await apiDegenerateResponse.Content.ReadAsStringAsync());
                 }
 
-                // Create the application
-                var apiGenerateResponse = await HttpClient.RequestAsync<bool>(HttpMethod.Post, $"/api/ApplicationNew/Generate?installationKey={ApiConfiguration.InstallationKey}", TestApplication);
-                
-                if (!apiGenerateResponse)
+                // Create the application. The installation key travels only in the x-installation-key header.
+                using var generateRequest = new HttpRequestMessage(HttpMethod.Post, "/api/ApplicationNew/Generate")
                 {
-                    throw new Exception("Application not created succesfully");
+                    Content = TestApplication.ToJsonData()
+                };
+                generateRequest.Headers.Add(Globals.InstallationKeyHeaderName, ApiConfiguration.InstallationKey);
+
+                var apiGenerateResponse = await HttpClient.SendAsync(generateRequest);
+                var apiGenerateText = await apiGenerateResponse.Content.ReadAsStringAsync();
+
+                if (!apiGenerateResponse.IsSuccessStatusCode || !apiGenerateText.DeserializeTo<bool>())
+                {
+                    throw new Exception($"Application not created succesfully | {apiGenerateResponse.StatusCode} | {apiGenerateText}");
                 }
 
                 MockApplicationService(TestApplication);

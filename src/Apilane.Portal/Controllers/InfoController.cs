@@ -1,4 +1,5 @@
 ﻿using Apilane.Common;
+using Apilane.Common.Security;
 using Apilane.Portal.Abstractions;
 using Apilane.Portal.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -17,7 +18,7 @@ namespace Apilane.Portal.Controllers
         private readonly IPortalSettingsService _portalSettingsService;
 
         public InfoController(
-            ApplicationDbContext dbContext, 
+            ApplicationDbContext dbContext,
             IPortalSettingsService portalSettingsService)
         {
             _dbContext = dbContext;
@@ -28,12 +29,9 @@ namespace Apilane.Portal.Controllers
         /// Loads the application info when requested from api
         /// </summary>
         [HttpGet]
-        public IActionResult GetApplication(string appToken, string key)
+        public IActionResult GetApplication(string appToken)
         {
-            var portalSettings = _portalSettingsService.Get() ?? throw new Exception("No portal settings");
-
-            // Simple key validation
-            if (!portalSettings.InstallationKey.Equals(key))
+            if (!IsInstallationKeyValid())
             {
                 return Unauthorized();
             }
@@ -50,18 +48,15 @@ namespace Apilane.Portal.Controllers
         }
 
         [HttpGet]
-        public IActionResult UserOwnsApplication(string authToken, string appToken, string key)
+        public IActionResult UserOwnsApplication(string appToken)
         {
-            var portalSettings = _portalSettingsService.Get() ?? throw new Exception("No portal settings");
-
-            // Simple key validation
-            if (!portalSettings.InstallationKey.Equals(key))
+            if (!IsInstallationKeyValid())
             {
                 return Unauthorized();
             }
 
-            // Get the user
-            var user = GetUser(authToken);
+            // Get the user from the portal user's token in the Authorization header
+            var user = GetUser(GetBearerToken());
 
             if (user.User != null)
             {
@@ -80,8 +75,29 @@ namespace Apilane.Portal.Controllers
             return Json(false);
         }
 
+        /// <summary>
+        /// The API authenticates with the installation key in the x-installation-key header, never
+        /// in the URL. The comparison is constant-time.
+        /// </summary>
+        private bool IsInstallationKeyValid()
+        {
+            var portalSettings = _portalSettingsService.Get() ?? throw new Exception("No portal settings");
+
+            return SecureCompare.AreEqual(portalSettings.InstallationKey, Request.Headers[Globals.InstallationKeyHeaderName].ToString());
+        }
+
+        /// <summary>
+        /// Reads the portal user's token from the Authorization header ("Bearer {token}").
+        /// </summary>
+        private string GetBearerToken()
+        {
+            var parts = Request.Headers.Authorization.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            return parts.Length > 0 ? parts[parts.Length - 1] : string.Empty;
+        }
+
         private (ApplicationUser? User, bool IsGlobalAdmin) GetUser(string authToken)
-        { 
+        {
             if (string.IsNullOrWhiteSpace(authToken))
             {
                 return (null, false);

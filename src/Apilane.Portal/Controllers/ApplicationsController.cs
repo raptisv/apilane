@@ -174,7 +174,12 @@ namespace Apilane.Portal.Controllers
                 DBContext.Applications.Add(newApplication);
 
                 // Create application on api server
-                var apiResponsGenerate = await ApiHttpService.PostAsync($"{appServer.ServerUrl}/api/ApplicationNew/Generate?installationKey={_portalConfiguration.InstallationKey}", newApplication.Token, PortalUserAuthToken, newApplication);
+                var apiResponsGenerate = await ApiHttpService.PostAsync(
+                    $"{appServer.ServerUrl}/api/ApplicationNew/Generate",
+                    newApplication.Token,
+                    PortalUserAuthToken,
+                    newApplication,
+                    new Dictionary<string, string> { [Globals.InstallationKeyHeaderName] = _portalConfiguration.InstallationKey });
 
                 apiResponsGenerate.Match(
                     jsonString => "OK",
@@ -280,7 +285,12 @@ namespace Apilane.Portal.Controllers
                 DBContext.Applications.Add(importedApplication);
 
                 // Create application on api server
-                var apiResponsGenerate = await ApiHttpService.PostAsync($"{appServer.ServerUrl}/api/ApplicationNew/Generate?installationKey={_portalConfiguration.InstallationKey}", importedApplication.Token, portalUserAuthToken, importedApplication);
+                var apiResponsGenerate = await ApiHttpService.PostAsync(
+                    $"{appServer.ServerUrl}/api/ApplicationNew/Generate",
+                    importedApplication.Token,
+                    portalUserAuthToken,
+                    importedApplication,
+                    new Dictionary<string, string> { [Globals.InstallationKeyHeaderName] = _portalConfiguration.InstallationKey });
 
                 if (apiResponsGenerate.IsError(out var error))
                 {

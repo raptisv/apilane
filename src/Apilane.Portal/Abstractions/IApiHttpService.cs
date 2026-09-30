@@ -11,6 +11,6 @@ namespace Apilane.Portal.Abstractions
         Task<Either<DataResponse, HttpStatusCode>> GetAllDataAsync(string serverUrl, string appToken, string entity, string portalUserAuthToken);
         Task<Either<List<long>, HttpStatusCode>> ImportDataAsync(string serverUrl, string appToken, string entity, List<Dictionary<string, object?>> postData, string portalUserAuthToken);
         Task<Either<string, HttpStatusCode>> GetAsync(string url, string appToken, string portalUserAuthToken);
-        Task<Either<string, HttpStatusCode>> PostAsync(string url, string appToken, string portalUserAuthToken, object postData);
+        Task<Either<string, HttpStatusCode>> PostAsync(string url, string appToken, string portalUserAuthToken, object postData, IDictionary<string, string>? headers = null);
     }
 }

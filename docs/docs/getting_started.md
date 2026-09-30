@@ -4,9 +4,10 @@ An Apilane Instance consists of two services (Portal + API) and can be deployed 
 
 ## 1. Start the Services
 
-Execute the provided [docker-compose.yaml](assets/docker-compose.yaml) to spin up both services:
+Execute the provided [docker-compose.yaml](assets/docker-compose.yaml) to spin up both services. The Portal and the API share an **installation key**: the first command generates one into a `.env` file next to the compose file, only if it is not there yet. Keep that file for every later run.
 
 ```bash
+grep -qs "^APILANE_INSTALLATION_KEY=." .env || echo "APILANE_INSTALLATION_KEY=$(openssl rand -hex 32)" >> .env
 docker-compose -p apilane up -d
 ```
 
@@ -139,7 +140,7 @@ Regardless of deployment method (Docker, k8s, cloud), you can override default s
 | `Url` | `http://0.0.0.0:5000` | URL where the Portal is served |
 | `ApiUrl` | `http://127.0.0.1:5001` | URL to the initial API service |
 | `FilesPath` | `/etc/apilanewebportal` | Path for Portal database files (SQLite) |
-| `InstallationKey` | `8dc64403-...` | Shared key between Portal and API. **Change this and keep it secret.** |
+| `InstallationKey` | *(required, no default)* | Shared secret between Portal and API; the compose file reads it from `APILANE_INSTALLATION_KEY`. Generate a long random value (e.g. `openssl rand -hex 32`) and **never reuse a published example**. |
 | `AdminEmail` | `admin@admin.com` | Admin email, created on first deployment. Change before deploying. |
 
 ### API
@@ -149,7 +150,10 @@ Regardless of deployment method (Docker, k8s, cloud), you can override default s
 | `Url` | `http://0.0.0.0:5001` | URL where the API is served |
 | `PortalUrl` | `http://127.0.0.1:5000` | URL to the Portal |
 | `FilesPath` | `/etc/apilanewebapi/Files` | Path for API-generated files |
-| `InstallationKey` | `8dc64403-...` | Must match the Portal's key |
+| `InstallationKey` | *(required, no default)* | Must be identical to the Portal's key (`APILANE_INSTALLATION_KEY` in the compose file) |
+
+!!!warning "Changing the installation key"
+    The Portal uses the key stored in its database (**Admin > Settings**); the `InstallationKey` setting only seeds it on first start. To change the key of an existing installation, update it under Admin > Settings, set the same value as `InstallationKey` for both services, and restart them.
 
 !!!info "Next steps"
     - Configure [Security](developer_guide/security.md) rules for your entities

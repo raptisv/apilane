@@ -1,6 +1,7 @@
 using Apilane.Api.Core.Configuration;
 using Apilane.Common;
 using Apilane.Common.Extensions;
+using Apilane.Common.Security;
 using Apilane.Common.Utilities;
 using Apilane.Api.Controllers;
 using Apilane.Api.Extensions;
@@ -43,9 +44,14 @@ namespace Apilane.Api
 
                 builder.Host.UseSerilog();
 
+                // appsettings.json is committed and holds defaults plus local-development sample values
+                // (Url, PortalUrl, FilesPath and a placeholder InstallationKey). The environment-specific
+                // file (git-ignored) and environment variables override them with real values and secrets;
+                // the docker-compose setup uses environment variables.
                 var configuration = new ConfigurationBuilder()
                     .SetBasePath(Directory.GetCurrentDirectory())
-                    .AddJsonFile($"appsettings.{environment}.json", optional: false)
+                    .AddJsonFile("appsettings.json", optional: true)
+                    .AddJsonFile($"appsettings.{environment}.json", optional: true)
                     .AddEnvironmentVariables()
                     .Build();
 
@@ -60,6 +66,15 @@ namespace Apilane.Api
                     .CreateLogger();
 
                 var appConfig = new ApiConfiguration(configuration);
+
+                // The installation key authenticates the API to the portal (and the portal to the
+                // API). A missing, default or short value leaves every application's configuration
+                // readable by anyone who can reach the portal, so complain loudly at startup.
+                var installationKeyProblem = InstallationKeyPolicy.Validate(appConfig.InstallationKey);
+                if (installationKeyProblem is not null)
+                {
+                    Log.Logger.Warning("SECURITY: {Problem}. Set a long random 'InstallationKey' (identical on the portal) via appsettings.{Environment}.json or an environment variable.", installationKeyProblem, environment);
+                }
 
                 builder.AddOrleans(appConfig);
 

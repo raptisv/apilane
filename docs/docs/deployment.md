@@ -14,9 +14,10 @@ An `Apilane Instance` consists of 2 services that can be deployed in any environ
 
 ## Docker
 
-Execute the provided [docker-compose.yaml](assets/docker-compose.yaml) using the command:
+Execute the provided [docker-compose.yaml](assets/docker-compose.yaml). It reads the shared installation key from `APILANE_INSTALLATION_KEY`: the first command stores a random one in a `.env` file next to the compose file, only if it is not there yet. Keep that file for every later run.
 
 ```bash
+grep -qs "^APILANE_INSTALLATION_KEY=." .env || echo "APILANE_INSTALLATION_KEY=$(openssl rand -hex 32)" >> .env
 docker-compose -p apilane up -d
 ```
 
@@ -121,7 +122,7 @@ The API service exposes utility endpoints:
 
 ### Logging
 
-Both services use [Serilog](https://serilog.net/) for structured logging. Logging configuration is driven by `appsettings.{Environment}.json` via the `Serilog` configuration section.
+Both services use [Serilog](https://serilog.net/) for structured logging, configured through the `Serilog` configuration section. The committed `appsettings.json` holds secret-free defaults (console logging at `Information`, OpenTelemetry tracing off) and is the only settings file the Docker images load. Override any setting with an `appsettings.{Environment}.json` next to the binaries (for Docker, mount it into `/app`) or with environment variables, using `__` for nesting (for example `OpenTelemetry__Tracing__Enabled=true`).
 
 ### Metrics and tracing
 

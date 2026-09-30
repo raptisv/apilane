@@ -1,4 +1,5 @@
 using Apilane.Common.Extensions;
+using Apilane.Common.Security;
 using Apilane.Common.Utilities;
 using Apilane.Portal.Extensions;
 using Apilane.Portal.Extentions;
@@ -20,6 +21,7 @@ using Serilog.Enrichers.Span;
 using Serilog.Settings.Configuration;
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -37,9 +39,14 @@ namespace Apilane.Portal
 
             builder.Host.UseSerilog();
 
+            // appsettings.json is committed and holds defaults plus local-development sample values
+            // (Url, ApiUrl, FilesPath and a placeholder InstallationKey). The environment-specific
+            // file (git-ignored) and environment variables override them with real values and secrets;
+            // the docker-compose setup uses environment variables.
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile($"appsettings.{environment}.json", optional: false)
+                .AddJsonFile("appsettings.json", optional: true)
+                .AddJsonFile($"appsettings.{environment}.json", optional: true)
                 .AddEnvironmentVariables()
             .Build();
 
@@ -54,6 +61,16 @@ namespace Apilane.Portal
                 .CreateLogger();
 
             var appConfig = new PortalConfiguration(configuration);
+
+            // The installation key authenticates the API to the portal. A missing, default or short
+            // value leaves every application's configuration readable by anyone who can reach the
+            // portal, so complain loudly at startup. (On an existing installation the value actually
+            // used is the one stored in the database, checked further below.)
+            var configuredKeyProblem = InstallationKeyPolicy.Validate(appConfig.InstallationKey);
+            if (configuredKeyProblem is not null)
+            {
+                Log.Logger.Warning("SECURITY: {Problem}. Set a long random 'InstallationKey' (identical on the API) via appsettings.{Environment}.json or an environment variable.", configuredKeyProblem, environment);
+            }
 
             builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
             {
@@ -146,6 +163,14 @@ namespace Apilane.Portal
 
                 // Apply schema updates for existing databases (new tables, indexes)
                 context.EnsureSchemaUpdated();
+
+                // The key used at runtime is the one stored in the portal database (Admin > Settings);
+                // configuration only seeds it on first start.
+                var storedKeyProblem = InstallationKeyPolicy.Validate(context.GlobalSettings.SingleOrDefault()?.InstallationKey);
+                if (storedKeyProblem is not null)
+                {
+                    Log.Logger.Warning("SECURITY: {Problem} (value stored in the portal database). Change it under Admin > Settings and set the same value on the API.", storedKeyProblem);
+                }
             }
 
             if (environment == Common.Enums.HostingEnvironment.Development)

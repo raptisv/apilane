@@ -1,10 +1,12 @@
 ﻿using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
+using Apilane.Common;
 using Apilane.Common.Models;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -66,9 +68,13 @@ namespace Apilane.Api.Core.Services
 
         private async Task<bool> UserOwnsApplicationInnerAsync(string authToken, string appToken)
         {
-            string url = $"{_apiConfiguration.PortalUrl.Trim('/')}/Info/UserOwnsApplication?authToken={authToken}&appToken={appToken}&key={_apiConfiguration.InstallationKey}";
+            // The installation key and the portal user's token travel in headers, never in the URL,
+            // so they do not end up in request logs, proxies or browser histories.
+            string url = $"{_apiConfiguration.PortalUrl.Trim('/')}/Info/UserOwnsApplication?appToken={Uri.EscapeDataString(appToken)}";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add(Globals.InstallationKeyHeaderName, _apiConfiguration.InstallationKey);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
 
             using var client = _clientFactory.CreateClient(HttpClientName);
 
@@ -85,7 +91,8 @@ namespace Apilane.Api.Core.Services
 
         public async Task<DBWS_Application> GetApplicationAsync(string appToken)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"{_apiConfiguration.PortalUrl}/Info/GetApplication?appToken={appToken}&key={_apiConfiguration.InstallationKey}");
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{_apiConfiguration.PortalUrl.Trim('/')}/Info/GetApplication?appToken={Uri.EscapeDataString(appToken)}");
+            request.Headers.Add(Globals.InstallationKeyHeaderName, _apiConfiguration.InstallationKey);
 
             using var client = _clientFactory.CreateClient(PortalInfoService.HttpClientName);
 

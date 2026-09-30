@@ -1,4 +1,5 @@
 ﻿using Apilane.Common.Enums;
+using Apilane.Common.Utilities;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
@@ -28,16 +29,31 @@ namespace Apilane.Api.Core.Configuration
 
         public ApiConfiguration(IConfiguration configuration)
         {
-            Environment = configuration.GetValue<HostingEnvironment>("Environment");
-            Url = configuration.GetValue<string>("Url") ?? throw new ArgumentNullException(nameof(Url));
-            FilesPath = configuration.GetValue<string>("FilesPath") ?? throw new ArgumentNullException(nameof(FilesPath));
+            // "Environment" is normally set in appsettings.{Environment}.json. When that file is absent
+            // (e.g. containers configured purely through environment variables) fall back to
+            // ASPNETCORE_ENVIRONMENT, and to Production when neither is set.
+            Environment = configuration.GetValue<HostingEnvironment?>("Environment")
+                ?? EnvVariables.GetEnvironment("ASPNETCORE_ENVIRONMENT", HostingEnvironment.Production);
+
+            Url = configuration.GetValue<string>("Url") ?? throw Missing(nameof(Url));
+            FilesPath = configuration.GetValue<string>("FilesPath") ?? throw Missing(nameof(FilesPath));
             FileStorage = configuration.GetSection("FileStorage").Get<FileStorageConfiguration>() ?? new FileStorageConfiguration();
-            PortalUrl = configuration.GetValue<string>("PortalUrl") ?? throw new ArgumentNullException(nameof(PortalUrl));
-            InstallationKey = configuration.GetValue<string>("InstallationKey") ?? throw new ArgumentNullException(nameof(InstallationKey));
-            MinThreads = configuration.GetValue<int?>("MinThreads") ?? throw new ArgumentNullException(nameof(MinThreads));
-            InvalidFilesExtentions = configuration.GetSection("InvalidFilesExtentions").Get<List<string>>() ?? throw new ArgumentNullException(nameof(InvalidFilesExtentions));
-            OpenTelemetry = configuration.GetSection("OpenTelemetry").Get<OpenTelemetryConfiguration>() ?? throw new ArgumentNullException(nameof(OpenTelemetry));
+            PortalUrl = configuration.GetValue<string>("PortalUrl") ?? throw Missing(nameof(PortalUrl));
+            InstallationKey = configuration.GetValue<string>("InstallationKey") ?? throw Missing(nameof(InstallationKey));
+            MinThreads = configuration.GetValue<int?>("MinThreads");
+            InvalidFilesExtentions = configuration.GetSection("InvalidFilesExtentions").Get<List<string>>()
+                ?? new List<string>() { ".exe", ".vbs", ".msi", ".jar", ".bat", ".cmd", ".vbe", ".js", ".jsp", ".lnk" };
+            OpenTelemetry = configuration.GetSection("OpenTelemetry").Get<OpenTelemetryConfiguration>()
+                ?? new OpenTelemetryConfiguration();
+            OpenTelemetry.Metrics ??= new OpenTelemetryConfiguration.OpenTelemetryMetricsConfiguration();
+            OpenTelemetry.Tracing ??= new OpenTelemetryConfiguration.OpenTelemetryTracingConfiguration();
             Clustering = configuration.GetSection("Clustering").Get<ClusteringConfiguration>() ?? new ClusteringConfiguration();
+        }
+
+        private static Exception Missing(string setting)
+        {
+            return new InvalidOperationException(
+                $"Setting '{setting}' is required. Provide it in appsettings.json, appsettings.{{Environment}}.json or as an environment variable.");
         }
 
         public class FileStorageConfiguration
