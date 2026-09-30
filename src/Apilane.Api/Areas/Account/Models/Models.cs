@@ -1,4 +1,5 @@
 ﻿using Apilane.Common.Attributes;
+using Apilane.Common.Security;
 using System.ComponentModel.DataAnnotations;
 
 namespace Apilane.Api.Areas.Account.Models
@@ -19,7 +20,7 @@ namespace Apilane.Api.Areas.Account.Models
         public string Email { get; set; } = null!;
 
         [AttrRequired]
-        [StringLength(100, ErrorMessage = "The {0} must be at least {2} characters long.", MinimumLength = 8)]
+        [StringLength(PasswordPolicy.MaximumLength, ErrorMessage = "The {0} must be between {2} and {1} characters long.", MinimumLength = PasswordPolicy.MinimumLength)]
         [DataType(DataType.Password)]
         [Display(Name = "Password")]
         public string Password { get; set; } = null!;

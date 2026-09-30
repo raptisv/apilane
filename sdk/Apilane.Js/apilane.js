@@ -703,6 +703,39 @@ export class AccountUpdateRequest extends ApilaneRequestBase {
     }
 }
 
+/**
+ * Change-password request builder. Requires authentication (withAuthToken or withSigning);
+ * the current password is verified server-side before the new one is stored.
+ */
+export class AccountChangePasswordRequest extends ApilaneRequestBase {
+    #currentPassword;
+    #newPassword;
+
+    /**
+     * @param {string} currentPassword - The user's current password.
+     * @param {string} newPassword - The new password (8 to 400 characters).
+     */
+    constructor(currentPassword, newPassword) {
+        super(null, 'Account', 'ChangePassword');
+        this.#currentPassword = currentPassword;
+        this.#newPassword = newPassword;
+    }
+
+    /**
+     * @param {string} currentPassword
+     * @param {string} newPassword
+     * @returns {AccountChangePasswordRequest}
+     */
+    static new(currentPassword, newPassword) {
+        return new AccountChangePasswordRequest(currentPassword, newPassword);
+    }
+
+    /** @internal Body expected by the API's Account/ChangePassword endpoint. */
+    _getBody() {
+        return { Password: this.#currentPassword, NewPassword: this.#newPassword };
+    }
+}
+
 /** Email confirmation request builder. */
 export class AccountConfirmationEmailRequest extends ApilaneRequestBase {
     #email;
@@ -2056,6 +2089,17 @@ export class ApilaneService {
      */
     async accountUpdate(request, updateItem, signal) {
         return this.#putJson(request, updateItem, signal);
+    }
+
+    /**
+     * Changes the current user's password. The current password is verified server-side;
+     * the new password must be 8 to 400 characters.
+     * @param {AccountChangePasswordRequest} request
+     * @param {AbortSignal} [signal]
+     * @returns {Promise<ApilaneResult<boolean>>} True when the password was changed.
+     */
+    async accountChangePassword(request, signal) {
+        return this.#putJson(request, request._getBody(), signal, (text) => String(text).trim().toLowerCase() === 'true');
     }
 
     // ========================================================================

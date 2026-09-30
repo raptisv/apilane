@@ -5,6 +5,7 @@ using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Common.Models.AppModules.Authentication;
+using Apilane.Common.Security;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -184,8 +185,9 @@ namespace Apilane.Api.Core.AppModules
                             Description = "The user password",
                             TypeID = (int)PropertyType.String,
                             Encrypted = true,
-                            Minimum = 8,
-                            Maximum = 400,
+                            // Single source of truth for password length, shared with change/reset password.
+                            Minimum = PasswordPolicy.MinimumLength,
+                            Maximum = PasswordPolicy.MaximumLength,
                             IsPrimaryKey = false,
                         },
                         new()

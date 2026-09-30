@@ -89,6 +89,7 @@ import {
     AccountRenewAuthTokenRequest,
     AccountUserDataRequest,
     AccountUpdateRequest,
+    AccountChangePasswordRequest,
 } from './apilane.js';
 
 // Login
@@ -110,6 +111,11 @@ const userData = await apilane.getAccountUserData(
 const updated = await apilane.accountUpdate(
     AccountUpdateRequest.new().withAuthToken(authToken),
     { Username: 'newname' }
+);
+
+// Change password (current password is verified; new password must be 8-400 characters)
+const changed = await apilane.accountChangePassword(
+    AccountChangePasswordRequest.new('pass123', 'a-much-longer-passphrase').withAuthToken(authToken)
 );
 
 // Renew token
@@ -387,6 +393,7 @@ const ts = dateToUnixTimestampSeconds(new Date());
 | `AccountRenewAuthTokenAsync()` | `accountRenewAuthToken()` |
 | `GetAccountUserDataAsync<T>()` | `getAccountUserData()` |
 | `AccountUpdateAsync<T>()` | `accountUpdate()` |
+| `AccountChangePasswordAsync()` | `accountChangePassword()` |
 | `GetDataAsync<T>()` | `getData()` |
 | `GetDataByIdAsync<T>()` | `getDataById()` |
 | `GetAllDataAsync<T>()` | `getAllData()` |

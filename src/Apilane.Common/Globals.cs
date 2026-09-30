@@ -12,6 +12,11 @@
 
         public const string EntityHistoryDataColumn = "Data";
 
+        // System entity/column names that need special handling in shared code.
+        public const string UsersEntityName = "Users";
+
+        public const string PasswordColumn = "Password";
+
         public const string EncryptionKey = "dbws_!_@";
 
         public const string DateTimeMsFormat = "yyyy-MM-dd HH:mm:ss.fff";
