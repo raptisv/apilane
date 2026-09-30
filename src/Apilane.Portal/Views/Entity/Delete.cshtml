@@ -64,14 +64,13 @@
 @section scripts{
     <script type="text/javascript">
 
-        var name = '@Model.Name';
+        var name = @Json.Serialize(Model.Name);
         $('button.btn_delete_entity').on('click', function () {
             Swal.fire({
                 title: "Confirm",
                 text: "Please type the entity name",
                 input: "text",
                 showCancelButton: true,
-                closeOnConfirm: false,
                 confirmButtonText: 'Delete',
                 buttonsStyling: false,
                 customClass: {
