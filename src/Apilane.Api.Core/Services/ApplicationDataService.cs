@@ -712,6 +712,10 @@ namespace Apilane.Api.Core.Services
                 var entityProperty = entity.Properties.Single(x => x.Name.Equals(filterItem.Property, StringComparison.OrdinalIgnoreCase));
 
                 filterItem.Type = entityProperty.TypeID_Enum;
+
+                // Use the canonical property name, as GetSortData does: the generated SQL quotes identifiers,
+                // which are case-sensitive on PostgreSQL, and request text never becomes part of the SQL.
+                filterItem.Property = entityProperty.Name;
             }
 
             // Fill child filters
@@ -742,29 +746,48 @@ namespace Apilane.Api.Core.Services
                     {
                         var sortDataList = SortData.ParseList(sortString) ?? throw new FormatException("Invalid parameter 'sort'");
 
-                        sortDataList = sortDataList
-                            .Where(s => entity.Properties.Select(x => x.Name.ToLower()).Contains(s.Property.ToLower()));
+                        var result = new List<SortData>();
 
                         foreach (var item in sortDataList)
                         {
-                            if (notallowedProperties.Select(x => x.Name).Contains(item.Property))
+                            var entityProperty = entity.Properties
+                                .FirstOrDefault(x => x.Name.Equals(Utils.GetString(item.Property), StringComparison.OrdinalIgnoreCase));
+
+                            if (entityProperty is null)
+                            {
+                                // Unknown properties were silently ignored before; keep that behaviour.
+                                continue;
+                            }
+
+                            // Compare case-insensitively: the property match above is case-insensitive too,
+                            // so a differently-cased name must not slip past the access check.
+                            if (notallowedProperties.Any(x => x.Name.Equals(entityProperty.Name, StringComparison.OrdinalIgnoreCase)))
                             {
                                 throw new FormatException($"Invalid sort parameter. Property '{item.Property}' is not allowed");
                             }
+
+                            // Use the canonical property name so quoted identifiers match on case-sensitive databases.
+                            item.Property = entityProperty.Name;
+                            result.Add(item);
                         }
 
-                        return sortDataList.ToList();
+                        return result;
                     }
                     else if (token is JsonObject newObject)
                     {
                         var sortDataItem = SortData.Parse(sortString) ?? throw new FormatException("Invalid parameter 'sort'");
 
-                        if (entity.Properties.Any(p => p.Name.Equals(sortDataItem.Property, StringComparison.OrdinalIgnoreCase)))
+                        var entityProperty = entity.Properties
+                            .FirstOrDefault(p => p.Name.Equals(Utils.GetString(sortDataItem.Property), StringComparison.OrdinalIgnoreCase));
+
+                        if (entityProperty is not null)
                         {
-                            if (notallowedProperties.Select(x => x.Name).Contains(sortDataItem.Property))
+                            if (notallowedProperties.Any(x => x.Name.Equals(entityProperty.Name, StringComparison.OrdinalIgnoreCase)))
                             {
                                 throw new FormatException($"Invalid sort parameter. Property '{sortDataItem.Property}' is not allowed");
                             }
+
+                            sortDataItem.Property = entityProperty.Name;
 
                             return new List<SortData>() { sortDataItem };
                         }
@@ -787,24 +810,12 @@ namespace Apilane.Api.Core.Services
             }
         }
 
-        private bool CheckFilterPropertyExists(FilterData filter, string property)
+        private static bool CheckFilterPropertyExists(FilterData filter, string property)
         {
-            bool result = false;
-
-            if (filter.Property != null && filter.Property.ToLower().Equals(property.ToLower()))
-            {
-                result = true;
-            }
-
-            if (filter.Filters != null)
-            {
-                foreach (var item in filter.Filters)
-                {
-                    result = result == false && CheckFilterPropertyExists(item, property);
-                }
-            }
-
-            return result;
+            // Exhaustive search of the filter tree. The previous implementation reset its result on
+            // every sibling, so a filter on a forbidden property was ignored unless it was the last
+            // child, which let callers filter (and probe) columns they are not allowed to read.
+            return filter.ReferencesProperty(property);
         }
 
         #region USERS

@@ -301,6 +301,88 @@ namespace Apilane.Api.Component.Tests
 
         [Theory]
         [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task FilterAndSort_Should_Enforce_Property_Access_And_Ignore_Name_Casing(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
+
+            const string hiddenProperty = "Custom_String_Hidden";
+
+            await AddEntityAsync(CustomEntityLight.EntityName);
+            await AddStringPropertyAsync(CustomEntityLight.EntityName, nameof(CustomEntityLight.Custom_String_Required), required: false);
+            await AddStringPropertyAsync(CustomEntityLight.EntityName, hiddenProperty, required: false);
+
+            // Callers may write both properties but may only read Custom_String_Required
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required), hiddenProperty }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.get,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            {
+                foreach (var (visible, hidden) in new[] { ("a", "secret-1"), ("b", "secret-2"), ("c", "other") })
+                {
+                    var postResult = await ApilaneService.PostDataAsync(
+                        DataPostRequest.New(CustomEntityLight.EntityName),
+                        new { Custom_String_Required = visible, Custom_String_Hidden = hidden });
+                    postResult.Match(r => r.Single(), e => throw new Exception($"Post failed | {visible} | {e.Code} | {e.Message}"));
+                }
+
+                // Property names match case-insensitively on every database, including PostgreSQL where
+                // identifiers are quoted (and therefore case-sensitive) in the generated SQL.
+                var filtered = await ApilaneService.GetDataAsync<CustomEntityLight>(
+                    DataGetListRequest.New(CustomEntityLight.EntityName)
+                        .WithFilter(new FilterItem("custom_string_REQUIRED", FilterOperator.equal, "b")));
+                var filteredData = filtered.Match(r => r.Data, e => throw new Exception($"Get with filter failed | {e.Code} | {e.Message}"));
+                Assert.Equal("b", Assert.Single(filteredData).Custom_String_Required);
+
+                var sorted = await ApilaneService.GetDataAsync<CustomEntityLight>(
+                    DataGetListRequest.New(CustomEntityLight.EntityName)
+                        .WithSort(new SortItem() { Property = "CUSTOM_string_required", Direction = "desc" }));
+                var sortedData = sorted.Match(r => r.Data, e => throw new Exception($"Get with sort failed | {e.Code} | {e.Message}"));
+                Assert.Equal(new[] { "c", "b", "a" }, sortedData.Select(x => x.Custom_String_Required));
+
+                // A property the caller cannot read is rejected wherever it appears in the filter tree, in any casing
+                var hiddenFilters = new List<FilterItem>()
+                {
+                    new FilterItem(hiddenProperty, FilterOperator.startswith, "secret"),
+                    new FilterItem(FilterLogic.AND, new List<FilterItem>()
+                    {
+                        new FilterItem(hiddenProperty.ToLowerInvariant(), FilterOperator.startswith, "secret"),
+                        new FilterItem(nameof(CustomEntityLight.Custom_String_Required), FilterOperator.notequal, "zzz")
+                    }),
+                    new FilterItem(FilterLogic.OR, new List<FilterItem>()
+                    {
+                        new FilterItem(FilterLogic.AND, new List<FilterItem>()
+                        {
+                            new FilterItem(hiddenProperty.ToUpperInvariant(), FilterOperator.contains, "1"),
+                            new FilterItem(nameof(CustomEntityLight.Custom_String_Required), FilterOperator.equal, "a")
+                        }),
+                        new FilterItem(nameof(CustomEntityLight.Custom_String_Required), FilterOperator.equal, "zzz")
+                    })
+                };
+
+                foreach (var hiddenFilter in hiddenFilters)
+                {
+                    var result = await ApilaneService.GetDataAsync<CustomEntityLight>(
+                        DataGetListRequest.New(CustomEntityLight.EntityName).WithFilter(hiddenFilter));
+                    result.Match(
+                        r => throw new Exception($"A filter on '{hiddenProperty}' should be rejected, got {r.Data.Count} rows"),
+                        e => Assert.Equal(ValidationError.INVALID_FILTER_PARAMETER, e.Code));
+                }
+
+                var hiddenSort = await ApilaneService.GetDataAsync<CustomEntityLight>(
+                    DataGetListRequest.New(CustomEntityLight.EntityName)
+                        .WithSort(new SortItem() { Property = hiddenProperty.ToLowerInvariant(), Direction = "asc" }));
+                hiddenSort.Match(
+                    r => throw new Exception($"A sort on '{hiddenProperty}' should be rejected, got {r.Data.Count} rows"),
+                    e => Assert.Equal(ValidationError.INVALID_SORT_PARAMETER, e.Code));
+            }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
         public async Task GetHistoryById_Should_Return_Record_Change_History(DatabaseType dbType, string? connectionString, bool useDiffEntity)
         {
             await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
