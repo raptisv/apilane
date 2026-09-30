@@ -712,6 +712,10 @@ namespace Apilane.Api.Core.Services
                 var entityProperty = entity.Properties.Single(x => x.Name.Equals(filterItem.Property, StringComparison.OrdinalIgnoreCase));
 
                 filterItem.Type = entityProperty.TypeID_Enum;
+
+                // Use the canonical property name, as GetSortData does: the generated SQL quotes identifiers,
+                // which are case-sensitive on PostgreSQL, and request text never becomes part of the SQL.
+                filterItem.Property = entityProperty.Name;
             }
 
             // Fill child filters

@@ -6,8 +6,8 @@ using Apilane.Common.Abstractions;
 using Apilane.Common.Enums;
 using Apilane.Common.Models;
 using Apilane.Data.Abstractions;
-using FakeItEasy;
 using Microsoft.Extensions.Logging;
+using FakeItEasy;
 
 namespace Apilane.UnitTests
 {
@@ -107,7 +107,29 @@ namespace Apilane.UnitTests
             var result = service.GetFilterData(entity, filter, PublicOnlySecurity());
 
             Assert.IsNotNull(result);
-            Assert.AreEqual(2, result.Filters!.Count);
+            Assert.IsNotNull(result.Filters);
+            Assert.AreEqual(2, result.Filters.Count);
+        }
+
+        [TestMethod]
+        public void GetFilterData_AllowedPropertiesWithDifferentCasing_ReturnsCanonicalNames()
+        {
+            var service = CreateService();
+            var entity = CreateEntity();
+
+            var filter = "{\"Logic\":\"AND\",\"Filters\":[" +
+                         "{\"Property\":\"public\",\"Operator\":\"equal\",\"Value\":\"x\"}," +
+                         "{\"Logic\":\"OR\",\"Filters\":[{\"Property\":\"id\",\"Operator\":\"greater\",\"Value\":0}]}]}";
+
+            var result = service.GetFilterData(entity, filter, PublicOnlySecurity());
+
+            Assert.IsNotNull(result);
+            Assert.IsNotNull(result.Filters);
+            Assert.AreEqual("Public", result.Filters[0].Property);
+
+            var nestedGroup = result.Filters[1];
+            Assert.IsNotNull(nestedGroup.Filters);
+            Assert.AreEqual("ID", nestedGroup.Filters[0].Property);
         }
 
         [TestMethod]

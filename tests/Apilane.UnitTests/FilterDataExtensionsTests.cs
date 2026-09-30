@@ -7,8 +7,10 @@ namespace Apilane.UnitTests
     [TestClass]
     public class FilterDataExtensionsTests
     {
-        private static FilterData Leaf(string property) =>
-            new(property, FilterData.FilterOperators.equal, "x", PropertyType.String);
+        private static FilterData Leaf(string property)
+        {
+            return new FilterData(property, FilterData.FilterOperators.equal, "x", PropertyType.String);
+        }
 
         [TestMethod]
         public void ReferencesProperty_NullFilter_ReturnsFalse()
