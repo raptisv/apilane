@@ -44,10 +44,10 @@ namespace Apilane.Api
 
                 builder.Host.UseSerilog();
 
-                // appsettings.json holds secret-free defaults and is committed. The environment-specific
-                // file holds secrets (installation key, storage credentials) and is NOT committed: copy
-                // appsettings.{Environment}.example.json next to it, or supply the values as environment
-                // variables (the docker-compose setup does the latter).
+                // appsettings.json is committed and holds defaults plus local-development sample values
+                // (Url, PortalUrl, FilesPath and a placeholder InstallationKey). The environment-specific
+                // file (git-ignored) and environment variables override them with real values and secrets;
+                // the docker-compose setup uses environment variables.
                 var configuration = new ConfigurationBuilder()
                     .SetBasePath(Directory.GetCurrentDirectory())
                     .AddJsonFile("appsettings.json", optional: true)

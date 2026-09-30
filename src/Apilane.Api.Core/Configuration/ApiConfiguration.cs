@@ -53,7 +53,7 @@ namespace Apilane.Api.Core.Configuration
         private static Exception Missing(string setting)
         {
             return new InvalidOperationException(
-                $"Setting '{setting}' is required. Provide it in appsettings.{{Environment}}.json (see the .example.json file) or as an environment variable.");
+                $"Setting '{setting}' is required. Provide it in appsettings.json, appsettings.{{Environment}}.json or as an environment variable.");
         }
 
         public class FileStorageConfiguration

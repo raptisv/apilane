@@ -13,7 +13,7 @@ namespace Apilane.Common.Security
     {
         public const int MinimumLength = 30;
 
-        /// <summary>The placeholder used in the committed appsettings.*.example.json files.</summary>
+        /// <summary>The placeholder used in the committed appsettings.json files.</summary>
         public const string ExamplePlaceholder = "REPLACE-WITH-A-LONG-RANDOM-SECRET";
 
         /// <summary>
@@ -47,7 +47,7 @@ namespace Apilane.Common.Security
 
             if (trimmed.StartsWith("REPLACE-WITH", StringComparison.OrdinalIgnoreCase))
             {
-                return "InstallationKey is still the placeholder from the example settings file";
+                return "InstallationKey is still the placeholder from appsettings.json";
             }
 
             if (trimmed.Length < MinimumLength)
