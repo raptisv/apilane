@@ -153,6 +153,154 @@ namespace Apilane.Api.Component.Tests
 
         [Theory]
         [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task StringFilters_Should_Match_Pattern_Characters_Literally(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
+
+            await AddEntityAsync(CustomEntityLight.EntityName);
+            await AddStringPropertyAsync(CustomEntityLight.EntityName, nameof(CustomEntityLight.Custom_String_Required), required: false);
+
+            // Values holding LIKE pattern syntax ('%' and '_' everywhere, '[' on SQL Server, '\' on MySQL/PostgreSQL,
+            // '!' which is the escape character) next to the near-misses they used to match as wildcards.
+            var allValues = new List<string>() { "cust_1", "CUST_1", "custA1", "cust-1", "50%", "5000", @"a\b", "ab", "[ab]", "a", "x!y", "xy", "O'Brien" };
+
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.get,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            {
+                foreach (var value in allValues)
+                {
+                    var postResult = await ApilaneService.PostDataAsync(
+                        DataPostRequest.New(CustomEntityLight.EntityName),
+                        new { Custom_String_Required = value });
+                    postResult.Match(r => r.Single(), e => throw new Exception($"Post failed | {value} | {e.Code} | {e.Message}"));
+                }
+
+                async Task AssertMatchesAsync(FilterOperator filterOperator, string filterValue, params string[] expectedValues)
+                {
+                    var getResult = await ApilaneService.GetDataTotalAsync<CustomEntityLight>(
+                        DataGetListRequest.New(CustomEntityLight.EntityName)
+                            .WithPageSize(100)
+                            .WithFilter(new FilterItem(nameof(CustomEntityLight.Custom_String_Required), filterOperator, filterValue)));
+
+                    var response = getResult.Match(r => r, e => throw new Exception($"Get failed | {filterOperator} '{filterValue}' | {e.Code} | {e.Message}"));
+
+                    var expected = expectedValues.OrderBy(x => x, StringComparer.Ordinal).ToList();
+                    var actual = response.Data.Select(x => x.Custom_String_Required).OrderBy(x => x, StringComparer.Ordinal).ToList();
+                    Assert.True(expected.SequenceEqual(actual), $"{filterOperator} '{filterValue}' | expected [{string.Join(", ", expected)}] | actual [{string.Join(", ", actual)}]");
+
+                    // Data and Total are two queries built from the same filter instance
+                    Assert.Equal(expected.Count, response.Total);
+                }
+
+                string[] AllExcept(params string[] excluded) => allValues.Except(excluded).ToArray();
+
+                // '_' is not a single-character wildcard (case-insensitivity is kept)
+                await AssertMatchesAsync(FilterOperator.equal, "cust_1", "cust_1", "CUST_1");
+                await AssertMatchesAsync(FilterOperator.notequal, "cust_1", AllExcept("cust_1", "CUST_1"));
+                await AssertMatchesAsync(FilterOperator.startswith, "cust_", "cust_1", "CUST_1");
+                await AssertMatchesAsync(FilterOperator.endswith, "_1", "cust_1", "CUST_1");
+                await AssertMatchesAsync(FilterOperator.contains, "_", "cust_1", "CUST_1");
+                await AssertMatchesAsync(FilterOperator.notcontains, "_", AllExcept("cust_1", "CUST_1"));
+                await AssertMatchesAsync(FilterOperator.equal, "_");
+
+                // '%' is not a multi-character wildcard
+                await AssertMatchesAsync(FilterOperator.equal, "%");
+                await AssertMatchesAsync(FilterOperator.contains, "%", "50%");
+                await AssertMatchesAsync(FilterOperator.contains, "0%", "50%");
+                await AssertMatchesAsync(FilterOperator.notcontains, "%", AllExcept("50%"));
+
+                // '[' is not a character class (SQL Server), '\' is not an escape character (MySQL/PostgreSQL)
+                await AssertMatchesAsync(FilterOperator.equal, "[ab]", "[ab]");
+                await AssertMatchesAsync(FilterOperator.contains, "[ab]", "[ab]");
+                await AssertMatchesAsync(FilterOperator.startswith, "[", "[ab]");
+                await AssertMatchesAsync(FilterOperator.equal, @"a\b", @"a\b");
+                await AssertMatchesAsync(FilterOperator.endswith, @"\b", @"a\b");
+
+                // The escape character itself
+                await AssertMatchesAsync(FilterOperator.equal, "x!y", "x!y");
+                await AssertMatchesAsync(FilterOperator.contains, "!", "x!y");
+
+                // Plain values are unaffected
+                await AssertMatchesAsync(FilterOperator.equal, "ab", "ab");
+                await AssertMatchesAsync(FilterOperator.startswith, "cust", "cust_1", "CUST_1", "custA1", "cust-1");
+                await AssertMatchesAsync(FilterOperator.equal, "O'Brien", "O'Brien");
+            }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task StringValues_Should_Roundtrip_And_Filter_Unicode(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
+
+            await AddEntityAsync(CustomEntityLight.EntityName);
+            await AddStringPropertyAsync(CustomEntityLight.EntityName, nameof(CustomEntityLight.Custom_String_Required), required: false);
+
+            // Outside the SQL Server code page (lost without N'' on write) and outside utf8mb3 (MySQL N'' literals cannot hold emoji)
+            var allValues = new List<string>() { "Dvořák", "Łukasz", "Σωκράτης", "Иван", "あいう", "x😀", "é", "Straße" };
+
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.put,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityLight.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.get,
+                properties: new() { nameof(CustomEntityLight.Custom_String_Required) }))
+            {
+                var ids = new Dictionary<string, long>();
+                foreach (var value in allValues)
+                {
+                    // Post a placeholder and update it, to cover both the insert and the update path
+                    var postResult = await ApilaneService.PostDataAsync(
+                        DataPostRequest.New(CustomEntityLight.EntityName),
+                        new { Custom_String_Required = "placeholder" });
+                    var id = postResult.Match(r => r.Single(), e => throw new Exception($"Post failed | {value} | {e.Code} | {e.Message}"));
+
+                    var putResult = await ApilaneService.PutDataAsync(
+                        DataPutRequest.New(CustomEntityLight.EntityName),
+                        new { ID = id, Custom_String_Required = value });
+                    putResult.Match(r => r, e => throw new Exception($"Put failed | {value} | {e.Code} | {e.Message}"));
+
+                    ids.Add(value, id);
+                }
+
+                var getAll = await ApilaneService.GetDataAsync<CustomEntityLight>(
+                    DataGetListRequest.New(CustomEntityLight.EntityName).WithPageSize(100));
+                var stored = getAll.Match(r => r.Data, e => throw new Exception($"Get failed | {e.Code} | {e.Message}"));
+
+                // Stored exactly as sent
+                foreach (var value in allValues)
+                {
+                    Assert.Equal(value, stored.Single(x => x.ID == ids[value]).Custom_String_Required);
+                }
+
+                // Each value finds exactly its own row
+                foreach (var value in allValues)
+                {
+                    var getResult = await ApilaneService.GetDataAsync<CustomEntityLight>(
+                        DataGetListRequest.New(CustomEntityLight.EntityName)
+                            .WithPageSize(100)
+                            .WithFilter(new FilterItem(nameof(CustomEntityLight.Custom_String_Required), FilterOperator.equal, value)));
+
+                    var data = getResult.Match(r => r.Data, e => throw new Exception($"Get failed | equal '{value}' | {e.Code} | {e.Message}"));
+                    Assert.True(data.Count == 1 && data.Single().ID == ids[value], $"equal '{value}' | expected id {ids[value]} | actual [{string.Join(", ", data.Select(x => $"{x.ID}:{x.Custom_String_Required}"))}]");
+                }
+            }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
         public async Task GetHistoryById_Should_Return_Record_Change_History(DatabaseType dbType, string? connectionString, bool useDiffEntity)
         {
             await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);

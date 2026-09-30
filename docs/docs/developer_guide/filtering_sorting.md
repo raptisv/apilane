@@ -69,6 +69,8 @@ This translates to: `Country = 'US' AND (Role = 'admin' OR Role = 'manager')`
 | `contains` | `like` | Contains substring | String |
 | `notcontains` | `nc` | Does not contain substring | String |
 
+String values are matched literally: `%`, `_`, `[` and `\` are ordinary characters, not wildcards or escapes, so send values unescaped. For example, `equal` `cust_1` does not match `custA1`, and `contains` `%` matches only values that contain a percent sign. String matching ignores case (on SQLite only for A–Z). On SQL Server and MySQL, case, accent and similar rules follow the database collation, which is case-insensitive by default.
+
 ### Matching a set of values (`IN`)
 
 Apilane has no dedicated `IN` operator. On a **numeric** property, `contains` and `notcontains` compile to SQL `IN (...)` / `NOT IN (...)` when the value is a comma-separated list of numbers. This is the established Apilane idiom for "match any of these IDs":

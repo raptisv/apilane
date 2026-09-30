@@ -48,6 +48,9 @@ Same setup as SQL Server — provide a connection string to an existing empty da
 Server=myserver;Database=myapp_db;User=myuser;Password=mypassword;
 ```
 
+!!!info "Character set"
+    Create the database with the `utf8mb4` character set (the MySQL 8 default), for example `CREATE DATABASE myapp_db CHARACTER SET utf8mb4;`. Apilane's tables inherit the database default, and `utf8mb3`/`latin1` databases cannot store or filter characters such as emoji.
+
 !!!warning "Your responsibility"
     Database management (backups, scaling, availability, index optimization) is a developer concern. Apilane handles schema management only.
 
