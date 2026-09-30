@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.1.0 (2026-10-01)
+- fix(security): keep the installation key out of URLs, git and defaults
+- fix(security): close filter/sort property authorization bypass
+- fix(security): close portal XSS sinks and stop embedding app keys in pages
+- fix(security): scope portal edits and deletes to the current application
+- fix(security): close SQL injection through the Stats groupBy suffix
+- fix(security): match string filter values literally, fix Unicode SQL literals
+
 ## 10.0.0 (2026-09-17)
 - chore: upgrade to .NET 10 and migrate portal UI to Tailwind CSS v4 + Alpine.js
 
