@@ -367,7 +367,7 @@ x-application-token: {appToken}
 | `pageIndex` | No | `1` | Page number |
 | `pageSize` | No | `20` | Records per page |
 | `filter` | No | `null` | JSON filter expression |
-| `groupBy` | No | `null` | Property name to group by |
+| `groupBy` | No | `null` | Comma-separated properties to group by. A date property may take a `.year`, `.month`, `.day`, `.hour`, `.minute` or `.second` suffix (e.g., `Created.year`), returned as `Created_year`. Any other suffix returns `INVALID_GROUPBY_PARAMETER` |
 | `orderDirection` | No | `DESC` | Sort direction: `ASC` or `DESC` |
 
 **Supported functions:** `Count`, `Min`, `Max`, `Sum`, `Avg`

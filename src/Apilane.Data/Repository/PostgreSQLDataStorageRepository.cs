@@ -4,6 +4,7 @@ using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Data.Abstractions;
 using Apilane.Data.Extensions;
+using Apilane.Data.Utilities;
 using Npgsql;
 using System;
 using System.Collections.Generic;
@@ -517,8 +518,8 @@ namespace Apilane.Data.Repository
             string sqlAggProps = string.Join(",", aggregates.Properties.Select(x => $" {x.Aggregate}(\"{x.Name}\") AS \"{x.Alias}\" "));
             string sqlAggPropsOrder = string.Join(",", aggregates.Properties.Select(x => $" {x.Aggregate}(\"{x.Name}\") {(sortAsc ? "ASC" : "DESC")} "));
 
-            var groupByProps = (group?.Properties?.Any() ?? false) ? $", {string.Join(",", group.Properties.Select(x => GetProperty(x).Query + GetProperty(x).Alias))}" : string.Empty;
-            var groupByGroup = (group?.Properties?.Any() ?? false) ? $"GROUP BY {string.Join(",", group.Properties.Select(x => GetProperty(x).Query))}" : string.Empty;
+            var groupByProps = (group?.Properties?.Any() ?? false) ? $", {string.Join(",", group.Properties.Select(x => $"{GetGroupExpression(x)} AS {SqlUtilis.QuoteIdentifier(x.Alias, DatabaseType.PostgreSQL)}"))}" : string.Empty;
+            var groupByGroup = (group?.Properties?.Any() ?? false) ? $"GROUP BY {string.Join(",", group.Properties.Select(x => GetGroupExpression(x)))}" : string.Empty;
 
             var dtResult = await ExecTableAsync($@"SELECT {sqlAggProps}
                                         {groupByProps}
@@ -531,17 +532,17 @@ namespace Apilane.Data.Repository
             return dtResult.ToDictionary();
         }
 
-        private static (string Query, string Alias) GetProperty(GroupData.GroupProperty property)
+        private static string GetGroupExpression(GroupData.GroupProperty property)
         {
             return property.Type switch
             {
-                GroupData.GroupByType.Date_Year => ($" EXTRACT(YEAR FROM to_timestamp(\"{property.Name}\" / 1000.0)) ", $" AS \"{property.Alias}\""),
-                GroupData.GroupByType.Date_Month => ($" EXTRACT(MONTH FROM to_timestamp(\"{property.Name}\" / 1000.0)) ", $" AS \"{property.Alias}\""),
-                GroupData.GroupByType.Date_Day => ($" EXTRACT(DAY FROM to_timestamp(\"{property.Name}\" / 1000.0)) ", $" AS \"{property.Alias}\""),
-                GroupData.GroupByType.Date_Hour => ($" EXTRACT(HOUR FROM to_timestamp(\"{property.Name}\" / 1000.0)) ", $" AS \"{property.Alias}\""),
-                GroupData.GroupByType.Date_Minute => ($" EXTRACT(MINUTE FROM to_timestamp(\"{property.Name}\" / 1000.0)) ", $" AS \"{property.Alias}\""),
-                GroupData.GroupByType.Date_Second => ($" EXTRACT(SECOND FROM to_timestamp(\"{property.Name}\" / 1000.0)) ", $" AS \"{property.Alias}\""),
-                _ => ($"\"{property.Name}\"", $" AS \"{property.Alias}\""),
+                GroupData.GroupByType.Date_Year => $" EXTRACT(YEAR FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
+                GroupData.GroupByType.Date_Month => $" EXTRACT(MONTH FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
+                GroupData.GroupByType.Date_Day => $" EXTRACT(DAY FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
+                GroupData.GroupByType.Date_Hour => $" EXTRACT(HOUR FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
+                GroupData.GroupByType.Date_Minute => $" EXTRACT(MINUTE FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
+                GroupData.GroupByType.Date_Second => $" EXTRACT(SECOND FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
+                _ => $"\"{property.Name}\"",
             };
         }
 

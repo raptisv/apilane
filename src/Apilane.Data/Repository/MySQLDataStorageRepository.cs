@@ -4,6 +4,7 @@ using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Data.Abstractions;
 using Apilane.Data.Extensions;
+using Apilane.Data.Utilities;
 using MySqlConnector;
 using System;
 using System.Collections.Generic;
@@ -527,8 +528,8 @@ namespace Apilane.Data.Repository
             string sqlAggProps = string.Join(",", aggregates.Properties.Select(x => $" {x.Aggregate}(`{x.Name}`) as '{x.Alias}' "));
             string sqlAggPropsOrder = string.Join(",", aggregates.Properties.Select(x => $" {x.Aggregate}(`{x.Name}`) {(sortAsc ? "ASC" : "DESC")} "));
 
-            var groupByProps = (group?.Properties?.Any() ?? false) ? $", + {string.Join(",", group.Properties.Select(x => GetProperty(x).Query + x.Alias))}" : string.Empty;
-            var groupByGroup = (group?.Properties?.Any() ?? false) ? $"GROUP BY {string.Join(",", group.Properties.Select(x => GetProperty(x).Query))}" : string.Empty;
+            var groupByProps = (group?.Properties?.Any() ?? false) ? $", + {string.Join(",", group.Properties.Select(x => $"{GetGroupExpression(x)} AS {SqlUtilis.QuoteIdentifier(x.Alias, DatabaseType.MySQL)}"))}" : string.Empty;
+            var groupByGroup = (group?.Properties?.Any() ?? false) ? $"GROUP BY {string.Join(",", group.Properties.Select(x => GetGroupExpression(x)))}" : string.Empty;
 
             var dtResult = await ExecTableAsync($@"SELECT {sqlAggProps}
                                         {groupByProps} 
@@ -541,17 +542,17 @@ namespace Apilane.Data.Repository
             return dtResult.ToDictionary();
         }
 
-        private static (string Query, string Alias) GetProperty(GroupData.GroupProperty property)
+        private static string GetGroupExpression(GroupData.GroupProperty property)
         {
             return property.Type switch
             {
-                GroupData.GroupByType.Date_Year => ($" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%Y')) ", $" AS {property.Alias}"),
-                GroupData.GroupByType.Date_Month => ($" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%c')) ", $" AS {property.Alias}"),
-                GroupData.GroupByType.Date_Day => ($" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%e')) ", $" AS {property.Alias}"),
-                GroupData.GroupByType.Date_Hour => ($" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%k')) ", $" AS {property.Alias}"),
-                GroupData.GroupByType.Date_Minute => ($" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%i')) ", $" AS {property.Alias}"),
-                GroupData.GroupByType.Date_Second => ($" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%s')) ", $" AS {property.Alias}"),
-                _ => ($"`{property.Name}`", $" AS {property.Alias}"),
+                GroupData.GroupByType.Date_Year => $" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%Y')) ",
+                GroupData.GroupByType.Date_Month => $" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%c')) ",
+                GroupData.GroupByType.Date_Day => $" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%e')) ",
+                GroupData.GroupByType.Date_Hour => $" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%k')) ",
+                GroupData.GroupByType.Date_Minute => $" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%i')) ",
+                GroupData.GroupByType.Date_Second => $" TRIM(LEADING '0' FROM FROM_UNIXTIME(IFNULL(`{property.Name}`, 0) / 1000, '%s')) ",
+                _ => $"`{property.Name}`",
             };
         }
 
