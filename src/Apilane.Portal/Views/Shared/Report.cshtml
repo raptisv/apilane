@@ -78,7 +78,7 @@
                         <button class="btn btn-sm btn-default" type="button" @@click="open = !open">
                             <i class="bi bi-three-dots"></i>
                         </button>
-                        <div class="dropdown-menu" x-show="open" x-transition x-cloak @@click="open = false">
+                        <div class="dropdown-menu dropdown-menu-end" x-show="open" x-transition x-cloak @@click="open = false">
                             <a href="@(Url.RouteUrl("AppRoute", new { controller = "Reports", action = "Edit", appid = Model.AppToken }))?ID=@Model.Report.ID" data-id="@Model.Report.ID" class="dropdown-item">Edit</a>
                             <a href="@(Url.RouteUrl("AppRoute", new { controller = "Reports", action = "Delete", appid = Model.AppToken }))?ID=@Model.Report.ID" data-id="@Model.Report.ID" class="dropdown-item">Delete</a>
                             <hr class="dropdown-divider" />

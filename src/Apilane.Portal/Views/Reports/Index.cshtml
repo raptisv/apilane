@@ -45,7 +45,10 @@
     <link rel="stylesheet" href="~/assets/vendor/gridstack/gridstack.min.css" />
     <style>
         .grid-stack { background: transparent; }
-        .grid-stack-item-content { inset: 0; overflow: hidden; }
+        .grid-stack-item-content { inset: 0; }
+        /* Panels must not clip (gridstack defaults to overflow-y: auto): the card body already clips
+           the chart, and the card's action menu has to be able to extend past the panel. */
+        .grid-stack > .grid-stack-item > .grid-stack-item-content { overflow: visible; }
         .grid-report .card-body { padding: 0.75rem; }
     </style>
 }

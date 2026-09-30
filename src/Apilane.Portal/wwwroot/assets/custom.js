@@ -194,7 +194,7 @@ function loadApplicationReportPanel(reportID, appToken, portalUserAuthToken, typ
         var urls = seriesDefs.map(function (s) { return s.url + '&AppToken=' + appToken; }).join('\n\n');
         Swal.fire({
             title: 'API endpoint' + (seriesDefs.length > 1 ? 's' : ''),
-            html: '<textarea readonly rows="10" class="w-full form-control">' + urls + '</textarea>',
+            html: '<textarea readonly rows="10" class="w-full form-control">' + apilaneEscapeHtml(urls) + '</textarea>',
             showCancelButton: false,
             confirmButtonText: 'Close',
             buttonsStyling: false,
