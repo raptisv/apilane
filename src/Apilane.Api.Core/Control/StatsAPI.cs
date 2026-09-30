@@ -242,15 +242,34 @@ namespace Apilane.Api.Core
                     throw new ApilaneException(AppErrors.UNAUTHORIZED, null, entityProperty.Name, entity: entity.Name);
                 }
 
+                // The suffix must be empty or a known date part (year, month, ...). Anything else is rejected,
+                // because the alias ends up in the generated SQL and must never carry request text.
                 var strType = parts.Length == 2 ? parts[1] : string.Empty;
+                if (!GroupData.TryParseType(strType, out var groupByType))
+                {
+                    throw new ApilaneException(AppErrors.INVALID_GROUPBY_PARAMETER, null, prop, entity: entity.Name);
+                }
 
                 return new GroupData.GroupProperty()
                 {
                     Name = entityProperty.Name,
-                    Alias = $"{entityProperty.Name}{(string.IsNullOrWhiteSpace(strType) ? string.Empty : $"_{strType.ToLower()}")}",
-                    Type = GroupData.ConvertToType(strType)
+                    Alias = GroupData.GetAlias(entityProperty.Name, groupByType),
+                    Type = groupByType
                 };
-            }).ToList();
+            })
+            // The same grouping written twice (e.g. "Created.year,Created.YEAR") is kept once
+            .DistinctBy(x => (x.Name, x.Type))
+            .ToList();
+
+            // Different groupings must not share a result column (e.g. "Created.year" and a property named "Created_year")
+            var duplicateAlias = propertiesResult
+                .GroupBy(x => x.Alias, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(x => x.Count() > 1);
+
+            if (duplicateAlias is not null)
+            {
+                throw new ApilaneException(AppErrors.INVALID_GROUPBY_PARAMETER, null, duplicateAlias.Key, entity: entity.Name);
+            }
 
             return new GroupData()
             {

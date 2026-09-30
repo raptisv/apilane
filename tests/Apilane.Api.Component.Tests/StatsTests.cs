@@ -10,7 +10,9 @@ using Apilane.Net.Services;
 using CasinoService.ComponentTests.Infrastructure;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -57,6 +59,22 @@ namespace Apilane.Api.Component.Tests
             public int Custom_Integer_Required { get; set; }
         }
 
+        private class CustomEntityWithDate : DataItem
+        {
+            public const string EntityName = "CustomEntityWithDate";
+            public int Custom_Integer_Required { get; set; }
+            public long Custom_Date { get; set; }
+        }
+
+        // Mid-month, mid-day UTC timestamps, so that no server/session time zone can move a record into another month or year.
+        private static readonly List<(DateTimeOffset Date, int Value)> DateRecords = new()
+        {
+            (new DateTimeOffset(2020, 3, 15, 12, 0, 0, TimeSpan.Zero), 1),
+            (new DateTimeOffset(2020, 3, 16, 12, 0, 0, TimeSpan.Zero), 2),
+            (new DateTimeOffset(2020, 7, 15, 12, 0, 0, TimeSpan.Zero), 3),
+            (new DateTimeOffset(2021, 3, 15, 12, 0, 0, TimeSpan.Zero), 4),
+        };
+
         [Theory]
         [ClassData(typeof(StorageConfigurationTestData))]
         public async Task Entity_Aggregate_Distinct_Should_Work(DatabaseType dbType, string? connectionString, bool useDiffEntity)
@@ -97,6 +115,166 @@ namespace Apilane.Api.Component.Tests
             {
                 await Assert_With_AuthToken_Security_Async(authToken, role, distinctRecords);
             }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task Entity_Aggregate_GroupBy_DatePart_And_Plain_Property_Should_Work(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeEntityWithDateAsync(dbType, connectionString, useDiffEntity);
+
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityWithDate.EntityName,
+                inRole: Globals.ANONYMOUS,
+                properties: new List<string>() { nameof(CustomEntityWithDate.Custom_Integer_Required), nameof(CustomEntityWithDate.Custom_Date) }))
+            {
+                // Group by year -> key "Custom_Date_year"
+                var byYear = await AggregateGroupBy_ShouldSucceedAsync("Custom_Date.year", StatsAggregateRequest.DataAggregates.Count);
+                AssertResultKeys(byYear, "Custom_Integer_Required_count", "Custom_Date_year");
+                Assert.Equal(
+                    new[] { (2020, 3), (2021, 1) },
+                    byYear.Select(x => (GetInt(x["Custom_Date_year"]), GetInt(x["Custom_Integer_Required_count"]))).OrderBy(x => x).ToArray());
+
+                // Group by month -> key "Custom_Date_month"
+                var byMonth = await AggregateGroupBy_ShouldSucceedAsync("Custom_Date.month", StatsAggregateRequest.DataAggregates.Sum);
+                AssertResultKeys(byMonth, "Custom_Integer_Required_sum", "Custom_Date_month");
+                Assert.Equal(
+                    new[] { (3, 1 + 2 + 4), (7, 3) },
+                    byMonth.Select(x => (GetInt(x["Custom_Date_month"]), GetInt(x["Custom_Integer_Required_sum"]))).OrderBy(x => x).ToArray());
+
+                // Mixed case and multiple date parts -> the same canonical lowercase keys as before
+                var byYearMonth = await AggregateGroupBy_ShouldSucceedAsync("Custom_Date.YEAR,Custom_Date.Month", StatsAggregateRequest.DataAggregates.Count);
+                AssertResultKeys(byYearMonth, "Custom_Integer_Required_count", "Custom_Date_year", "Custom_Date_month");
+                Assert.Equal(
+                    new[] { (2020, 3, 2), (2020, 7, 1), (2021, 3, 1) },
+                    byYearMonth.Select(x => (GetInt(x["Custom_Date_year"]), GetInt(x["Custom_Date_month"]), GetInt(x["Custom_Integer_Required_count"]))).OrderBy(x => x).ToArray());
+
+                // Plain property (no suffix) -> key is the bare property name
+                var byProperty = await AggregateGroupBy_ShouldSucceedAsync("Custom_Integer_Required", StatsAggregateRequest.DataAggregates.Count);
+                AssertResultKeys(byProperty, "Custom_Integer_Required_count", "Custom_Integer_Required");
+                Assert.Equal(
+                    new[] { (1, 1), (2, 1), (3, 1), (4, 1) },
+                    byProperty.Select(x => (GetInt(x["Custom_Integer_Required"]), GetInt(x["Custom_Integer_Required_count"]))).OrderBy(x => x).ToArray());
+            }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task Entity_Aggregate_GroupBy_Invalid_Suffix_Should_Fail(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeEntityWithDateAsync(dbType, connectionString, useDiffEntity);
+
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityWithDate.EntityName,
+                inRole: Globals.ANONYMOUS,
+                properties: new List<string>() { nameof(CustomEntityWithDate.Custom_Integer_Required), nameof(CustomEntityWithDate.Custom_Date), nameof(DataItem.Created) }))
+            {
+                var invalidGroupBys = new List<string>()
+                {
+                    "Created.x from Users--", // SQL injected through the alias suffix
+                    "Created.foo", // Unknown suffix, used to be accepted silently
+                    "Custom_Date.year--",
+                    "Custom_Date.year)",
+                    "Custom_Integer_Required,Created.foo", // Only the second item is invalid
+                };
+
+                foreach (var groupBy in invalidGroupBys)
+                {
+                    await AggregateGroupBy_ShouldFailAsync(groupBy, ValidationError.INVALID_GROUPBY_PARAMETER);
+                }
+
+                // The same request with a valid suffix still works
+                var byCreatedYear = await AggregateGroupBy_ShouldSucceedAsync("Created.year", StatsAggregateRequest.DataAggregates.Count);
+                AssertResultKeys(byCreatedYear, "Custom_Integer_Required_count", "Created_year");
+                Assert.Equal(DateRecords.Count, byCreatedYear.Sum(x => GetInt(x["Custom_Integer_Required_count"])));
+            }
+        }
+
+        private async Task InitializeEntityWithDateAsync(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
+
+            await AddEntityAsync(CustomEntityWithDate.EntityName);
+            await AddNumberPropertyAsync(CustomEntityWithDate.EntityName, nameof(CustomEntityWithDate.Custom_Integer_Required), required: false, decimalPlaces: 0);
+            await AddDatePropertyAsync(CustomEntityWithDate.EntityName, nameof(CustomEntityWithDate.Custom_Date), required: false);
+
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, CustomEntityWithDate.EntityName,
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(CustomEntityWithDate.Custom_Integer_Required), nameof(CustomEntityWithDate.Custom_Date) }))
+            {
+                foreach (var record in DateRecords)
+                {
+                    var postData = await ApilaneService.PostDataAsync(DataPostRequest.New(CustomEntityWithDate.EntityName), new CustomEntityWithDate()
+                    {
+                        Custom_Integer_Required = record.Value,
+                        Custom_Date = record.Date.ToUnixTimeMilliseconds()
+                    });
+
+                    postData.Match(response =>
+                    {
+                        Assert.NotNull(response);
+                        Assert.Single(response);
+                        Assert.True(response.Single() > 0);
+                    },
+                    error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+                }
+            }
+        }
+
+        private async Task<List<Dictionary<string, JsonElement>>> AggregateGroupBy_ShouldSucceedAsync(string groupBy, StatsAggregateRequest.DataAggregates aggregate)
+        {
+            var request = StatsAggregateRequest.New(CustomEntityWithDate.EntityName)
+                .WithGroupBy(groupBy)
+                .WithProperty(nameof(CustomEntityWithDate.Custom_Integer_Required), aggregate);
+
+            var getData = await ApilaneService.GetStatsAggregateAsync(request);
+
+            return getData.Match(response =>
+            {
+                Assert.NotNull(response);
+                return JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(response)
+                    ?? throw new Exception($"Invalid aggregate response '{response}'");
+            },
+            error => throw new Exception($"We should not be here | groupBy '{groupBy}' | {error.Code} | {error.Message} | {error.Property}"));
+        }
+
+        private async Task AggregateGroupBy_ShouldFailAsync(string groupBy, ValidationError expectedError)
+        {
+            var request = StatsAggregateRequest.New(CustomEntityWithDate.EntityName)
+                .WithGroupBy(groupBy)
+                .WithProperty(nameof(CustomEntityWithDate.Custom_Integer_Required), StatsAggregateRequest.DataAggregates.Count);
+
+            var getData = await ApilaneService.GetStatsAggregateAsync(request);
+
+            getData.Match(response => throw new Exception($"We should not be here | groupBy '{groupBy}' returned '{response}'"),
+            error =>
+            {
+                Assert.NotNull(error);
+                Assert.Equal(expectedError, error.Code);
+            });
+        }
+
+        private static void AssertResultKeys(List<Dictionary<string, JsonElement>> rows, params string[] expectedKeys)
+        {
+            Assert.NotEmpty(rows);
+            foreach (var row in rows)
+            {
+                Assert.Equal(
+                    expectedKeys.OrderBy(x => x, StringComparer.Ordinal),
+                    row.Keys.OrderBy(x => x, StringComparer.Ordinal));
+            }
+        }
+
+        /// <summary>
+        /// Group values come back as numbers or strings depending on the database (e.g. SQLite strftime returns "03").
+        /// </summary>
+        private static int GetInt(JsonElement element)
+        {
+            return element.ValueKind switch
+            {
+                JsonValueKind.Number => (int)element.GetDecimal(),
+                JsonValueKind.String => int.Parse((element.GetString() ?? string.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture),
+                _ => throw new Exception($"Unexpected aggregate value '{element}'")
+            };
         }
 
         private async Task FillEntityWithDataAsync(int dataCount)
