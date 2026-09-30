@@ -28,12 +28,10 @@ namespace Apilane.Api.Controllers
         }
 
         [HttpPost]
-        public async Task<bool> Generate([FromBody] DBWS_Application application, [FromQuery] string? installationKey = null)
+        public async Task<bool> Generate([FromBody] DBWS_Application application)
         {
-            // The key is expected in the x-installation-key header. The query parameter is only a
-            // fallback for portal instances that have not been upgraded yet (it ends up in logs).
-            var headerKey = Request.Headers[Globals.InstallationKeyHeaderName].ToString();
-            var providedKey = !string.IsNullOrWhiteSpace(headerKey) ? headerKey : installationKey;
+            // The portal sends the installation key only in the x-installation-key header, never in the URL.
+            var providedKey = Request.Headers[Globals.InstallationKeyHeaderName].ToString();
 
             if (!SecureCompare.AreEqual(_apiConfiguration.InstallationKey, providedKey))
             {
