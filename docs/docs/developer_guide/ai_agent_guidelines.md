@@ -303,7 +303,7 @@ var filter = new FilterItem("ID", FilterOperator.contains, string.Join(",", ids)
 const filter = FilterItem.condition('ID', FilterOperator.contains, ids.join(','));
 ```
 
-On a **string** property `contains` is a substring match (`LIKE`), not set membership.
+On a **string** property `contains` is a substring match (`LIKE`), not set membership. String values are matched literally: `%`, `_`, `[` and `\` in the value are not wildcards or escapes, so never escape them.
 
 ---
 

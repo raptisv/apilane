@@ -8,6 +8,7 @@ using Apilane.Net.Request;
 using Apilane.Net.Services;
 using CasinoService.ComponentTests.Infrastructure;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -53,6 +54,67 @@ namespace Apilane.Api.Component.Tests
             public decimal Custom_Decimal { get; set; }
             public bool Custom_Bool { get; set; }
             public long Custom_Date { get; set; }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task Login_With_Pattern_Characters_In_Identifier_Should_Fail(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            await InitializeApplicationAsync(dbType, connectionString, useDiffEntity);
+
+            var userName = "wildXcard";
+            var userEmail = "wildXcard@test.com";
+            var userPassword = "password";
+
+            var registerResult = await ApilaneService.AccountRegisterAsync(AccountRegisterRequest.New(new Apilane.Net.Models.Account.RegisterItem()
+            {
+                Username = userName,
+                Email = userEmail,
+                Password = userPassword
+            }));
+
+            registerResult.Match(newUserId => Assert.True(newUserId > 0),
+            error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+
+            // LIKE wildcards must not stand in for the identifier: one request would otherwise test the password against every account
+
+            var wildcardLogins = new List<LoginItem>()
+            {
+                new LoginItem() { Username = "%", Password = userPassword },
+                new LoginItem() { Username = "wild%", Password = userPassword },
+                new LoginItem() { Username = "wild_card", Password = userPassword },
+                new LoginItem() { Email = "%@test.com", Password = userPassword },
+                new LoginItem() { Email = "wild_card@test.com", Password = userPassword },
+            };
+
+            foreach (var loginItem in wildcardLogins)
+            {
+                var loginResult = await ApilaneService.AccountLoginAsync<UserItem>(AccountLoginRequest.New(loginItem));
+
+                loginResult.Match(success => throw new Exception($"We should not be here | {loginItem.Username} | {loginItem.Email}"),
+                error =>
+                {
+                    Assert.NotNull(error);
+                    Assert.Equal(ValidationError.ERROR, error.Code);
+                });
+            }
+
+            // The real identifiers still log in, case-insensitively as before
+
+            var validLogins = new List<LoginItem>()
+            {
+                new LoginItem() { Username = userName, Password = userPassword },
+                new LoginItem() { Username = userName.ToUpperInvariant(), Password = userPassword },
+                new LoginItem() { Email = userEmail, Password = userPassword },
+            };
+
+            foreach (var loginItem in validLogins)
+            {
+                var loginResult = await ApilaneService.AccountLoginAsync<UserItem>(AccountLoginRequest.New(loginItem));
+
+                loginResult.Match(success => Assert.Equal(userEmail, success.User.Email),
+                error => throw new Exception($"We should not be here | {loginItem.Username} | {loginItem.Email} | {error.Code} | {error.Message}"));
+            }
         }
 
         [Theory]

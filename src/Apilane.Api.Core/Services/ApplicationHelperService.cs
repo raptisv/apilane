@@ -179,6 +179,11 @@ namespace Apilane.Api.Core.Services
 
         public async Task<long?> GetUserIdFromEmailConfitmationTokenAsync(string confirmationToken)
         {
+            if (!IsTokenFormat(confirmationToken))
+            {
+                return null;
+            }
+
             var oneHourAgoMs = Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow.AddHours(-1));
 
             var filter = new FilterData(FilterData.FilterLogic.AND, new List<FilterData>()
@@ -196,6 +201,11 @@ namespace Apilane.Api.Core.Services
 
         public async Task<long?> GetUserIdFromPasswordResetTokenAsync(string resetToken)
         {
+            if (!IsTokenFormat(resetToken))
+            {
+                return null;
+            }
+
             var filter = new FilterData(nameof(H_Auth_Password_Reset_Tokens.Token), FilterData.FilterOperators.equal, resetToken, PropertyType.String);
 
             var rows = await _factory.GetPagedDataAsync(nameof(H_Auth_Password_Reset_Tokens), null, filter, null, 1, 1);
@@ -207,9 +217,23 @@ namespace Apilane.Api.Core.Services
 
         public async Task DeletePasswordResetTokenAsync(string resetToken)
         {
+            if (!IsTokenFormat(resetToken))
+            {
+                return;
+            }
+
             await _factory.DeleteDataAsync(
                 nameof(H_Auth_Password_Reset_Tokens),
                 new FilterData(nameof(H_Auth_Password_Reset_Tokens.Token), FilterData.FilterOperators.equal, resetToken, PropertyType.String));
+        }
+
+        /// <summary>
+        /// Email confirmation and password reset tokens are always GUIDs (see ApplicationEmailService).
+        /// Anything else is rejected before it reaches a query.
+        /// </summary>
+        private static bool IsTokenFormat(string? token)
+        {
+            return Guid.TryParse(token, out _);
         }
     }
 }

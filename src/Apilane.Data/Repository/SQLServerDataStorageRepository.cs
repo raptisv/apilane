@@ -603,8 +603,8 @@ namespace Apilane.Data.Repository
                 return decimalVal.ToString().Replace(",", ".");
             }
 
-            // All the rest
-            return $"'{Utils.GetString(val).Replace("'", "''").Trim()}'";
+            // All the rest. N'' so that text is not converted to the database code page (e.g. 'Łukasz' -> 'Lukasz', 'Иван' -> '????')
+            return $"N'{Utils.GetString(val).Replace("'", "''").Trim()}'";
         }
     }
 }
