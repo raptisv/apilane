@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Data;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Apilane.Portal.Controllers
 {
@@ -29,20 +30,26 @@ namespace Apilane.Portal.Controllers
         /// Loads the application info when requested from api
         /// </summary>
         [HttpGet]
-        public IActionResult GetApplication(string appToken)
+        public async Task<IActionResult> GetApplication(string appToken)
         {
             if (!IsInstallationKeyValid())
             {
                 return Unauthorized();
             }
 
-            var application = _dbContext.Applications
+            // Split query: as one query, the sibling collections (collaborators, custom endpoints, entity
+            // properties) multiply into every combination, each row repeating all application columns,
+            // which made large applications slow enough to time out the API's call.
+            // No tracking: the result is only serialized, never saved.
+            var application = await _dbContext.Applications
+                .AsNoTracking()
+                .AsSplitQuery()
                 .Include(a => a.Collaborates)
                 .Include(a => a.CustomEndpoints)
                 .Include(a => a.Server)
                 .Include(a => a.Entities)
                 .ThenInclude(e => e.Properties)
-                .SingleOrDefault(x => x.Token == appToken);
+                .SingleOrDefaultAsync(x => x.Token == appToken);
 
             return Json(application);
         }
