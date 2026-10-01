@@ -36,11 +36,105 @@ namespace Apilane.Data.Repository
             {
                 _databaseConnection.Open();
 
-                // Enable extensions
+                // Extensions are enabled only long enough to load FTS5. While they are enabled, SQL can call
+                // load_extension() and load any native library into this process.
                 _databaseConnection.EnableExtensions(true);
-
-                //Enable fts5
                 _databaseConnection.LoadExtension(GetPathToSqliteInterop(), "sqlite3_fts5_init");
+                _databaseConnection.EnableExtensions(false);
+
+                // Application owners write custom endpoint SQL that runs on this connection, so confine it to
+                // its own database file: no attached databases (which also disables VACUUM INTO), and an
+                // authorizer for the statements a limit cannot express.
+                _databaseConnection.SetLimitOption(SQLiteLimitOpsEnum.SQLITE_LIMIT_ATTACHED, 0);
+
+                // Defensive mode: SQL cannot write raw pages (sqlite_dbpage), FTS shadow tables or the schema
+                // table, so it cannot craft a deliberately corrupt database for the engine to parse.
+                _databaseConnection.SetConfigurationOption(SQLiteConfigDbOpsEnum.SQLITE_DBCONFIG_DEFENSIVE, true);
+
+                _databaseConnection.Authorize -= AuthorizeStatement;
+                _databaseConnection.Authorize += AuthorizeStatement;
+            }
+        }
+
+        /// <summary>
+        /// PRAGMA statements that stay available: foreign_keys (this repository sets it on every command),
+        /// data_version and page_size (the full-text and R-Tree modules read them internally) and read-only
+        /// schema introspection. Every other PRAGMA is
+        /// denied, because several of them reach beyond the database (temp_store_directory), change the
+        /// whole process (hard_heap_limit) or let the schema be rewritten (writable_schema).
+        /// </summary>
+        private static readonly HashSet<string> _allowedPragmas = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "foreign_keys",
+            "data_version",
+            "page_size",
+            "table_info",
+            "table_xinfo",
+            "table_list",
+            "index_list",
+            "index_info",
+            "index_xinfo",
+            "foreign_key_list",
+            "foreign_key_check"
+        };
+
+        /// <summary>
+        /// Virtual table modules that may be created: full-text search and R-Tree, which only use the
+        /// database itself. Modules that read or write other files (csv, zipfile, ...) are not part of the
+        /// bundled SQLite build today; the allow list keeps it that way if the build ever changes.
+        /// </summary>
+        private static readonly HashSet<string> _allowedVirtualTableModules = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "fts5",
+            "fts5vocab",
+            "fts4",
+            "fts3",
+            "rtree"
+        };
+
+        /// <summary>
+        /// Functions that load code or touch the file system. Only load_extension exists in the bundled
+        /// build (and is disabled above); the others are denied by name for the same reason as the modules.
+        /// </summary>
+        private static readonly HashSet<string> _deniedFunctions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "load_extension",
+            "readfile",
+            "writefile",
+            "edit",
+            "fts3_tokenizer"
+        };
+
+        /// <summary>
+        /// SQLite calls this while compiling every statement. Denying an action makes the statement fail
+        /// with "not authorized" before it runs.
+        /// </summary>
+        private static void AuthorizeStatement(object sender, AuthorizerEventArgs e)
+        {
+            switch (e.ActionCode)
+            {
+                case SQLiteAuthorizerActionCode.Attach:
+                case SQLiteAuthorizerActionCode.Detach:
+                    e.ReturnCode = SQLiteAuthorizerReturnCode.Deny;
+                    break;
+                case SQLiteAuthorizerActionCode.Pragma:
+                    if (!_allowedPragmas.Contains(e.Argument1 ?? string.Empty))
+                    {
+                        e.ReturnCode = SQLiteAuthorizerReturnCode.Deny;
+                    }
+                    break;
+                case SQLiteAuthorizerActionCode.Function:
+                    if (_deniedFunctions.Contains(e.Argument2 ?? string.Empty))
+                    {
+                        e.ReturnCode = SQLiteAuthorizerReturnCode.Deny;
+                    }
+                    break;
+                case SQLiteAuthorizerActionCode.CreateVtable:
+                    if (!_allowedVirtualTableModules.Contains(e.Argument2 ?? string.Empty))
+                    {
+                        e.ReturnCode = SQLiteAuthorizerReturnCode.Deny;
+                    }
+                    break;
             }
         }
 
