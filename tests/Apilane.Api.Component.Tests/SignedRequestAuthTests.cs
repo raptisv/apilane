@@ -93,6 +93,55 @@ namespace Apilane.Api.Component.Tests
 
         [Theory]
         [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task Filter_Values_With_Url_Characters_Are_Sent_Literally(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            var (keyId, token) = await SetupAndLoginAsync(dbType, connectionString, useDiffEntity);
+
+            var allValues = new[] { "custA", "cust%41", "a#b", "a&b+c", "x" };
+            foreach (var value in allValues)
+            {
+                var postResult = await ApilaneService.PostDataAsync(
+                    DataPostRequest.New(CustomEntityLight.EntityName).WithAuthToken(token),
+                    new { Custom_String_Required = value });
+                postResult.Match(r => r.Single(), e => throw new Exception($"Post failed | {value} | {e.Code} | {e.Message}"));
+            }
+
+            // Bearer and signed requests: the signature covers the encoded path and query
+            var requests = new Func<DataGetListRequest>[]
+            {
+                () => DataGetListRequest.New(CustomEntityLight.EntityName).WithAuthToken(token),
+                () => DataGetListRequest.New(CustomEntityLight.EntityName).WithSigning(keyId, token)
+            };
+
+            foreach (var newRequest in requests)
+            {
+                async Task AssertEqualFilterAsync(string filterValue, params string[] expectedValues)
+                {
+                    var getResult = await ApilaneService.GetDataAsync<CustomEntityLight>(
+                        newRequest()
+                            .WithPageSize(100)
+                            .WithFilter(new FilterItem(nameof(CustomEntityLight.Custom_String_Required), FilterOperator.equal, filterValue)));
+
+                    var data = getResult.Match(r => r.Data, e => throw new Exception($"Get failed | equal '{filterValue}' | {e.Code} | {e.Message}"));
+                    var actual = data.Select(x => x.Custom_String_Required).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+                    Assert.True(expectedValues.OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(actual), $"equal '{filterValue}' | actual [{string.Join(", ", actual)}]");
+                }
+
+                // "%41" is not decoded to 'A'
+                await AssertEqualFilterAsync("cust%41", "cust%41");
+                await AssertEqualFilterAsync("custA", "custA");
+
+                // '#' does not cut the query off, '&' and '+' stay part of the value
+                await AssertEqualFilterAsync("a#b", "a#b");
+                await AssertEqualFilterAsync("a&b+c", "a&b+c");
+
+                // "%22" does not close the JSON string and rewrite the filter (here: equal -> notequal)
+                await AssertEqualFilterAsync("x%22,%22Operator%22:%22notequal");
+            }
+        }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
         public async Task SignedRequest_With_Invalid_Credentials_Is_Unauthorized(DatabaseType dbType, string? connectionString, bool useDiffEntity)
         {
             var (keyId, token) = await SetupAndLoginAsync(dbType, connectionString, useDiffEntity);

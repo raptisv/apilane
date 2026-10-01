@@ -89,12 +89,12 @@ namespace Apilane.Net.Services
 
         public string UrlFor_Email_RequestConfirmation(string email)
         {
-            return $"{_config.ApplicationApiUrl.TrimEnd('/')}/api/Email/RequestConfirmation?AppToken={_config.ApplicationToken}&Email={email}";
+            return $"{_config.ApplicationApiUrl.TrimEnd('/')}/api/Email/RequestConfirmation?AppToken={Uri.EscapeDataString(_config.ApplicationToken)}&Email={Uri.EscapeDataString(email)}";
         }
 
         public string UrlFor_Email_ForgotPassword(string email)
         {
-            return $"{_config.ApplicationApiUrl.TrimEnd('/')}/api/Email/ForgotPassword?AppToken={_config.ApplicationToken}&Email={email}";
+            return $"{_config.ApplicationApiUrl.TrimEnd('/')}/api/Email/ForgotPassword?AppToken={Uri.EscapeDataString(_config.ApplicationToken)}&Email={Uri.EscapeDataString(email)}";
         }
 
         /// <summary>

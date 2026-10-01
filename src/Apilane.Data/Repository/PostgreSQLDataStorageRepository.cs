@@ -175,8 +175,11 @@ namespace Apilane.Data.Repository
 
         public static void ConfirmDatabaseExists(string connString)
         {
-            // Just test if database exists
-            new PostgreSQLDataStorageRepository(connString).TryOpenConnection();
+            // Just test if database exists. Dispose, otherwise the connection never returns to the pool.
+            using (var repository = new PostgreSQLDataStorageRepository(connString))
+            {
+                repository.TryOpenConnection();
+            }
         }
 
         public Task CreateTableWithPrimaryKeyAsync(string tableName)

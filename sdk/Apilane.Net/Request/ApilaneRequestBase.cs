@@ -1,4 +1,5 @@
-﻿using System.Collections.Specialized;
+﻿using System;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -116,10 +117,12 @@ namespace Apilane.Net.Request
                 baseParams.Add("Entity", _entity);
             }
 
+            // Keys and values are URL-encoded: unencoded, a value like "cust%41" reaches the API as "custA",
+            // '#' cuts the query off and "%22" closes the JSON string of a filter.
             var listOfQueryStringValues = (
                 from key in baseParams.AllKeys.Where(x => baseParams.GetValues(x) != null)
                 from value in baseParams.GetValues(key)
-                select string.Format("{0}={1}", key, value)).ToList();
+                select string.Format("{0}={1}", EncodeQueryPart(key), EncodeQueryPart(value))).ToList();
 
             var extraParams = GetExtraParams();
 
@@ -129,12 +132,20 @@ namespace Apilane.Net.Request
                 var extraParamsList = (
                 from key in extraParams.AllKeys.Where(x => extraParams.GetValues(x) != null)
                 from value in extraParams.GetValues(key)
-                select string.Format("{0}={1}", key, value)).ToList();
+                select string.Format("{0}={1}", EncodeQueryPart(key), EncodeQueryPart(value))).ToList();
 
                 listOfQueryStringValues.AddRange(extraParamsList);
             }
 
             return $"{apiUrl?.TrimEnd('/')}/api/{_controller}/{_action}?" + string.Join("&", listOfQueryStringValues);
+        }
+
+        private static string EncodeQueryPart(string value)
+        {
+            // ',' and ':' are safe inside a query and are kept readable: escaping them only lengthens id lists
+            // and JSON filters, and the API rejects request lines above 8 KB. A literal "%2C" in the value is
+            // escaped to "%252C", so the replacements cannot change a value.
+            return Uri.EscapeDataString(value).Replace("%2C", ",").Replace("%3A", ":");
         }
     }
 }

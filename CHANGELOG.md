@@ -1,7 +1,9 @@
 # Changelog
 
 ## 10.1.0 (2026-10-01)
+- **Upgrade the API and the Portal together.** They no longer accept the installation key or the portal user's token in the URL, so a 10.1.0 service and an older one cannot talk to each other.
 - fix(security): keep the installation key out of URLs, git and defaults
+- The key is sent and accepted only in the `x-installation-key` header, and the portal user's token only in the `Authorization` header. There is no fallback to the old `?key=`, `?installationKey=` or `?authToken=` parameters.
 - fix(security): close filter/sort property authorization bypass
 - fix(security): close portal XSS sinks and stop embedding app keys in pages
 - fix(security): scope portal edits and deletes to the current application
