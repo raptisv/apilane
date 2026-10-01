@@ -1,5 +1,10 @@
 # Changelog
 
+## 10.1.1 (2026-10-01)
+fix(sdk): Apilane.Net 10.1.1
+fix(sdk): URL-encode query values in Apilane.Net requests
+fix(portal): stop /Info/GetApplication from timing out on large apps
+
 ## 10.1.0 (2026-10-01)
 - **Upgrade the API and the Portal together.** They no longer accept the installation key or the portal user's token in the URL, so a 10.1.0 service and an older one cannot talk to each other.
 - fix(security): keep the installation key out of URLs, git and defaults
