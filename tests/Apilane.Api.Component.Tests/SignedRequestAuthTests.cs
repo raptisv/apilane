@@ -12,10 +12,9 @@ using Xunit;
 
 namespace Apilane.Api.Component.Tests
 {
-    [Collection(nameof(ApilaneApiComponentTestsCollection))]
     public class SignedRequestAuthTests : AppicationTestsBase
     {
-        public SignedRequestAuthTests(SuiteContext suiteContext) : base(suiteContext)
+        public SignedRequestAuthTests() : base(SuiteContext.Shared)
         {
         }
 

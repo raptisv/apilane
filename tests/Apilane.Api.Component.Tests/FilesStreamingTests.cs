@@ -18,10 +18,10 @@ using Xunit;
 
 namespace Apilane.Api.Component.Tests
 {
-    [Collection(nameof(ApilaneApiComponentTestsCollection))]
+    [Collection(nameof(SequentialTestsCollection))]
     public class FilesStreamingTests : AppicationTestsBase
     {
-        public FilesStreamingTests(SuiteContext suiteContext) : base(suiteContext)
+        public FilesStreamingTests() : base(SuiteContext.Shared)
         {
         }
 

@@ -65,14 +65,20 @@ namespace Apilane.Api.Core.Services
 
             await _applicationDataStoreFactory.DisposeAsync();
 
-            // !IMPORTANT. Let garbage collector finish
+            var filesRootDirectoryInfo = application.Token.GetFilesRootDirectoryInfo(_apiConfiguration.FilesPath);
 
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
+            // !IMPORTANT. Let garbage collector finish, so finalizers release any handle still open on the
+            // files deleted below (the SQLite database file, stored files). A forced collection pauses the
+            // whole process, so skip it when there is nothing on disk to delete.
+
+            if (databaseType == DatabaseType.SQLLite || filesRootDirectoryInfo.Exists)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
 
             // Delete files
 
-            var filesRootDirectoryInfo = application.Token.GetFilesRootDirectoryInfo(_apiConfiguration.FilesPath);
             if (filesRootDirectoryInfo.Exists)
             {
                 filesRootDirectoryInfo.Delete(true);

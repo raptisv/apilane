@@ -15,10 +15,9 @@ using Xunit;
 
 namespace Apilane.Api.Component.Tests
 {
-    [Collection(nameof(ApilaneApiComponentTestsCollection))]
     public class FileTests : AppicationTestsBase
     {
-        public FileTests(SuiteContext suiteContext) : base(suiteContext)
+        public FileTests() : base(SuiteContext.Shared)
         {
 
         }

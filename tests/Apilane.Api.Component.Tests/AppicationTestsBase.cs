@@ -20,14 +20,19 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Apilane.Api.Component.Tests
 {
-    public abstract class AppicationTestsBase
+    public abstract class AppicationTestsBase : IDisposable
     {
-        private string _appToken = "11111111-1111-1111-1111-111111111111";
+        // Test classes run in parallel against one API host. Each class gets its own application token and
+        // its own databases (derived from the class name), so classes never touch each other's data.
+        private readonly string _appToken;
+        private readonly string _databaseName;
         protected string DiffEntityName = "Company";
         protected DBWS_Application TestApplication = null!;
 
@@ -41,8 +46,11 @@ namespace Apilane.Api.Component.Tests
 
         public AppicationTestsBase(SuiteContext suiteContext)
         {
+            _appToken = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(GetType().Name)).AsSpan(0, 16)).ToString();
+            _databaseName = GetDatabaseName(GetType());
+
             _databases = suiteContext.Databases;
-            HttpClient = suiteContext.HttpClient;
+            HttpClient = suiteContext.CreateHttpClient();
             ClusterClient = suiteContext.Fixture.ClusterClient;
             PortalInfoServiceMock = suiteContext.Fixture.MockIPortalInfoService;
             ApplicationServiceMock = suiteContext.Fixture.MockIApplicationService;
@@ -54,6 +62,18 @@ namespace Apilane.Api.Component.Tests
                 ApplicationApiUrl = suiteContext.Fixture.ApiConfiguration.Url,
                 ApplicationToken = _appToken
             });
+        }
+
+        /// <summary>The name of the server database (SQL Server, MySQL, PostgreSQL) a test class uses.</summary>
+        public static string GetDatabaseName(Type testClass)
+        {
+            return $"TestApp_{testClass.Name}";
+        }
+
+        public void Dispose()
+        {
+            HttpClient.Dispose();
+            GC.SuppressFinalize(this);
         }
 
         protected class RateLimitConfigurationTestData : IEnumerable<object[]>
@@ -410,7 +430,7 @@ namespace Apilane.Api.Component.Tests
             bool useDiffEntity)
         {
             // Server databases run in Docker containers, started on first use
-            connectionString ??= await _databases.GetConnectionStringAsync(databaseType);
+            connectionString ??= await _databases.GetConnectionStringAsync(databaseType, _databaseName);
 
             using (new WithApplicationOwnerAccess(_appToken, PortalInfoServiceMock))
             {

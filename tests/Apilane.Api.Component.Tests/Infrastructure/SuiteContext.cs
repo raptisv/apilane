@@ -1,26 +1,41 @@
-﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Component.Tests;
+using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
+using Apilane.Common;
 using FakeItEasy;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
-using System.Threading.Tasks;
-using Xunit;
 
 namespace CasinoService.ComponentTests.Infrastructure
 {
-    public class SuiteContext : IDisposable, IAsyncLifetime
+    /// <summary>
+    /// The API host and the database containers of a test run. There is one instance for the whole run
+    /// (<see cref="Shared"/>): the API serves many applications at once, so the test classes run in
+    /// parallel against the same host, each with its own application and databases. It lives until the
+    /// test process exits; Testcontainers' resource reaper then removes the containers.
+    /// </summary>
+    public class SuiteContext
     {
+        private static readonly Lazy<SuiteContext> _shared = new Lazy<SuiteContext>(() => new SuiteContext());
+
+        public static SuiteContext Shared => _shared.Value;
+
         public WebApplicationFactory<Apilane.Api.Program> Factory { get; }
         public Fixture Fixture { get; }
-        public HttpClient HttpClient { get; }
 
-        /// <summary>The database servers the tests run against, in Docker containers.</summary>
-        public DatabaseContainers Databases { get; } = new DatabaseContainers();
+        /// <summary>
+        /// The database servers the tests run against, in Docker containers, with one database per test class.
+        /// </summary>
+        public DatabaseContainers Databases { get; } = new DatabaseContainers(
+            typeof(AppicationTestsBase).Assembly.GetTypes()
+                .Where(type => !type.IsAbstract && type.IsSubclassOf(typeof(AppicationTestsBase)))
+                .Select(AppicationTestsBase.GetDatabaseName));
 
-        public SuiteContext()
+        private SuiteContext()
         {
             Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development", EnvironmentVariableTarget.Process);
 
@@ -56,28 +71,30 @@ namespace CasinoService.ComponentTests.Infrastructure
 
             Factory.Server.BaseAddress = new Uri(apiConfiguration.Url);
 
-            HttpClient = Factory.CreateClient(new WebApplicationFactoryClientOptions()
-            {
-                BaseAddress = new Uri(apiConfiguration.Url)
-            });
-
             Fixture = new Fixture(Factory.Services);
         }
 
-        public void Dispose()
+        /// <summary>
+        /// Creates a client for one test. Clients are not shared: the SDK stores the application token in
+        /// the client's default headers, so a shared client would send every class's requests to whichever
+        /// application registered first.
+        /// </summary>
+        public HttpClient CreateHttpClient()
         {
-            Factory.Dispose();
-        }
+            HttpClient client;
 
-        public Task InitializeAsync()
-        {
-            // Nothing to do up front: the database containers start when the first test needs them.
-            return Task.CompletedTask;
-        }
+            // The factory keeps its clients in a plain list, and tests are constructed on several threads
+            lock (Factory)
+            {
+                client = Factory.CreateClient(new WebApplicationFactoryClientOptions()
+                {
+                    BaseAddress = Factory.Server.BaseAddress
+                });
+            }
 
-        public async Task DisposeAsync()
-        {
-            await Databases.DisposeAsync();
+            client.DefaultRequestHeaders.Add(Globals.ClientIdHeaderName, Globals.ClientIdHeaderValuePortal);
+
+            return client;
         }
 
         private static void SetIfMissing(string name, string value)

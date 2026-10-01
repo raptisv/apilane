@@ -17,10 +17,9 @@ using Xunit;
 
 namespace Apilane.Api.Component.Tests
 {
-    [Collection(nameof(ApilaneApiComponentTestsCollection))]
     public class DataWithDiffEntityTests : AppicationTestsBase
     {
-        public DataWithDiffEntityTests(SuiteContext suiteContext) : base(suiteContext)
+        public DataWithDiffEntityTests() : base(SuiteContext.Shared)
         {
 
         }

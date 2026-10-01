@@ -17,10 +17,9 @@ using Xunit;
 
 namespace Apilane.Api.Component.Tests
 {
-    [Collection(nameof(ApilaneApiComponentTestsCollection))]
     public class RateLimitTests : AppicationTestsBase
     {
-        public RateLimitTests(SuiteContext suiteContext) : base(suiteContext)
+        public RateLimitTests() : base(SuiteContext.Shared)
         {
 
         }

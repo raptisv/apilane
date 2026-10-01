@@ -16,10 +16,9 @@ using Xunit;
 
 namespace Apilane.Api.Component.Tests
 {
-    [Collection(nameof(ApilaneApiComponentTestsCollection))]
     public class ConstraintTests : AppicationTestsBase
     {
-        public ConstraintTests(SuiteContext suiteContext) : base(suiteContext)
+        public ConstraintTests() : base(SuiteContext.Shared)
         {
         }
 

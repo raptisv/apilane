@@ -14,13 +14,13 @@ using Xunit.Abstractions;
 
 namespace Apilane.Api.Component.Tests
 {
-    [Collection(nameof(ApilaneApiComponentTestsCollection))]
+    [Collection(nameof(SequentialTestsCollection))]
     public class FilesPerformanceTests : AppicationTestsBase
     {
         private readonly ITestOutputHelper _output;
 
-        public FilesPerformanceTests(SuiteContext suiteContext, ITestOutputHelper output)
-            : base(suiteContext)
+        public FilesPerformanceTests(ITestOutputHelper output)
+            : base(SuiteContext.Shared)
         {
             _output = output;
         }

@@ -69,11 +69,19 @@ dotnet test --logger "console;verbosity=detailed"
 ```
 
 **Unit tests** use **MSTest** (`[TestClass]`, `[TestMethod]`).  
-**Component tests** use **xUnit** (`[Collection]`, `[Fact]`, `[Theory]`) + **FakeItEasy** mocks.
+**Component tests** use **xUnit** (`[Fact]`, `[Theory]`) + **FakeItEasy** mocks.
 
 Component tests run against SQLite, SQL Server, MySQL and PostgreSQL. The three servers are started
 as Docker containers by **Testcontainers** (see `Infrastructure/DatabaseContainers.cs`), on random
 ports, and removed when the run ends. **Docker must be running**; nothing else has to be installed.
+
+Component test **classes run in parallel** against one shared API host (`SuiteContext.Shared`). Each
+class gets its own application token and its own databases, derived from the class name, so:
+
+- Never share state between test classes, and never hardcode an application token or database name.
+- Use the `HttpClient` / `ApilaneService` of the test base; they are created per test.
+- A class that measures process memory or timings must opt out with
+  `[Collection(nameof(SequentialTestsCollection))]`; those classes run alone after the parallel ones.
 
 ---
 
@@ -245,10 +253,9 @@ public class RateLimitTests
 
 ### Component Tests (xUnit)
 ```csharp
-[Collection(nameof(ApilaneApiComponentTestsCollection))]
 public class DataTests : AppicationTestsBase
 {
-    public DataTests(SuiteContext suiteContext) : base(suiteContext) { }
+    public DataTests() : base(SuiteContext.Shared) { }
 
     [Theory]
     [ClassData(typeof(StorageConfigurationTestData))]
