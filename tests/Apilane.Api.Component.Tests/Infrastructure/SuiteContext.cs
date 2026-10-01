@@ -6,14 +6,19 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
 using System.Net.Http;
+using System.Threading.Tasks;
+using Xunit;
 
 namespace CasinoService.ComponentTests.Infrastructure
 {
-    public class SuiteContext : IDisposable
+    public class SuiteContext : IDisposable, IAsyncLifetime
     {
         public WebApplicationFactory<Apilane.Api.Program> Factory { get; }
         public Fixture Fixture { get; }
         public HttpClient HttpClient { get; }
+
+        /// <summary>The database servers the tests run against, in Docker containers.</summary>
+        public DatabaseContainers Databases { get; } = new DatabaseContainers();
 
         public SuiteContext()
         {
@@ -62,6 +67,17 @@ namespace CasinoService.ComponentTests.Infrastructure
         public void Dispose()
         {
             Factory.Dispose();
+        }
+
+        public Task InitializeAsync()
+        {
+            // Nothing to do up front: the database containers start when the first test needs them.
+            return Task.CompletedTask;
+        }
+
+        public async Task DisposeAsync()
+        {
+            await Databases.DisposeAsync();
         }
 
         private static void SetIfMissing(string name, string value)

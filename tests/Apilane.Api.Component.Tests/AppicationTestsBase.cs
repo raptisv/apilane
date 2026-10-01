@@ -37,9 +37,11 @@ namespace Apilane.Api.Component.Tests
         protected ApilaneService ApilaneService;
         protected readonly IPortalInfoService PortalInfoServiceMock;
         protected readonly IApplicationService ApplicationServiceMock;
+        private readonly DatabaseContainers _databases;
 
         public AppicationTestsBase(SuiteContext suiteContext)
         {
+            _databases = suiteContext.Databases;
             HttpClient = suiteContext.HttpClient;
             ClusterClient = suiteContext.Fixture.ClusterClient;
             PortalInfoServiceMock = suiteContext.Fixture.MockIPortalInfoService;
@@ -75,14 +77,17 @@ namespace Apilane.Api.Component.Tests
         {
             public IEnumerator<object[]> GetEnumerator()
             {
+                // The connection string is null: InitializeApplicationAsync takes it from the database
+                // container of that type (see DatabaseContainers). Put a connection string here only to
+                // point a run at a server of your own.
                 yield return new object[] { DatabaseType.SQLLite, (string?)null!, false };
                 yield return new object[] { DatabaseType.SQLLite, (string?)null!, true };
-                yield return new object[] { DatabaseType.SQLServer, "Server=localhost,1433;Database=TestApp;User Id=sa;Password=12345678;TrustServerCertificate=true;", false };
-                yield return new object[] { DatabaseType.SQLServer, "Server=localhost,1433;Database=TestApp;User Id=sa;Password=12345678;TrustServerCertificate=true;", true };
-                yield return new object[] { DatabaseType.MySQL, "Server=127.0.0.1;Port=3306;Uid=root;Pwd=12345678;Database=testapp;UseXaTransactions=false;", false };
-                yield return new object[] { DatabaseType.MySQL, "Server=127.0.0.1;Port=3306;Uid=root;Pwd=12345678;Database=testapp;UseXaTransactions=false;", true };
-                yield return new object[] { DatabaseType.PostgreSQL, "Server=127.0.0.1;Port=5432;Database=TestApp;User Id=postgres;Password=12345678;", false };
-                yield return new object[] { DatabaseType.PostgreSQL, "Server=127.0.0.1;Port=5432;Database=TestApp;User Id=postgres;Password=12345678;", true };
+                yield return new object[] { DatabaseType.SQLServer, (string?)null!, false };
+                yield return new object[] { DatabaseType.SQLServer, (string?)null!, true };
+                yield return new object[] { DatabaseType.MySQL, (string?)null!, false };
+                yield return new object[] { DatabaseType.MySQL, (string?)null!, true };
+                yield return new object[] { DatabaseType.PostgreSQL, (string?)null!, false };
+                yield return new object[] { DatabaseType.PostgreSQL, (string?)null!, true };
             }
 
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
@@ -404,6 +409,9 @@ namespace Apilane.Api.Component.Tests
             string? connectionString,
             bool useDiffEntity)
         {
+            // Server databases run in Docker containers, started on first use
+            connectionString ??= await _databases.GetConnectionStringAsync(databaseType);
+
             using (new WithApplicationOwnerAccess(_appToken, PortalInfoServiceMock))
             {
                 TestApplication = await GetInitialApplicationAsync(databaseType, connectionString, useDiffEntity);

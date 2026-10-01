@@ -71,6 +71,10 @@ dotnet test --logger "console;verbosity=detailed"
 **Unit tests** use **MSTest** (`[TestClass]`, `[TestMethod]`).  
 **Component tests** use **xUnit** (`[Collection]`, `[Fact]`, `[Theory]`) + **FakeItEasy** mocks.
 
+Component tests run against SQLite, SQL Server, MySQL and PostgreSQL. The three servers are started
+as Docker containers by **Testcontainers** (see `Infrastructure/DatabaseContainers.cs`), on random
+ports, and removed when the run ends. **Docker must be running**; nothing else has to be installed.
+
 ---
 
 ## Code Style
