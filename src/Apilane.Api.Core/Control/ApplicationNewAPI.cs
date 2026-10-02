@@ -37,6 +37,14 @@ namespace Apilane.Api.Core
 
         public async Task<bool> CreateApplicationAsync(DBWS_Application newApplication)
         {
+            // The token becomes a folder and a database file name, and requests find the application by
+            // the GUID in its one canonical spelling. Anything else is not a token the Portal issues.
+            if (!Guid.TryParse(newApplication.Token, out var appToken) ||
+                !string.Equals(newApplication.Token, appToken.ToString(), StringComparison.Ordinal))
+            {
+                throw new ApilaneException(AppErrors.ERROR, "Application token is not valid");
+            }
+
             if (newApplication.DatabaseType != (int)DatabaseType.SQLLite
                && string.IsNullOrWhiteSpace(newApplication.ConnectionString))
             {

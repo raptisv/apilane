@@ -21,7 +21,10 @@ namespace Apilane.Api.Core.Services.Storage
         }
 
         private string BuildPath(string appToken, string fileId)
-            => Path.Combine(_rootPath, appToken, "files", fileId);
+        {
+            // Validated: the file id comes from the application's Files table, which its owner can write
+            return StorageKey.BuildLocalPath(_rootPath, appToken, fileId);
+        }
 
         public Task<Stream> GetAsync(string applicationToken, string fileId, CancellationToken ct = default)
         {

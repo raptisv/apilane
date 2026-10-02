@@ -145,11 +145,13 @@ var updateResponse = await _apilaneService.AccountUpdateAsync<AppUser>(
 ### Renew Auth Token
 
 ```csharp
-var renewResponse = await _apilaneService.AccountRenewAuthTokenAsync(
+// Same response as login. The old token (and its id) stop working.
+var renewResponse = await _apilaneService.AccountRenewAuthTokenAsync<AppUser>(
     AccountRenewAuthTokenRequest.New()
         .WithAuthToken(authToken));
 
-string newToken = renewResponse.Value;
+string newToken = renewResponse.Value.AuthToken;
+long newTokenId = renewResponse.Value.AuthTokenID; // needed only if you sign requests
 ```
 
 ### Logout

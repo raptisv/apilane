@@ -2038,13 +2038,14 @@ export class ApilaneService {
     }
 
     /**
-     * Renews the current auth token.
+     * Renews the current auth token. The response has the same form as login: keep its AuthToken,
+     * and its AuthTokenID if you sign requests, because the old token and its id stop working.
      * @param {AccountRenewAuthTokenRequest} request
      * @param {AbortSignal} [signal]
-     * @returns {Promise<ApilaneResult<string>>}
+     * @returns {Promise<ApilaneResult<{ AuthToken: string, AuthTokenID: number, User: object }>>}
      */
     async accountRenewAuthToken(request, signal) {
-        return this.#get(request, signal, (text) => text);
+        return this.#get(request, signal);
     }
 
     /**

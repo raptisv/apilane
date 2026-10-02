@@ -53,6 +53,8 @@ namespace Apilane.Api.Core.Services.Storage
         }
 
         private static string BuildBlobName(string applicationToken, string fileId)
-            => $"{applicationToken}/files/{fileId}";
+        {
+            return StorageKey.Build(applicationToken, fileId);
+        }
     }
 }

@@ -13,7 +13,7 @@ namespace Apilane.Net.Abstractions
         Task<Either<AccountLoginResponse<T>, ApilaneError>> AccountLoginAsync<T>(AccountLoginRequest request, CancellationToken cancellationToken = default) where T : IApiUser;
         Task<Either<int, ApilaneError>> AccountLogoutAsync(AccountLogoutRequest request, CancellationToken cancellationToken = default);
         Task<Either<long, ApilaneError>> AccountRegisterAsync(AccountRegisterRequest request, CancellationToken cancellationToken = default);
-        Task<Either<string, ApilaneError>> AccountRenewAuthTokenAsync(AccountRenewAuthTokenRequest request, CancellationToken cancellationToken = default);
+        Task<Either<AccountLoginResponse<T>, ApilaneError>> AccountRenewAuthTokenAsync<T>(AccountRenewAuthTokenRequest request, CancellationToken cancellationToken = default) where T : IApiUser;
         Task<Either<T, ApilaneError>> AccountUpdateAsync<T>(AccountUpdateRequest request, object updateItem, CancellationToken cancellationToken = default) where T : IApiUser;
         Task<Either<long[], ApilaneError>> DeleteDataAsync(DataDeleteRequest request, CancellationToken cancellationToken = default);
         Task<Either<long[], ApilaneError>> DeleteFileAsync(FileDeleteRequest request, CancellationToken cancellationToken = default);

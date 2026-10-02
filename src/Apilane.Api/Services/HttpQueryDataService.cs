@@ -59,23 +59,41 @@ namespace Apilane.Api.Services
         {
             get
             {
-                // On manage and help controllers search for apptoken route value
-                if (RouteController == "manage" || RouteController == "help")
-                {
-                    return _actionContextAccessor.ActionContext?.RouteData.Values["apptoken"]?.ToString() ?? string.Empty;
-                }
-
-                // All other calls
-
-                var tokenFromHeader = GetHeaderValue(Globals.ApplicationTokenHeaderName);
-
-                if (!string.IsNullOrWhiteSpace(tokenFromHeader))
-                {
-                    return tokenFromHeader;
-                }
-
-                return GetUriValue(Globals.ApplicationTokenQueryParam);
+                return ToCanonicalAppToken(GetRequestAppToken());
             }
+        }
+
+        private string GetRequestAppToken()
+        {
+            // On manage and help controllers search for apptoken route value
+            if (RouteController == "manage" || RouteController == "help")
+            {
+                return _actionContextAccessor.ActionContext?.RouteData.Values["apptoken"]?.ToString() ?? string.Empty;
+            }
+
+            // All other calls
+
+            var tokenFromHeader = GetHeaderValue(Globals.ApplicationTokenHeaderName);
+
+            if (!string.IsNullOrWhiteSpace(tokenFromHeader))
+            {
+                return tokenFromHeader;
+            }
+
+            return GetUriValue(Globals.ApplicationTokenQueryParam);
+        }
+
+        /// <summary>
+        /// An application token is a GUID, and the application is found by its value, so upper case,
+        /// braces or no dashes all reach the same application. Everything else that is keyed on the
+        /// token (the Portal's ownership answer, rate limits, caches, logs) compares it as text, so the
+        /// request's spelling is replaced by the one spelling the Portal issues and stores.
+        /// </summary>
+        private static string ToCanonicalAppToken(string appToken)
+        {
+            return Guid.TryParse(appToken, out var guid)
+                ? guid.ToString()
+                : appToken;
         }
 
         public string IPAddress
@@ -149,9 +167,14 @@ namespace Apilane.Api.Services
 
             foreach (var item in queryString)
             {
-                if (item.Key.Equals(key, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(item.Value))
+                // A repeated parameter (?entity=a&entity=b) reaches the action as its first value. Use the
+                // same one here: joined together ("a,b") it would name nothing, and the checks made on it
+                // (rate limits) would be skipped for a request that still runs against "a".
+                var value = item.Value.Count > 0 ? item.Value[0] : null;
+
+                if (item.Key.Equals(key, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(value))
                 {
-                    return Utils.GetString(item.Value);
+                    return value;
                 }
             }
 

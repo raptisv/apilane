@@ -237,8 +237,19 @@ namespace Apilane.Portal.Controllers
                 var portalUserAuthToken = User.Identity?.GetPortalUserAuthToken()
                     ?? throw new Exception("User not logged in");
 
+                // The token comes from the uploaded file. The API finds an application by the value of
+                // this GUID, however it is written, so it is stored in the one spelling the Portal issues
+                // and compared by value: another spelling of an existing application's token would
+                // otherwise be a second application row, owned by the importer, for the same application.
+                if (!Guid.TryParse(importedApplication.Token, out var importedToken))
+                {
+                    throw new Exception("Application token is not valid");
+                }
+
+                importedApplication.Token = importedToken.ToString();
+
                 var allApplications = DBContext.Applications.ToList();
-                if (allApplications.Any(x => x.Token.Equals(importedApplication.Token)))
+                if (allApplications.Any(x => Guid.TryParse(x.Token, out var existingToken) && existingToken == importedToken))
                 {
                     throw new Exception($"Application token '{importedApplication.Token}' already exists");
                 }
