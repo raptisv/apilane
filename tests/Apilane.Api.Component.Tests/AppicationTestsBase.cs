@@ -43,9 +43,12 @@ namespace Apilane.Api.Component.Tests
         protected readonly IPortalInfoService PortalInfoServiceMock;
         protected readonly IApplicationService ApplicationServiceMock;
         private readonly DatabaseContainers _databases;
+        private readonly SuiteContext _suiteContext;
+        private readonly List<HttpClient> _otherHttpClients = new List<HttpClient>();
 
         public AppicationTestsBase(SuiteContext suiteContext)
         {
+            _suiteContext = suiteContext;
             _appToken = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(GetType().Name)).AsSpan(0, 16)).ToString();
             _databaseName = GetDatabaseName(GetType());
 
@@ -73,6 +76,12 @@ namespace Apilane.Api.Component.Tests
         public void Dispose()
         {
             HttpClient.Dispose();
+
+            foreach (var httpClient in _otherHttpClients)
+            {
+                httpClient.Dispose();
+            }
+
             GC.SuppressFinalize(this);
         }
 
@@ -385,6 +394,8 @@ namespace Apilane.Api.Component.Tests
         }
 
         private async Task<DBWS_Application> GetInitialApplicationAsync(
+            HttpClient httpClient,
+            string appToken,
             DatabaseType databaseType,
             string? connectionString,
             bool useDiffProperty)
@@ -392,7 +403,7 @@ namespace Apilane.Api.Component.Tests
             var useDiffEntity = useDiffProperty ? DiffEntityName : null;
 
             // Get the system entities
-            var apiResponse = await HttpClient.RequestAsync(HttpMethod.Get, $"/api/ApplicationNew/GetSystemEntities?differentiationEntity={useDiffEntity}");
+            var apiResponse = await httpClient.RequestAsync(HttpMethod.Get, $"/api/ApplicationNew/GetSystemEntities?differentiationEntity={useDiffEntity}");
             var strReponse = await apiResponse.Content.ReadAsStringAsync();
             var initialEntities = JsonSerializer.Deserialize<List<DBWS_Entity>>(strReponse)!;
 
@@ -402,7 +413,7 @@ namespace Apilane.Api.Component.Tests
                 AdminEmail = "test@test.com",
                 Entities = initialEntities,
                 Name = "test_app",
-                Token = _appToken,
+                Token = appToken,
                 DatabaseType = (int)databaseType,
                 EncryptionKey = "12345678".Encrypt(Globals.EncryptionKey),
                 ConnectionString = connectionString,
@@ -432,14 +443,50 @@ namespace Apilane.Api.Component.Tests
             // Server databases run in Docker containers, started on first use
             connectionString ??= await _databases.GetConnectionStringAsync(databaseType, _databaseName);
 
-            using (new WithApplicationOwnerAccess(_appToken, PortalInfoServiceMock))
-            {
-                TestApplication = await GetInitialApplicationAsync(databaseType, connectionString, useDiffEntity);
+            TestApplication = await CreateApplicationAsync(HttpClient, _appToken, databaseType, connectionString, useDiffEntity);
 
-                MockApplicationService(TestApplication);
+            return TestApplication;
+        }
+
+        /// <summary>
+        /// Generates a second, independent application (SQLite) on the same API host, for tests that
+        /// prove one application cannot reach into another. Returns the application and an SDK client
+        /// bound to it.
+        /// </summary>
+        protected async Task<(DBWS_Application Application, ApilaneService Service)> InitializeOtherApplicationAsync()
+        {
+            var appToken = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(GetType().Name + ":other")).AsSpan(0, 16)).ToString();
+
+            // The SDK stores the application token on its HttpClient, so the other application needs its own
+            var httpClient = _suiteContext.CreateHttpClient();
+            _otherHttpClients.Add(httpClient);
+
+            var service = new ApilaneService(httpClient, new ApilaneConfiguration()
+            {
+                ApplicationApiUrl = ApiConfiguration.Url,
+                ApplicationToken = appToken
+            });
+
+            var application = await CreateApplicationAsync(httpClient, appToken, DatabaseType.SQLLite, null, false);
+
+            return (application, service);
+        }
+
+        private async Task<DBWS_Application> CreateApplicationAsync(
+            HttpClient httpClient,
+            string appToken,
+            DatabaseType databaseType,
+            string? connectionString,
+            bool useDiffEntity)
+        {
+            using (new WithApplicationOwnerAccess(appToken, PortalInfoServiceMock))
+            {
+                var application = await GetInitialApplicationAsync(httpClient, appToken, databaseType, connectionString, useDiffEntity);
+
+                MockApplicationService(application);
 
                 // Try drop application (if exists)
-                var apiDegenerateResponse = await HttpClient.RequestAsync(HttpMethod.Get, $"/api/Application/Degenerate?appToken={TestApplication.Token}");
+                var apiDegenerateResponse = await httpClient.RequestAsync(HttpMethod.Get, $"/api/Application/Degenerate?appToken={application.Token}");
 
                 if (!apiDegenerateResponse.IsSuccessStatusCode)
                 {
@@ -449,11 +496,11 @@ namespace Apilane.Api.Component.Tests
                 // Create the application. The installation key travels only in the x-installation-key header.
                 using var generateRequest = new HttpRequestMessage(HttpMethod.Post, "/api/ApplicationNew/Generate")
                 {
-                    Content = TestApplication.ToJsonData()
+                    Content = application.ToJsonData()
                 };
                 generateRequest.Headers.Add(Globals.InstallationKeyHeaderName, ApiConfiguration.InstallationKey);
 
-                var apiGenerateResponse = await HttpClient.SendAsync(generateRequest);
+                var apiGenerateResponse = await httpClient.SendAsync(generateRequest);
                 var apiGenerateText = await apiGenerateResponse.Content.ReadAsStringAsync();
 
                 if (!apiGenerateResponse.IsSuccessStatusCode || !apiGenerateText.DeserializeTo<bool>())
@@ -461,9 +508,9 @@ namespace Apilane.Api.Component.Tests
                     throw new Exception($"Application not created succesfully | {apiGenerateResponse.StatusCode} | {apiGenerateText}");
                 }
 
-                MockApplicationService(TestApplication);
+                MockApplicationService(application);
 
-                return TestApplication;
+                return application;
             }
         }
 

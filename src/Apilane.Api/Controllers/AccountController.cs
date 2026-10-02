@@ -2,6 +2,7 @@
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
+using Apilane.Api.Core.Extensions;
 using Apilane.Api.Core.Grains;
 using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Common;
@@ -171,7 +172,7 @@ namespace Apilane.Api.Controllers
             // Reset grain cache
             if (Guid.TryParse(_queryDataService.AuthToken, out var guidAuthToken))
             {
-                var grainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
+                var grainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
                 await grainRef.ResetUserCacheAsync();
             }
 
@@ -213,12 +214,13 @@ namespace Apilane.Api.Controllers
         public async Task<string> RenewAuthToken()
         {
             var newAuthToken = await _accountAPI.RenewAuthTokenAsync(
+                Application.Token,
                 ApplicationUser ?? throw new ApilaneException(AppErrors.UNAUTHORIZED));
 
             // Delete old auth token
             if (Guid.TryParse(_queryDataService.AuthToken, out var guidAuthToken))
             {
-                var grainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
+                var grainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
                 await grainRef.DeleteAsync(Application.ToDbInfo(ApiConfiguration.FilesPath));
             }
 
@@ -246,7 +248,7 @@ namespace Apilane.Api.Controllers
                     // Delete auth token
                     if (Guid.TryParse(authToken, out var guidAuthToken))
                     {
-                        var authTokenGrainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
+                        var authTokenGrainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
                         await authTokenGrainRef.DeleteAsync(Application.ToDbInfo(ApiConfiguration.FilesPath));
                     }
                 }
@@ -258,7 +260,7 @@ namespace Apilane.Api.Controllers
                 // Delete auth token
                 if (Guid.TryParse(_queryDataService.AuthToken, out var guidAuthToken))
                 {
-                    var grainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
+                    var grainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
                     await grainRef.DeleteAsync(Application.ToDbInfo(ApiConfiguration.FilesPath));
                 }
 
@@ -278,7 +280,7 @@ namespace Apilane.Api.Controllers
             // Reset grain cache
             if (Guid.TryParse(_queryDataService.AuthToken, out var guidAuthToken))
             {
-                var grainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
+                var grainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
                 await grainRef.ResetUserCacheAsync();
             }
 

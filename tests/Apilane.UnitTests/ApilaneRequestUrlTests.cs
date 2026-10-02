@@ -135,6 +135,19 @@ namespace Apilane.UnitTests
 
         // ─── ApilaneService.UrlFor_* ────────────────────────────────────────────
 
+        // ─── No query parameters ────────────────────────────────────────────────
+
+        [TestMethod]
+        public void GetUrl_WithoutQueryParameters_HasNoTrailingQuestionMark()
+        {
+            // A bare '?' is dropped by the server but was part of the signed path on the client, so
+            // signed requests to endpoints without parameters were always rejected.
+            var url = AccountUserDataRequest.New().GetUrl(ApiUrl);
+
+            Assert.AreEqual($"{ApiUrl}/api/Account/UserData", url);
+            Assert.AreEqual("/api/Account/UserData", new Uri(url).PathAndQuery);
+        }
+
         [TestMethod]
         [DataRow("user+tag@test.com")]
         [DataRow("a&AppToken=other#c@test.com")]

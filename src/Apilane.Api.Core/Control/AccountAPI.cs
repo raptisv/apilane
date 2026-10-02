@@ -2,6 +2,7 @@
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
+using Apilane.Api.Core.Extensions;
 using Apilane.Api.Core.Grains;
 using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Common;
@@ -121,7 +122,7 @@ namespace Apilane.Api.Core
 
             // Clear any cached secret for this token id used by signed-request auth.
             // (Ids are never reused in production, but a full data reset can recreate them.)
-            await _clusterClient.GetGrain<IAuthTokenByIdGrain>(authTokenId).ResetAsync();
+            await _clusterClient.GetAuthTokenByIdGrain(application.Token, authTokenId).ResetAsync();
 
             // Update last login
             await _dataStore.UpdateDataAsync(
@@ -174,13 +175,13 @@ namespace Apilane.Api.Core
                 // Delete auth token
                 if (Guid.TryParse(Utils.GetString(expiredAuthToken[nameof(AuthTokens.Token)]), out var guidAuthToken))
                 {
-                    var authTokenGrainRef = _clusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
+                    var authTokenGrainRef = _clusterClient.GetAuthTokenUserGrain(application.Token, guidAuthToken);
                     await authTokenGrainRef.DeleteAsync(application.ToDbInfo(_apiConfiguration.FilesPath));
                 }
             }
         }
 
-        public async Task<string> RenewAuthTokenAsync(Users currentUser)
+        public async Task<string> RenewAuthTokenAsync(string appToken, Users currentUser)
         {
             var newAuthToken = Guid.NewGuid().ToString();
 
@@ -197,7 +198,7 @@ namespace Apilane.Api.Core
             if (newAuthTokenId.HasValue)
             {
                 // Clear any cached secret for this token id used by signed-request auth.
-                await _clusterClient.GetGrain<IAuthTokenByIdGrain>(newAuthTokenId.Value).ResetAsync();
+                await _clusterClient.GetAuthTokenByIdGrain(appToken, newAuthTokenId.Value).ResetAsync();
             }
 
             return newAuthToken;

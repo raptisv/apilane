@@ -137,7 +137,9 @@ namespace Apilane.Net.Request
                 listOfQueryStringValues.AddRange(extraParamsList);
             }
 
-            return $"{apiUrl?.TrimEnd('/')}/api/{_controller}/{_action}?" + string.Join("&", listOfQueryStringValues);
+            var url = $"{apiUrl?.TrimEnd('/')}/api/{_controller}/{_action}";
+
+            return listOfQueryStringValues.Count == 0 ? url : url + "?" + string.Join("&", listOfQueryStringValues);
         }
 
         private static string EncodeQueryPart(string value)

@@ -16,7 +16,12 @@ using System.Threading.Tasks;
 
 namespace Apilane.Api.Core.Grains
 {
-    public interface IAuthTokenUserGrain : IGrainWithGuidKey
+    /// <summary>
+    /// Caches the user behind an authentication token. Keyed by the token plus the application token (the
+    /// key extension), because a token is only valid in the application that issued it. Resolve it with
+    /// <see cref="Apilane.Api.Core.Extensions.GrainFactoryExtensions.GetAuthTokenUserGrain"/>.
+    /// </summary>
+    public interface IAuthTokenUserGrain : IGrainWithGuidCompoundKey
     {
         Task<Users?> GetAsync(ApplicationDbInfoDto applicationDbInfo, int authTokenExpireMinutes);
         Task DeleteAsync(ApplicationDbInfoDto applicationDbInfo);
@@ -107,7 +112,7 @@ namespace Apilane.Api.Core.Grains
             // Auth token
             if (_authToken is null)
             {
-                var authToken = this.GetPrimaryKey().ToString();
+                var authToken = this.GetPrimaryKey(out _).ToString();
 
                 await using (var dataStore = new ApplicationDataStoreFactory(applicationDbInfo))
                 {

@@ -1,3 +1,4 @@
+using Apilane.Api.Core.Extensions;
 using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Common;
 using Apilane.Common.Enums;
@@ -13,10 +14,10 @@ using System.Threading.Tasks;
 
 namespace Apilane.Api.Core.Grains
 {
-    public interface IAuthTokenByIdGrain : IGrainWithIntegerKey
+    public interface IAuthTokenByIdGrain : IGrainWithIntegerCompoundKey
     {
         /// <summary>
-        /// Verifies a signed request for this grain's AuthTokens.ID and resolves the user.
+        /// Verifies a signed request for this grain's application and AuthTokens.ID and resolves the user.
         /// Performs the timestamp-window check and the HMAC comparison using the cached secret, then
         /// delegates user resolution (and expiry/sliding) to <see cref="IAuthTokenUserGrain"/>.
         /// Returns the user on success, or a failure reason the caller can surface as UNAUTHORIZED.
@@ -32,7 +33,10 @@ namespace Apilane.Api.Core.Grains
     }
 
     /// <summary>
-    /// Signed-request authentication grain, keyed by AuthTokens.ID. It caches the immutable
+    /// Signed-request authentication grain, keyed by AuthTokens.ID plus the application token (the key
+    /// extension): row ids start at 1 in every application, so the id alone would make applications share
+    /// a grain and verify with each other's secrets. Resolve it with
+    /// <see cref="GrainFactoryExtensions.GetAuthTokenByIdGrain"/>. It caches the immutable
     /// AuthTokens.ID -> token (secret) mapping so verification does not hit the database on every
     /// request, performs the HMAC verification (the secret never leaves the grain), and resolves the
     /// user via <see cref="IAuthTokenUserGrain"/> — which is [PreferLocalPlacement] so it tends to
@@ -70,9 +74,11 @@ namespace Apilane.Api.Core.Grains
                 return null;
             }
 
-            // 4) Resolve the user via the GUID-keyed grain (which handles expiry + sliding)
+            // 4) Resolve the user via the token grain of the same application (which handles expiry + sliding)
+            this.GetPrimaryKeyLong(out var appToken);
+
             return await GrainFactory
-                .GetGrain<IAuthTokenUserGrain>(guidAuthToken)
+                .GetAuthTokenUserGrain(appToken, guidAuthToken)
                 .GetAsync(applicationDbInfo, authTokenExpireMinutes);
         }
 
@@ -87,7 +93,7 @@ namespace Apilane.Api.Core.Grains
         {
             if (_token is null)
             {
-                var id = this.GetPrimaryKeyLong();
+                var id = this.GetPrimaryKeyLong(out _);
 
                 await using var dataStore = new ApplicationDataStoreFactory(applicationDbInfo);
 

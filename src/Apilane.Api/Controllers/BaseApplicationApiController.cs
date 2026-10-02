@@ -2,6 +2,7 @@ using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
+using Apilane.Api.Core.Extensions;
 using Apilane.Api.Core.Grains;
 using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Api.Filters;
@@ -100,7 +101,7 @@ namespace Apilane.Api.Controllers
                 else if (!string.IsNullOrWhiteSpace(authorizationToken) &&
                     Guid.TryParse(authorizationToken, out var guidAuthToken))
                 {
-                    var grainRef = ClusterClient.GetGrain<IAuthTokenUserGrain>(guidAuthToken);
+                    var grainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
                     ApplicationUser = await grainRef.GetAsync(Application.ToDbInfo(ApiConfiguration.FilesPath), Application.AuthTokenExpireMinutes);
                 }
 
@@ -192,7 +193,7 @@ namespace Apilane.Api.Controllers
                 body);
 
             return await ClusterClient
-                .GetGrain<IAuthTokenByIdGrain>(keyId)
+                .GetAuthTokenByIdGrain(Application.Token, keyId)
                 .VerifyAndGetUserAsync(
                     Application.ToDbInfo(ApiConfiguration.FilesPath),
                     Application.AuthTokenExpireMinutes,
