@@ -32,6 +32,7 @@ namespace Apilane.Api.Core
         }
 
         public async Task<List<Dictionary<string, object?>>> AggregateAsync(
+            string appToken,
             DBWS_Entity entity,
             bool userHasFullAccess,
             Users? appUser,
@@ -63,6 +64,8 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
 
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entity.Name, SecurityTypes.Entity, SecurityActionType.get);
+
             // Validate that property parameter exists
             if (properties is null)
             {
@@ -90,6 +93,7 @@ namespace Apilane.Api.Core
         }
 
         public async Task<List<Dictionary<string, object?>>> DistinctAsync(
+            string appToken,
             DBWS_Entity entity,
             bool userHasFullAccess,
             Users? appUser,
@@ -106,6 +110,8 @@ namespace Apilane.Api.Core
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
+
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entity.Name, SecurityTypes.Entity, SecurityActionType.get);
 
             if (propertyName == null)
             {

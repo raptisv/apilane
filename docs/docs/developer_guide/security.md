@@ -173,6 +173,21 @@ Apilane employs **Sliding Window Rate Limiting** to manage and control the rate 
     
     For cluster-wide rate limiting, consider using an external rate limiting solution (e.g., API Gateway, reverse proxy with rate limiting, or distributed rate limiter with shared state in Redis).
 
+### What counts as a request
+
+A rate limit belongs to a security rule, so requests are counted per entity (or custom endpoint), per action and per user. All anonymous callers of an application share one count.
+
+Every request that the rule lets in counts, whichever endpoint it arrives through:
+
+- **Reads** — `Data/Get`, `Data/GetByID`, `Data/GetHistoryByID`, `Stats/Aggregate` and `Stats/Distinct` all use the `get` allowance of the entity.
+- **Files** — `Files/Get`, `Files/GetByID` and `Files/Download` use the `get` allowance of `Files`; `Files/Post` and `Files/Delete` use its `post` and `delete` allowances.
+- **Transactions** — each operation inside `Data/Transaction` or `Data/TransactionOperations` counts as one request against the rule of its own entity or custom endpoint. If one operation is refused, the whole transaction is refused and nothing is written, but the operations before it still count. A transaction with more operations on one rule than the rule allows in its time window can therefore never succeed: keep transactions within the limit, or raise the limit.
+- **Schema** — `Data/Schema` uses the allowance of the schema rule.
+
+A single request or operation that carries several records (a post with an array of records) counts once. An entity and a custom endpoint with the same name are counted separately.
+
+Application owners working through the Portal are never rate limited.
+
 ### Configuration options
 
 For each security rule, you can configure a rate limit with two parameters:
@@ -192,7 +207,7 @@ Available time windows:
 
 ### Multiple rules
 
-When multiple rate limiting rules are applicable to a particular user or endpoint, the system evaluates all relevant rules and ultimately applies the **most permissive rule**, allowing for the highest allowable request rate.
+When multiple rate limiting rules are applicable to a particular user or endpoint, the system evaluates all relevant rules and ultimately applies the **most permissive rule**, allowing for the highest allowable request rate. Only the rules that apply to the caller are considered: a rule for a role the caller does not have neither limits them nor lifts their limit.
 
 !!!info "Note"
     This approach facilitates flexible rule definitions tailored to different user roles, scenarios, or endpoints while ensuring that users can benefit from the most lenient usage conditions permitted by the applicable rules. For instance, if a user qualifies for several rate limiting rules, one allowing a higher request rate and another enforcing a stricter limit, the application will enforce the higher rate to ensure optimal access.

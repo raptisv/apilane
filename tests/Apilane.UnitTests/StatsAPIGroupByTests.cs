@@ -14,6 +14,7 @@ namespace Apilane.UnitTests
     [TestClass]
     public class StatsAPIGroupByTests
     {
+        private const string AppToken = "11111111-1111-1111-1111-111111111111";
         private const string EntityName = "Orders";
 
         private readonly IApplicationDataService _appDataService;
@@ -100,6 +101,7 @@ namespace Apilane.UnitTests
         private Task<List<Dictionary<string, object?>>> AggregateAsAnonymousAsync(string groupBy)
         {
             return _statsAPI.AggregateAsync(
+                AppToken,
                 MakeEntity(),
                 userHasFullAccess: false,
                 appUser: null,
@@ -195,6 +197,7 @@ namespace Apilane.UnitTests
         public async Task AggregateAsync_AdminWithUnknownGroupBySuffix_ThrowsInvalidGroupByParameter()
         {
             var ex = await Assert.ThrowsExactlyAsync<ApilaneException>(() => _statsAPI.AggregateAsync(
+                AppToken,
                 MakeEntity(),
                 userHasFullAccess: true,
                 appUser: null,

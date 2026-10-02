@@ -1,4 +1,5 @@
 ﻿using Apilane.Api.Component.Tests.Infrastructure;
+using Apilane.Api.Core.Services;
 using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Models;
@@ -156,7 +157,7 @@ namespace Apilane.Api.Component.Tests
         private async Task GetCustomEndpoint_ShouldSucceed<T>(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken)
         {
             // Reset limits before next test
-            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), "test", SecurityActionType.get.ToString());
+            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), EntityAccess.GetRateLimitName("test", SecurityTypes.CustomEndpoint), SecurityActionType.get.ToString());
 
             var request = CustomEndpointRequest.New("test");
 

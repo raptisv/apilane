@@ -1,5 +1,6 @@
 using Apilane.Api.Component.Tests.Extensions;
 using Apilane.Api.Component.Tests.Infrastructure;
+using Apilane.Api.Core.Services;
 using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
@@ -114,7 +115,7 @@ namespace Apilane.Api.Component.Tests
             using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, EndpointName, type: SecurityTypes.CustomEndpoint,
                 rateLimit: DBWS_Security.RateLimitItem.New(1, EndpointRateLimit.Per_Minute)))
             {
-                ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(null, EndpointName, SecurityActionType.get.ToString());
+                ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(null, EntityAccess.GetRateLimitName(EndpointName, SecurityTypes.CustomEndpoint), SecurityActionType.get.ToString());
 
                 // The one allowed request of this minute
                 (await ApilaneService.GetCustomEndpointAsync(CustomEndpointRequest.New(EndpointName)))

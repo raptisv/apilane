@@ -114,6 +114,8 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: nameof(Files));
             }
 
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, nameof(Files), SecurityTypes.Entity, SecurityActionType.get);
+
             return await _appDataService.GetByIDAsync(
                 appToken,
                 userHasFullAccess,
@@ -151,6 +153,8 @@ namespace Apilane.Api.Core
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entityFiles.Name);
             }
+
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entityFiles.Name, SecurityTypes.Entity, SecurityActionType.get);
 
             if (pageIndex <= 0)
             {
@@ -208,6 +212,8 @@ namespace Apilane.Api.Core
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: nameof(Files));
             }
+
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, nameof(Files), SecurityTypes.Entity, SecurityActionType.post);
 
             string fileUID = Guid.NewGuid().ToString();
 
@@ -273,6 +279,8 @@ namespace Apilane.Api.Core
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: filesEntity.Name);
             }
+
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, filesEntity.Name, SecurityTypes.Entity, SecurityActionType.delete);
 
             var listOfIds = Utils.GetString(ids).Split(',').Select(x => Utils.GetInt(x)).Where(x => x > 0).ToList();
 

@@ -49,6 +49,7 @@ namespace Apilane.Api.Controllers
             string orderDirection = "DESC")
         {
             return await _statsAPI.AggregateAsync(
+                Application.Token,
                 GetEntity(entity),
                 UserHasFullAccess,
                 ApplicationUser,
@@ -80,6 +81,7 @@ namespace Apilane.Api.Controllers
             string? filter = null)
         {
             return await _statsAPI.DistinctAsync(
+                Application.Token,
                 GetEntity(entity),
                 UserHasFullAccess,
                 ApplicationUser,

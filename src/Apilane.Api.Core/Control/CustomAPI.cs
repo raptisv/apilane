@@ -53,6 +53,8 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: customEndpoint.Name);
             }
 
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, customEndpoint.Name, SecurityTypes.CustomEndpoint, SecurityActionType.get);
+
             string query = GetQueryFixed(customEndpoint, uriParams);
 
             // If authorized, replace owner

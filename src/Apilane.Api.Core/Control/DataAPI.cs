@@ -2,6 +2,7 @@
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Core.Models.AppModules.Authentication;
+using Apilane.Api.Core.Models.AppModules.Files;
 using Apilane.Api.Core.Services;
 using Apilane.Common;
 using Apilane.Common.Abstractions;
@@ -54,6 +55,8 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
 
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entity.Name, SecurityTypes.Entity, SecurityActionType.get);
+
             return await _appDataService.GetByIDAsync(
                 appToken,
                 userHasFullAccess,
@@ -85,6 +88,8 @@ namespace Apilane.Api.Core
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
+
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entity.Name, SecurityTypes.Entity, SecurityActionType.get);
 
             return await _appDataService.GetHistoryByIdAsync(
                 appToken,
@@ -134,6 +139,8 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
 
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entity.Name, SecurityTypes.Entity, SecurityActionType.get);
+
             var systemFilters = _appDataService.GetSystemFilters(userHasFullAccess, differentiationEntity, entity, (appUser, userSecurity));
             var filterData = _appDataService.GetFilterData(entity, filter, userSecurity);
             if (filterData is not null)
@@ -175,6 +182,8 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
 
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entity.Name, SecurityTypes.Entity, SecurityActionType.post);
+
             return await _appDataService.PostAsync(
                 appToken,
                 entity,
@@ -204,6 +213,8 @@ namespace Apilane.Api.Core
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
+
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entity.Name, SecurityTypes.Entity, SecurityActionType.put);
 
             return await _appDataService.PutAsync(
                 appToken,
@@ -235,6 +246,8 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: entity.Name);
             }
 
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entity.Name, SecurityTypes.Entity, SecurityActionType.delete);
+
             return await _appDataService.DeleteAsync(
                 appToken,
                 entity,
@@ -243,6 +256,19 @@ namespace Apilane.Api.Core
                 applicationEncryptionKey,
                 ids,
                 (appUser, userSecurity));
+        }
+
+        // The entity of a transaction operation. File rows are created and removed only together with the
+        // stored file, so the Files entity is refused here as it is on the Data controller.
+        private static DBWS_Entity GetTransactionEntity(DBWS_Application application, string entityName)
+        {
+            if (nameof(Files).Equals(entityName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ApilaneException(AppErrors.ERROR, "Use 'Files' controller to access files. Refer to API Documentation for more info.");
+            }
+
+            return application.Entities.SingleOrDefault(x => x.Name.Equals(entityName, StringComparison.OrdinalIgnoreCase))
+                ?? throw new ApilaneException(AppErrors.ERROR, $"Entity {entityName} does not exist");
         }
 
         public async Task<OutTransactionData> TransactionAsync(
@@ -257,8 +283,7 @@ namespace Apilane.Api.Core
         {
             DBWS_Entity GetEntity(string entityName)
             {
-                return application.Entities.SingleOrDefault(x => x.Name.Equals(entityName, StringComparison.OrdinalIgnoreCase))
-                    ?? throw new ApilaneException(AppErrors.ERROR, $"Entity {entityName} does not exist");
+                return GetTransactionEntity(application, entityName);
             }
 
             var result = new OutTransactionData();
@@ -336,8 +361,7 @@ namespace Apilane.Api.Core
         {
             DBWS_Entity GetEntity(string entityName)
             {
-                return application.Entities.SingleOrDefault(x => x.Name.Equals(entityName, StringComparison.OrdinalIgnoreCase))
-                    ?? throw new ApilaneException(AppErrors.ERROR, $"Entity {entityName} does not exist");
+                return GetTransactionEntity(application, entityName);
             }
 
             if (data.Operations == null || data.Operations.Count == 0)
@@ -573,6 +597,8 @@ namespace Apilane.Api.Core
             {
                 throw new ApilaneException(AppErrors.UNAUTHORIZED, entity: Globals.SCHEMA);
             }
+
+            await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, Globals.SCHEMA, SecurityTypes.Schema, SecurityActionType.get);
 
             return true;
         }

@@ -320,6 +320,59 @@ namespace Apilane.Api.Component.Tests
                 });
         }
 
+        // File rows are created and removed only together with the stored file, through the Files
+        // controller. The Data controller refuses the Files entity; a transaction must refuse it too,
+        // even when access rules on Files would allow the operation.
+        [Fact]
+        public async Task Transaction_Cannot_Write_File_Rows()
+        {
+            await InitializeApplicationAsync(DatabaseType.SQLLite, null, false);
+
+            var fileRow = new { Name = "x.txt", UID = Guid.NewGuid().ToString(), Size = 1 };
+
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "Files",
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(FileItem.Size), nameof(FileItem.Name), nameof(FileItem.UID) }))
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "Files",
+                inRole: Globals.ANONYMOUS,
+                actionType: SecurityActionType.get,
+                properties: new() { nameof(FileItem.Size), nameof(FileItem.Name), nameof(FileItem.UID) }))
+            {
+                var transaction = new Apilane.Net.Models.Data.InTransactionData()
+                {
+                    Post = new()
+                    {
+                        new Apilane.Net.Models.Data.InTransactionData.InTransactionSet() { Entity = "Files", Data = fileRow }
+                    }
+                };
+
+                (await ApilaneService.TransactionDataAsync(DataTransactionRequest.New(), transaction)).Match(
+                    r => throw new Exception("A transaction created a Files row"),
+                    e => Assert.Contains("'Files' controller", e.Message));
+
+                // The entity name is matched without regard to case
+                var operations = new Apilane.Net.Models.Data.TransactionBuilder().Post("files", fileRow).Build();
+
+                (await ApilaneService.TransactionOperationsAsync(DataTransactionOperationsRequest.New(), operations)).Match(
+                    r => throw new Exception("A transaction operation created a Files row"),
+                    e => Assert.Contains("'Files' controller", e.Message));
+
+                // Removing a file row this way would leave the stored file behind
+                var delete = new Apilane.Net.Models.Data.TransactionBuilder().Delete("Files", "1").Build();
+
+                (await ApilaneService.TransactionOperationsAsync(DataTransactionOperationsRequest.New(), delete)).Match(
+                    r => throw new Exception("A transaction operation deleted a Files row"),
+                    e => Assert.Contains("'Files' controller", e.Message));
+
+                // Nothing was written
+                var files = (await ApilaneService.GetFilesAsync<FileItem>(FileGetListRequest.New()))
+                    .Match(r => r.Data, e => throw new Exception($"Files/Get failed | {e.Code} | {e.Message}"));
+
+                Assert.Empty(files);
+            }
+        }
+
         private async Task GetFileByID_NonOwner_ShouldFail<T>(string? authToken, long id)
         {
             var request = FileGetByIdRequest.New(id);
