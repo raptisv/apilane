@@ -19,7 +19,7 @@ namespace Apilane.Api.Core.Grains
     /// <summary>
     /// Caches the user behind an authentication token. Keyed by the token plus the application token (the
     /// key extension), because a token is only valid in the application that issued it. Resolve it with
-    /// <see cref="Apilane.Api.Core.Extensions.GrainFactoryExtensions.GetAuthTokenUserGrain"/>.
+    /// <see cref="Apilane.Api.Core.Extensions.AuthTokenGrainFactoryExtensions.GetAuthTokenUserGrain"/>.
     /// </summary>
     public interface IAuthTokenUserGrain : IGrainWithGuidCompoundKey
     {
@@ -46,38 +46,63 @@ namespace Apilane.Api.Core.Grains
 
         public async Task<Users?> GetAsync(ApplicationDbInfoDto applicationDbInfo, int authTokenExpireMinutes)
         {
+            // The application is part of this grain's key. An activation reached without it (a silo still
+            // running a version that keyed by token alone) is shared between applications: authenticate nobody.
+            this.GetPrimaryKey(out var appToken);
+            if (string.IsNullOrWhiteSpace(appToken))
+            {
+                return null;
+            }
+
             await LoadStateAsync(applicationDbInfo);
 
-            if (_authToken is not null)
+            if (_authToken is null)
             {
-                var created = Utils.GetDateFromUnixTimestamp(_authToken.Created.ToString())
-                    ?? throw new Exception($"Could not convert to datetime | {_authToken.Created}");
+                // The token does not exist, and LoadStateAsync has dropped any user cached while it did
+                return null;
+            }
 
-                // Validate token expiration
-                if ((DateTime.UtcNow - created).TotalMinutes >= authTokenExpireMinutes)
+            var created = Utils.GetDateFromUnixTimestamp(_authToken.Created.ToString())
+                ?? throw new Exception($"Could not convert to datetime | {_authToken.Created}");
+
+            // Validate token expiration
+            if ((DateTime.UtcNow - created).TotalMinutes >= authTokenExpireMinutes)
+            {
+                await DeleteAsync(applicationDbInfo);
+                return null;
+            }
+
+            // Update auth token to new expiration date
+            var hasAuthTokenPassed10Percentile = (DateTime.UtcNow - created).TotalMinutes / (authTokenExpireMinutes * 1.0) > 0.1;
+            if (hasAuthTokenPassed10Percentile)
+            {
+                await using (var dataStore = new ApplicationDataStoreFactory(applicationDbInfo))
                 {
-                    await DeleteAsync(applicationDbInfo);
-                    return null;
+                    // Update is heavy so, do not update for the first 10% of the time passed.
+                    // The filter names the token as well as its id: ids start again after an application
+                    // is rebuilt, so the id alone could extend a newer token that reuses it.
+                    await dataStore.UpdateDataAsync(
+                        nameof(AuthTokens),
+                        new Dictionary<string, object?>()
+                        {
+                            { nameof(AuthTokens.Created), Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow) }
+                        },
+                        new FilterData(FilterData.FilterLogic.AND, new List<FilterData>()
+                        {
+                            new FilterData(nameof(AuthTokens.ID), FilterData.FilterOperators.equal, _authToken.ID, PropertyType.Number),
+                            new FilterData(nameof(AuthTokens.Token), FilterData.FilterOperators.equal, _authToken.Token, PropertyType.String)
+                        }));
                 }
 
-                // Update auth token to new expiration date
-                var hasAuthTokenPassed10Percentile = (DateTime.UtcNow - created).TotalMinutes / (authTokenExpireMinutes * 1.0) > 0.1;
-                if (hasAuthTokenPassed10Percentile)
-                {
-                    await using (var dataStore = new ApplicationDataStoreFactory(applicationDbInfo))
-                    {
-                        // Update is heavy so, do not update for the first 10% of the time passed.
-                        await dataStore.UpdateDataAsync(
-                            nameof(AuthTokens),
-                            new Dictionary<string, object?>()
-                            {
-                                { nameof(AuthTokens.Created), Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow) }
-                            },
-                            new FilterData(nameof(AuthTokens.ID), FilterData.FilterOperators.equal, _authToken.ID, PropertyType.Number));
-                    }
+                // Read the token and its user again. A row removed behind this grain (the user was
+                // deleted, the owner removed it with SQL, the application was rebuilt) ends here, and
+                // changes to the user (roles) take effect.
+                _authToken = null;
+                await LoadStateAsync(applicationDbInfo);
 
-                    // Set to null to force reload on next run
-                    _authToken = null;
+                if (_authToken is null)
+                {
+                    return null;
                 }
             }
 
@@ -112,6 +137,11 @@ namespace Apilane.Api.Core.Grains
             // Auth token
             if (_authToken is null)
             {
+                // The user is read again whenever the token is. A token that no longer exists then has no
+                // user, and changes made behind this grain (roles, a deleted user) stop being served from
+                // the cache at the same point.
+                _user = null;
+
                 var authToken = this.GetPrimaryKey(out _).ToString();
 
                 await using (var dataStore = new ApplicationDataStoreFactory(applicationDbInfo))

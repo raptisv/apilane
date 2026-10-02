@@ -48,6 +48,11 @@ namespace Apilane.Api.Controllers
         protected Users? ApplicationUser = null;
         protected ApplicationRateLimiter ApplicationRateLimiter = null!;
 
+        // The authentication token this request presented: the bearer token itself, or the key id of a
+        // signed request whose signature was verified (a signed request does not carry the token).
+        private Guid? _bearerAuthToken;
+        private long? _signedAuthTokenId;
+
         public override async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
             // On every call, validate user access to application
@@ -103,6 +108,7 @@ namespace Apilane.Api.Controllers
                 {
                     var grainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
                     ApplicationUser = await grainRef.GetAsync(Application.ToDbInfo(ApiConfiguration.FilesPath), Application.AuthTokenExpireMinutes);
+                    _bearerAuthToken = guidAuthToken;
                 }
 
                 // Check limitations only for non-portal owners
@@ -192,7 +198,7 @@ namespace Apilane.Api.Controllers
                 timestampMs.ToString(),
                 body);
 
-            return await ClusterClient
+            var user = await ClusterClient
                 .GetAuthTokenByIdGrain(Application.Token, keyId)
                 .VerifyAndGetUserAsync(
                     Application.ToDbInfo(ApiConfiguration.FilesPath),
@@ -200,6 +206,48 @@ namespace Apilane.Api.Controllers
                     timestampMs,
                     canonical,
                     providedSignature);
+
+            if (user is not null)
+            {
+                // Only a verified signature may act on the token behind the key id (logout, renew)
+                _signedAuthTokenId = keyId;
+            }
+
+            return user;
+        }
+
+        /// <summary>
+        /// Deletes the authentication token this request was made with, whether it was sent as a bearer
+        /// token or used to sign the request.
+        /// </summary>
+        protected async Task DeleteCurrentAuthTokenAsync()
+        {
+            var applicationDbInfo = Application.ToDbInfo(ApiConfiguration.FilesPath);
+
+            if (_signedAuthTokenId.HasValue)
+            {
+                await ClusterClient.GetAuthTokenByIdGrain(Application.Token, _signedAuthTokenId.Value).DeleteAsync(applicationDbInfo);
+            }
+            else if (_bearerAuthToken.HasValue)
+            {
+                await ClusterClient.GetAuthTokenUserGrain(Application.Token, _bearerAuthToken.Value).DeleteAsync(applicationDbInfo);
+            }
+        }
+
+        /// <summary>
+        /// Drops the user cached for the authentication token this request was made with, so that changes
+        /// to the user are visible on the next request.
+        /// </summary>
+        protected async Task ResetCurrentUserCacheAsync()
+        {
+            if (_signedAuthTokenId.HasValue)
+            {
+                await ClusterClient.GetAuthTokenByIdGrain(Application.Token, _signedAuthTokenId.Value).ResetUserCacheAsync(Application.ToDbInfo(ApiConfiguration.FilesPath));
+            }
+            else if (_bearerAuthToken.HasValue)
+            {
+                await ClusterClient.GetAuthTokenUserGrain(Application.Token, _bearerAuthToken.Value).ResetUserCacheAsync();
+            }
         }
 
         private static async Task<byte[]> ReadBodyAsync(Microsoft.AspNetCore.Http.HttpRequest request)

@@ -26,16 +26,13 @@ namespace Apilane.Api.Controllers
     public class AccountController : BaseApplicationApiController
     {
         private readonly IAccountAPI _accountAPI;
-        private readonly IQueryDataService _queryDataService;
 
         public AccountController(
             ApiConfiguration apiConfiguration,
             IAccountAPI accountAPI,
-            IQueryDataService queryDataService,
             IClusterClient clusterClient) : base(apiConfiguration, clusterClient)
         {
             _accountAPI = accountAPI;
-            _queryDataService = queryDataService;
         }
 
         public class AuthRequest
@@ -170,11 +167,7 @@ namespace Apilane.Api.Controllers
                 userJObject);
 
             // Reset grain cache
-            if (Guid.TryParse(_queryDataService.AuthToken, out var guidAuthToken))
-            {
-                var grainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
-                await grainRef.ResetUserCacheAsync();
-            }
+            await ResetCurrentUserCacheAsync();
 
             return Json(result);
         }
@@ -206,25 +199,21 @@ namespace Apilane.Api.Controllers
         /// <summary>
         /// Use this endpoint to renew the user authentication token.
         /// </summary>
-        /// <returns>Removes the given authentication token and returns a new one.Store the AuthToken string for subsequent api calls that require authorization.</returns>
+        /// <returns>Removes the given authentication token and returns a new one, in the same form as login: the user properties, the new AuthToken and its AuthTokenID. Store the AuthToken (and the AuthTokenID, if you sign requests) for subsequent api calls that require authorization.</returns>
         [HttpGet]
         [Produces("application/json")]
-        [ProducesResponseType(typeof(string), (int)HttpStatusCode.OK)]
+        [ProducesResponseType(typeof(LoginResponseDto), (int)HttpStatusCode.OK)]
         [ProducesResponseType(typeof(ApiErrorVm), (int)HttpStatusCode.Unauthorized)]
-        public async Task<string> RenewAuthToken()
+        public async Task<JsonResult> RenewAuthToken()
         {
-            var newAuthToken = await _accountAPI.RenewAuthTokenAsync(
+            var renewResult = await _accountAPI.RenewAuthTokenAsync(
                 Application.Token,
                 ApplicationUser ?? throw new ApilaneException(AppErrors.UNAUTHORIZED));
 
-            // Delete old auth token
-            if (Guid.TryParse(_queryDataService.AuthToken, out var guidAuthToken))
-            {
-                var grainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
-                await grainRef.DeleteAsync(Application.ToDbInfo(ApiConfiguration.FilesPath));
-            }
+            // Delete old auth token (found through its key id when the request is signed)
+            await DeleteCurrentAuthTokenAsync();
 
-            return newAuthToken;
+            return Json(renewResult);
         }
 
         /// <summary>
@@ -257,12 +246,16 @@ namespace Apilane.Api.Controllers
             }
             else
             {
-                // Delete auth token
-                if (Guid.TryParse(_queryDataService.AuthToken, out var guidAuthToken))
+                // A signed request does not carry the token, so one whose signature did not verify (wrong
+                // secret, clock too far off) has named no token to delete. Say so, or the client would
+                // discard its credentials while the token stays valid.
+                if (Request.Headers.ContainsKey(Globals.AuthSignatureHeaderName) && ApplicationUser is null)
                 {
-                    var grainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
-                    await grainRef.DeleteAsync(Application.ToDbInfo(ApiConfiguration.FilesPath));
+                    throw new ApilaneException(AppErrors.UNAUTHORIZED);
                 }
+
+                // Delete auth token (found through its key id when the request is signed)
+                await DeleteCurrentAuthTokenAsync();
 
                 return 1;
             }
@@ -278,11 +271,7 @@ namespace Apilane.Api.Controllers
             var redirectUrl = await _accountAPI.ConfirmAsync(Application.Token, token, Application.Name, Application.EmailConfirmationRedirectUrl);
 
             // Reset grain cache
-            if (Guid.TryParse(_queryDataService.AuthToken, out var guidAuthToken))
-            {
-                var grainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
-                await grainRef.ResetUserCacheAsync();
-            }
+            await ResetCurrentUserCacheAsync();
 
             if (redirectUrl is null)
             {

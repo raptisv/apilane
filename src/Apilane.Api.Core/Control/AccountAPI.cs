@@ -181,8 +181,12 @@ namespace Apilane.Api.Core
             }
         }
 
-        public async Task<string> RenewAuthTokenAsync(string appToken, Users currentUser)
+        public async Task<LoginResponseDto> RenewAuthTokenAsync(string appToken, Users currentUser)
         {
+            // Renew answers like login: the user, the new token and its id (needed to sign requests)
+            var drUser = await _appDataService.GetUserByIdAsync(appToken, currentUser.ID)
+                ?? throw new ApilaneException(AppErrors.UNAUTHORIZED);
+
             var newAuthToken = Guid.NewGuid().ToString();
 
             // Create the new token
@@ -193,15 +197,18 @@ namespace Apilane.Api.Core
                     { nameof(AuthTokens.Owner), currentUser.ID },
                     { nameof(AuthTokens.Token), newAuthToken },
                     { nameof(AuthTokens.Created), Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow) }
-                }, false);
+                }, false)
+                ?? throw new ApilaneException(AppErrors.ERROR, "Failed to create authentication token");
 
-            if (newAuthTokenId.HasValue)
+            // Clear any cached secret for this token id used by signed-request auth.
+            await _clusterClient.GetAuthTokenByIdGrain(appToken, newAuthTokenId).ResetAsync();
+
+            return new LoginResponseDto()
             {
-                // Clear any cached secret for this token id used by signed-request auth.
-                await _clusterClient.GetAuthTokenByIdGrain(appToken, newAuthTokenId.Value).ResetAsync();
-            }
-
-            return newAuthToken;
+                User = drUser,
+                AuthToken = newAuthToken,
+                AuthTokenID = newAuthTokenId
+            };
         }
 
         public async Task<UserDataDto> GetUserDataAsync(

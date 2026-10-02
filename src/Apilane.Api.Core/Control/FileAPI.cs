@@ -347,13 +347,6 @@ namespace Apilane.Api.Core
             return result;
         }
 
-        public FileInfo GetFileInfoAsync(
-            string appToken,
-            string fileUID)
-        {
-            return new FileInfo(Path.Combine(appToken.GetFilesRootDirectoryInfo(_apiConfiguration.FilesPath).FullName, fileUID));
-        }
-
         private async Task ValidateFileObjectAsync(
             double fileSize,
             string UID,

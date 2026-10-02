@@ -92,7 +92,9 @@ namespace Apilane.Api.Core.Services.Storage
         }
 
         private static string BuildKey(string applicationToken, string fileId)
-            => $"{applicationToken}/files/{fileId}";
+        {
+            return StorageKey.Build(applicationToken, fileId);
+        }
 
         private static (string? Endpoint, string? Region, string AccessKeyId, string SecretAccessKey) ParseConnectionString(string connectionString)
         {

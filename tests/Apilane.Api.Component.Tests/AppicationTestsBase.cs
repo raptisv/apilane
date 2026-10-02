@@ -458,8 +458,7 @@ namespace Apilane.Api.Component.Tests
             var appToken = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(GetType().Name + ":other")).AsSpan(0, 16)).ToString();
 
             // The SDK stores the application token on its HttpClient, so the other application needs its own
-            var httpClient = _suiteContext.CreateHttpClient();
-            _otherHttpClients.Add(httpClient);
+            var httpClient = CreateHttpClient();
 
             var service = new ApilaneService(httpClient, new ApilaneConfiguration()
             {
@@ -470,6 +469,18 @@ namespace Apilane.Api.Component.Tests
             var application = await CreateApplicationAsync(httpClient, appToken, DatabaseType.SQLLite, null, false);
 
             return (application, service);
+        }
+
+        /// <summary>
+        /// A client of the API host that is not bound to an application, for requests the SDK client
+        /// cannot make (another application, a hand-written application token). Disposed with the test.
+        /// </summary>
+        protected HttpClient CreateHttpClient()
+        {
+            var httpClient = _suiteContext.CreateHttpClient();
+            _otherHttpClients.Add(httpClient);
+
+            return httpClient;
         }
 
         private async Task<DBWS_Application> CreateApplicationAsync(

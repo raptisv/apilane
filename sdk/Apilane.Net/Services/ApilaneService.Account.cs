@@ -42,9 +42,14 @@ namespace Apilane.Net.Services
             }
         }
 
-        public async Task<Either<string, ApilaneError>> AccountRenewAuthTokenAsync(
+        /// <summary>
+        /// Replaces the token this request authenticates with by a new one. The response has the same
+        /// form as login: keep its AuthToken, and its AuthTokenID if you sign requests, because the old
+        /// token and its id stop working.
+        /// </summary>
+        public async Task<Either<AccountLoginResponse<T>, ApilaneError>> AccountRenewAuthTokenAsync<T>(
             AccountRenewAuthTokenRequest request,
-            CancellationToken cancellationToken = default) 
+            CancellationToken cancellationToken = default) where T : IApiUser
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
@@ -64,7 +69,7 @@ namespace Apilane.Net.Services
                     return errorResponse;
                 }
 
-                return jsonString;
+                return JsonSerializer.Deserialize<AccountLoginResponse<T>>(jsonString, JsonDeserializerSettings)!;
             }
         }
 

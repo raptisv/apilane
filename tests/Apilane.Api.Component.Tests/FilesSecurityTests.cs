@@ -9,7 +9,10 @@ using Apilane.Net.Services;
 using CasinoService.ComponentTests.Infrastructure;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -119,6 +122,64 @@ namespace Apilane.Api.Component.Tests
             {
                 var fileItem = await GetFileByID_ShouldSucceed<FileItem>(authToken, fileId);
                 Assert.NotNull(fileItem);
+            }
+        }
+
+        /// <summary>
+        /// A file's UID is read from the application's Files table, which its owner can write with custom
+        /// SQL. A UID that resolves outside the application's own files folder must never be served.
+        /// </summary>
+        [Theory]
+        [InlineData(false)] // relative: "../../{file}"
+        [InlineData(true)]  // absolute path
+        public async Task Download_WithFileUidPointingOutsideTheApplication_IsNotServed(bool absolutePath)
+        {
+            await InitializeApplicationAsync(DatabaseType.SQLLite, null, false);
+
+            var authToken = await RegisterAndLoginAsync("owner@test.com", "password");
+
+            long fileId;
+            using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "Files",
+                inRole: Globals.AUTHENTICATED,
+                actionType: SecurityActionType.post,
+                properties: new() { nameof(FileItem.Size), nameof(FileItem.Name), nameof(FileItem.UID) }))
+            {
+                fileId = await PostFile_ShouldSucceed(authToken);
+            }
+
+            // A file outside the application's folder, standing in for another application's data
+            var outsideFile = Path.Combine(ApiConfiguration.FilesPath, $"outside-{Guid.NewGuid():N}.txt");
+            File.WriteAllText(outsideFile, "other tenant data");
+
+            try
+            {
+                // The storage path is {FilesPath}/{token}/files/{UID}
+                var uid = absolutePath ? outsideFile : $"../../{Path.GetFileName(outsideFile)}";
+
+                AddCustomEndpoint("PointFileOutside", $"UPDATE [Files] SET [UID] = '{uid}' WHERE [ID] = {fileId}");
+                using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "PointFileOutside", type: SecurityTypes.CustomEndpoint))
+                {
+                    (await ApilaneService.GetCustomEndpointAsync(CustomEndpointRequest.New("PointFileOutside")))
+                        .Match(r => r, e => throw new Exception($"Update failed | {e.Code} | {e.Message}"));
+                }
+
+                using (new WithSecurityAccess(ApiConfiguration, ApplicationServiceMock, TestApplication, "Files",
+                    inRole: Globals.AUTHENTICATED))
+                {
+                    using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/Files/Download?FileID={fileId}");
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
+
+                    using var response = await HttpClient.SendAsync(request);
+                    var body = await response.Content.ReadAsStringAsync();
+
+                    Assert.DoesNotContain("other tenant data", body);
+                    Assert.False(response.IsSuccessStatusCode);
+                    Assert.Contains("NOT_FOUND", body);
+                }
+            }
+            finally
+            {
+                File.Delete(outsideFile);
             }
         }
 

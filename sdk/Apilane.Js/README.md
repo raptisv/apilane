@@ -112,8 +112,8 @@ const updated = await apilane.accountUpdate(
     { Username: 'newname' }
 );
 
-// Renew token
-const newToken = await apilane.accountRenewAuthToken(
+// Renew token: same response as login ({ AuthToken, AuthTokenID, User }); the old token stops working
+const renewed = await apilane.accountRenewAuthToken(
     AccountRenewAuthTokenRequest.new().withAuthToken(authToken)
 );
 

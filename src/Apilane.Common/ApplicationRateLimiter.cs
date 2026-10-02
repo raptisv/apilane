@@ -23,7 +23,7 @@ namespace Apilane.Common
             string action,
             CancellationToken ct)
         {
-            var key = $"{userIdentifier}:{entityOrEndpoint}:{action}";
+            var key = BuildKey(userIdentifier, entityOrEndpoint, action);
             var entry = _windows.GetOrAdd(key, _ => (new List<DateTime>(), new SemaphoreSlim(1, 1)));
 
             await entry.Semaphore.WaitAsync(ct);
@@ -46,9 +46,16 @@ namespace Apilane.Common
             }
         }
 
+        // Entity and endpoint names are matched without regard to case, and the name arrives as the client
+        // wrote it. One window per name, whatever its casing, or re-casing the name would reset the limit.
+        private static string BuildKey(string? userIdentifier, string entityOrEndpoint, string action)
+        {
+            return $"{userIdentifier}:{entityOrEndpoint.ToLowerInvariant()}:{action.ToLowerInvariant()}";
+        }
+
         public void Reset(string? userIdentifier, string entityOrEndpoint, string action)
         {
-            var key = $"{userIdentifier}:{entityOrEndpoint}:{action}";
+            var key = BuildKey(userIdentifier, entityOrEndpoint, action);
             if (_windows.TryGetValue(key, out var entry))
             {
                 entry.Semaphore.Wait();

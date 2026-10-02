@@ -133,8 +133,6 @@ namespace Apilane.UnitTests
             Assert.AreEqual("5", ServerQuery(url)["id"]);
         }
 
-        // ─── ApilaneService.UrlFor_* ────────────────────────────────────────────
-
         // ─── No query parameters ────────────────────────────────────────────────
 
         [TestMethod]
@@ -147,6 +145,8 @@ namespace Apilane.UnitTests
             Assert.AreEqual($"{ApiUrl}/api/Account/UserData", url);
             Assert.AreEqual("/api/Account/UserData", new Uri(url).PathAndQuery);
         }
+
+        // ─── ApilaneService.UrlFor_* ────────────────────────────────────────────
 
         [TestMethod]
         [DataRow("user+tag@test.com")]

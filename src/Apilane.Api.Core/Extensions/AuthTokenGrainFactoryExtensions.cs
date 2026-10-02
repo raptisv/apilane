@@ -4,7 +4,7 @@ using System;
 
 namespace Apilane.Api.Core.Extensions
 {
-    public static class GrainFactoryExtensions
+    public static class AuthTokenGrainFactoryExtensions
     {
         /// <summary>
         /// Resolves the grain that caches the user behind an authentication token. The grain is keyed by

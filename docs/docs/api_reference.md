@@ -109,7 +109,13 @@ x-application-token: {appToken}
 Authorization: Bearer {authToken}
 ```
 
-**Response:** A new auth token string.
+**Response:** The same object as login: the user, the new `AuthToken` and its `AuthTokenID`.
+
+```json
+{ "User": { "ID": 1, "Email": "user@example.com" }, "AuthToken": "...", "AuthTokenID": 42 }
+```
+
+A client that [signs its requests](developer_guide/security.md) must keep the new `AuthTokenID` as well, because the old ID stops working together with the old token. A signed request can be used here too: the token being renewed is then the one whose ID signed the request.
 
 ### Logout
 
