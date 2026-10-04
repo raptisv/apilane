@@ -1,4 +1,5 @@
 ﻿using Apilane.Common;
+using Apilane.Common.Utilities;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Primitives;
 using System;
@@ -100,7 +101,13 @@ namespace Apilane.Api.Services
         {
             get
             {
-                return GetRequestIP() ?? string.Empty;
+                var httpContext = _actionContextAccessor.ActionContext?.HttpContext;
+
+                // A header that was sent several times reads as one comma separated value.
+                return ClientIpResolver.Resolve(
+                    httpContext?.Request.Headers["X-Forwarded-For"].ToString(),
+                    httpContext?.Connection.RemoteIpAddress?.ToString(),
+                    httpContext?.Request.Headers["REMOTE_ADDR"].ToString()) ?? string.Empty;
             }
         }
 
@@ -179,68 +186,6 @@ namespace Apilane.Api.Services
             }
 
             return string.Empty;
-        }
-
-        private string? GetRequestIP(bool tryUseXForwardHeader = true)
-        {
-            string? ip = null;
-
-            // support new "Forwarded" header (2014) https://en.wikipedia.org/wiki/X-Forwarded-For
-
-            // X-Forwarded-For (csv list):  Using the First entry in the list seems to work
-            // for 99% of cases however it has been suggested that a better (although tedious)
-            // approach might be to read each IP from right to left and use the first public IP.
-            // http://stackoverflow.com/a/43554000/538763
-            if (tryUseXForwardHeader)
-            {
-                ip = SplitCsv(GetHeaderValueAs<string?>("X-Forwarded-For"))?.FirstOrDefault();
-            }
-
-            // RemoteIpAddress is always null in DNX RC1 Update1 (bug).
-            if (string.IsNullOrWhiteSpace(ip) && _actionContextAccessor.ActionContext?.HttpContext?.Connection?.RemoteIpAddress != null)
-            {
-                ip = _actionContextAccessor.ActionContext.HttpContext.Connection.RemoteIpAddress?.ToString();
-            }
-
-            if (string.IsNullOrWhiteSpace(ip))
-            {
-                ip = GetHeaderValueAs<string>("REMOTE_ADDR");
-            }
-
-            // _httpContextAccessor.HttpContext?.Request?.Host this is the local host.
-
-            return ip;
-        }
-
-        public T? GetHeaderValueAs<T>(string headerName)
-        {
-            StringValues values;
-
-            if (_actionContextAccessor.ActionContext?.HttpContext?.Request?.Headers?.TryGetValue(headerName, out values) ?? false)
-            {
-                string rawValues = values.ToString();   // writes out as Csv when there are multiple.
-
-                if (!string.IsNullOrWhiteSpace(rawValues))
-                {
-                    return (T)Convert.ChangeType(values.ToString(), typeof(T));
-                }
-            }
-            return default(T);
-        }
-
-        public static List<string>? SplitCsv(string? csvList, bool nullOrWhitespaceInputReturnsNull = false)
-        {
-            if (string.IsNullOrWhiteSpace(csvList))
-            {
-                return nullOrWhitespaceInputReturnsNull ? null : new List<string>();
-            }
-
-            return csvList
-                .TrimEnd(',')
-                .Split(',')
-                .AsEnumerable<string>()
-                .Select(s => s.Trim())
-                .ToList();
         }
     }
 }

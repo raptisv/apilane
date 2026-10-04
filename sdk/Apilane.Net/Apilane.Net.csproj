@@ -10,7 +10,8 @@
 	<PackageIcon>icon.png</PackageIcon>
     <nullable>enable</nullable>
     <LangVersion>latest</LangVersion>
-	<PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
+	<Copyright>Copyright (c) 2023-2026 Evangelos Raptis</Copyright>
 	<PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   
@@ -19,6 +20,10 @@
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
+	<None Include="..\LICENSE">
+		<Pack>True</Pack>
+		<PackagePath>\</PackagePath>
+	</None>
 	<None Include="README.md">
 		<Pack>True</Pack>
 		<PackagePath>\</PackagePath>

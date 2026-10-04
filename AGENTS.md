@@ -16,7 +16,7 @@ It uses Microsoft Orleans for distributed actor state and targets SQLite, SQL Se
 | `Apilane.Data` | `src/Apilane.Data/` | Data access layer (multi-DB) |
 | `Apilane.Portal` | `src/Apilane.Portal/` | Portal host: the management API (`/api/v1`), and the built UI served at the site root |
 | `Apilane.Portal.Ui` | `src/Apilane.Portal.Ui/` | The Portal UI: a Vue 3 single-page app (not in the `.sln`; its `README.md` documents the UI and the management API) |
-| `Apilane.Net` | `sdk/Apilane.Net/` | .NET client SDK (NuGet package) |
+| `Apilane.Net` | `sdk/Apilane.Net/` | .NET client SDK (NuGet package; MIT, see `sdk/LICENSE`) |
 | `Apilane.UnitTests` | `tests/Apilane.UnitTests/` | MSTest unit tests |
 | `Apilane.Api.Component.Tests` | `tests/Apilane.Api.Component.Tests/` | xUnit component/integration tests |
 | `Apilane.Portal.Tests` | `tests/Apilane.Portal.Tests/` | xUnit + `WebApplicationFactory` tests of the Portal: `/api/v1`, `/api/internal` and how the UI is served (throw-away SQLite, no Docker) |
@@ -315,3 +315,4 @@ public class DataTests : AppicationTestsBase
 - **Async all the way** — do not use `.Result` or `.Wait()` on tasks; propagate `async/await`
 - **Do not commit** secrets or connection strings — use `appsettings.*.json` (gitignored) or environment variables
 - **License every dependency** — a new NuGet or npm package, or third-party code copied into the repository, gets its upstream license text in `licenses/` (named `<Name>-<SPDX id>`, no extension) and a line in the `licenses` folder of `Apilane.sln`
+- **`sdk/` is MIT, everything else is AGPL-3.0** (`sdk/LICENSE`) — the SDKs never reference a project under `src/` and take only permissively licensed dependencies

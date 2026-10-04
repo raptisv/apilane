@@ -13,7 +13,6 @@
 		<Version>1.0.0</Version>
 		<Nullable>enable</Nullable>
 		<InvariantGlobalization>false</InvariantGlobalization>
-		<DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 		<LangVersion>latest</LangVersion>
 		<!-- XML comments of the management API (Api/) feed the OpenAPI contract. -->
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -24,7 +23,6 @@
 		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.12" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
-		<PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
 		<PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
 		<PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.18.0-beta.1" />
 		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />

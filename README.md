@@ -59,3 +59,9 @@ See the [SDK documentation](https://docs.apilane.com/developer_guide/sdk/) for u
 For more info check [our docs](https://docs.apilane.com).
 
 The Portal (its UI and the management API under `/api/v1`) is documented in [src/Apilane.Portal.Ui/README.md](src/Apilane.Portal.Ui/README.md): how it behaves, how to run, build and deploy it, and how to call its API.
+
+# License
+
+Apilane is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+The client SDKs under [sdk/](sdk) ([Apilane.Net](sdk/Apilane.Net) and [Apilane.Js](sdk/Apilane.Js)) are the exception: they are licensed under the [MIT License](sdk/LICENSE).

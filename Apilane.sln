@@ -24,6 +24,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{BE8EF20A-5
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "sdk", "sdk", "{F729F015-1D46-41DB-B6A8-84E4FB976443}"
+	ProjectSection(SolutionItems) = preProject
+		sdk\LICENSE = sdk\LICENSE
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apilane.Net", "sdk\Apilane.Net\Apilane.Net.csproj", "{60918BA4-4CDE-4494-8D56-478D4D2E5558}"
 EndProject
@@ -108,7 +111,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "licenses", "licenses", "{99
 		licenses\FakeItEasy-MIT = licenses\FakeItEasy-MIT
 		licenses\Google.Cloud.Storage.V1-Apache-2.0 = licenses\Google.Cloud.Storage.V1-Apache-2.0
 		licenses\GridStack-MIT = licenses\GridStack-MIT
-		licenses\jQuery-MIT = licenses\jQuery-MIT
 		licenses\Lucide-ISC = licenses\Lucide-ISC
 		licenses\Microsoft.Data.SqlClient-MIT = licenses\Microsoft.Data.SqlClient-MIT
 		licenses\Microsoft.NET.Test.Sdk-MIT = licenses\Microsoft.NET.Test.Sdk-MIT
@@ -139,7 +141,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "licenses", "licenses", "{99
 		licenses\Vue.js-MIT = licenses\Vue.js-MIT
 		licenses\VueRouter-MIT = licenses\VueRouter-MIT
 		licenses\VueUse-MIT = licenses\VueUse-MIT
-		licenses\Westwind.Utilities-MIT = licenses\Westwind.Utilities-MIT
 		licenses\xunit-Apache-2.0 = licenses\xunit-Apache-2.0
 	EndProjectSection
 EndProject

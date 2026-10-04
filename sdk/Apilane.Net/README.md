@@ -96,4 +96,7 @@ Full SDK documentation: [https://docs.apilane.com/developer_guide/sdk/](https://
 
 ## License
 
-See the [Apilane repository](https://github.com/raptisv/apilane) for license information.
+Apilane.Net is released under the [MIT License](https://github.com/raptisv/apilane/blob/main/sdk/LICENSE); a copy is inside the package.
+Versions up to 10.1.1 were published under AGPL-3.0-only and stay under that license.
+
+The Apilane server (API and Portal) is a separate program under AGPL-3.0.
