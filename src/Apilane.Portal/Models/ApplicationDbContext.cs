@@ -31,6 +31,7 @@ namespace Apilane.Portal.Models
         public DbSet<DBWS_ReportPanel> Reports { get; set; }
         public DbSet<DBWS_ReportSeries> ReportSeries { get; set; }
         public DbSet<PortalAuditLog> AuditLogs { get; set; }
+        public DbSet<PortalAgentKey> AgentKeys { get; set; }
 
         public ApplicationDbContext(
             DbContextOptions<ApplicationDbContext> options,
@@ -109,6 +110,16 @@ namespace Apilane.Portal.Models
             builder.Entity<PortalAuditLog>().Property(p => p.Changes).IsRequired(false);
             builder.Entity<PortalAuditLog>().HasIndex(p => p.AppID);
             builder.Entity<PortalAuditLog>().HasIndex(p => p.Timestamp);
+
+            // Agent keys table: one key per agent, deleted with its user
+            builder.Entity<PortalAgentKey>().ToTable("AgentKeys").HasKey(p => p.UserId);
+            builder.Entity<PortalAgentKey>().HasIndex(p => p.KeyId).IsUnique(true);
+            builder.Entity<PortalAgentKey>()
+                .HasOne<ApplicationUser>()
+                .WithOne()
+                .HasForeignKey<PortalAgentKey>(p => p.UserId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
 
             var adminRoleGuid = Guid.NewGuid().ToString("D");
             var adminUserGuid = Guid.NewGuid().ToString("D");

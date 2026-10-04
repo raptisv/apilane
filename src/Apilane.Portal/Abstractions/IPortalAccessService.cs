@@ -11,7 +11,7 @@ namespace Apilane.Portal.Abstractions
     {
         /// <summary>
         /// The signed-in portal user, or null when there is no session or it has been revoked
-        /// (signed out, or signed in again elsewhere).
+        /// (signed out, or signed in again elsewhere). For a request with an agent key it is the agent.
         /// </summary>
         Task<ApplicationUser?> FindCurrentUserAsync();
 

@@ -33,6 +33,7 @@ namespace Apilane.Portal.Api.V1
         /// For the owner and collaborators. Never cached (Cache-Control: no-store).
         /// </summary>
         [HttpGet("connection-info")]
+        [NoAgent]
         [ProducesResponseType(typeof(ConnectionInfoResponse), StatusCodes.Status200OK)]
         public async Task<ConnectionInfoResponse> GetConnectionInfo(string appToken)
         {
@@ -118,6 +119,7 @@ namespace Apilane.Portal.Api.V1
         /// could not be refreshed afterwards.
         /// </summary>
         [HttpPost("rebuild")]
+        [NoAgent]
         [ProducesCacheResetWarning]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]

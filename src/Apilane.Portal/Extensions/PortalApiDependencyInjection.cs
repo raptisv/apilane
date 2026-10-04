@@ -1,6 +1,8 @@
+using Apilane.Common.Security;
 using Apilane.Portal.Abstractions;
 using Apilane.Portal.Api;
 using Apilane.Portal.Api.Internal;
+using Apilane.Portal.Models;
 using Apilane.Portal.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -12,6 +14,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -22,7 +25,9 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.RateLimiting;
+using System.Threading.Tasks;
 
 namespace Apilane.Portal.Extensions
 {
@@ -38,6 +43,10 @@ namespace Apilane.Portal.Extensions
         private const string UiIndexFile = "index.html";
         private const string UiAssetsPath = "/assets";
         private const string SwaggerPath = "/swagger";
+
+        // Where an agent key counts. Not /api/internal: there a Bearer value is a user's API-server token.
+        private const string AgentApiPath = PortalApiErrors.PathPrefix + "/v1";
+        private const string BearerScheme = "Bearer";
 
         // The only addresses the Portal answers itself; every other address belongs to the UI.
         // Under these an unknown address is 404, never the UI's index page: an API server or a
@@ -150,7 +159,11 @@ namespace Apilane.Portal.Extensions
                     Description = "Management API of an Apilane instance: servers, applications, entities and their settings. " +
                         "Records, files and custom endpoints of an application are served by the Apilane API server. " +
                         $"Every POST, PUT, PATCH and DELETE request must send the header '{PortalCsrfFilter.HeaderName}: {PortalCsrfFilter.HeaderValue}'; " +
-                        "without it the answer is 403 FORBIDDEN."
+                        "without it the answer is 403 FORBIDDEN. " +
+                        "A script or an AI agent sends an agent key instead of the session cookie, as 'Authorization: Bearer {key}', and needs no such header " +
+                        "(an administrator creates agents with POST /api/v1/admin/agents). An agent key is refused with 403 FORBIDDEN on every DELETE, " +
+                        "on everything under /api/v1/admin, and on the calls that create, import, clone or rebuild an application, read its encryption key, " +
+                        "return the API-server token, sign in, register or set a password."
                 });
 
                 // Only /api/v1 is the contract: /api/internal is for the API servers.
@@ -247,6 +260,80 @@ namespace Apilane.Portal.Extensions
             });
 
             return app;
+        }
+
+        /// <summary>
+        /// Agent keys (see <see cref="PortalAgent"/>). A request under /api/v1 that sends
+        /// 'Authorization: Bearer ...' is authenticated by that value alone: a valid key makes it the
+        /// agent's request, whatever cookie came with it, and anything else is 401 with one body.
+        /// Right after that, the one check of what an agent may not call: any DELETE, anything under
+        /// /api/v1/admin, and the actions marked <see cref="NoAgentAttribute"/>.
+        /// Call after UseAuthentication and before UseAuthorization.
+        /// </summary>
+        public static IApplicationBuilder UsePortalAgentKeys(this IApplicationBuilder app)
+        {
+            app.UseWhen(
+                context => context.Request.Path.StartsWithSegments(AgentApiPath)
+                    && context.Request.Headers.Authorization.ToString().StartsWith(BearerScheme, StringComparison.OrdinalIgnoreCase),
+                branch => branch.Use(async (context, next) =>
+                {
+                    var agent = await FindAgentByKeyAsync(context);
+
+                    if (agent is null)
+                    {
+                        await PortalApiErrors.WriteAsync(context, StatusCodes.Status401Unauthorized, PortalErrorCode.Unauthorized, PortalAgent.InvalidKeyMessage);
+                        return;
+                    }
+
+                    // The claims of the login cookie (AppClaimsPrincipalFactory), so everything after
+                    // this sees a normal user. No role claim: an agent is never an administrator.
+                    context.User = new ClaimsPrincipal(new ClaimsIdentity(
+                        new[]
+                        {
+                            new Claim("Id", agent.Id),
+                            new Claim("PortalUserAuthToken", agent.AdminAuthToken ?? string.Empty),
+                            new Claim("UserEmail", agent.Email ?? string.Empty)
+                        },
+                        PortalAgent.AuthenticationType));
+
+                    if (HttpMethods.IsDelete(context.Request.Method)
+                        || context.Request.Path.StartsWithSegments("/" + PortalAdminApiControllerBase.RoutePrefix)
+                        || context.GetEndpoint()?.Metadata.GetMetadata<NoAgentAttribute>() is not null)
+                    {
+                        await PortalApiErrors.WriteAsync(context, StatusCodes.Status403Forbidden, PortalErrorCode.Forbidden, PortalAgent.RefusedMessage);
+                        return;
+                    }
+
+                    await next();
+                }));
+
+            return app;
+        }
+
+        // The agent a Bearer value belongs to, or null: no key, a malformed one, an unknown KeyId
+        // and a wrong secret all look the same to the caller.
+        private static async Task<ApplicationUser?> FindAgentByKeyAsync(HttpContext context)
+        {
+            var key = context.Request.Headers.Authorization.ToString().Substring(BearerScheme.Length).Trim();
+
+            if (!PortalAgent.TryReadKey(key, out var keyId, out var secretHash))
+            {
+                return null;
+            }
+
+            var dbContext = context.RequestServices.GetRequiredService<ApplicationDbContext>();
+
+            var stored = await dbContext.AgentKeys.AsNoTracking().FirstOrDefaultAsync(x => x.KeyId == keyId);
+
+            // Compared in constant time.
+            if (stored is null || !SecureCompare.AreEqual(stored.SecretHash, secretHash))
+            {
+                return null;
+            }
+
+            var user = await dbContext.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == stored.UserId);
+
+            return user is not null && PortalAgent.IsAgent(user.Email) ? user : null;
         }
 
         /// <summary>

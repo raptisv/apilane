@@ -4,6 +4,7 @@ using Apilane.Portal.Abstractions;
 using Apilane.Portal.Api;
 using Apilane.Portal.Api.V1.Contracts;
 using Apilane.Portal.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -57,6 +58,26 @@ namespace Apilane.Portal.Services
                 .ToList();
         }
 
+        public async Task<List<AvailableAgentResponse>> GetAvailableAgentsAsync(string appToken)
+        {
+            var application = await _applicationAccessService.GetApplicationAsync(appToken, requireOwner: true);
+
+            // Identity keeps every address in upper case too, so the letter case does not matter here.
+            var suffix = PortalAgent.EmailSuffix.ToUpperInvariant();
+
+            var emails = await _dbContext.Users
+                .AsNoTracking()
+                .Where(x => x.Email != null && x.NormalizedEmail != null && x.NormalizedEmail.EndsWith(suffix))
+                .Select(x => x.Email ?? string.Empty)
+                .ToListAsync();
+
+            return emails
+                .Where(x => PortalAgent.IsAgent(x) && !application.Collaborates.Any(c => c.UserEmail.Equals(x, StringComparison.OrdinalIgnoreCase)))
+                .Select(x => new AvailableAgentResponse { Name = x.Substring(0, x.Length - PortalAgent.EmailSuffix.Length), Email = x })
+                .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         public async Task<CollaboratorAddedResponse> AddAsync(string appToken, AddCollaboratorRequest request)
         {
             var application = await _applicationAccessService.GetApplicationAsync(appToken, requireOwner: true);
@@ -93,7 +114,8 @@ namespace Apilane.Portal.Services
             {
                 ID = collaborator.ID,
                 Email = collaborator.UserEmail,
-                NotificationSent = SendNotification(application, email)
+                // An agent is never mailed: nobody reads its address.
+                NotificationSent = !PortalAgent.IsAgent(email) && SendNotification(application, email)
             };
         }
 

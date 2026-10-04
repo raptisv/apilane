@@ -9,6 +9,8 @@ namespace Apilane.Portal.Api
     /// Base class of every management API controller: JSON in and out, a valid portal session
     /// required, the 'X-Apilane-Portal: 1' header required on every request that changes data,
     /// and one error body for every failure.
+    /// A request with an agent key (PortalAgent) arrives here as that agent's session, and needs
+    /// no header. What an agent may not call is decided before, in UsePortalAgentKeys.
     /// An action marked [AllowAnonymous] skips the session check only: the header is still
     /// required. Such an action must be on the allow-list of ApiContractTests.
     /// Writes go through ApplicationDbContext.SaveChangesAsync with tracked entities, because

@@ -17,7 +17,7 @@ namespace Apilane.Portal.Api.V1
         }
 
         /// <summary>
-        /// Lists every portal user, the most recent sign-in first. Admin only.
+        /// Lists every portal user, agents included, the most recent sign-in first. Admin only.
         /// </summary>
         [HttpGet]
         [ProducesResponseType(typeof(ListResponse<UserResponse>), StatusCodes.Status200OK)]
@@ -28,8 +28,9 @@ namespace Apilane.Portal.Api.V1
 
         /// <summary>
         /// Makes a user an administrator or an ordinary user. Asking for the role the user already
-        /// has changes nothing and succeeds. Answers 409 CONFLICT for your own user. The user gets
-        /// the new role within 30 minutes, or at once when they sign in again. Admin only.
+        /// has changes nothing and succeeds. Answers 409 CONFLICT for your own user, and for making
+        /// an agent an administrator. The user gets the new role within 30 minutes, or at once when
+        /// they sign in again. Admin only.
         /// </summary>
         [HttpPut("{userId}/role")]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]

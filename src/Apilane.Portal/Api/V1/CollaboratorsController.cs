@@ -31,13 +31,25 @@ namespace Apilane.Portal.Api.V1
         }
 
         /// <summary>
+        /// Lists the agents (users at @agent.local) the application can still be shared with: the
+        /// ones that are not collaborators of it yet, by name. Owner only.
+        /// </summary>
+        [HttpGet("available-agents")]
+        [ProducesResponseType(typeof(ListResponse<AvailableAgentResponse>), StatusCodes.Status200OK)]
+        public async Task<ListResponse<AvailableAgentResponse>> ListAvailableAgents(string appToken)
+        {
+            return new ListResponse<AvailableAgentResponse>(await _collaboratorService.GetAvailableAgentsAsync(appToken));
+        }
+
+        /// <summary>
         /// Shares the application with an e-mail address, which gets administrator access to it:
         /// everything except sharing it further. The address is trimmed and must be a valid e-mail
         /// address (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an
         /// address the application is already shared with, in any letter case. When the instance
-        /// mail is configured the address gets a notification mail; NotificationSent says whether
-        /// the mail was handed over for sending (delivery is not reported). The share is matched
-        /// to an account by exact address, as typed. Owner only.
+        /// mail is configured the address gets a notification mail, unless it is an agent's
+        /// (@agent.local); NotificationSent says whether the mail was handed over for sending
+        /// (delivery is not reported). The share is matched to an account by exact address, as
+        /// typed. Owner only.
         /// </summary>
         [HttpPost]
         [ProducesResponseType(typeof(CollaboratorAddedResponse), StatusCodes.Status201Created)]

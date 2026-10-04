@@ -14,6 +14,7 @@ import { useApplication } from '@/composables/useApplication'
 import { useApplications } from '@/composables/useApplications'
 import { useAsync } from '@/composables/useAsync'
 import { useMutation } from '@/composables/useMutation'
+import { isAgent } from '@/lib/agents'
 import { api, unwrap } from '@/lib/api'
 import type { Schemas } from '@/lib/api'
 import { formErrors } from '@/lib/forms'
@@ -33,9 +34,16 @@ const { data, error, loading, reload } = useAsync(() =>
   unwrap(api.GET('/api/v1/applications/{appToken}/collaborators', { params: { path: { appToken } } })),
 )
 
+// The agents this application is not shared with yet, offered under the address box. The box
+// stays free text, so a failed read only means there is nothing to offer.
+const { data: agents, reload: reloadAgents } = useAsync(() =>
+  unwrap(api.GET('/api/v1/applications/{appToken}/collaborators/available-agents', { params: { path: { appToken } } })),
+)
+
 // Every change also reloads the applications list, so 'Shared with N' on the cards is right.
 function afterChange(): void {
   void reload()
+  void reloadAgents()
   void reloadApplications()
 }
 
@@ -53,6 +61,13 @@ const share = useMutation(async () => {
 })
 const shareErrors = computed(() => formErrors(share.error.value, ['Email']))
 
+// Agents are mentioned only when there is one to offer.
+const emailHelp = computed(
+  () =>
+    'The address the user signs in with, written exactly as in their account. The user has to be a registered user of this instance.' +
+    (agents.value?.Data.length ? ' The agents you can still add are offered as you type.' : ''),
+)
+
 function openShare(): void {
   email.value = ''
   share.reset()
@@ -64,9 +79,12 @@ async function submitShare(): Promise<boolean> {
     return false
   }
 
+  // An agent is never mailed, and nobody has to be told.
   // NotificationSent = false: mail is not set up, or the mail could not be prepared. The owner has to
   // tell the user, so it is a warning. True only means the mail was handed over for sending.
-  if (added.NotificationSent) {
+  if (isAgent(added.Email)) {
+    toast.success(`Shared with ${added.Email}.`)
+  } else if (added.NotificationSent) {
     toast.success(`Shared with ${added.Email}. A notification email was sent.`)
   } else {
     toast.warning(
@@ -99,6 +117,7 @@ async function submitRemove(): Promise<boolean> {
   toast.success(`Stopped sharing with ${removing.value.Email}.`)
   // Wait for the list before the dialog closes: the row and its button are gone by then, so the
   // dialog moves focus to the main content instead of to a button that is about to disappear.
+  void reloadAgents()
   void reloadApplications()
   await reload()
   return true
@@ -173,17 +192,21 @@ async function submitRemove(): Promise<boolean> {
     <FormField
       v-slot="{ field }"
       label="User email"
-      help="The address the user signs in with, written exactly as in their account. The user has to be a registered user of this instance."
+      :help="emailHelp"
       :error="shareErrors.fields.Email"
     >
-      <Input v-model="email" v-bind="field" type="email" autocomplete="off" spellcheck="false" />
+      <!-- Free text, with the available agents as suggestions of the browser's own list. -->
+      <Input v-model="email" v-bind="field" type="email" list="available-agents" autocomplete="off" spellcheck="false" />
+      <datalist id="available-agents">
+        <option v-for="agent in agents?.Data" :key="agent.Email" :value="agent.Email" />
+      </datalist>
     </FormField>
 
     <div class="flex gap-2.5 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
       <TriangleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <p>
         The user gets full access to modify the application, even delete it. When mail is set up on this instance, the
-        user is notified by email.
+        user is notified by email. An agent is not notified, and cannot delete or rebuild the application.
       </p>
     </div>
   </FormDialog>

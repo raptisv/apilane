@@ -4,6 +4,51 @@
  */
 
 export interface paths {
+    "/api/v1/admin/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Creates an agent: a portal user with the address {Name}@agent.local and no password,
+         *     and a key for it. The agent sends the key as 'Authorization: Bearer {Key}' and is then
+         *     that user: it reaches the applications that are shared with its address. The key is in
+         *     this answer only; the Portal stores a hash of it. Answers 400 VALIDATION on Name for a
+         *     name that is not acceptable or already taken. Admin only.
+         */
+        post: operations["AdminAgents_Create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/agents/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Deletes an agent: its user and its key, which stops working at once, and its entries
+         *     in the collaborator lists of the applications shared with it. This cannot be undone.
+         *     Answers 404 NOT_FOUND for an unknown id and for a user that is not an agent: people
+         *     cannot be deleted. Admin only.
+         */
+        delete: operations["AdminAgents_Delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/applications": {
         parameters: {
             query?: never;
@@ -162,7 +207,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lists every portal user, the most recent sign-in first. Admin only. */
+        /** Lists every portal user, agents included, the most recent sign-in first. Admin only. */
         get: operations["AdminUsers_List"];
         put?: never;
         post?: never;
@@ -182,8 +227,9 @@ export interface paths {
         get?: never;
         /**
          * Makes a user an administrator or an ordinary user. Asking for the role the user already
-         *     has changes nothing and succeeds. Answers 409 CONFLICT for your own user. The user gets
-         *     the new role within 30 minutes, or at once when they sign in again. Admin only.
+         *     has changes nothing and succeeds. Answers 409 CONFLICT for your own user, and for making
+         *     an agent an administrator. The user gets the new role within 30 minutes, or at once when
+         *     they sign in again. Admin only.
          */
         put: operations["AdminUsers_SetRole"];
         post?: never;
@@ -551,11 +597,32 @@ export interface paths {
          *     everything except sharing it further. The address is trimmed and must be a valid e-mail
          *     address (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an
          *     address the application is already shared with, in any letter case. When the instance
-         *     mail is configured the address gets a notification mail; NotificationSent says whether
-         *     the mail was handed over for sending (delivery is not reported). The share is matched
-         *     to an account by exact address, as typed. Owner only.
+         *     mail is configured the address gets a notification mail, unless it is an agent's
+         *     (@agent.local); NotificationSent says whether the mail was handed over for sending
+         *     (delivery is not reported). The share is matched to an account by exact address, as
+         *     typed. Owner only.
          */
         post: operations["Collaborators_Add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/applications/{appToken}/collaborators/available-agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lists the agents (users at @agent.local) the application can still be shared with: the
+         *     ones that are not collaborators of it yet, by name. Owner only.
+         */
+        get: operations["Collaborators_ListAvailableAgents"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1392,6 +1459,18 @@ export interface components {
             /** Format: int64 */
             Total: number;
         };
+        /** @description The agent that was created, with its key. */
+        AgentCreatedResponse: {
+            /** @description The ID of the agent's user, as in the list of users. */
+            ID: string;
+            /** @description The agent's address: share an application with it to give the agent access. */
+            Email: string;
+            /**
+             * @description The key the agent sends as 'Authorization: Bearer {Key}'. This answer is the only time it
+             *     is given: the Portal keeps a hash of it and cannot show it again.
+             */
+            Key: string;
+        };
         /** @description The token the signed-in user calls the API servers with (records, files, statistics). */
         ApiTokenResponse: {
             /**
@@ -1495,6 +1574,19 @@ export interface components {
         /** @description The shape of every list answer, the same as the data API: the items and their total count. */
         AuditLogEntryResponseListResponse: {
             Data: components["schemas"]["AuditLogEntryResponse"][];
+            /** Format: int64 */
+            Total: number;
+        };
+        /** @description An agent an application can be shared with. */
+        AvailableAgentResponse: {
+            /** @description The agent's name: its address without @agent.local. */
+            Name: string;
+            /** @description The agent's address: the value to share the application with. */
+            Email: string;
+        };
+        /** @description The shape of every list answer, the same as the data API: the items and their total count. */
+        AvailableAgentResponseListResponse: {
+            Data: components["schemas"]["AvailableAgentResponse"][];
             /** Format: int64 */
             Total: number;
         };
@@ -1611,8 +1703,8 @@ export interface components {
             /** @description The e-mail address the application is shared with, trimmed. */
             Email: string;
             /**
-             * @description False when the instance has no mail settings or the mail could not be handed over for
-             *     sending. The application is shared either way.
+             * @description False when the instance has no mail settings, the mail could not be handed over for
+             *     sending, or the address is an agent's. The application is shared either way.
              */
             NotificationSent: boolean;
         };
@@ -1847,6 +1939,11 @@ export interface components {
              *     ON_DELETE_NO_ACTION, ON_DELETE_SET_NULL or ON_DELETE_CASCADE.
              */
             OnDelete?: string | null;
+        };
+        /** @description A new agent: a portal user for a script or an AI agent, which calls this API with a key. */
+        CreateAgentRequest: {
+            /** @description Lower-case letters, digits and dashes, 3 to 40 characters. The agent's address is {Name}@agent.local. */
+            Name: string;
         };
         /** @description The values of a new application. Its token and its encryption key are generated by the Portal. */
         CreateApplicationRequest: {
@@ -3055,6 +3152,106 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    AdminAgents_Create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CreateAgentRequest"];
+                "text/json": components["schemas"]["CreateAgentRequest"];
+                "application/*+json": components["schemas"]["CreateAgentRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCreatedResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    AdminAgents_Delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     AdminApplications_List: {
         parameters: {
             query?: never;
@@ -4916,6 +5113,55 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    Collaborators_ListAvailableAgents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appToken: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailableAgentResponseListResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

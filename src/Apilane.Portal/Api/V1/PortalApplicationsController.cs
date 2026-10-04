@@ -43,6 +43,7 @@ namespace Apilane.Portal.Api.V1
         /// was created and the API server could not be refreshed afterwards.
         /// </summary>
         [HttpPost]
+        [NoAgent]
         [ProducesCacheResetWarning]
         [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -66,6 +67,7 @@ namespace Apilane.Portal.Api.V1
         /// refuses the database, and 502 UPSTREAM_ERROR when the API server cannot be reached or fails.
         /// </summary>
         [HttpPost("import")]
+        [NoAgent]
         [Consumes("multipart/form-data")]
         [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]

@@ -252,6 +252,10 @@ both: addresses, behaviour, known limits, open decisions, commands, layout and c
   `Api/V1/Contracts` (never EF models, never secrets; the one response that carries a secret of an application is
   `connection-info`, the encryption key shown on demand). Service interfaces go in `src/Apilane.Portal/Abstractions/`.
 - Writes (POST, PUT, DELETE) are rejected without the header `X-Apilane-Portal: 1`.
+- Agents: a portal user whose address ends with `@agent.local` (`PortalAgent.IsAgent`) calls `/api/v1` with `Authorization: Bearer apl_...` and needs no
+  `X-Apilane-Portal` header. The key check and the one list of what an agent is refused (every DELETE, `/api/v1/admin`, actions marked
+  `[NoAgent]`) are in `UsePortalAgentKeys` (`Extensions/PortalApiDependencyInjection.cs`); mark a new action an agent must not call
+  with `[NoAgent]`. See "Agents" in `src/Apilane.Portal.Ui/README.md`.
 - `/api/internal` (`Api/Internal`) is what the API servers call (`PortalInfoService` in `Apilane.Api.Core`): it
   is guarded by the `x-installation-key` header, answers the stored records with PascalCase names and numeric
   enums, and is not in the contract. Change both sides together; `tests/Apilane.Portal.Tests/InternalApiTests.cs`

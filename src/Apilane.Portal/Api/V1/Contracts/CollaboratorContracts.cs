@@ -33,11 +33,29 @@ namespace Apilane.Portal.Api.V1.Contracts
         public string Email { get; set; } = string.Empty;
 
         /// <summary>
-        /// False when the instance has no mail settings or the mail could not be handed over for
-        /// sending. The application is shared either way.
+        /// False when the instance has no mail settings, the mail could not be handed over for
+        /// sending, or the address is an agent's. The application is shared either way.
         /// </summary>
         [Required]
         public bool NotificationSent { get; set; }
+    }
+
+    /// <summary>
+    /// An agent an application can be shared with.
+    /// </summary>
+    public class AvailableAgentResponse
+    {
+        /// <summary>
+        /// The agent's name: its address without @agent.local.
+        /// </summary>
+        [Required]
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The agent's address: the value to share the application with.
+        /// </summary>
+        [Required]
+        public string Email { get; set; } = string.Empty;
     }
 
     /// <summary>

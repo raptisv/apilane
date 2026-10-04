@@ -34,6 +34,7 @@ namespace Apilane.Portal.Api.V1
         /// stays listed when the operation fails; delete it then. For the owner and collaborators.
         /// </summary>
         [HttpPost]
+        [NoAgent]
         [ProducesResponseType(typeof(CloneStartedResponse), StatusCodes.Status202Accepted)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]

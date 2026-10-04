@@ -615,3 +615,13 @@ const result = await apilane.getCustomEndpoint(
 | Assuming IDs before creation | Wrong references | Use `TransactionBuilder` cross-references (`$ref`) |
 | Requesting total count on every page | Double DB queries | Only request on first page or when pager needs it |
 ````
+
+## Managing an instance with an agent key
+
+The block above is about the data of an application. A script or an AI agent can also manage the applications themselves (entities, properties, security, custom endpoints, reports) through the Portal's management API, with an agent key:
+
+1. An administrator adds an agent in the Portal under Instance > Users ('Add agent') and copies its key. The key is shown once.
+2. The owner of an application shares it with the agent's address (`name@agent.local`) on the application's Sharing screen, where the address box offers the agents. No mail is sent to an agent.
+3. The agent sends `Authorization: Bearer <key>` on every call to `{Portal}/api/v1`.
+
+An agent cannot delete anything, rebuild or create an application, read an encryption key or call the administration endpoints. Deleting the agent on the Users screen takes its key away. The calls, the contract (`openapi/portal-v1.json`) and everything an agent is refused are in the [Portal README](https://github.com/raptisv/apilane/blob/main/src/Apilane.Portal.Ui/README.md#agents).

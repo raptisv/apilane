@@ -225,6 +225,8 @@ namespace Apilane.Portal
 
             app.UseAuthentication();
 
+            app.UsePortalAgentKeys();
+
             app.UseAuthorization();
 
             app.UsePortalApiDocs();

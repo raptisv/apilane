@@ -20,6 +20,7 @@ namespace Apilane.Portal.Services
         private const string InvalidLoginMessage = "Invalid login attempt.";
         private const string RegistrationDisabledMessage = "Registration is turned off on this instance.";
         private const string MailNotConfiguredMessage = "Email settings not set for instance, please contact admin.";
+        private const string AgentAddressMessage = "Addresses at agent.local are reserved for agents";
 
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
@@ -109,6 +110,12 @@ namespace Apilane.Portal.Services
                 throw PortalException.Forbidden(RegistrationDisabledMessage);
             }
 
+            // Such an address marks an agent (PortalAgent): a person must not get one.
+            if (PortalAgent.IsAgent(request.Email))
+            {
+                throw PortalException.Validation(nameof(RegisterRequest.Email), AgentAddressMessage);
+            }
+
             var user = new ApplicationUser
             {
                 UserName = request.Email,
@@ -141,7 +148,8 @@ namespace Apilane.Portal.Services
             var user = await _userManager.FindByEmailAsync(request.Email);
 
             // An unknown e-mail is not an error: it gets the same 202 answer as a known one.
-            if (user is null)
+            // So does an agent: it has no password, and must never get one.
+            if (user is null || PortalAgent.IsAgent(user.Email))
             {
                 return;
             }

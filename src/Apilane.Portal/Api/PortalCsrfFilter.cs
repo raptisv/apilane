@@ -8,7 +8,8 @@ namespace Apilane.Portal.Api
     /// a browser also sends on requests started by other sites. Those sites cannot add a custom
     /// header without a CORS preflight, so every request that changes data must carry
     /// 'X-Apilane-Portal: 1'. Runs as an authorization filter, before model binding and the action,
-    /// and applies to anonymous endpoints as well.
+    /// and applies to anonymous endpoints as well. A request authenticated by an agent key carries
+    /// no cookie that counts, so it needs no header.
     /// </summary>
     public class PortalCsrfFilter : IAuthorizationFilter
     {
@@ -23,6 +24,12 @@ namespace Apilane.Portal.Api
                 || HttpMethods.IsHead(request.Method)
                 || HttpMethods.IsOptions(request.Method)
                 || HttpMethods.IsTrace(request.Method))
+            {
+                return;
+            }
+
+            // A browser never sends an agent key on its own, so a request let in by one cannot be forged.
+            if (context.HttpContext.User.Identity?.AuthenticationType == PortalAgent.AuthenticationType)
             {
                 return;
             }

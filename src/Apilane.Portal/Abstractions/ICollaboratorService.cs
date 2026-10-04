@@ -16,8 +16,13 @@ namespace Apilane.Portal.Abstractions
         Task<List<CollaboratorResponse>> GetAllAsync(string appToken);
 
         /// <summary>
+        /// The agents (see <see cref="Api.PortalAgent"/>) the application is not shared with yet, by name.
+        /// </summary>
+        Task<List<AvailableAgentResponse>> GetAvailableAgentsAsync(string appToken);
+
+        /// <summary>
         /// Shares the application with an e-mail address and, when the instance mail is configured,
-        /// tells that address by mail.
+        /// tells that address by mail. An agent's address is never mailed.
         /// </summary>
         Task<CollaboratorAddedResponse> AddAsync(string appToken, AddCollaboratorRequest request);
 

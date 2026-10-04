@@ -2,10 +2,134 @@
   "openapi": "3.0.4",
   "info": {
     "title": "Apilane Portal API",
-    "description": "Management API of an Apilane instance: servers, applications, entities and their settings. Records, files and custom endpoints of an application are served by the Apilane API server. Every POST, PUT, PATCH and DELETE request must send the header 'X-Apilane-Portal: 1'; without it the answer is 403 FORBIDDEN.",
+    "description": "Management API of an Apilane instance: servers, applications, entities and their settings. Records, files and custom endpoints of an application are served by the Apilane API server. Every POST, PUT, PATCH and DELETE request must send the header 'X-Apilane-Portal: 1'; without it the answer is 403 FORBIDDEN. A script or an AI agent sends an agent key instead of the session cookie, as 'Authorization: Bearer {key}', and needs no such header (an administrator creates agents with POST /api/v1/admin/agents). An agent key is refused with 403 FORBIDDEN on every DELETE, on everything under /api/v1/admin, and on the calls that create, import, clone or rebuild an application, read its encryption key, return the API-server token, sign in, register or set a password.",
     "version": "v1"
   },
   "paths": {
+    "/api/v1/admin/agents": {
+      "post": {
+        "tags": [
+          "AdminAgents"
+        ],
+        "summary": "Creates an agent: a portal user with the address {Name}@agent.local and no password,\nand a key for it. The agent sends the key as 'Authorization: Bearer {Key}' and is then\nthat user: it reaches the applications that are shared with its address. The key is in\nthis answer only; the Portal stores a hash of it. Answers 400 VALIDATION on Name for a\nname that is not acceptable or already taken. Admin only.",
+        "operationId": "AdminAgents_Create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAgentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCreatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/agents/{userId}": {
+      "delete": {
+        "tags": [
+          "AdminAgents"
+        ],
+        "summary": "Deletes an agent: its user and its key, which stops working at once, and its entries\nin the collaborator lists of the applications shared with it. This cannot be undone.\nAnswers 404 NOT_FOUND for an unknown id and for a user that is not an agent: people\ncannot be deleted. Admin only.",
+        "operationId": "AdminAgents_Delete",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/applications": {
       "get": {
         "tags": [
@@ -664,7 +788,7 @@
         "tags": [
           "AdminUsers"
         ],
-        "summary": "Lists every portal user, the most recent sign-in first. Admin only.",
+        "summary": "Lists every portal user, agents included, the most recent sign-in first. Admin only.",
         "operationId": "AdminUsers_List",
         "responses": {
           "403": {
@@ -705,7 +829,7 @@
         "tags": [
           "AdminUsers"
         ],
-        "summary": "Makes a user an administrator or an ordinary user. Asking for the role the user already\nhas changes nothing and succeeds. Answers 409 CONFLICT for your own user. The user gets\nthe new role within 30 minutes, or at once when they sign in again. Admin only.",
+        "summary": "Makes a user an administrator or an ordinary user. Asking for the role the user already\nhas changes nothing and succeeds. Answers 409 CONFLICT for your own user, and for making\nan agent an administrator. The user gets the new role within 30 minutes, or at once when\nthey sign in again. Admin only.",
         "operationId": "AdminUsers_SetRole",
         "parameters": [
           {
@@ -2417,7 +2541,7 @@
         "tags": [
           "Collaborators"
         ],
-        "summary": "Shares the application with an e-mail address, which gets administrator access to it:\neverything except sharing it further. The address is trimmed and must be a valid e-mail\naddress (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an\naddress the application is already shared with, in any letter case. When the instance\nmail is configured the address gets a notification mail; NotificationSent says whether\nthe mail was handed over for sending (delivery is not reported). The share is matched\nto an account by exact address, as typed. Owner only.",
+        "summary": "Shares the application with an e-mail address, which gets administrator access to it:\neverything except sharing it further. The address is trimmed and must be a valid e-mail\naddress (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an\naddress the application is already shared with, in any letter case. When the instance\nmail is configured the address gets a notification mail, unless it is an agent's\n(@agent.local); NotificationSent says whether the mail was handed over for sending\n(delivery is not reported). The share is matched to an account by exact address, as\ntyped. Owner only.",
         "operationId": "Collaborators_Add",
         "parameters": [
           {
@@ -2505,6 +2629,67 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{appToken}/collaborators/available-agents": {
+      "get": {
+        "tags": [
+          "Collaborators"
+        ],
+        "summary": "Lists the agents (users at @agent.local) the application can still be shared with: the\nones that are not collaborators of it yet, by name. Owner only.",
+        "operationId": "Collaborators_ListAvailableAgents",
+        "parameters": [
+          {
+            "name": "appToken",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableAgentResponseListResponse"
                 }
               }
             }
@@ -5897,6 +6082,33 @@
         "additionalProperties": false,
         "description": "The shape of every list answer, the same as the data API: the items and their total count."
       },
+      "AgentCreatedResponse": {
+        "required": [
+          "Email",
+          "ID",
+          "Key"
+        ],
+        "type": "object",
+        "properties": {
+          "ID": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The ID of the agent's user, as in the list of users."
+          },
+          "Email": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The agent's address: share an application with it to give the agent access."
+          },
+          "Key": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The key the agent sends as 'Authorization: Bearer {Key}'. This answer is the only time it\nis given: the Portal keeps a hash of it and cannot show it again."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The agent that was created, with its key."
+      },
       "ApiTokenResponse": {
         "required": [
           "Token"
@@ -6139,6 +6351,48 @@
         "additionalProperties": false,
         "description": "The shape of every list answer, the same as the data API: the items and their total count."
       },
+      "AvailableAgentResponse": {
+        "required": [
+          "Email",
+          "Name"
+        ],
+        "type": "object",
+        "properties": {
+          "Name": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The agent's name: its address without @agent.local."
+          },
+          "Email": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The agent's address: the value to share the application with."
+          }
+        },
+        "additionalProperties": false,
+        "description": "An agent an application can be shared with."
+      },
+      "AvailableAgentResponseListResponse": {
+        "required": [
+          "Data",
+          "Total"
+        ],
+        "type": "object",
+        "properties": {
+          "Data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvailableAgentResponse"
+            }
+          },
+          "Total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The shape of every list answer, the same as the data API: the items and their total count."
+      },
       "ChangePasswordRequest": {
         "required": [
           "ConfirmPassword",
@@ -6352,7 +6606,7 @@
           },
           "NotificationSent": {
             "type": "boolean",
-            "description": "False when the instance has no mail settings or the mail could not be handed over for\nsending. The application is shared either way."
+            "description": "False when the instance has no mail settings, the mail could not be handed over for\nsending, or the address is an agent's. The application is shared either way."
           }
         },
         "additionalProperties": false,
@@ -7015,6 +7269,22 @@
         },
         "additionalProperties": false,
         "description": "A constraint of an entity. Type says which of the other values are set."
+      },
+      "CreateAgentRequest": {
+        "required": [
+          "Name"
+        ],
+        "type": "object",
+        "properties": {
+          "Name": {
+            "minLength": 1,
+            "pattern": "^[a-z0-9-]{3,40}$",
+            "type": "string",
+            "description": "Lower-case letters, digits and dashes, 3 to 40 characters. The agent's address is {Name}@agent.local."
+          }
+        },
+        "additionalProperties": false,
+        "description": "A new agent: a portal user for a script or an AI agent, which calls this API with a key."
       },
       "CreateApplicationRequest": {
         "required": [
@@ -9431,6 +9701,9 @@
     }
   },
   "tags": [
+    {
+      "name": "AdminAgents"
+    },
     {
       "name": "AdminApplications"
     },

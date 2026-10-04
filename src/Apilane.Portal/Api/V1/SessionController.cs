@@ -36,6 +36,7 @@ namespace Apilane.Portal.Api.V1
         /// Never cached (Cache-Control: no-store); keep it in memory only.
         /// </summary>
         [HttpGet("api-token")]
+        [NoAgent]
         [ProducesResponseType(typeof(ApiTokenResponse), StatusCodes.Status200OK)]
         public async Task<ApiTokenResponse> GetApiToken()
         {
@@ -49,6 +50,7 @@ namespace Apilane.Portal.Api.V1
         /// from one IP address, then 429.
         /// </summary>
         [HttpPost]
+        [NoAgent]
         [AllowAnonymous]
         [EnableRateLimiting(PortalRateLimitOptions.AccountPolicy)]
         [ProducesResponseType(typeof(SessionResponse), StatusCodes.Status200OK)]

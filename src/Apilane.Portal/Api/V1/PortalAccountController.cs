@@ -25,6 +25,7 @@ namespace Apilane.Portal.Api.V1
         /// No session is needed. At most a few calls per minute from one IP address, then 429.
         /// </summary>
         [HttpPost]
+        [NoAgent]
         [AllowAnonymous]
         [EnableRateLimiting(PortalRateLimitOptions.AccountPolicy)]
         [ProducesResponseType(typeof(SessionResponse), StatusCodes.Status201Created)]
@@ -65,6 +66,7 @@ namespace Apilane.Portal.Api.V1
         /// of the user ends. No session is needed.
         /// </summary>
         [HttpPost("password-resets")]
+        [NoAgent]
         [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -82,6 +84,7 @@ namespace Apilane.Portal.Api.V1
         /// 400 on OldPassword.
         /// </summary>
         [HttpPut("password")]
+        [NoAgent]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
