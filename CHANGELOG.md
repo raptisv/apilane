@@ -1,9 +1,18 @@
 # Changelog
 
+## 10.2.0 (2026-10-05)
+- feat(portal)!: replace the Razor portal with a Vue UI and management API
+- fix(security): apply rate limits wherever access is decided
+- fix(security): revoke tokens reliably, canonical app token, safe file ids
+- fix(security): bind tokens to their app
+- test: run component test classes in parallel
+- test: run component tests on Testcontainers instead of local servers
+- fix(security): confine custom endpoint SQL on SQLite to its own database
+
 ## 10.1.1 (2026-10-01)
-fix(sdk): Apilane.Net 10.1.1
-fix(sdk): URL-encode query values in Apilane.Net requests
-fix(portal): stop /Info/GetApplication from timing out on large apps
+- fix(sdk): Apilane.Net 10.1.1
+- fix(sdk): URL-encode query values in Apilane.Net requests
+- fix(portal): stop /Info/GetApplication from timing out on large apps
 
 ## 10.1.0 (2026-10-01)
 - **Upgrade the API and the Portal together.** They no longer accept the installation key or the portal user's token in the URL, so a 10.1.0 service and an older one cannot talk to each other.
