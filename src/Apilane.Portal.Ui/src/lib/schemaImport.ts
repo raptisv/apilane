@@ -107,7 +107,7 @@ export function importFailure(error: Error): ImportFailure {
   }
 }
 
-/** The example of the classic Import schema page: two entities, a foreign key, a security rule and a custom endpoint. */
+/** The example the Import schema page offers: two entities, a foreign key, a security rule and a custom endpoint. */
 export const examplePayload = JSON.stringify(
   {
     Entities: [

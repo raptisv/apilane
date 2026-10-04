@@ -5,7 +5,7 @@ namespace Apilane.Portal.Abstractions
 {
     /// <summary>
     /// Clones an application for the management API. The copying itself is done by
-    /// <see cref="ICloneService"/>, the same routine the Razor page starts. The owner and
+    /// <see cref="ICloneService"/>, which runs in the background. The owner and
     /// collaborators may clone; the clone belongs to whoever starts it.
     /// </summary>
     public interface IApplicationCloneService

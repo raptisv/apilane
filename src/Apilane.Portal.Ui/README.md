@@ -1,17 +1,709 @@
-# Apilane Portal UI
+# Apilane Portal: UI and management API
 
-The Portal's user interface: a Vue 3 single-page app. It is built into static files that the
-Portal (ASP.NET, `src/Apilane.Portal`) serves under `/ui/`, and it talks to the Portal's
-management API under `/api/v1`.
+The Portal is one ASP.NET Core process (`src/Apilane.Portal`) that serves two things:
 
-Every page of the Portal has a screen here. The older Razor pages still run next to this UI until
-they are removed: [MIGRATION.md](MIGRATION.md) lists every page with its screen and endpoints, what
-behaves differently on purpose, the decisions still open and the steps of that removal.
+- the **management API** under `/api/v1`: JSON in and out, described by the contract `openapi/portal-v1.json`;
+- the **UI**: this folder, a Vue 3 single-page app, built into static files that the Portal serves at
+  the site root (`/apps`, `/apps/{token}/entities`, `/account/login`, `/admin/servers`, ...).
+
+The UI does everything through the API, so whatever a person can do on a screen, a script or an AI
+agent can do with the same calls. The Portal renders no pages on the server.
+
+This is the one document for both. It has three parts:
+
+1. [Using and deploying the Portal](#part-1-using-and-deploying-the-portal): addresses, screens, sign-in, behaviour, deployment, known limits, open decisions.
+2. [Calling the management API](#part-2-calling-the-management-api): for people, scripts and AI agents.
+3. [Working on the UI](#part-3-working-on-the-ui): commands, running it locally, layout, conventions, tests, dependencies.
+
+---
+
+# Part 1: Using and deploying the Portal
+
+## Addresses
+
+The Portal keeps four address prefixes for itself. Every other address belongs to the UI.
+
+| Address | What answers | Sign-in |
+|---|---|---|
+| `/api/v1/...` | The management API. | Session cookie (a few account calls need none). |
+| `/api/internal/...` | The internal API the API servers call. See [The internal API](#the-internal-api). | The `x-installation-key` header. |
+| `/swagger` | The API reference (Swagger UI) and the contract at `/swagger/v1/swagger.json`. | Signed-in users only. Signed out, the browser is sent to `/account/login?returnUrl=/swagger` and comes back after signing in. |
+| `/health/liveness`, `/health/readiness` | Health checks. | None. |
+| `/metrics` | Prometheus scrape endpoint. Answers 404 when `OpenTelemetry:Metrics:Enabled` is false. | None. |
+| everything else | The UI. | The UI sends a visitor without a session to `/account/login`. |
+
+How the rest is handed to the UI:
+
+- A file of the built UI is served as a file: `/favicon.ico`, `/assets/index-abc123.js`.
+- Any other GET or HEAD address whose last segment has no dot gets the UI's `index.html`, and the UI
+  shows the screen for that address, or 'Not found'. So a UI route must never end in a segment with a dot.
+- An address with a dot that is no file of the UI answers 404.
+- An unknown address under one of the four prefixes answers 404, never the index page: a monitor or
+  an API server must not get a page with status 200. Under `/api` the 404 has the JSON error body.
+- UI addresses match whatever their letter case (`/Account/Login` opens the sign-in screen).
+- Nothing else under `wwwroot` can be downloaded. `wwwroot/EmailTemplates/FORGOT_PASSWORD.html` is
+  read from disk by the Portal when it mails a reset link.
+- The Portal must sit at the root of its host name. A sub-path (`https://example.com/portal/`) is not supported.
+
+The four prefixes are written down in three places that must stay the same: `_serverPaths` in
+`src/Apilane.Portal/Extensions/PortalApiDependencyInjection.cs`, `portalPaths` in `vite.config.ts`
+and `serverPaths` in `src/lib/returnUrl.ts`.
+
+## Screens
+
+Endpoints are relative to `/api/v1`, and `{app}` stands for `/applications/{appToken}`. "API server:"
+marks calls the browser makes straight to the application's API server
+(see [The browser and the API servers](#the-browser-and-the-api-servers)).
+
+| Screen | Address | Endpoints |
+|---|---|---|
+| **Account** | | |
+| Sign in | `/account/login?returnUrl=` | `POST /session`, `GET /instance` |
+| Sign out | User menu, 'Sign out' | `DELETE /session` |
+| Sign up | `/account/register` | `POST /account`, `GET /instance` |
+| Forgot password | `/account/forgot-password` | `POST /account/password-reset-requests` |
+| Reset password | `/account/reset-password?code=` | `POST /account/password-resets` |
+| E-mail confirmed (for end users of an application) | `/account/email-confirmed` | none |
+| Change password | User menu, 'Change password'; `/account/password` opens the same dialog | `PUT /account/password` |
+| **Applications** | | |
+| Applications (the home page) | `/apps` | `GET /applications`, `GET /session/api-token`. API server: `Application/GetStorageUsed`, `Application/Export`, `Health/Liveness` |
+| Application info dialog | `/apps?info={appToken}`, and the Info button of an application | `GET {app}/connection-info` |
+| Compare two applications | `/apps?compare={appToken}&with={otherToken}` | `GET {app}/comparison?Target=` |
+| New application | `/apps/new` | `GET /servers`, `POST /applications` |
+| Import application | `/apps/import` | `GET /servers`, `POST /applications/import` |
+| **One application** | | |
+| Entities (with the create, edit, rename and delete dialogs) | `/apps/{appToken}/entities` | `GET` and `POST {app}/entities`, `PUT` and `DELETE {app}/entities/{entity}`, `POST {app}/entities/{entity}/rename`. API server: `Stats/CountDataAndHistory` |
+| Properties of an entity (with the dialogs) | `/apps/{appToken}/entities/{entity}` | `GET {app}/entities/{entity}`, `POST {app}/entities/{entity}/properties`, `PUT` and `DELETE .../properties/{property}`, `POST .../properties/{property}/rename` |
+| Constraints of an entity | `/apps/{appToken}/entities/{entity}/constraints` | `GET` and `PUT {app}/entities/{entity}/constraints` |
+| Default sorting of an entity | `/apps/{appToken}/entities/{entity}/sorting` | `GET` and `PUT {app}/entities/{entity}/default-order` |
+| Data browser | `/apps/{appToken}/data/{entity}?page=&pageSize=&sort=` | `GET {app}/entities?IncludeProperties=true`, `GET /session/api-token`. API server: `Data/*`, `Files/*`, `EntityHistory/*`, `Account/Register` |
+| Security | `/apps/{appToken}/security` (`?item=`, `?view=tree`, `?view=matrix`) | `GET {app}/security`, `PUT {app}/security/settings`, `PUT {app}/security/rules` |
+| Custom endpoints | `/apps/{appToken}/endpoints` | `GET {app}/custom-endpoints`, `DELETE {app}/custom-endpoints/{id}` |
+| Custom endpoint editor | `/apps/{appToken}/endpoints/new`, `/apps/{appToken}/endpoints/{id}` | `POST {app}/custom-endpoints`, `GET` and `PUT {app}/custom-endpoints/{id}`, `GET {app}/entities?IncludeProperties=true`. API server: `Custom/TestQuery` |
+| Email | `/apps/{appToken}/email` | `GET` and `PUT {app}/email-settings`. API server: `Email/GetEmails`, `Email/Update` |
+| Reports dashboard | `/apps/{appToken}/reports` | `GET {app}/reports`, `PUT {app}/reports/layout`, `DELETE {app}/reports/{reportId}`. API server: `Stats/Aggregate` |
+| Report editor (a side sheet) | `/apps/{appToken}/reports/new`, `/apps/{appToken}/reports/{reportId}/edit` | `POST {app}/reports`, `PUT {app}/reports/{reportId}`, `GET {app}/entities?IncludeProperties=true`, `GET {app}/entities/{entity}/report-fields?Type=` |
+| Sharing (owner only) | `/apps/{appToken}/sharing` | `GET` and `POST {app}/collaborators`, `DELETE {app}/collaborators/{id}` |
+| Import schema | `/apps/{appToken}/import` | `GET {app}/schema-import/diff?Source=`, `POST {app}/schema-import` |
+| Audit log | `/apps/{appToken}/audit-log?page=` | `GET {app}/audit-log?Page=&PageSize=` |
+| Settings (general, status, rebuild, delete) | `/apps/{appToken}/settings` | `PUT {app}`, `PUT {app}/status`, `POST {app}/rebuild`, `DELETE {app}` |
+| Clone | `/apps/{appToken}/clone` | `GET /servers`, `GET {app}/entities`, `POST {app}/clones` |
+| Clone progress | `/apps/{appToken}/clone/{operationId}` | `GET {app}/clones/{operationId}` |
+| **Instance (administrators)** | | |
+| Servers | `/admin/servers` | `GET` and `POST /admin/servers`, `PUT` and `DELETE /admin/servers/{id}` |
+| Users | `/admin/users` | `GET /admin/users`, `PUT /admin/users/{userId}/role` |
+| Applications of the instance | `/admin/applications` | `GET /admin/applications`, `POST {app}/cache-reset` |
+| Data browser of any application | `/admin/applications/{appToken}/data/{entity}` | `GET /admin/applications/{appToken}`, then the data browser's API server calls |
+| Settings, with 'Backup database' | `/admin/settings` | `GET` and `PUT /admin/settings`, `GET /admin/backup` |
+| Audit log | `/admin/audit-log?page=` | `GET /admin/audit-log?Page=&PageSize=` |
+
+Five endpoints exist for API callers only; the UI does not use them:
+`GET {app}/entities/{entity}/properties`, `GET .../properties/{property}`, `GET {app}/reports/{reportId}`,
+`GET /admin/servers/{id}` and `POST {app}/custom-endpoints/preview`.
+
+The user menu also has 'API reference', a link to `/swagger`.
+
+## Signing in, sessions and roles
+
+**The session**
+
+- Signing in sets the cookie `Apilane.Portal.Identity`. The setting `AuthCookieDomain` gives it a
+  domain (`.example.com`), so other sites under that domain receive it too; `null` means the current host.
+- A user has one session at a time: signing in somewhere else ends the earlier one.
+- A session that was ended (signed out, or replaced by a newer sign-in) stays ended. Signing out with
+  an old cookie only removes that cookie; it does not end the newer session.
+- The cookie is checked against the account every 30 minutes. That is when a role change takes
+  effect, unless the user signs in again first.
+- 'Last sign-in' of a user moves only on a sign-in, a registration or a password change.
+- A first start creates the administrator `AdminEmail` with the password `admin`. Change it at once.
+
+**Sign-in, sign-up and passwords**
+
+- `returnUrl` is followed after signing in only when it is a path on this site. A full address or
+  anything a browser could read as another site is ignored and the applications page opens.
+- A signed-in user who opens the sign-in or sign-up screen is sent on: to `returnUrl` when it is a
+  path on this site, otherwise to the applications page.
+- Sign in, sign up and the password-reset request share one rate limit: 30 calls per 60 seconds per
+  IP address, then 429 (`AccountRateLimit__PermitLimit`, `AccountRateLimit__WindowSeconds`). Behind a
+  reverse proxy read [Deploying](#deploying).
+- When registration is switched off (Instance > Settings) the API answers 403 and the sign-up
+  screen shows 'Registration is switched off'.
+- A password has 8 to 100 characters.
+- The reset request answers the same whether or not the address has an account. Resetting with an
+  address that has no account fails with 'Invalid token.', like a wrong code.
+- A successful password reset ends every session of that user.
+- After changing the password you stay signed in; other browsers are signed out. With a session that
+  was ended elsewhere the change is refused (401).
+- A reset link without a code shows 'This link is not valid' with 'Ask for a new link'.
+- The confirmations of forgot password and reset password are states of their screen, not addresses.
+
+**Who may do what**
+
+| Who | What |
+|---|---|
+| Any signed-in user | The own account, the list of servers, creating applications, and every application the user owns or that is shared with the user. |
+| Owner of an application | Everything about it, sharing included. |
+| Collaborator | Everything the owner can do (delete, rebuild, clone, import schema, edit security, read the encryption key), except sharing. |
+| Administrator (role Admin) | The 'Instance' screens and `/api/v1/admin/...`: servers, users, instance settings, backup, the instance audit log, the list of all applications and the data browser of any of them. |
+
+- Under `/api/v1/applications/{appToken}` the Admin role opens nothing: an application the caller
+  neither owns nor collaborates on is 404, administrator or not. The one exception is
+  `POST {app}/cache-reset`, which works for an administrator on any application.
+- In an application of their own, only an administrator may change the constraints of a system
+  entity (Users, Files).
+- An unknown or inaccessible application, entity, property or id is 404. An owner-only or
+  administrator-only call is 403. The UI shows a 'not found' or 'no access' state for them.
+- The API never answers with a redirect: no session is 401 with a JSON error, and an ended session is
+  401 even on an administrator's address.
+
+## Secrets
+
+- Connection strings, the mail passwords of applications and of the instance, and the installation
+  key are write-only. No answer carries them; an answer says whether a value is stored. In the UI an
+  empty box keeps the stored value.
+- A mail password is removed with 'Remove the stored value'. The installation key cannot be cleared.
+- Two answers carry a secret, each from one endpoint only: the encryption key of an application
+  (`GET {app}/connection-info`, shown masked in the Info dialog and dropped when it closes) and the
+  caller's own API-server token (`GET /session/api-token`).
+- The administrator's list of applications shows each secret as 'Set', 'Not set' or 'Not needed'.
+- A save that changes only a secret writes an audit entry showing `***` to `***`.
+- The database backup (`GET /admin/backup`) holds everything, secrets included. Every download writes
+  an audit entry ('Database backup', 'Apilane.db', 'Downloaded').
+
+## The browser and the API servers
+
+The Portal knows applications, servers, users and settings. Records, files, record history,
+statistics, e-mail templates, storage size and the export of an application live on the API server
+that hosts the application, and the browser calls that server directly:
+
+- The UI asks the Portal for the user's token (`GET /api/v1/session/api-token`) and sends it to the
+  API server as `Authorization: Bearer {token}` together with `x-application-token: {appToken}`.
+- The token is kept in memory only: never in an address, never in storage. It changes at every
+  sign-in; on a 401 from an API server the UI fetches it once more, and a second 401 is shown as an error.
+- The API server asks the Portal whether that user may manage the application
+  (`/api/internal/applications/{appToken}/access`) and remembers the answer for 15 minutes.
+- So every API server must be reachable from the browser at the address stored under
+  Instance > Servers, and its open CORS policy is required (the calls carry an Authorization header).
+- The health dot next to a server name is such a call too: any successful answer of
+  `{server}/Health/Liveness` counts as online, it gives up after 4 seconds, repeats every 5 seconds,
+  pauses while the tab is hidden and is grey until the first answer.
+
+## Behaviour worth knowing
+
+**Every screen**
+
+- The API server's cache is reset only after a save succeeded, and the request waits for it. If the
+  reset fails the save stands and the answer carries a `Warning` header, which the UI shows as a warning toast.
+- A refusal by the API server shows with its own message at the field it is about. Any other failure
+  of the API server is a 502 with a fixed text.
+- Dialogs that can be linked to keep their state in the address: `?info=`, `?compare=`, `?item=`, `?view=`.
+- Create, edit, rename and delete are dialogs on the list screen. Deleting a server, entity,
+  property, custom endpoint or application asks you to type its name.
+- A screen that collects several edits before one Save (constraints, default sorting, security
+  rules, the custom endpoint editor) asks before you leave with unsaved changes.
+- Every screen works from 360px wide. Dark is the only theme.
+
+**Applications page, new application, import application**
+
+- A new application gets its token and its encryption key from the Portal.
+- An unknown server is 404, a missing one 400. When the API server refuses the database, its message
+  shows under the connection string. Any other failure of the API server is 502, and nothing is created.
+- When the application was created but the API server could not be refreshed, you land on the
+  application with a warning.
+- When the API server created the application and the Portal then could not save it, the answer says
+  exactly that, and the application stays on the API server.
+- 'Import application' takes the `application.json` from the zip that 'Export' downloads. The file is
+  checked completely before anything is created, an existing token is 409, and the report-series IDs of
+  the file are reset. The application keeps the token and the encryption key of the file.
+- No server is preselected unless the instance has exactly one. Without any server both forms show
+  'No API server yet'.
+- The search box appears from 7 applications up. Server groups are ordered by server name.
+
+**Entities and properties**
+
+- Renaming or deleting a system entity, and changing a system property, is 409.
+- Renaming to a name that exists, in any letter case, is 409. So is a duplicate name on create.
+- Renaming or deleting a property that is part of a unique or foreign key constraint is 409: remove
+  the constraint first.
+- Adding a property to an entity that takes none (Files) is 409.
+- The differentiation switch is refused when the application has no differentiation entity. Change
+  tracking cannot be turned on for an entity whose records cannot be updated.
+- Property checks: decimal places 0 to 8; the type is one of the four names; the minimum length of a
+  String is not negative and its maximum at least 1; Minimum and Maximum lie between
+  -9,007,199,254,740,991 and 9,007,199,254,740,991, the range a browser can show exactly.
+- An entity name has 4 to 30 characters, a property name 4 to 120; both are letters and underscore
+  only, and a property name must not end in '_Data'.
+- A description or regex that is only spaces is stored as empty.
+- Stored constraints that cannot be read are left out of the answers instead of breaking them.
+- The link from an entity to its security rules is `/apps/{appToken}/security?item=Entity-{name}`.
+
+**Constraints and default sorting**
+
+- The server checks every constraint (names exist and are allowed, no duplicates) and keeps the
+  system constraints itself. The same unique properties in another order, and the same foreign key
+  with another on-delete action, count as duplicates.
+- On a system entity a user who is not an administrator sees the constraints read-only, and a save is 403.
+- The on-delete action of a stored foreign key changes only by removing it, saving, adding it again
+  and saving.
+- A foreign key stored without an on-delete action is rewritten with 'no action' on the next save,
+  and a stored constraint that cannot be read is removed by the next save.
+- Default sorting: each property must exist, appear once and have the direction asc or desc. A stored
+  direction that is not 'asc' shows as descending, a property stored twice shows once, and stored
+  data that cannot be read counts as no sorting.
+
+**Application settings, status, rebuild, delete**
+
+- The stored database type decides whether a connection string is written.
+- The status call takes an explicit Online value, so repeating it changes nothing.
+- The typed name and the 'I understand' box of rebuild and delete are guards of the browser only:
+  the API has no confirm field.
+- When the API server deleted the application and the Portal then could not save, the answer says exactly that.
+
+**Sharing**
+
+- Only an e-mail address is accepted. Sharing with your own address is 409.
+- The collaborator gets a mail when the instance can send one; the toast says whether it was sent.
+- A collaborator who opens the Sharing address gets the 'no access' state (403).
+
+**Email**
+
+- The SMTP settings and the confirmation landing page are saved to the Portal with one 'Save settings'.
+  The e-mail templates live on the API server and are read and saved there.
+- A template preview is drawn in a sandboxed frame in which no script runs.
+- Without a Redirect URL, a user who confirmed their e-mail lands on `/account/email-confirmed` of the Portal.
+
+**Audit log (instance and application)**
+
+- A page below 1 or a page size outside 1 to 200 is 400. The UI asks for 50 and reads a bad `?page=` as page 1.
+- Entries with the same timestamp are ordered by ID, so pages are stable.
+- Stored changes that cannot be read are shown with empty fields.
+
+**Security**
+
+- Settings and rules are saved separately, each with its own Save and endpoint.
+- The rules API refuses: an unknown type or rate window, an empty role, Schema rules that are not
+  'get' on 'Schema', duplicate rules, actions the item does not offer, property names the action
+  does not offer, properties on rules that are not about an entity, and a missing record scope.
+- Stored rules that can never apply (deleted item, unknown type or action, blank role, a second rule
+  for the same cell) are left out when reading, and so dropped by the next save.
+- IP addresses are plain dotted IPv4 (no leading zeros, signs or spaces inside), because the API
+  server compares them exactly. The logic is Block or Allow. With Allow and a non-empty list the
+  screen warns about locking yourself out.
+- The action of a rule is stored in lower case.
+- A switched-on cell with no properties means 'only the ID is returned' (get) or 'the call is
+  refused' (post, put). The editor, the tree and the matrix all say so.
+- The tree and the matrix show access as the API server enforces it: inherited access (Anonymous and
+  Authenticated apply to every role), properties added up, the rate limit of the item and action as a whole.
+- When the API server cannot be asked for the users' roles, the screen still opens, with a warning
+  and the roles already used in rules.
+- The file size limit is 1 to 25600 KB.
+- A cell switched off and on again gets its properties and rate limit back, until the next save or discard.
+
+**Custom endpoints**
+
+- An endpoint is addressed by its numeric ID, so a rename keeps the address of its editor. An unknown ID is 404.
+- The name is trimmed, letters only, at most 80.
+- Renaming changes the address of the endpoint on the API server, and the security rules written for
+  the old name no longer apply. The editor warns about both.
+- SQL that contains `{appToken}` works.
+- Test sends the parameter values URL-encoded and exactly as typed, so long whole numbers are not
+  rounded. An empty parameter is sent as SQL null.
+- In the SQL editor Tab leaves the editor (it does not indent), so the keyboard can always get out.
+
+**Data browser**
+
+- Editing a record sends only the fields that changed, plus the primary key. If nothing changed,
+  nothing is sent.
+- A file is downloaded with the token in a request header and saved under the record's Name.
+- 'Export page as CSV' exports the current page only; a null is an empty cell.
+- 'Delete selected' deletes several records in one call. Clearing the history of a record asks first.
+- Filters are sent 400 ms after typing stops, and a newer request cancels the one still running.
+- Page, page size and sort are in the address; filters are not, so switching entity starts fresh.
+- Custom entities are listed first, then system entities. Without an entity in the address the first
+  custom entity opens.
+- The dates of a new record are pre-filled with the browser's local time, while the API server reads
+  the text as UTC. The help line of the field says so.
+
+**Reports**
+
+- The labels and values of a Grid report are written as text, never as HTML.
+- The report API refuses: an unknown report type, a time range that is not 1 to 1000 followed by h, d,
+  m or y, a Property or Group-by the editor does not offer for that entity and type, a grouping listed
+  twice, and an entity name in the wrong letter case.
+- The layout API checks bounds (X 0 to 11, Y 0 to 10000, Width 1 to 12, Height 1 to 100, X + Width at
+  most 12) and refuses unknown or repeated report IDs. A refused layout saves nothing.
+- A series whose entity or property is gone, or whose call fails, shows its own error inside the
+  panel; the other series still draw.
+- A stored filter the flat filter builder cannot show (OR, nested groups) is shown as raw text and
+  kept unless it is replaced.
+- An unknown report ID is 404. A new report starts with 'Max points per series' = 20.
+- Refresh and 'View API endpoint' work out the time window from now.
+- From 768px wide the panels sit on a 12-column grid and can be dragged and resized; the layout is
+  saved 600 ms after the last change. Below that the dashboard is one column and nothing moves.
+- If the grid library cannot be downloaded the dashboard falls back to one column; if the chart
+  library cannot, a chart falls back to a table.
+
+**Import schema and compare**
+
+- Everything is checked before anything is applied. A failure is an HTTP error that names the place
+  in the payload (`Entities[0].Properties[2].TypeID`).
+- The import is not atomic: the steps before a failed one stay applied. Sending the same payload again
+  is safe, since what exists and does not differ is skipped with a warning. The screen asks before it runs.
+- In the payload an entity must be listed before the entities whose foreign keys point to it.
+- TypeID, Record and TimeWindowType are numbers in the payload, the values that are stored.
+- Only an administrator may add constraints to a system entity through an import (403 otherwise).
+- Stored security rules that cannot be read answer 409 before the first write.
+- When the API server cannot be refreshed after an import, the result is success with a warning.
+- 'Load diff' needs the exact token of the source application, which the user must be able to see.
+- Compare answers 404 for an application the user cannot see and 409 for stored rules that cannot be read.
+
+**Clone**
+
+- The clone is a new application named '{name} - Clone', owned by the caller, with a new token and
+  the same encryption key. Reports, collaborators and files are not copied.
+- Starting answers at once (202) with an operation id. The progress can be read only by the user who
+  started the clone, and only under the application that is cloned.
+- With 'Clone data' on, entity names that are not entities of the application are refused, and the
+  form refuses an empty selection.
+- A wrong connection string shows as a failed clone, not as an error of the form: the API server is
+  called after the answer.
+- A failed clone leaves the new application listed; delete it then.
+- The progress screen asks every 2 seconds and pauses in a hidden tab. An operation the Portal no
+  longer knows shows 'This clone can no longer be tracked'.
+
+**Administration**
+
+- A server address must be an http or https URL. A server that hosts applications cannot be deleted (409).
+- Users: changing your own role is 409, an unknown user 404, and asking for the role a user already
+  has succeeds without change. A role change takes effect within 30 minutes or at the next sign-in.
+- Applications: 'Clear cache' goes through the Portal, so a failure reflects the Portal's connection
+  to the API server. 'Open application' appears only for applications the administrator owns or
+  collaborates on.
+- The administrator's data browser works for every application. For someone else's application the
+  links to its own screens are left out.
+- Backup: the file is made with SQLite's online backup into a uniquely named temporary file and streamed.
+- After the installation key was changed, the API servers must be restarted with the new key.
+
+## Mails the Portal sends
+
+| Mail | Link in it |
+|---|---|
+| Password reset | `/account/reset-password?code=...` (only the code, no user id) |
+| Password changed (sent to the address stored on the account) | `/account/forgot-password` |
+| An application was shared with you | `/apps` |
+
+The links are built from the scheme and host of the request that caused the mail. Set `AllowedHosts`
+(see [Deploying](#deploying)), or a reset mail can carry a link to a host the caller chose. The mails
+need the mail settings under Instance > Settings; without them a reset request answers 409.
+
+The mails of an application (confirmation, password reset for its end users) are sent by the API
+server, not by the Portal. After a confirmation the API server sends the end user to the
+application's Redirect URL, or without one to `{PortalUrl}/account/email-confirmed`.
+
+## Deploying
+
+**The image.** `src/Apilane.Portal/Dockerfile` builds the UI in a Node stage and copies the result
+into the final image; the final image has no Node. Build it from the repository root:
+
+```bash
+docker build -f src/Apilane.Portal/Dockerfile --build-arg VERSION=10.2.0 -t apilane-portal .
+```
+
+`VERSION` is required: without it the .NET build stage fails. It becomes the version shown in the footer.
+
+**Outside Docker.** `dotnet build` and `dotnet publish` do not build the UI. A publish includes
+whatever is in `src/Apilane.Portal/wwwroot/ui` at that moment (the last local build, or nothing):
+run `npm ci` and `npm run build` in this folder first. Without a built UI every UI address answers
+404 with a text that says how to build it. Start the Portal from its own folder (the one that holds
+`wwwroot` and `appsettings.json`): started from another folder it finds no UI and answers the same 404.
+
+**Settings.** `appsettings.json` holds defaults; override them with `appsettings.{Environment}.json`
+or environment variables (`__` for nesting).
+
+| Setting | Meaning |
+|---|---|
+| `Url` | The address the Portal listens on. In Docker `http://0.0.0.0:5000`. |
+| `ApiUrl` | The first API server, as the Portal and browsers reach it. It seeds Instance > Servers on first start. |
+| `FilesPath` | The folder of the Portal's SQLite database (`Apilane.db`) and its data-protection keys. A mounted volume in Docker. |
+| `InstallationKey` | The secret shared with the API servers. It seeds the database on first start only; later it is changed under Instance > Settings. |
+| `AdminEmail` | The administrator created on first start, with the password `admin`. |
+| `InstanceTitle` | The name shown in the UI. It seeds the database on first start only; later it is changed under Instance > Settings. |
+| `AuthCookieDomain` | The domain of the login cookie; `null` for the current host. |
+| `AccountRateLimit__PermitLimit`, `AccountRateLimit__WindowSeconds` | The rate limit of sign in, sign up and reset request. Default 30 per 60 seconds per IP address. Both must be greater than 0, or the Portal does not start. |
+| `AllowedHosts` | The host names the Portal answers for. Set it to the public host name, plus the host in the API servers' `PortalUrl`. |
+| `OpenTelemetry`, `Serilog`, `MinThreads` | Metrics at `/metrics`, tracing, logging, thread pool. |
+
+**Behind a reverse proxy.** The rate limit counts by the connection's address. Behind a proxy that
+is not on loopback that is the proxy's address, so all visitors share one budget. Either raise
+`AccountRateLimit__PermitLimit`, or set `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`, but only when the
+proxy is the only way to reach the Portal and it overwrites `X-Forwarded-For`: the header is otherwise
+trusted from any sender.
+
+**Caching.** Files under `/assets` carry a content hash in their name and are served as
+`public, max-age=31536000, immutable`. Every other file of the UI and the index page are `no-cache`,
+so a new version is picked up on the next page load. Every answer under `/api` is `no-store`.
+A tab that was open during a deploy and asks for a file that no longer exists reloads itself once.
+
+**Versions.** A Portal and its API servers must run the same version. The API servers call the
+Portal's internal API (`/api/internal`), whose addresses and answers are not versioned, and they
+send end users to a UI address (`{PortalUrl}/account/email-confirmed`). Upgrade them together.
+
+**What must be reachable.** The API servers must reach the Portal (`PortalUrl`), and the Portal and
+every browser must reach each API server at its address under Instance > Servers. `/api/internal`
+is only for the API servers: when the Portal is public, a proxy may block that prefix from outside.
+
+## Known limits
+
+Sign-in and mail:
+
+- The API is cookie-only, with one session per user. A script that signs in ends the session of the
+  person using the same account.
+- The password-reset link is built from the request's host: set `AllowedHosts`.
+- The shared mail service (`Apilane.Common/Services/EmailService.cs`) logs the full mail body, reset
+  link included, at Information level, and swallows SMTP failures. So a failed send looks like a
+  success, and 'mail sent' means handed to the sender, not delivered.
+- The reset request answers the same for a known and an unknown address, but not equally fast: the
+  mail is sent inside the request.
+- Collaborators are matched by the exact letter case of their e-mail address. 'Bob@x.com' for the
+  account 'bob@x.com' is accepted and gives no access.
+- A role change takes effect within 30 minutes or at the user's next sign-in.
+- The API server builds the e-mail-confirmation landing address from its `PortalUrl`, the
+  server-to-server address. When that is not the public address of the Portal, set the application's Redirect URL.
+- The Content-Security-Policy header does not restrict script and style sources yet.
+
+Applications and schema:
+
+- Renaming an entity or property does not update security rules, reports, custom endpoint SQL, the
+  default sorting or the differentiation entity. Deleting does not remove them.
+- A case-only rename of a property changes the name in the Portal but not the column, which breaks
+  PostgreSQL applications. The cause is in the API server.
+- When the API server accepted a create, import or clone and the Portal step then failed, the
+  application stays on the API server.
+- Clone: the bar reaches 100% after the schema phase and drops to 50% when data starts; reports are
+  not cloned; the clone's name can pass 100 characters; operations are kept in memory only, so a
+  restart of the Portal loses the progress screen.
+- Entity names are matched case-sensitively in Compare and case-insensitively in the schema import diff.
+- 'Load diff' rounds whole numbers above 9,007,199,254,740,991 before they reach the payload box.
+- A security rule stored with an unknown rate window (written by an older version) makes Compare
+  and a schema import answer 500 until the Security screen is saved once.
+- If the stored security rules are not readable JSON, the Security screen shows an empty grid and the
+  next save overwrites them. This needs a hand-edited database to happen.
+- Saves that replace a whole list (security rules, constraints, report layout) do not check whether
+  someone else changed it in the meantime.
+- After a rules save the role rows are not read again from the API server; a reload shows new or vanished roles.
+
+Reports:
+
+- A series with a time range still gets at most 'Max points per series' groups, so 'Last 90 days'
+  by day with the default 20 shows the newest 20 days.
+- Panels can be moved and resized only with a pointer or touch.
+- A report saved by an older version may need one correction: a panel stored with a height above
+  100 or X + Width above 12 makes every layout save answer 400 until that panel is made smaller, and
+  a report whose Property or Group-by its type does not offer must be corrected before it saves.
+- After a panel was deleted in another tab, a layout save fails until the dashboard is reloaded.
+
+Smaller things:
+
+- Backup: the temporary file goes to the system's temporary folder and is not removed when the
+  process is killed during a download. A failed download opens the JSON error in the browser.
+- The Info dialog opened from an application's own screen cannot be linked to; `/apps?info={appToken}` can.
+- The tab title does not name the application (the Data screen names the entity).
+- One screen has two names on purpose: the tab reads 'Sorting', the heading 'Default sorting'.
+- The contract lists a 401 answer on the anonymous account endpoints, because the base class
+  declares it for every action. Only `POST /session` can answer it.
+- The e-mail placeholder list (`src/lib/emailTemplates.ts`) is a hand copy of `EmailEvent.cs`: update
+  it when an event is added.
+- The list of the Portal's own address prefixes is kept in three files by hand (see [Addresses](#addresses)).
+
+Not checked in a browser yet (do these first, see [Release check](#release-check)):
+
+- The Portal serving the built UI at the site root, the dev server with its proxy, and `/swagger`
+  signed out through the sign-in screen and back.
+- The delivery of a mail through a real mail server.
+- The administrator's data browser on an application the administrator does not own.
+- Constraints of a system entity as a user who is not an administrator, and a real 403 or 502 on a save.
+- Widths from 640 to 1000px, where the application tabs wrap, and keyboard focus after dialogs opened from a menu.
+
+## Open decisions
+
+For the owner. The default is what the code does today; say nothing and it stays.
+
+| Decision | Default now in place | Alternative |
+|---|---|---|
+| Data plane | The browser calls the API server directly with the token from `GET /session/api-token`. Script in the page can read that token. | Send every data call through the Portal: about 15 more endpoints and an extra hop. |
+| Protection against cross-site requests | The header `X-Apilane-Portal: 1` on every write, plus the SameSite cookie. | ASP.NET antiforgery token endpoint and header. |
+| Secrets | Write-only; only the encryption key can be read, in the Info dialog. | An administrator-only 'reveal', for example for the installation key. |
+| Administrator's data browser | Works for any application of the instance, with no audit entry when it opens someone else's. | Keep it to applications the administrator owns or collaborates on, or write an audit entry. |
+| `AuthCookieDomain` and `returnUrl` | The setting stays, and `returnUrl` accepts only paths on this site. | Remove the setting, or accept return addresses on hosts under that domain for other sites that share the cookie. |
+| Cache reset after a save | Only after success, awaited; a failure is a warning and the save stands. | Fail the request with 502. |
+| Cache reset after 'Import application' | Not done. | Reset it, so an API server that cached an error for that token recovers at once. |
+| Security screen | Separate saves for settings and rules. | One atomic save of both. |
+| Server address | http or https only. | Any scheme (`ServerService.ValidateUrl`). |
+| Rebuild and delete confirmation | Guards of the browser only. | Require the application name in the request. |
+| Collaborator rights | A collaborator can delete, rebuild, clone, import schema, edit security and read the encryption key; only Sharing is owner-only. | Narrow them before agents use the API. |
+| Collaborator e-mail letter case | Saved as typed; access needs an exact match. | Save the exact address of the matching account when sharing (`CollaboratorService.AddAsync`), or match without case everywhere. |
+| Rate limit | 30 calls per 60 seconds per IP address. | Other numbers. |
+| Access for automation | Cookie only, one session per user. | An API key or token scheme. |
+| Schema import: order of steps | Security rules before custom endpoints. | Swap them (`SchemaImportService.ImportAsync`), which would also allow checking imported rules with the rules service. |
+| Schema import: numbers in the payload | TypeID, Record and TimeWindowType are the stored numbers. | Names, like the rest of the API. |
+| Schema import: foreign-key order | A referenced entity must be listed before the entities that point to it. | Order them in `InForeignKeyOrder`. |
+| Stored sort direction that is neither asc nor desc | Shown as descending, although the API server sorts it ascending. | Show it as ascending. |
+| Dates of a new record | Pre-filled with the browser's local time, read as UTC by the API server. | Pre-fill in UTC. |
+| `{appToken}` as a parameter name of a custom endpoint | Accepted and works. | Refuse it with a 400. |
+| Security rules the API still accepts | 'Owned records only' where it has no effect, and a property listed twice in one rule. | Refuse both in `SecurityRulesService`. |
+| Differentiation entity of a new application | Checked for length only; a bad name comes back as an API server error under the connection string. | Add the letters-only rule. |
+
+---
+
+# Part 2: Calling the management API
+
+For a person with `curl`, a script or an AI agent. The contract is `openapi/portal-v1.json`; a
+running Portal serves the same document at `/swagger/v1/swagger.json` and a browser for it at
+`/swagger` (both for signed-in users). The summaries in the contract say what each call checks and answers.
+
+## Basics
+
+- **Base address**: `{Portal}/api/v1`.
+- **Signing in**: `POST /api/v1/session` with `{"Email": "...", "Password": "..."}` sets the session
+  cookie. Send the cookie on every later call. There is no API key or token: the API is cookie-only,
+  and a user has one session at a time, so use an account of its own for automation.
+- **Writes need a header**: every POST, PUT, PATCH and DELETE must send `X-Apilane-Portal: 1`, the
+  sign-in call included. Without it the answer is 403 FORBIDDEN. A page on another site cannot add
+  the header to a request that carries the user's cookie, which is what protects writes against
+  cross-site request forgery.
+- **Without a session**: only `GET /instance`, `POST /session`, `DELETE /session`, `POST /account`,
+  `POST /account/password-reset-requests` and `POST /account/password-resets` work. Sign in, sign up
+  and the reset request share the rate limit (429 with a `Retry-After` header).
+- **JSON**: property names are PascalCase. Types and choices are names, not numbers (`SQLLite`,
+  `Grid`, `Owned`). The one exception is the schema import payload, which uses the stored numbers.
+- **Lists**: every list answer is `{ "Data": [...], "Total": n }`. Only the audit logs are paged:
+  `?Page=` (from 1) and `?PageSize=` (1 to 200, default 50).
+- **Secrets are never returned**; an answer says whether one is stored (`HasConnectionString`).
+  In a request, `null` or a left-out secret keeps the stored value. See [Secrets](#secrets).
+- **Answers are never cached**: every answer under `/api` carries `Cache-Control: no-store`.
+- **Never a redirect**: no session is 401, not a redirect to the sign-in page.
+- **A `Warning` response header** on a successful write means: saved, but the API server could not
+  be refreshed. Its value is a text for the user.
+- **202** means the work goes on after the answer: a clone answers with an `OperationId` and a
+  `Location` header to poll.
+- **Who may call what**: [Signing in, sessions and roles](#signing-in-sessions-and-roles).
+
+## Errors
+
+Every answer that is not 2xx has this body:
+
+```json
+{
+  "Code": "VALIDATION",
+  "Message": "The request is not valid.",
+  "Entity": null,
+  "Property": null,
+  "Errors": [{ "Property": "Name", "Message": "Required" }],
+  "TraceId": "0af7651916cd43dd8448eb211c80319c"
+}
+```
+
+Branch on `Code` and the status, never on `Message`. `Entity` and `Property` name what the error is
+about when there is one thing. `Errors` lists the problems of a VALIDATION error, one per property;
+an item of a list is named by its place (`Rules[3].Action`). `TraceId` finds the request in the Portal's logs.
+
+| Status | Code | Meaning |
+|---|---|---|
+| 400 | `VALIDATION` | The request is not valid, or the API server refused it with a message of its own. |
+| 401 | `UNAUTHORIZED` | No session, or the session was ended. Also a failed sign-in. |
+| 403 | `FORBIDDEN` | The write header is missing; or the call is for the owner or an administrator only; or registration is switched off. |
+| 404 | `NOT_FOUND` | Unknown, or not the caller's. Also an unknown API address or a wrong method. |
+| 409 | `CONFLICT` | The state does not allow it: a duplicate name, a system entity, a property that is part of a constraint, mail not set up. |
+| 429 | `TOO_MANY_REQUESTS` | The rate limit of the anonymous account calls. |
+| 502 | `UPSTREAM_ERROR` | The API server could not be reached or failed. |
+| 500 | `ERROR` | Anything else. The detail is in the Portal's logs. |
+
+## Endpoints
+
+The contract is the reference. In short, under `/api/v1`:
+
+| Group | Paths |
+|---|---|
+| Session and account | `/session`, `/session/api-token`, `/account`, `/account/password`, `/account/password-reset-requests`, `/account/password-resets`, `/instance` |
+| Servers (read) | `/servers` |
+| Applications | `/applications`, `/applications/import`, `/applications/{appToken}` with `/connection-info`, `/status`, `/rebuild`, `/cache-reset`, `/audit-log` |
+| Entities and properties | `{app}/entities`, `{app}/entities/{entity}` with `/rename`, `/properties`, `/properties/{property}`, `/properties/{property}/rename`, `/constraints`, `/default-order`, `/report-fields` |
+| Security | `{app}/security`, `{app}/security/settings`, `{app}/security/rules` |
+| Custom endpoints | `{app}/custom-endpoints`, `{app}/custom-endpoints/{id}`, `{app}/custom-endpoints/preview` |
+| Reports | `{app}/reports`, `{app}/reports/{reportId}`, `{app}/reports/layout` |
+| Email settings | `{app}/email-settings` |
+| Sharing | `{app}/collaborators`, `{app}/collaborators/{id}` |
+| Schema import and comparison | `{app}/schema-import`, `{app}/schema-import/diff`, `{app}/comparison` |
+| Clones | `{app}/clones`, `{app}/clones/{operationId}` |
+| Administration | `/admin/servers`, `/admin/users`, `/admin/users/{userId}/role`, `/admin/applications`, `/admin/applications/{appToken}`, `/admin/settings`, `/admin/backup`, `/admin/audit-log` |
+
+Things an agent should know before it writes:
+
+- Deletes and rebuild have no confirmation step in the API and cannot be undone.
+- `PUT {app}/security/rules`, `PUT .../constraints`, `PUT .../default-order` and `PUT {app}/reports/layout`
+  replace the whole list: read it first, change it, send all of it.
+- `POST {app}/schema-import` is not atomic. `GET {app}/schema-import/diff?Source=` answers in the
+  shape the import accepts.
+- Entity and property names are case-sensitive in addresses.
+
+## What is not in this API
+
+Records, files, record history, statistics, e-mail templates, the storage size and the export of an
+application are served by the API server that hosts the application, not by the Portal
+(reference: `docs/docs/api_reference.md`). To call it as the signed-in Portal user:
+
+1. `GET /api/v1/session/api-token` gives `{ "Token": "..." }`. It changes at every sign-in.
+2. `GET /api/v1/applications/{appToken}` gives `Server.ServerUrl`.
+3. Call `{ServerUrl}/api/...` with the headers `Authorization: Bearer {Token}` and `x-application-token: {appToken}`.
+
+## A worked example
+
+```bash
+# Sign in. The cookie jar keeps the session.
+curl -c cookies.txt -H "Content-Type: application/json" -H "X-Apilane-Portal: 1" \
+  -d '{"Email":"admin@admin.com","Password":"admin"}' \
+  http://localhost:5000/api/v1/session
+
+# The applications of the user. Take the Token of one.
+curl -b cookies.txt http://localhost:5000/api/v1/applications
+
+# Create an entity in it.
+curl -b cookies.txt -H "Content-Type: application/json" -H "X-Apilane-Portal: 1" \
+  -d '{"Name":"Products","Description":"The catalogue"}' \
+  http://localhost:5000/api/v1/applications/{appToken}/entities
+
+# Add a property to it.
+curl -b cookies.txt -H "Content-Type: application/json" -H "X-Apilane-Portal: 1" \
+  -d '{"Name":"Title","Type":"String","Required":true,"Maximum":200}' \
+  http://localhost:5000/api/v1/applications/{appToken}/entities/Products/properties
+```
+
+## The internal API
+
+Two endpoints that only the API servers call (`PortalInfoService` in `Apilane.Api.Core`). They are
+not part of `/api/v1`, not in the contract and not for browsers.
+
+| Call | Answer |
+|---|---|
+| `GET /api/internal/applications/{appToken}` | The application as it is stored, with its server, entities, properties, custom endpoints and collaborators, secrets included. `null` for an unknown token. |
+| `GET /api/internal/applications/{appToken}/access` | `true` or `false`: whether the Portal user whose token is in `Authorization: Bearer {token}` may manage the application (owner, collaborator, or an administrator for any application). |
+
+- The caller proves itself with the header `x-installation-key`, compared in constant time. A missing
+  or wrong key is 401 with no body.
+- The bodies are the stored records with property names as in the models and enums as numbers,
+  because that is how the API server reads them. Do not add a naming policy or an enum converter to
+  the Portal's global JSON options (`Program.cs`).
+- Nothing is versioned here: a change needs the matching change in `PortalInfoService`, and a Portal
+  and its API servers must run the same version.
+- `tests/Apilane.Portal.Tests/InternalApiTests.cs` pins the Portal's side and
+  `tests/Apilane.UnitTests/PortalInfoServiceTests.cs` the API server's side.
+
+---
+
+# Part 3: Working on the UI
 
 Node is needed only to work on this folder. `dotnet build`, `dotnet test` and the Portal itself
-never call it; the Docker image builds the UI in its own stage. A `dotnet publish` made outside
-Docker includes whatever is in `src/Apilane.Portal/wwwroot/ui` at that moment (the last local
-build, or nothing): run `npm run build` first.
+never call it, and the Docker image builds the UI in its own stage.
 
 ## Prerequisites
 
@@ -27,19 +719,30 @@ Run them in this folder. `npm ci` once after cloning (and after pulling dependen
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | Dev server with hot reload at <http://localhost:5173/ui/>. |
+| `npm run dev` | Dev server with hot reload at <http://localhost:5173/>. |
 | `npm run build` | Type-checks, then builds into `../Apilane.Portal/wwwroot/ui`. |
 | `npm run api:types` | Regenerates `src/lib/api-types.ts` from `openapi/portal-v1.json`. |
 | `npm test` | Runs the unit tests (`src/**/*.test.ts`) once. |
 
-## Working on the UI
+## Running it locally
 
-1. Start the Portal as usual (Visual Studio, or `dotnet run --project src/Apilane.Portal` from the repository root). It listens on <http://localhost:5000>.
-2. `npm run dev` here, and browse <http://localhost:5173/ui/>.
+1. Start the Portal: in Visual Studio (project `Apilane.Portal`, F5 for the debugger), or
+   `dotnet run --project src/Apilane.Portal` from the repository root. It listens on the `Url`
+   setting, <http://localhost:5000> by default.
+2. Most screens also need an API server: `dotnet run --project src/Apilane.Api`
+   (<http://localhost:5001>), with the same `InstallationKey` as the Portal.
+3. `npm run dev` here, and browse <http://localhost:5173/>. Sign in as `AdminEmail` (password `admin`
+   on a fresh database).
 
-The dev server answers `/ui/...` itself (the login page included) and forwards everything else (the
-API, `/swagger`, and the Razor pages until they are removed) to the Portal, so the browser sees one site and the login cookie works
-as in production. If the Portal runs on another address, set `PORTAL_URL` when starting the dev server:
+Local settings go into `src/Apilane.Portal/appsettings.Development.json` (git-ignored). Set at least
+`FilesPath` there: it is the folder of the Portal's database, and the value in `appsettings.json` is
+only a sample.
+
+The dev server answers every address of the UI itself and forwards only the Portal's own addresses
+(`/api`, `/swagger`, `/health`, `/metrics`) to the Portal. The browser talks to one site, so the
+login cookie and the API work as in production. One difference: the dev server matches those four
+prefixes in lower case only. If the Portal runs on another address, set `PORTAL_URL` when starting
+the dev server:
 
 ```powershell
 $env:PORTAL_URL='http://localhost:5010'; npm run dev
@@ -52,10 +755,11 @@ PORTAL_URL=http://localhost:5010 npm run dev
 Debugging: use the browser's developer tools; breakpoints land in the `.vue` and `.ts` source
 files. The [Vue Devtools](https://devtools.vuejs.org/) browser extension shows components and
 their state. In VS Code install the recommended "Vue - Official" extension for type-checking in
-templates.
+templates. Breakpoints in the API are set in Visual Studio as in any ASP.NET project.
 
 `npm run dev` does not type-check. To check types, and to see the built UI exactly as the Portal
-serves it, run `npm run build` and browse <http://localhost:5000/ui/>.
+serves it, run `npm run build` and browse <http://localhost:5000/>. The Portal picks up a new build
+without a restart. Before the first build it answers UI addresses with a 404 text that says what to run.
 
 ## When the API changes
 
@@ -77,11 +781,13 @@ hand:
 2. `npm run api:types` (in this folder).
 3. `npm run build`: the compiler points at every screen the change affects.
 
-Commit `openapi/portal-v1.json` and `src/lib/api-types.ts` together.
+Commit `openapi/portal-v1.json` and `src/lib/api-types.ts` together. The XML summaries of the
+actions and of the classes in `Api/V1/Contracts` are the texts of the contract, so rewording one
+changes the contract too.
 
 ## Adding a screen
 
-1. Add the API endpoints in `src/Apilane.Portal/Api/V1` (request and response classes in `Api/V1/Contracts`) and their tests in `tests/Apilane.Portal.Tests`.
+1. Add the API endpoints in `src/Apilane.Portal/Api/V1` (request and response classes in `Api/V1/Contracts`, the service and its interface in `Services` and `Abstractions`) and their tests in `tests/Apilane.Portal.Tests`.
 2. Rewrite the contract with `UPDATE_OPENAPI` (step 1 of "When the API changes").
 3. `npm run api:types`.
 4. Add the page under `src/pages/` and its route in `src/router.ts`:
@@ -100,8 +806,11 @@ Commit `openapi/portal-v1.json` and `src/lib/api-types.ts` together.
      `entities/:entity` route, whose component is `EntityLayout`. Name the route `app-entity-<tab>`
      and give it a line in `tabs` of `src/layouts/EntityLayout.vue`. The screen gets the entity from
      `useEntity()`. See "Screens of one entity" below.
+   - The first segment of a route must not be `api`, `swagger`, `health` or `metrics`, and no route
+     may end in a segment with a dot: the Portal answers those addresses itself (`src/router.test.ts` checks the first).
 5. Add its navigation entry in `src/layouts/SidebarNav.vue` when it has one. For a section of an
    application, the entry is its line in `sections` of `src/layouts/AppLayout.vue`.
+6. Add its line to the [Screens](#screens) table above.
 
 ### Screens of one application
 
@@ -152,74 +861,170 @@ const entityName = entity.value.Name
 
 ## Layout
 
-| Path | Contents |
+`src/main.ts` loads the session, then starts the app. `src/router.ts` holds every route (each page
+is loaded lazily), the guard that decides which screens open without a session, and `afterSignIn`.
+
+### Pages (`src/pages`)
+
+One component per screen. A part only that screen uses sits next to it (`pages/apps/ApplicationCard.vue`).
+
+**`pages/account`**: the public screens: sign in, sign up, forgot password, reset password, e-mail confirmed.
+
+**`pages/apps`**
+
+| File | Contents |
 |---|---|
-| `src/pages/` | One component per screen, loaded lazily by `src/router.ts`. A part only that screen uses sits next to it (`pages/apps/ApplicationCard.vue`). |
-| `src/pages/apps/` | The applications page (`/apps`, also the home page): the user's applications as cards grouped by server; a card's menu opens the status, rebuild and delete dialogs, which the page holds. Also the two pages that make an application: `CreateApplicationPage` (`/apps/new`) and `ImportApplicationPage` (`/apps/import`). |
-| `src/pages/application/` | The screens of one application (`/apps/:appToken/...`), inside `AppLayout`. `EntitiesPage` (`/apps/:appToken/entities`): the custom and system entities with the dialogs to create, edit, rename and delete one; `EntityTable` and `EntityRow` are its parts (a row loads its own record counts from the API server). `PropertiesPage` (`/apps/:appToken/entities/:entity`, inside `EntityLayout`): the custom and system properties of one entity with the dialogs to create, edit, rename and delete one; `PropertyTable` is its part. `ConstraintsPage` (`.../entities/:entity/constraints`): the unique and foreign key constraints of one entity, added (`AddConstraintDialog`, a two-step dialog: kind, then its fields) and removed in the list and saved together; read-only for a system entity unless the user is an administrator. `SortingPage` (`.../entities/:entity/sorting`): the default sorting of one entity as an ordered list. `SharingPage` (`/apps/:appToken/sharing`, owner only): the users the application is shared with, the share dialog, the remove confirm and what a collaborator can do. `SettingsPage` (`/apps/:appToken/settings`): General (name, connection string; server and database type read-only), Status (online / offline) and Danger zone (rebuild, delete). `EmailPage` (`/apps/:appToken/email`): the SMTP settings and the confirmation landing page, one form saved to the Portal, and the e-mail templates read from and saved to the API server; `EmailTemplateDialog` edits one template (enabled, subject, HTML body with a live `HtmlPreview`, the placeholders). `AuditLogPage` (`/apps/:appToken/audit-log?page=1`): the application's audit log, with `AuditLogTable` and `AppPagination`. `SecurityPage` (`/apps/:appToken/security`): `SecuritySettingsForm` (sign-in, register, files, IP access with its own Save, 'Not saved yet' next to it and its own question before leaving; the forgot-password links read-only) and `SecurityRulesEditor` (the rules of every item edited locally and saved together: `SecurityItemPicker` lists the items, a searchable list or a select on a phone, the selected one in `?item=Entity-<name>`, `CustomEndpoint-<name>` or `Schema-Schema`; a role x action grid of `SecurityRuleCell`; `SecurityTreeDialog` and `SecurityMatrixDialog`, the saved rules read-only at `?view=tree` and `?view=matrix`, with `SecurityAccessBadge`). `CustomEndpointsPage` (`/apps/:appToken/endpoints`): the custom endpoints, one line each with the SQL cut to one line, the 'Call endpoint' link (opens `CallUrl` in a new tab), Edit and the delete confirm; `CustomEndpointSearchDialog` finds any text of the names, descriptions and whole SQL and marks it, with Edit opening the editor in a new tab. `CustomEndpointEditorPage` (`/apps/:appToken/endpoints/new` and `/apps/:appToken/endpoints/<ID>`): name, description and the SQL in `SqlEditor`, saved with `UnsavedChangesBar`, the rename warning, the help and the questions; `CustomEndpointTestPanel` is its right-hand part (the address and a box per parameter, worked out in the browser, and Test, which runs the SQL on the API server and shows the JSON or the database's error). `DataPage` (`/apps/:appToken/data/:entity?page=&pageSize=&sort=`): the data browser of the application: the entities with properties loaded once, then `ApplicationDataBrowser`. |
-| `src/pages/admin/` | The screens of the 'Instance' group, for administrators (`meta.requiresAdmin`): `ServersPage`, `UsersPage`, `SettingsPage` (with the 'Backup database' card), `AuditLogPage`. `ApplicationsPage` (`/admin/applications`): every application of the instance in creation order, with a search by name, token or owner e-mail; the table shows name and token, owner, server, database and status, a Details button opens the other settings under the row (a secret only as 'Set' / 'Not set'), and the row menu has 'Open data browser', 'Open application' (only for an application the administrator owns or collaborates on) and 'Clear cache'. `ApplicationDataPage` (`/admin/applications/:appToken/data/:entity?`): the data browser of any application, loaded from `GET /api/v1/admin/applications/{appToken}` and drawn by `ApplicationDataBrowser`, under the breadcrumb Instance / Applications / name / Data. |
-| `src/layouts/` | `AppShell`: the shell around every screen for a signed-in user (sidebar, phone drawer, user menu, the change-password dialog). `SidebarNav`: the navigation inside it; a link of the 'Instance' group stays lit on every address below its own (`/admin/applications/<token>/data`). `AppSwitcher`: the menu of the user's applications under 'Applications' in the sidebar; it marks the application being worked on. `AppLayout`: the frame around every screen of one application (loads it, breadcrumb, section tabs, Info and API buttons, the 'not found' state, and the Forbidden state for a `meta.requiresOwner` screen opened by a collaborator). `EntityLayout`: the frame around every screen of one entity, inside `AppLayout` (loads it, back link, name, description, tabs, the 'not found' state). `AuthLayout`: the centred card around the public screens, with the instance name. |
-| `src/pages/account/` | The public account screens: sign in, sign up, forgot password, reset password, e-mail confirmed. |
-| `src/components/` | Building blocks shared by screens: `PageHeader`, `StateMessage`, `ErrorState`, `ForbiddenState` (a screen the user may not open; `description` says who may), `FormDialog` (a form in a dialog; `wide` for a large field with something next to it), `FormField` (a labelled field with its error message), `ConfirmDialog` (`destructive` for a red button, `opener-removed` when a success removes the button that opened it, such as the row of a deleted record), `ConfirmByNameDialog` (type the name to confirm; `acknowledge` adds an 'I understand' box that must be ticked too, and its slot takes more about the consequences), `SecretInput` (a password or key the API never sends back), `AppPagination` (page links bound to `?page=`), `AuditLogTable` and `AuditLogDetail` (an audit log page with expandable rows, for the instance and the application audit log), `AuthForm` (a form that is a whole public screen, the counterpart of `FormDialog` inside `AuthLayout`), `ChangePasswordDialog`, `ServerStatusDot` (whether an API server answers), `CopyField` (a read-only value with a copy button, masked when it is a secret), `ApplicationInfoDialog` (server address, token and encryption key of one application), `DatabaseTypeFields` (database type, connection string and the notes per database type, for every form that puts an application on a database; `existing` for the edit form: the type disabled, the connection string a `SecretInput`), `ApplicationStatusDialog`, `RebuildApplicationDialog` and `DeleteApplicationDialog` (ask, run the write and show the toast, for the settings screen and the cards of the applications page alike), `ConsequenceList` (the bulleted consequences of a rebuild or delete), `ServerSelect` (the API server of a new application) and `NoServersState` (shown instead of such a form when the instance has no server), `FileInput` (a file picker for one file), `SwitchField` (an on/off choice of a form with its label, help and error: `FormField` for a boolean), `InlineAsync` (a value one row or card loads on its own: skeleton, short error with retry, then the value), `ConstraintBadge` (a unique or foreign key constraint of an entity), `UnsavedChangesBar` (Save / Discard at the bottom of a screen that collects several edits before one Save, with the leave guard), `HtmlPreview` (HTML someone typed, an e-mail body, drawn in a sandboxed frame where no script runs), `FullScreenDialog` (a read-only view that needs the whole window, such as the security tree and matrix), `TextListInput` (a list of short values, one box each, with Add, Remove and an error per entry from `List[2]` messages; pasting a comma-separated list splits it), `SqlEditor` (SQL in CodeMirror 6 with the application's entity and property names offered while typing; CodeMirror is downloaded the first time an editor is shown, and a plain text box takes over if it cannot be). |
-| `src/components/data/` | The data browser, for every screen that shows the records of an entity (the application's data browser, and the administrator's of any application). `ApplicationDataBrowser` is what such a screen mounts once it has the entities: it takes `application`, `entities` (with their `Properties`) and `to` (the route of one entity on that screen, whose path ends in `:entity?`), shows `EntitySwitcher` and the `EntityDataBrowser` of the entity in the address, and without an entity opens the one of `?entity=<name>` (the address of the classic data browser) or the first custom one; the screen keeps its own loading, error and 'no entities' states. `foreign` says the application is someone else's (an administrator in an application they neither own nor collaborate on): links to its screens under `/apps` are left out. `EntityDataBrowser` takes `application` (token, API server, largest file: `DataApplication` of `lib/records.ts`) and `entity` (with its `Properties`) and is given `:key` of the entity name: toolbar (Refresh, New record / Register user / Upload, Delete selected, Export page as CSV, Clear history), the grid (a sortable header with an info tooltip per property, a filter box per column, cells cut to one line that open on a click, row actions by the entity's flags), the paging bar; page, size and sort live in the address (`?page=`, `?pageSize=`, `?sort=Name` or `-Name`), the filters do not. Its parts: `RecordFilterInput` (the filter box of one column, by type), `RecordPaging` (size, first / previous / page x of y / next / last, total), `RecordFormSheet` (create and edit in a side sheet, one box per property a caller may set; Users registers), `RecordHistorySheet` (the newest 100 history entries of a record, changed values marked, 'Clear history'), `FileUploadDialog` (one file, size checked before it is sent). `EntitySwitcher`: the entities as links (a select on a phone), each a route given by `to`. |
-| `src/components/diff/` | What differs between two sides, for every screen that shows a comparison. `DiffSection`: one section (a title with its counts, then the Added, Removed and Changed lists; the `item` slot draws an added or removed thing, the `changed` slot one that differs; nothing is drawn when all three are empty). `FieldChange`: one value before and after (`code` for SQL: two blocks that wrap). `DiffCount`: a count as a badge ('2 added'), also used alone for a summary line. |
-| `src/components/ApplicationSelect.vue` | Picks one of the user's applications, grouped by server: for a screen that needs a second application (the source of a schema import, the other side of a comparison). |
-| `src/pages/application/SchemaImportPage.vue` | `/apps/:appToken/import`, the 'Import' tab (route `app-schema-import`): adds entities, properties, constraints, security rules and custom endpoints from a JSON payload. 'Load diff' asks the API what another application has that this one lacks, puts it into the payload box and shows its counts; the box stays editable. Import checks the text in the browser (`parsePayload`), asks first (not atomic, cannot be undone), then shows 'Imported' with the skipped items, or the failed step with its place in the payload. The notes and the example payload of the classic page are kept, collapsible. |
-| `src/pages/apps/CompareApplicationsDialog.vue` | The compare dialog of the applications page (`/apps?compare=<application token>&with=<application token>`), opened by the 'Compare with' item of a card's menu: the other application is picked in the dialog, then Entities, Properties, Constraints, Custom endpoints and Security each list what was added, removed and changed, or 'Applications are identical'. `ComparedProperty` is its part. |
-| `src/lib/schemaImport.ts` | The rules of the schema import screen: `parsePayload` (the text of the payload box: JSON, an object, its three lists are lists), `payloadSummary` (the counts shown after 'Load diff'), `importFailure` (the message, the places in the payload and the trace of a failed import), `examplePayload`. Pure functions. |
-| `src/lib/comparison.ts` | How the answer of `GET /applications/{appToken}/comparison` is laid out for the compare dialog: `comparisonView` (the five sections; the properties and constraints of a changed entity move to their own sections, named 'Entity.Property'), `isIdentical`, `ruleText`, `propertyFacts`, `constraintTypeName`. Pure functions. |
-| `src/components/ui/` | shadcn-vue components. They are source files owned by this project: add one with `npx shadcn-vue@2.8.2 add <name>` and edit it freely. |
-| `src/composables/` | Shared logic. `useAsync` gives every read the same loading / error / data states; `useMutation` is its counterpart for writes. `usePageQuery` reads the page number of a paged list from `?page=`. `useInstance` gives the public screens what the Portal tells a visitor: the instance name and whether registration is open. `useApplications` is the one shared list of the user's applications, read by the applications page and the sidebar switcher. `useServerHealth` asks an API server whether it is up, every 5 seconds. `useServerChoice` loads the servers an application can be put on and holds the one picked (the only one is picked automatically). `useApplication` gives a screen under `AppLayout` the application it belongs to, already loaded, and a `reload()`. `useEntity` does the same for the entity of a screen under `EntityLayout`. `useLeaveGuard` asks before leaving a screen with unsaved changes (`UnsavedChangesBar` already uses it). |
-| `src/pages/application/Clone*Page.vue` | The two clone screens, opened from the card menu of the applications page (no tab in `AppLayout`). `CloneApplicationPage` (`/apps/:appToken/clone`): the server (it starts on the application's own), `DatabaseTypeFields`, 'Clone data' and, when it is on, the entities whose records are copied (all ticked, 'Select all' / 'Deselect all', Files left out; an empty selection is refused), with the notes of the classic page. Starting answers at once and leads to `CloneProgressPage` (`/apps/:appToken/clone/:operationId`): the phase, the bar (`components/ui/progress`), the counters of the phase, the entity being worked on and the time remaining, asked every 2 seconds with `usePolling`; then 'Clone completed' with the link to the new application, or 'Clone failed' with the message and 'Back to clone'; an operation the Portal no longer knows (404) shows 'This clone can no longer be tracked'. |
-| `src/composables/usePolling.ts` | `usePolling(load, { intervalMs, done, giveUp })`: the state of something that runs on the server, asked at once and again after every answer until `done` says the answer is final. A failed attempt keeps the last answer and is tried again; `giveUp` names the failures that end it (a 404). It pauses while the tab is hidden and stops when the screen is left. For the screen that follows a long-running operation; a value that is simply refreshed now and then (`useServerHealth`) does not need it. Its test (`usePolling.test.ts`) runs the mount and unmount hooks by hand and moves a fake clock, since there is no component to mount. |
-| `src/lib/clone.ts` | The rules of the clone screens, from the classic `Clone.cshtml` and `CloneProgress.cshtml`: `cloneableEntities`, `entitiesToSend`, `isFinished`, `phaseText`, `clonePercent`, `cloneCounters`, `currentEntities`, `formatEta` / `etaText`, `failureText`. Pure functions. |
-| `src/lib/api.ts` | The typed API client, `unwrap`, `unwrapAnonymous` (for calls made without a session), `ApiError`, and `loginUrl` / `redirectToLogin`. It also shows the `Warning` header of any answer as a warning toast. `api-types.ts` is generated. |
-| `src/lib/formData.ts` | `toFormData`: the `bodySerializer` of an `api` call that uploads a file (multipart/form-data). |
-| `src/lib/apiServer.ts` | `apiServer(serverUrl, appToken)`: the client for calls that go straight from the browser to an API server (storage used, export, record counts, e-mail templates, the SQL test of a custom endpoint, records, files, history and the series of a report). `get` and `getBlob` read (`get` takes `{ signal }` of an `AbortController`, for a read a newer one replaces; `isAbort(error)` tells that failure apart); `put` and `post` send a JSON body; `delete` deletes; `postFile(path, field, file)` uploads one file as multipart/form-data. A query value that is `undefined` is left out. It fetches the user's API token from the Portal, keeps it in memory only, and throws the same `ApiError` as `api` (with the `Property` the API server names, so `formErrors` marks that field). |
-| `src/lib/customEndpoints.ts` | The rules of the custom endpoints screens: `endpointParameters` and `endpointAddress` (a copy of `DBWS_CustomEndpoint.GetParameters` and `GetUrl`, so the editor follows every key press without a request), `testParameters` and `testQueryBody` (the SQL test call), `searchEndpoints` and `highlightMatches` (the search dialog), `renameLosesRules`. Pure functions. |
-| `src/lib/sqlEditor.ts` | `createSqlEditor`: CodeMirror 6 set up for SQL (dialect of the database type, completion, colours from the design tokens). Only `SqlEditor.vue` loads it, through a dynamic import, so it is a chunk of its own. |
-| `src/lib/emailTemplates.ts` | The e-mail templates as the API server sends them (`EmailTemplate`, `EmailTemplateUpdate`), `visibleTemplates`, `templatePlaceholders` (a copy of the placeholders in `EmailEvent.cs`) and `templateProblems` (the empty fields checked before a save). Pure functions. |
-| `src/lib/download.ts` | `saveBlob`: saves a fetched file under a file name. |
-| `src/lib/records.ts` | The rules of the data browser, copied from the classic `Views/Entity/Data.cshtml`: the shapes of the API server's answers (`RecordPage`, `HistoryEntry`), `recordActions` (what the entity's flags allow), paging (`pageSizes`, `pageSizeFrom`, `pageCount`), sorting (`sortFrom`, `sortQuery`, `nextSort`, `sortParam`), filtering (`filterOperators`, `emptyFilters`, `hasFilters`, `filterParam`), values (`formatRecordDate`, `cellText`: system UTC dates in local time, other dates in UTC, `yyyy-MM-dd HH:mm:ss.SSS`), the record form (`formProperties`, `initialForm`, `createBody`, `updateBody`: only the changed boxes, `recordErrors`: an API server Property may name several, comma-separated), `fileTooLarge`, `historyRows`. Pure functions. |
-| `src/lib/csv.ts` | `toCsv` (every field quoted, quotes doubled, CRLF) and `csvFileName`, for a CSV export. Pure functions. |
-| `src/lib/applicationActions.ts` | The texts and rules shared by the application settings screen and the card dialogs: `statusChange` (what the status button offers and says), `offlineWarning`, `rebuildConsequences`, `deleteConsequences`, `understandText`, and `connectionStringToSend` (the edit request's ConnectionString: an empty box is null, which keeps the stored value). Pure functions. |
-| `src/lib/applications.ts` | How the applications list is grouped, ordered, filtered and labelled (`groupByServer`, `filterByName`, `formatStorage`, `databaseTypeLabel`), plus the database types a form offers (`databaseTypes`, `needsConnectionString`). Pure functions. |
-| `src/lib/adminApplications.ts` | The rules of the administrator's applications list: `searchApplications` (name, token or owner e-mail), `countText` ('3 of 12 applications') and `applicationDetails` (the settings a row opens, a secret as `stored` only). Pure functions. |
-| `src/lib/forms.ts` | What a form shows for a failed write: `formErrors` (a message per field and one above the form) and `listErrors` (a message per item of a list sent as a whole, `Constraints[1]...`, and one above the list). |
-| `src/lib/constraints.ts` | The editing rules of the constraints screen: `constraintRows` (saved, added and removed constraints and their place in the request), `addConstraint`, `constraintRequests` (the body of the save), `isDuplicate`, `changesText`, `onDeleteHelp`. Pure functions. |
-| `src/lib/defaultOrder.ts` | The editing rules of the default sorting screen: `moveItem`, `toggleDirection`, `remainingCandidates`, `sameOrder`, `directionText`. Pure functions. |
-| `src/lib/entities.ts` | How entities are filtered and described: `filterEntities`, the texts of a constraint (`constraintTypeText`, `constraintLabel`, `constraintDescription`, `onDeleteText`), `formatCount`, and which entity the data browser lists first and opens (`dataEntityOrder`, `initialDataEntity`). Pure functions. |
-| `src/lib/properties.ts` | How properties are described and which fields a property form shows: `propertyRules` (the rules of a property in plain words), `typeFields` (the fields a type uses), `limitNoun`, `decimalPlacesText`, `maxLengthNote` (the string limits of MySQL and SQL Server), `numberOrNull` (a number box as the API takes it), `propertyTypes`. Pure functions. |
-| `src/lib/securityAccess.ts` | What a security rule grants, worked out as the API server enforces it: the items' actions and properties (`itemActions`, `offeredProperties`), `ownedApplies`, `inheritance` (the editor's 'Inherits from' notes), `propertyAccess` (an empty list is 'no properties', never full access), `endpointRateLimit`, `effectiveAccess` (Anonymous and Authenticated inherited by every role), `describeAccess`, `rateLimitShort` / `rateLimitText`. The editor, the tree and the matrix all read access through it. Pure functions. |
-| `src/lib/security.ts` | The editing rules of the security screen: `toEditable`, `newRule` (a switched-on cell), `restoreRule` (a cell switched off and on again gets its properties and rate limit back), `setRule`, `rulesRequest` (the body of the save), `changedItems` (which items hold unsaved changes), `changesText`. Pure functions. |
-| `src/pages/application/Report*.vue`, `TimeRangePicker.vue` | The reports of one application. `ReportsPage` (`/apps/:appToken/reports`): the dashboard. On a wide screen (768px and up) the reports are panels on a 12-column grid (`ReportsGrid`, gridstack with the settings of the classic page), dragged by their title and resized by their edges; the layout is saved 600 ms after the last change (`PUT reports/layout`, every panel), and a save that fails shows above the grid with 'Reload the dashboard'. On a phone the panels are one column in the same order and nothing moves. The page also holds the delete confirm, `ReportEndpointDialog` ('View API endpoint': the address of each series' call, with a copy button) and the editor. `ReportPanel`: one report - title, the time range or Top N badge, Refresh (which moves the time window to now), the menu, and the body: `ReportTable` for a Grid, `ReportChart` (Chart.js) for the other types. It loads each series itself from the API server (`/api/Stats/Aggregate`); a series that cannot run or whose call fails is named inside the panel and the others still show. `ReportEditorSheet` (`/apps/:appToken/reports/new` and `/apps/:appToken/reports/<ID>/edit`, a side sheet over the dashboard; the three routes share `ReportsPage`): title, visualization, time range (`TimeRangePicker`: the quick ranges or a custom number and unit), Top N and the series; `ReportSeriesEditor` is one series (label, entity, group-by, property, filter), with its choices from `GET entities/{entity}/report-fields?Type=` and the filter edited in a dialog with `FilterBuilder`. |
-| `src/components/FilterBuilder.vue` | A filter of the data API as a list of conditions (property, operator, value) that must all hold, for every place a stored filter is edited. It edits `FilterRow`s; `src/lib/filterBuilder.ts` reads and writes the stored text. |
-| `src/lib/reportData.ts` | Everything a report panel works out, copied from the classic `Views/Shared/Report.cshtml` and the report functions of `custom.js`: the time range (`parseTimeRange`, `timeRangeLabel`, `timeWindow`), the call of a series (`seriesFilter`, `seriesQuery`, `aggregateUrl`), badges and legend labels (`panelScope`), the shared x-axis (`combineSeries`, `rowValue`, `hasNoRows`), the cells of a Grid (`gridText`) and the Chart.js configuration (`chartConfig`, `toNumberOrNull`, `withAlpha`). The answer of `Stats/Aggregate` is described there (`AggregateRow`). Pure functions. |
-| `src/lib/reports.ts` | The rules of the report editor: the choices (`reportTypes`, `quickTimeRanges`, `timeUnits`), the form (`newReportForm`, `reportForm`, `newSeries`), the body of the save (`reportRequest`: empty series rows are left out), where the problems of a failed save belong (`reportErrors`: `Series[1].GroupBy` back to the row of the form) and the group-by picker (`fieldNames`, `splitGroupBy`, `toggleGroupBy`, `notOffered`). Pure functions. |
-| `src/lib/filterBuilder.ts` | The rules of `FilterBuilder`: every operator of the data API (`allFilterOperators`), `parseFilter` (a stored filter as conditions, or as `raw` text when it has groups, OR or anything else a flat list cannot show), `filterText` (the JSON to store, the same as the classic builder writes), `filterSummary`, `newFilterRow`. Pure functions. |
-| `src/lib/reportChart.ts` | `createReportChart` and `reportPalette`: Chart.js with only the chart kinds a report has, and the texts, lines and tooltips in the colours of the design tokens. Only `ReportChart.vue` loads it, through a dynamic import, so it is a chunk of its own. |
-| `src/lib/session.ts` | The signed-in user: loaded before the app starts, `useSession()` inside `AppShell`, `setSession` after signing in. |
-| `src/lib/returnUrl.ts` | `safeReturnUrl`: the check that a `returnUrl` is a path on this site before it is followed after signing in. Pure functions. |
-| `src/lib/toast.ts` | Toast helpers that report the result of a write: `success`, `error`, `warning`. |
-| `src/lib/format.ts` | Date formats: `formatDateTime` (local time) and `formatUtc` (`yyyy-MM-dd HH:mm:ss` in UTC, for logs). |
-| `src/lib/auditDiff.ts` | The display rules of an audit log entry's changes, as pure functions without Vue, so they can be unit-tested. `AuditLogDetail` draws the result. |
-| `src/**/*.test.ts` | Unit tests, next to the module they test. |
-| `src/style.css` | Design tokens (colours, radius). Dark is the only theme; the one light colour is `preview` (`bg-preview`), the white page behind an e-mail preview. Also the colours of chart series (`--chart-1` to `--chart-10`) and the drop target of the reports grid. |
-| `src/styles/shadcn.css` | Utilities the shadcn-vue components need, copied from shadcn-vue 2.8.2. |
+| `ApplicationsPage` | `/apps`, also the home page: the user's applications as cards grouped by server. A card's menu opens the status, rebuild and delete dialogs, which the page holds. |
+| `CreateApplicationPage`, `ImportApplicationPage` | `/apps/new` and `/apps/import`: the two pages that make an application. |
+| `CompareApplicationsDialog` | `/apps?compare=<application token>&with=<application token>`, opened by 'Compare with' of a card's menu: the other application is picked in the dialog, then Entities, Properties, Constraints, Custom endpoints and Security each list what was added, removed and changed, or 'Applications are identical'. `ComparedProperty` is its part. |
+
+**`pages/application`**: the screens of one application, inside `AppLayout`.
+
+| File | Contents |
+|---|---|
+| `EntitiesPage` | `/apps/:appToken/entities`: the custom and system entities with the dialogs to create, edit, rename and delete one. `EntityTable` and `EntityRow` are its parts (a row loads its own record counts from the API server). |
+| `PropertiesPage` | `/apps/:appToken/entities/:entity`, inside `EntityLayout`: the custom and system properties of one entity with the dialogs to create, edit, rename and delete one. `PropertyTable` is its part. |
+| `ConstraintsPage` | `.../entities/:entity/constraints`: the unique and foreign key constraints of one entity, added (`AddConstraintDialog`, a two-step dialog: kind, then its fields) and removed in the list and saved together; read-only for a system entity unless the user is an administrator. |
+| `SortingPage` | `.../entities/:entity/sorting`: the default sorting of one entity as an ordered list. |
+| `DataPage` | `/apps/:appToken/data/:entity?page=&pageSize=&sort=`: the data browser of the application: the entities with properties loaded once, then `ApplicationDataBrowser`. |
+| `SecurityPage` | `/apps/:appToken/security`: `SecuritySettingsForm` (sign-in, register, files, IP access with its own Save, 'Not saved yet' next to it and its own question before leaving; the forgot-password links read-only) and `SecurityRulesEditor` (the rules of every item edited locally and saved together: `SecurityItemPicker` lists the items, a searchable list or a select on a phone, the selected one in `?item=Entity-<name>`, `CustomEndpoint-<name>` or `Schema-Schema`; a role x action grid of `SecurityRuleCell`; `SecurityTreeDialog` and `SecurityMatrixDialog`, the saved rules read-only at `?view=tree` and `?view=matrix`, with `SecurityAccessBadge`). |
+| `CustomEndpointsPage` | `/apps/:appToken/endpoints`: the custom endpoints, one line each with the SQL cut to one line, the 'Call endpoint' link (opens `CallUrl` in a new tab), Edit and the delete confirm. `CustomEndpointSearchDialog` finds any text of the names, descriptions and whole SQL and marks it, with Edit opening the editor in a new tab. |
+| `CustomEndpointEditorPage` | `/apps/:appToken/endpoints/new` and `/apps/:appToken/endpoints/<ID>`: name, description and the SQL in `SqlEditor`, saved with `UnsavedChangesBar`, the rename warning, the help and the questions. `CustomEndpointTestPanel` is its right-hand part (the address and a box per parameter, worked out in the browser, and Test, which runs the SQL on the API server and shows the JSON or the database's error). |
+| `EmailPage` | `/apps/:appToken/email`: the SMTP settings and the confirmation landing page, one form saved to the Portal, and the e-mail templates read from and saved to the API server. `EmailTemplateDialog` edits one template (enabled, subject, HTML body with a live `HtmlPreview`, the placeholders). |
+| `ReportsPage`, `Report*.vue`, `TimeRangePicker` | `/apps/:appToken/reports`: the dashboard. On a wide screen (768px and up) the reports are panels on a 12-column grid (`ReportsGrid`, gridstack), dragged by their title and resized by their edges; the layout is saved 600 ms after the last change (`PUT reports/layout`, every panel), and a save that fails shows above the grid with 'Reload the dashboard'. On a phone the panels are one column in the same order and nothing moves. The page also holds the delete confirm, `ReportEndpointDialog` ('View API endpoint': the address of each series' call, with a copy button) and the editor. `ReportPanel`: one report: title, the time range or Top N badge, Refresh (which moves the time window to now), the menu, and the body: `ReportTable` for a Grid, `ReportChart` (Chart.js) for the other types. It loads each series itself from the API server (`/api/Stats/Aggregate`); a series that cannot run or whose call fails is named inside the panel and the others still show. `ReportEditorSheet` (`/apps/:appToken/reports/new` and `/apps/:appToken/reports/<ID>/edit`, a side sheet over the dashboard; the three routes share `ReportsPage`): title, visualization, time range (`TimeRangePicker`: the quick ranges or a custom number and unit), Top N and the series. `ReportSeriesEditor` is one series (label, entity, group-by, property, filter), with its choices from `GET entities/{entity}/report-fields?Type=` and the filter edited in a dialog with `FilterBuilder`. |
+| `SharingPage` | `/apps/:appToken/sharing`, owner only: the users the application is shared with, the share dialog, the remove confirm and what a collaborator can do. |
+| `SchemaImportPage` | `/apps/:appToken/import`, the 'Import' tab (route `app-schema-import`): adds entities, properties, constraints, security rules and custom endpoints from a JSON payload. 'Load diff' asks the API what another application has that this one lacks, puts it into the payload box and shows its counts; the box stays editable. Import checks the text in the browser (`parsePayload`), asks first (not atomic, cannot be undone), then shows 'Imported' with the skipped items, or the failed step with its place in the payload. The notes and the example payload are collapsible. |
+| `AuditLogPage` | `/apps/:appToken/audit-log?page=1`: the application's audit log, with `AuditLogTable` and `AppPagination`. |
+| `SettingsPage` | `/apps/:appToken/settings`: General (name, connection string; server and database type read-only), Status (online / offline) and Danger zone (rebuild, delete). |
+| `CloneApplicationPage`, `CloneProgressPage` | Opened from the card menu of the applications page (no tab in `AppLayout`). `/apps/:appToken/clone`: the server (it starts on the application's own), `DatabaseTypeFields`, 'Clone data' and, when it is on, the entities whose records are copied (all ticked, 'Select all' / 'Deselect all', Files left out; an empty selection is refused). Starting answers at once and leads to `/apps/:appToken/clone/:operationId`: the phase, the bar (`components/ui/progress`), the counters of the phase, the entity being worked on and the time remaining, asked every 2 seconds with `usePolling`; then 'Clone completed' with the link to the new application, or 'Clone failed' with the message and 'Back to clone'; an operation the Portal no longer knows (404) shows 'This clone can no longer be tracked'. |
+
+**`pages/admin`**: the screens of the 'Instance' group, for administrators (`meta.requiresAdmin`).
+
+| File | Contents |
+|---|---|
+| `ServersPage`, `UsersPage`, `AuditLogPage` | `/admin/servers`, `/admin/users`, `/admin/audit-log`. |
+| `SettingsPage` | `/admin/settings`, with the 'Backup database' card. |
+| `ApplicationsPage` | `/admin/applications`: every application of the instance in creation order, with a search by name, token or owner e-mail. The table shows name and token, owner, server, database and status; a Details button opens the other settings under the row (a secret only as 'Set' / 'Not set'); the row menu has 'Open data browser', 'Open application' (only for an application the administrator owns or collaborates on) and 'Clear cache'. |
+| `ApplicationDataPage` | `/admin/applications/:appToken/data/:entity?`: the data browser of any application, loaded from `GET /api/v1/admin/applications/{appToken}` and drawn by `ApplicationDataBrowser`, under the breadcrumb Instance / Applications / name / Data. |
+
+### Layouts (`src/layouts`)
+
+| File | Contents |
+|---|---|
+| `AppShell` | The shell around every screen for a signed-in user: sidebar, phone drawer, user menu, the change-password dialog. |
+| `SidebarNav` | The navigation inside it. A link of the 'Instance' group stays lit on every address below its own (`/admin/applications/<token>/data`). |
+| `AppSwitcher` | The menu of the user's applications under 'Applications' in the sidebar; it marks the application being worked on. |
+| `UserMenu` | Change password, 'API reference' (`/swagger`), sign out. |
+| `AppLayout` | The frame around every screen of one application: loads it, breadcrumb, section tabs, Info and API buttons, the 'not found' state, and the Forbidden state for a `meta.requiresOwner` screen opened by a collaborator. |
+| `EntityLayout` | The frame around every screen of one entity, inside `AppLayout`: loads it, back link, name, description, tabs, the 'not found' state. |
+| `AuthLayout` | The centred card around the public screens, with the instance name. |
+
+### Components (`src/components`)
+
+| File | Contents |
+|---|---|
+| `PageHeader`, `StateMessage`, `LoadingState`, `ErrorState` | The heading and the loading, empty and error states of a screen. |
+| `ForbiddenState` | A screen the user may not open; `description` says who may. |
+| `FormDialog`, `FormField`, `SwitchField` | A form in a dialog (`wide` for a large field with something next to it); a labelled field with its error message; the same for an on/off choice. |
+| `AuthForm` | A form that is a whole public screen, the counterpart of `FormDialog` inside `AuthLayout`. |
+| `ConfirmDialog` | `destructive` for a red button; `opener-removed` when a success removes the button that opened it, such as the row of a deleted record. |
+| `ConfirmByNameDialog` | Type the name to confirm. `acknowledge` adds an 'I understand' box that must be ticked too, and its slot takes more about the consequences. |
+| `SecretInput` | A password or key the API never sends back. |
+| `CopyField` | A read-only value with a copy button, masked when it is a secret. |
+| `AppPagination` | Page links bound to `?page=`. |
+| `AuditLogTable`, `AuditLogDetail` | An audit log page with expandable rows, for the instance and the application audit log. |
+| `ChangePasswordDialog` | The dialog of the user menu and of `/account/password`. |
+| `ServerStatusDot` | Whether an API server answers. |
+| `ApplicationInfoDialog` | Server address, token and encryption key of one application. |
+| `ApplicationSelect` | Picks one of the user's applications, grouped by server: for a screen that needs a second application (the source of a schema import, the other side of a comparison). |
+| `DatabaseTypeFields` | Database type, connection string and the notes per database type, for every form that puts an application on a database. `existing` for the edit form: the type disabled, the connection string a `SecretInput`. |
+| `ApplicationStatusDialog`, `RebuildApplicationDialog`, `DeleteApplicationDialog`, `ConsequenceList` | Ask, run the write and show the toast, for the settings screen and the cards of the applications page alike; the bulleted consequences of a rebuild or delete. |
+| `ServerSelect`, `NoServersState` | The API server of a new application; what is shown instead of such a form when the instance has no server. |
+| `FileInput` | A file picker for one file. |
+| `InlineAsync` | A value one row or card loads on its own: skeleton, short error with retry, then the value. |
+| `ConstraintBadge` | A unique or foreign key constraint of an entity. |
+| `UnsavedChangesBar` | Save / Discard at the bottom of a screen that collects several edits before one Save, with the leave guard. |
+| `HtmlPreview` | HTML someone typed (an e-mail body), drawn in a sandboxed frame where no script runs. |
+| `FullScreenDialog` | A read-only view that needs the whole window, such as the security tree and matrix. |
+| `TextListInput` | A list of short values, one box each, with Add, Remove and an error per entry from `List[2]` messages; pasting a comma-separated list splits it. |
+| `SqlEditor` | SQL in CodeMirror 6 with the application's entity and property names offered while typing. CodeMirror is downloaded the first time an editor is shown, and a plain text box takes over if it cannot be. |
+| `FilterBuilder` | A filter of the data API as a list of conditions (property, operator, value) that must all hold, for every place a stored filter is edited. It edits `FilterRow`s; `src/lib/filterBuilder.ts` reads and writes the stored text. |
+| `data/` | The data browser, for every screen that shows the records of an entity (the application's, and the administrator's of any application). `ApplicationDataBrowser` is what such a screen mounts once it has the entities: it takes `application`, `entities` (with their `Properties`) and `to` (the route of one entity on that screen, whose path ends in `:entity?`), shows `EntitySwitcher` and the `EntityDataBrowser` of the entity in the address, and without an entity opens the first custom one; the screen keeps its own loading, error and 'no entities' states. `foreign` says the application is someone else's (an administrator in an application they neither own nor collaborate on): links to its screens under `/apps` are left out. `EntityDataBrowser` takes `application` (token, API server, largest file: `DataApplication` of `lib/records.ts`) and `entity` (with its `Properties`) and is given `:key` of the entity name: toolbar (Refresh, New record / Register user / Upload, Delete selected, Export page as CSV, Clear history), the grid (a sortable header with an info tooltip per property, a filter box per column, cells cut to one line that open on a click, row actions by the entity's flags), the paging bar; page, size and sort live in the address (`?page=`, `?pageSize=`, `?sort=Name` or `-Name`), the filters do not. Its parts: `RecordFilterInput` (the filter box of one column, by type), `RecordPaging` (size, first / previous / page x of y / next / last, total), `RecordFormSheet` (create and edit in a side sheet, one box per property a caller may set; Users registers), `RecordHistorySheet` (the newest 100 history entries of a record, changed values marked, 'Clear history'), `FileUploadDialog` (one file, size checked before it is sent). `EntitySwitcher`: the entities as links (a select on a phone), each a route given by `to`. |
+| `diff/` | What differs between two sides, for every screen that shows a comparison. `DiffSection`: one section (a title with its counts, then the Added, Removed and Changed lists; the `item` slot draws an added or removed thing, the `changed` slot one that differs; nothing is drawn when all three are empty). `FieldChange`: one value before and after (`code` for SQL: two blocks that wrap). `DiffCount`: a count as a badge ('2 added'), also used alone for a summary line. |
+| `ui` (a folder) | shadcn-vue components. They are source files owned by this project: add one with `npx shadcn-vue@2.8.2 add <name>` and edit it freely. |
 
 After `shadcn-vue add`, check `git diff`: the CLI can add packages to `package.json` (note them
 under Dependencies) and tokens to `src/style.css`. When moving to a newer CLI version, refresh
 `src/styles/shadcn.css` too.
 
+### Composables (`src/composables`)
+
+| File | Contents |
+|---|---|
+| `useAsync`, `useMutation` | Every read gets the same loading / error / data states; `useMutation` is the counterpart for writes. |
+| `usePageQuery` | Reads the page number of a paged list from `?page=`. |
+| `useInstance` | What the Portal tells a visitor, for the public screens: the instance name and whether registration is open. |
+| `useApplications` | The one shared list of the user's applications, read by the applications page and the sidebar switcher. |
+| `useApplication`, `useEntity` | Give a screen under `AppLayout` (or `EntityLayout`) the application (or entity) it belongs to, already loaded, and a `reload()`. |
+| `useServerHealth` | Asks an API server whether it is up, every 5 seconds. |
+| `useServerChoice` | Loads the servers an application can be put on and holds the one picked (the only one is picked automatically). |
+| `useLeaveGuard` | Asks before leaving a screen with unsaved changes (`UnsavedChangesBar` already uses it). |
+| `usePolling` | `usePolling(load, { intervalMs, done, giveUp })`: the state of something that runs on the server, asked at once and again after every answer until `done` says the answer is final. A failed attempt keeps the last answer and is tried again; `giveUp` names the failures that end it (a 404). It pauses while the tab is hidden and stops when the screen is left. For the screen that follows a long-running operation; a value that is simply refreshed now and then (`useServerHealth`) does not need it. Its test (`usePolling.test.ts`) runs the mount and unmount hooks by hand and moves a fake clock, since there is no component to mount. |
+
+### Modules (`src/lib`)
+
+Rules that need neither Vue nor the browser, as pure functions, each with a `*.test.ts` next to it.
+
+| File | Contents |
+|---|---|
+| `api.ts` | The typed API client, `unwrap`, `unwrapAnonymous` (for calls made without a session), `ApiError`, and `loginUrl` / `redirectToLogin`. It adds the write header and shows the `Warning` header of any answer as a warning toast. `api-types.ts` is generated. |
+| `apiServer.ts` | `apiServer(serverUrl, appToken)`: the client for calls that go straight from the browser to an API server (storage used, export, record counts, e-mail templates, the SQL test of a custom endpoint, records, files, history and the series of a report). `get` and `getBlob` read (`get` takes `{ signal }` of an `AbortController`, for a read a newer one replaces; `isAbort(error)` tells that failure apart); `put` and `post` send a JSON body; `delete` deletes; `postFile(path, field, file)` uploads one file as multipart/form-data. A query value that is `undefined` is left out. It fetches the user's API token from the Portal, keeps it in memory only, and throws the same `ApiError` as `api` (with the `Property` the API server names, so `formErrors` marks that field). |
+| `session.ts` | The signed-in user: loaded before the app starts, `useSession()` inside `AppShell`, `setSession` after signing in. |
+| `returnUrl.ts` | `safeReturnUrl`: the check that a `returnUrl` is a path on this site before it is followed after signing in. `isServerPath`: whether the Portal answers an address itself (`/swagger`), so it needs a full page load. |
+| `forms.ts` | What a form shows for a failed write: `formErrors` (a message per field and one above the form) and `listErrors` (a message per item of a list sent as a whole, `Constraints[1]...`, and one above the list). |
+| `formData.ts` | `toFormData`: the `bodySerializer` of an `api` call that uploads a file (multipart/form-data). |
+| `download.ts` | `saveBlob`: saves a fetched file under a file name. |
+| `toast.ts` | Toast helpers that report the result of a write: `success`, `error`, `warning`. |
+| `format.ts` | Date formats: `formatDateTime` (local time) and `formatUtc` (`yyyy-MM-dd HH:mm:ss` in UTC, for logs). |
+| `applications.ts` | How the applications list is grouped, ordered, filtered and labelled (`groupByServer`, `filterByName`, `formatStorage`, `databaseTypeLabel`), plus the database types a form offers (`databaseTypes`, `needsConnectionString`). |
+| `applicationActions.ts` | The texts and rules shared by the application settings screen and the card dialogs: `statusChange` (what the status button offers and says), `offlineWarning`, `rebuildConsequences`, `deleteConsequences`, `understandText`, and `connectionStringToSend` (the edit request's ConnectionString: an empty box is null, which keeps the stored value). |
+| `adminApplications.ts` | The rules of the administrator's applications list: `searchApplications` (name, token or owner e-mail), `countText` ('3 of 12 applications') and `applicationDetails` (the settings a row opens, a secret as `stored` only). |
+| `entities.ts` | How entities are filtered and described: `filterEntities`, the texts of a constraint (`constraintTypeText`, `constraintLabel`, `constraintDescription`, `onDeleteText`), `formatCount`, and the order of the data browser's entity list (`dataEntityOrder`). |
+| `properties.ts` | How properties are described and which fields a property form shows: `propertyRules` (the rules of a property in plain words), `typeFields` (the fields a type uses), `limitNoun`, `decimalPlacesText`, `maxLengthNote` (the string limits of MySQL and SQL Server), `numberOrNull` (a number box as the API takes it), `propertyTypes`. |
+| `constraints.ts` | The editing rules of the constraints screen: `constraintRows` (saved, added and removed constraints and their place in the request), `addConstraint`, `constraintRequests` (the body of the save), `isDuplicate`, `changesText`, `onDeleteHelp`. |
+| `defaultOrder.ts` | The editing rules of the default sorting screen: `moveItem`, `toggleDirection`, `remainingCandidates`, `sameOrder`, `directionText`. |
+| `records.ts` | The rules of the data browser: the shapes of the API server's answers (`RecordPage`, `HistoryEntry`), `recordActions` (what the entity's flags allow), paging (`pageSizes`, `pageSizeFrom`, `pageCount`), sorting (`sortFrom`, `sortQuery`, `nextSort`, `sortParam`), filtering (`filterOperators`, `emptyFilters`, `hasFilters`, `filterParam`), values (`formatRecordDate`, `cellText`: system UTC dates in local time, other dates in UTC, `yyyy-MM-dd HH:mm:ss.SSS`), the record form (`formProperties`, `initialForm`, `createBody`, `updateBody`: only the changed boxes, `recordErrors`: an API server Property may name several, comma-separated), `fileTooLarge`, `historyRows`. |
+| `csv.ts` | `toCsv` (every field quoted, quotes doubled, CRLF) and `csvFileName`, for a CSV export. |
+| `security.ts` | The editing rules of the security screen: `toEditable`, `newRule` (a switched-on cell), `restoreRule` (a cell switched off and on again gets its properties and rate limit back), `setRule`, `rulesRequest` (the body of the save), `changedItems` (which items hold unsaved changes), `changesText`. |
+| `securityAccess.ts` | What a security rule grants, worked out as the API server enforces it: the items' actions and properties (`itemActions`, `offeredProperties`), `ownedApplies`, `inheritance` (the editor's 'Inherits from' notes), `propertyAccess` (an empty list is 'no properties', never full access), `endpointRateLimit`, `effectiveAccess` (Anonymous and Authenticated inherited by every role), `describeAccess`, `rateLimitShort` / `rateLimitText`. The editor, the tree and the matrix all read access through it. |
+| `customEndpoints.ts` | The rules of the custom endpoints screens: `endpointParameters` and `endpointAddress` (a copy of `DBWS_CustomEndpoint.GetParameters` and `GetUrl`, so the editor follows every key press without a request), `testParameters` and `testQueryBody` (the SQL test call), `searchEndpoints` and `highlightMatches` (the search dialog), `renameLosesRules`. |
+| `sqlEditor.ts` | `createSqlEditor`: CodeMirror 6 set up for SQL (dialect of the database type, completion, colours from the design tokens). Only `SqlEditor.vue` loads it, through a dynamic import, so it is a chunk of its own. |
+| `emailTemplates.ts` | The e-mail templates as the API server sends them (`EmailTemplate`, `EmailTemplateUpdate`), `visibleTemplates`, `templatePlaceholders` (a copy of the placeholders in `EmailEvent.cs`) and `templateProblems` (the empty fields checked before a save). |
+| `reports.ts` | The rules of the report editor: the choices (`reportTypes`, `quickTimeRanges`, `timeUnits`), the form (`newReportForm`, `reportForm`, `newSeries`), the body of the save (`reportRequest`: empty series rows are left out), where the problems of a failed save belong (`reportErrors`: `Series[1].GroupBy` back to the row of the form) and the group-by picker (`fieldNames`, `splitGroupBy`, `toggleGroupBy`, `notOffered`). |
+| `reportData.ts` | Everything a report panel works out: the time range (`parseTimeRange`, `timeRangeLabel`, `timeWindow`), the call of a series (`seriesFilter`, `seriesQuery`, `aggregateUrl`), badges and legend labels (`panelScope`), the shared x-axis (`combineSeries`, `rowValue`, `hasNoRows`), the cells of a Grid (`gridText`) and the Chart.js configuration (`chartConfig`, `toNumberOrNull`, `withAlpha`). The answer of `Stats/Aggregate` is described there (`AggregateRow`). |
+| `reportChart.ts` | `createReportChart` and `reportPalette`: Chart.js with only the chart kinds a report has, and the texts, lines and tooltips in the colours of the design tokens. Only `ReportChart.vue` loads it, through a dynamic import, so it is a chunk of its own. |
+| `filterBuilder.ts` | The rules of `FilterBuilder`: every operator of the data API (`allFilterOperators`), `parseFilter` (a stored filter as conditions, or as `raw` text when it has groups, OR or anything else a flat list cannot show), `filterText` (the JSON to store), `filterSummary`, `newFilterRow`. |
+| `schemaImport.ts` | The rules of the schema import screen: `parsePayload` (the text of the payload box: JSON, an object, its three lists are lists), `payloadSummary` (the counts shown after 'Load diff'), `importFailure` (the message, the places in the payload and the trace of a failed import), `examplePayload`. |
+| `comparison.ts` | How the answer of `GET /applications/{appToken}/comparison` is laid out for the compare dialog: `comparisonView` (the five sections; the properties and constraints of a changed entity move to their own sections, named 'Entity.Property'), `isIdentical`, `ruleText`, `propertyFacts`, `constraintTypeName`. |
+| `clone.ts` | The rules of the clone screens: `cloneableEntities`, `entitiesToSend`, `isFinished`, `phaseText`, `clonePercent`, `cloneCounters`, `currentEntities`, `formatEta` / `etaText`, `failureText`. |
+| `auditDiff.ts` | The display rules of an audit log entry's changes. `AuditLogDetail` draws the result. |
+
+### Styles
+
+| File | Contents |
+|---|---|
+| `src/style.css` | Design tokens (colours, radius). Dark is the only theme; the one light colour is `preview` (`bg-preview`), the white page behind an e-mail preview. Also the colours of chart series (`--chart-1` to `--chart-10`) and the drop target of the reports grid. |
+| `src/styles/shadcn.css` | Utilities the shadcn-vue components need, copied from shadcn-vue 2.8.2. |
+
 ## Conventions
 
 - `<script setup lang="ts">` in every component; no Options API.
 - Reads go through `useAsync(() => unwrap(api.GET(...)))`, and every screen shows its loading, error and empty states.
-- Every route needs a session unless it carries `meta.public`. The guard in `src/router.ts` is the one place that decides; a 401 from any call made with `unwrap` leads to the login page (`/ui/account/login?returnUrl=...`) with a full page load, and signing in returns to that address.
-- A `returnUrl` is followed only through `afterSignIn` (`src/router.ts`), which accepts paths on this site and nothing else: a `/ui/...` path opens in this app, any other path on this site (`/swagger`) is a full page load.
+- Every route needs a session unless it carries `meta.public`. The guard in `src/router.ts` is the one place that decides; a 401 from any call made with `unwrap` leads to the login page (`/account/login?returnUrl=...`) with a full page load, and signing in returns to that address.
+- A `returnUrl` is followed only through `afterSignIn` (`src/router.ts`), which accepts paths on this site and nothing else: an address the Portal answers itself (`/swagger`) is a full page load, every other path opens in this app.
 - Signing out is a `DELETE /api/v1/session` followed by a full page load of the login page, so nothing of the session stays in memory.
 - A password box is an `Input` with `type="password"` and the right `autocomplete` (`current-password`, `new-password`; the e-mail box of the same form has `username`), so password managers work. `SecretInput` is for stored secrets, not for the user's own password.
-- `api` or `apiServer`? Everything the Portal knows (applications, servers, users, settings, the encryption key) is a call to the Portal: `unwrap(api.GET('/api/v1/...'))`, typed from the contract. What lives on an API server (storage used, export, record counts, records, files, history, the statistics of a report) is called straight from the browser, as the classic pages do: `apiServer(app.Server.ServerUrl, app.Token).get(...)` or `.getBlob(...)`, and for a write `.put(path, body)` or `.post(path, body)` inside `useMutation`. Those calls are not in the contract, so say what they return (`get<number>(...)`) and describe their bodies in a module under `src/lib/` (`emailTemplates.ts`). Never build such a request by hand: `apiServer` adds the token and the headers, and the token must not end up in an address or in storage.
+- `api` or `apiServer`? Everything the Portal knows (applications, servers, users, settings, the encryption key) is a call to the Portal: `unwrap(api.GET('/api/v1/...'))`, typed from the contract. What lives on an API server (storage used, export, record counts, records, files, history, the statistics of a report) is called straight from the browser: `apiServer(app.Server.ServerUrl, app.Token).get(...)` or `.getBlob(...)`, and for a write `.put(path, body)` or `.post(path, body)` inside `useMutation`. Those calls are not in the contract, so say what they return (`get<number>(...)`) and describe their bodies in a module under `src/lib/` (`emailTemplates.ts`). Never build such a request by hand: `apiServer` adds the token and the headers, and the token must not end up in an address or in storage.
 - HTML that is not this UI's own (an e-mail template) is shown only through `HtmlPreview`, never with `v-html`: its frame is sandboxed with every permission off, so a script in it cannot run.
 - A failed call to an API server inside a list (one card, one row) shows a short inline error with a retry there; it never replaces the screen. `InlineAsync` draws that.
 - A file fetched with headers is saved with `saveBlob` (`src/lib/download.ts`). A file of an API server is downloaded that way too, never through a link with the token in its address.
@@ -227,7 +1032,7 @@ under Dependencies) and tokens to `src/style.css`. When moving to a newer CLI ve
 - SQL is edited in `SqlEditor`, never in a plain text box, and CodeMirror is imported nowhere else: that keeps it out of every other screen's download.
 - A chart is drawn by `ReportChart`, and Chart.js is imported only by `src/lib/reportChart.ts`; gridstack is imported only by `ReportsGrid.vue`, which the reports page loads on a wide screen. Both are loaded with a dynamic import and have a fallback when the download fails (a table instead of the chart, one column instead of the grid).
 - A canvas cannot use the Tailwind classes: `src/lib/reportChart.ts` reads the design tokens with `getComputedStyle`. The colours of the series are the tokens `--chart-1` to `--chart-10` in `src/style.css`.
-- Data of an application (a record value, a label or value of a report) is written with `{{ }}`, never with `v-html`. The Grid report of the classic portal builds HTML from such values; here they are text.
+- Data of an application (a record value, a label or value of a report) is written with `{{ }}`, never with `v-html`.
 - A component that hands its elements to a library that moves them (the gridstack grid) sets what the library reads (the `gs-*` attributes) itself, once, when it is mounted, not in the template: a later render would write an old place over the one the library keeps. Its parent gives it a `key` that changes when the set of items does, so a new grid is built instead of the old one being patched.
 - Dragging is for the reports dashboard only, and only on a wide screen; the layout is saved on its own a moment after the last change, one save at a time. Everything a panel offers is also in its menu, so nothing needs a drag.
 - An editor that is a side sheet with an address of its own (`reports/new`, `reports/<ID>/edit`) is declared in `src/router.ts` as routes that show the same page as the list; the page opens the sheet from `route.name`, and closing it goes back to the list's route.
@@ -263,12 +1068,41 @@ under Dependencies) and tokens to `src/style.css`. When moving to a newer CLI ve
 - A value that cannot be changed after creation says so in the help line of its field on the create form; the edit form shows it disabled with the reason.
 - A row menu item that is not available stays in the menu, disabled, with the reason as a second line under its label (`EntityRow`); a tooltip would not show on a disabled item. A row where no item is available gets no menu at all (system properties in `PropertyTable`).
 - A row that scrolls sideways (`overflow-x-auto`) is also `relative`: the `sr-only` texts inside it are absolutely positioned and would otherwise widen the page on a phone.
-- Logic that does not need Vue or the browser (ordering, formatting, parsing) goes into a module under `src/lib/` as pure functions, with a `*.test.ts` next to it. Tests import `describe`, `it` and `expect` from `vitest`; there is no browser environment (no jsdom), so components are not unit-tested. `npm run build` type-checks the tests but does not bundle them: nothing imports them.
-- Nothing in this UI links to a Razor page, and a new screen never does. Where a text here says 'the classic page' or 'the classic portal', it names the Razor page a rule was copied from. The Razor views and MVC controllers stay untouched until they are removed in one go; [MIGRATION.md](MIGRATION.md) has the plan.
+- Logic that does not need Vue or the browser (ordering, formatting, parsing) goes into a module under `src/lib/` as pure functions, with a `*.test.ts` next to it.
+- Visible texts say 'email'; comments, this document and the API's summaries write 'e-mail'.
+- Validation messages are short and the same everywhere ('Required', 'Not a valid email address', 'Must be 8 to 100 characters'), one per field.
+
+## Tests
+
+| Where | What it covers | Run |
+|---|---|---|
+| `src/**/*.test.ts` (this folder) | The pure modules under `src/lib`, `usePolling`, and the route table (`src/router.test.ts`: which address opens which screen, that no route sits under a server prefix, and `afterSignIn`). Vitest, without a browser environment (no jsdom), so components are not unit-tested. `npm run build` type-checks the tests but does not bundle them. | `npm test` |
+| `tests/Apilane.Portal.Tests` | The management API, endpoint by endpoint (`*ApiTests.cs`); the rules every endpoint must keep and the contract file (`ApiContractTests`); the error body, the write header and the cache headers (`ApiPipelineTests`); how the UI is served at the site root next to the Portal's own addresses (`UiServingTests`); the internal API (`InternalApiTests`). xUnit: the real Portal in memory (`Infrastructure/PortalFactory.cs`) on a throw-away SQLite database, with a scripted stand-in for the API servers (`FakeApiServer`). No Docker, no Node. | `dotnet test tests/Apilane.Portal.Tests` |
+| `tests/Apilane.UnitTests` | MSTest unit tests of the shared code, among them `PortalInfoServiceTests`: the addresses and headers the API server sends to `/api/internal`. | `dotnet test tests/Apilane.UnitTests` |
+| `tests/Apilane.Api.Component.Tests` | The API server against SQLite, SQL Server, MySQL and PostgreSQL. It fakes the Portal, so it does not exercise this API. Needs Docker. | `dotnet test tests/Apilane.Api.Component.Tests` |
+
+`ApiContractTests` fails when the API no longer matches `openapi/portal-v1.json`: follow
+[When the API changes](#when-the-api-changes). An endpoint that works without a session must be on
+its allow-list.
+
+### Release check
+
+Nothing automated runs the UI in a browser. Before a release:
+
+- `dotnet build Apilane.sln`, `dotnet test tests/Apilane.Portal.Tests`, `npm test`, `npm run build`.
+- With a real API server: its `/health/readiness` is healthy (it calls the Portal's
+  `/health/liveness`); create an application (the API server reads it from `/api/internal`); open its
+  data browser (this exercises `/api/internal/applications/{appToken}/access`); register an
+  application user and follow the confirmation mail to `/account/email-confirmed`.
+- `/swagger` signed out: the sign-in screen, then back on `/swagger`.
+- A password-reset mail, from the request to signing in with the new password.
+- The Docker image builds, `/` loads, the favicon shows, a file under `/assets` is served as immutable.
+- One pass over the [Screens](#screens) table on desktop and at phone width.
 
 ## Dependencies
 
-Adding one is a deliberate decision: note here what it is for.
+Adding one is a deliberate decision: note here what it is for, and add its license text to
+`licenses/` at the repository root.
 
 | Package | Why |
 |---|---|
@@ -280,8 +1114,8 @@ Adding one is a deliberate decision: note here what it is for.
 | `vue-sonner` | Toasts, under the shadcn-vue `sonner` component and `src/lib/toast.ts`. |
 | `@lucide/vue` | Icons, imported one by one. |
 | `@codemirror/state`, `@codemirror/view`, `@codemirror/commands`, `@codemirror/language`, `@codemirror/lang-sql`, `@codemirror/autocomplete` | The SQL editor (`SqlEditor`, `src/lib/sqlEditor.ts`): editing, history, SQL parsing and colours, completion of entity and property names. Loaded only when an editor is shown. They bring `@lezer/*` along, which this project does not import. |
-| `gridstack` | The grid of the reports dashboard (drag and resize on 12 columns): the same library as the classic portal (10.3.1 there, vendored), so a stored layout looks the same in both. Imported only by `ReportsGrid.vue` and downloaded only when a dashboard is shown on a wide screen. It has no dependencies. Its Vue wrapper (`gridstack/dist/vue`) is not used. |
-| `chart.js` | The charts of the report panels: the same library as the classic portal (4.4.4 there, vendored). Imported only by `src/lib/reportChart.ts`, which registers just the chart kinds a report can be, and downloaded when the first chart is shown. It brings `@kurkle/color` along. |
+| `gridstack` | The grid of the reports dashboard (drag and resize on 12 columns); a layout is stored in its 12-column units. Imported only by `ReportsGrid.vue` and downloaded only when a dashboard is shown on a wide screen. It has no dependencies. Its Vue wrapper (`gridstack/dist/vue`) is not used. |
+| `chart.js` | The charts of the report panels. Imported only by `src/lib/reportChart.ts`, which registers just the chart kinds a report can be, and downloaded when the first chart is shown. It brings `@kurkle/color` along. |
 | `tailwindcss`, `@tailwindcss/vite` | Styling. |
 | `vite`, `@vitejs/plugin-vue`, `typescript`, `vue-tsc`, `@vue/tsconfig`, `@types/node` | Build and type-checking. TypeScript stays on 6.0.x until `vue-tsc` supports 7. |
 | `vitest` | Runs the unit tests (`npm test`). Development only; it reads `vite.config.ts` and needs no configuration of its own. The Docker image does not run it. |

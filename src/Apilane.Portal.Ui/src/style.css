@@ -46,7 +46,7 @@
 /*
  * Design tokens. Every colour in the UI comes from here: change a value once and every screen
  * follows. Surfaces step up in lightness (background < sidebar < card < popover) so layers read
- * as depth; blue is the single accent, kept from the classic portal.
+ * as depth; blue is the single accent.
  * --primary is for filled backgrounds (buttons): as text on these dark surfaces it is too dim to
  * read. Blue text and inline links use --link (text-link).
  */
@@ -88,8 +88,7 @@
 
     /*
      * The colours of the series of a report chart, used in turn (lib/reportChart.ts reads them).
-     * The same ten as the classic portal. Keep them as #rrggbb: a radar chart derives its
-     * see-through fill from them.
+     * Keep them as #rrggbb: a radar chart derives its see-through fill from them.
      */
     --chart-1: #4e79a7;
     --chart-2: #f28e2b;

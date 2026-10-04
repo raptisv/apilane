@@ -20,7 +20,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -50,10 +49,6 @@ namespace Apilane.Portal.Tests.Infrastructure
 
         // Never resolves, so a test can not reach an API server running on the developer's machine.
         public const string ApiUrl = "http://apilane-api.invalid";
-
-        private static readonly Regex _antiforgeryField = new Regex(
-            "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"",
-            RegexOptions.Compiled);
 
         // Environment variables belong to the whole process: only one host may start at a time.
         private static readonly object _environmentLock = new object();
@@ -93,7 +88,7 @@ namespace Apilane.Portal.Tests.Infrastructure
                 ["InstanceTitle"] = "Apilane tests",
                 ["InstallationKey"] = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"),
                 ["AdminEmail"] = AdminEmail,
-                // Program.cs maps the /metrics endpoint unconditionally, which needs the meter provider.
+                // On, so the tests can check /metrics.
                 ["OpenTelemetry__Metrics__Enabled"] = "true"
             };
 
@@ -129,22 +124,31 @@ namespace Apilane.Portal.Tests.Infrastructure
         }
 
         /// <summary>
-        /// A second Portal host whose web root is a new empty folder, or one holding ui/index.html
-        /// with the given content. It is disposed together with this factory.
+        /// A second Portal host with its own web root. With <paramref name="indexHtml"/> the folder
+        /// 'ui' holds a small built UI: index.html with that content, favicon.ico and
+        /// assets/app-abc123.js. Without it the folder is empty, as before the first UI build.
+        /// Either way the web root also holds EmailTemplates/FORGOT_PASSWORD.html, a file that is
+        /// not part of the UI. The host is disposed together with this factory.
         /// </summary>
         public WebApplicationFactory<Program> CreateHostWithUi(string? indexHtml)
         {
             var webRoot = Path.Combine(_filesPath, "webroot-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(Path.Combine(webRoot, "ui"));
+            var ui = Path.Combine(webRoot, "ui");
+
+            Directory.CreateDirectory(Path.Combine(ui, "assets"));
+            Directory.CreateDirectory(Path.Combine(webRoot, "EmailTemplates"));
+            File.WriteAllText(Path.Combine(webRoot, "EmailTemplates", "FORGOT_PASSWORD.html"), "<html>mail-template</html>");
 
             if (indexHtml is not null)
             {
-                File.WriteAllText(Path.Combine(webRoot, "ui", "index.html"), indexHtml);
+                File.WriteAllText(Path.Combine(ui, "index.html"), indexHtml);
+                File.WriteAllText(Path.Combine(ui, "favicon.ico"), "icon");
+                File.WriteAllText(Path.Combine(ui, "assets", "app-abc123.js"), "console.log('ui')");
             }
 
             var host = WithWebHostBuilder(builder => builder
                 .UseWebRoot(webRoot)
-                // In Development the static web assets manifest still serves the real wwwroot (a built UI included); point it at a file that does not exist.
+                // In Development the static web assets manifest still points at the real wwwroot (a built UI included); point it at a file that does not exist.
                 .UseSetting(WebHostDefaults.StaticWebAssetsKey, Path.Combine(webRoot, "no-manifest.json")));
 
             Start(host);
@@ -170,45 +174,9 @@ namespace Apilane.Portal.Tests.Infrastructure
         }
 
         /// <summary>
-        /// Signs in through the real login form and returns the client holding the session cookie.
-        /// </summary>
-        public async Task<PortalSession> SignInAsync(string email, string password, WebApplicationFactory<Program>? host = null)
-        {
-            var client = CreateAnonymousClient(host);
-
-            var loginPage = await client.GetStringAsync("/Account/Login");
-            var match = _antiforgeryField.Match(loginPage);
-            Assert.True(match.Success, "The login page has no antiforgery field.");
-
-            var response = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["Email"] = email,
-                ["Password"] = password,
-                ["__RequestVerificationToken"] = WebUtility.HtmlDecode(match.Groups[1].Value)
-            }));
-
-            Assert.True(
-                response.StatusCode == HttpStatusCode.Redirect,
-                $"Login as {email} did not succeed (status {(int)response.StatusCode}).");
-
-            return new PortalSession(client, response.GetSetCookieHeader());
-        }
-
-        /// <summary>
-        /// The antiforgery token of a Razor form, for a test that posts the form like a browser does.
-        /// </summary>
-        public async Task<string> GetAntiforgeryTokenAsync(HttpClient client, string formUrl)
-        {
-            var match = _antiforgeryField.Match(await client.GetStringAsync(formUrl));
-            Assert.True(match.Success, $"{formUrl} has no antiforgery field.");
-
-            return WebUtility.HtmlDecode(match.Groups[1].Value);
-        }
-
-        /// <summary>
         /// Signs in through POST /api/v1/session and returns the client holding the session cookie.
         /// </summary>
-        public async Task<PortalSession> SignInWithApiAsync(string email, string password, WebApplicationFactory<Program>? host = null)
+        public async Task<PortalSession> SignInAsync(string email, string password, WebApplicationFactory<Program>? host = null)
         {
             var client = CreateAnonymousClient(host);
 
@@ -216,7 +184,7 @@ namespace Apilane.Portal.Tests.Infrastructure
 
             Assert.True(
                 response.StatusCode == HttpStatusCode.OK,
-                $"API sign-in as {email} did not succeed (status {(int)response.StatusCode}).");
+                $"Sign-in as {email} did not succeed (status {(int)response.StatusCode}).");
 
             return new PortalSession(client, response.GetSetCookieHeader());
         }
@@ -303,8 +271,8 @@ namespace Apilane.Portal.Tests.Infrastructure
         {
             var (email, password) = await CreateUserAsync();
 
-            // Written straight to the table, like AdminController.SetUserRole: the seeded role's
-            // normalized name is not what UserManager.AddToRoleAsync looks for.
+            // Written straight to the table: the seeded role's normalized name is not what
+            // UserManager.AddToRoleAsync looks for.
             await WithDbContextAsync(async dbContext =>
             {
                 var user = await dbContext.Users.SingleAsync(x => x.Email == email);
@@ -421,7 +389,7 @@ namespace Apilane.Portal.Tests.Infrastructure
         {
             builder.ConfigureTestServices(services =>
             {
-                // Both IApiHttpService (Razor pages) and IApiServerClient (the API) send through this client.
+                // Everything the Portal sends to an API server goes through this client.
                 services.AddHttpClient(ApiServerClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => ApiServer);
 
                 services.RemoveAll<IEmailService>();

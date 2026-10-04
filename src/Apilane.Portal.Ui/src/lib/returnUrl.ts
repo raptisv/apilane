@@ -23,21 +23,20 @@ export function safeReturnUrl(value: unknown): string | undefined {
   }
 }
 
+// The first segment of every address the Portal answers itself. Keep it the same as _serverPaths
+// in src/Apilane.Portal/Extensions/PortalApiDependencyInjection.cs and portalPaths in vite.config.ts.
+const serverPaths = ['api', 'swagger', 'health', 'metrics']
+
 /**
- * The route path inside this app of a same-site address, or undefined when the address belongs
- * to the classic portal. `base` is the folder the app is served from, '/ui/'.
+ * Whether the Portal answers a same-site address itself, so this app has no screen for it. The
+ * first segment decides, whatever its letter case, as on the server. Every other address is a
+ * route of this app.
  *
- *   appPath('/ui/admin/users?page=2', '/ui/') -> '/admin/users?page=2'
- *   appPath('/Application/Entities', '/ui/')  -> undefined
+ *   isServerPath('/swagger/index.html') -> true
+ *   isServerPath('/apps?page=2')        -> false
  */
-export function appPath(url: string, base: string): string | undefined {
-  const root = base.replace(/\/$/, '')
+export function isServerPath(url: string): boolean {
+  const first = /^\/([^/?#]*)/.exec(url)?.[1] ?? ''
 
-  if (url === root) {
-    return '/'
-  }
-
-  return url.startsWith(`${root}/`) || url.startsWith(`${root}?`) || url.startsWith(`${root}#`)
-    ? url.slice(root.length)
-    : undefined
+  return serverPaths.includes(first.toLowerCase())
 }

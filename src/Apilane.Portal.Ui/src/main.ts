@@ -26,10 +26,7 @@ tryLoadSession().then(mount, (error: unknown) => {
 })
 
 function startsOnPublicScreen(): boolean {
-  // BASE_URL is '/ui/'; the router resolves paths without it.
-  const path = location.pathname.slice(import.meta.env.BASE_URL.length - 1) || '/'
-
-  return router.resolve(path).meta.public === true
+  return router.resolve(location.pathname).meta.public === true
 }
 
 function mount(): void {

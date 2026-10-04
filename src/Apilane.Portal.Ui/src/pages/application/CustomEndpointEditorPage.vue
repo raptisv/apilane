@@ -24,7 +24,7 @@ import CustomEndpointTestPanel from './CustomEndpointTestPanel.vue'
 
 // Creates a custom endpoint (/endpoints/new) or edits one (/endpoints/<id>): name, description and
 // SQL on the left, the address, parameters and the SQL test on the right, the help below. Saving
-// goes back to the list, as on the Razor page. A jump in the browser history from one editor
+// goes back to the list. A jump in the browser history from one editor
 // address of this application to another keeps this screen, so the endpoint is read from the
 // address each time it changes.
 const route = useRoute()

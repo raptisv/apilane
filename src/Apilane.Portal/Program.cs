@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -104,24 +103,27 @@ namespace Apilane.Portal
             {
                 op.Cookie.Name = "Apilane.Portal.Identity";
                 op.Cookie.Domain = appConfig.AuthCookieDomain;
-                op.AccessDeniedPath = new PathString("/Account/Login");
+                // Only /swagger still answers with these redirects; the API answers 401 and 403 (UseApiStatusCodes).
+                // The sign-in page of the UI reads 'returnUrl' in exactly this spelling.
+                op.LoginPath = new PathString("/account/login");
+                op.ReturnUrlParameter = "returnUrl";
+                // Never the sign-in page: it sends a signed-in user straight back, in a loop.
+                op.AccessDeniedPath = new PathString("/");
                 op.UseApiStatusCodes();
             });
 
             builder.Services
                 .AddServices(appConfig)
                 .AddPortalApi()
-                .AddAssets()
                 .AddOpenTelemetry(appConfig.OpenTelemetry);
 
-            builder.Services.AddMvc();
-
+            // No naming policy and no enum converter: the API servers read the answers of
+            // /api/internal with property names as they are in the models and enums as numbers.
             builder.Services
             .AddControllers()
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.PropertyNamingPolicy = null;
-                //options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
             });
 
             builder.Services.AddHealthChecks();
@@ -144,11 +146,6 @@ namespace Apilane.Portal
                 }
             }
 
-            builder.Services.Configure<FormOptions>(x =>
-            {
-                x.ValueCountLimit = int.MaxValue;
-            });
-
             var app = builder.Build();
 
             app.UseExceptionHandler(errorApp =>
@@ -166,12 +163,12 @@ namespace Apilane.Portal
                 // Apply schema updates for existing databases (new tables, indexes)
                 context.EnsureSchemaUpdated();
 
-                // The key used at runtime is the one stored in the portal database (Admin > Settings);
+                // The key used at runtime is the one stored in the portal database (Instance > Settings);
                 // configuration only seeds it on first start.
                 var storedKeyProblem = InstallationKeyPolicy.Validate(context.GlobalSettings.SingleOrDefault()?.InstallationKey);
                 if (storedKeyProblem is not null)
                 {
-                    Log.Logger.Warning("SECURITY: {Problem} (value stored in the portal database). Change it under Admin > Settings and set the same value on the API.", storedKeyProblem);
+                    Log.Logger.Warning("SECURITY: {Problem} (value stored in the portal database). Change it under Instance > Settings and set the same value on the API.", storedKeyProblem);
                 }
             }
 
@@ -181,7 +178,6 @@ namespace Apilane.Portal
             }
             else
             {
-                app.UseExceptionHandler("/Home/Error");
                 app.UseHsts();
             }
 
@@ -203,21 +199,25 @@ namespace Apilane.Portal
                 SetIfMissing(headers, "X-Content-Type-Options", "nosniff");
                 SetIfMissing(headers, "X-Frame-Options", "SAMEORIGIN");
                 SetIfMissing(headers, "Referrer-Policy", "strict-origin-when-cross-origin");
-                // Script sources are intentionally not restricted yet: the views rely on inline
-                // scripts and inline event handlers, so a nonce-based script-src is a separate step.
+                // Script and style sources are not restricted yet.
                 SetIfMissing(headers, "Content-Security-Policy", "frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
 
                 await next();
             });
 
-            // Expose the Prometheus scrape endpoint (before auth so /metrics is not behind login).
-            app.UseOpenTelemetryPrometheusScrapingEndpoint(context => context.Request.Path == "/metrics");
-
-            app.UseWebOptimizer();
+            // The Prometheus scrape endpoint (before auth so /metrics is not behind login).
+            // Without metrics there is no meter provider, and /metrics answers 404.
+            if (appConfig.OpenTelemetry.Metrics.Enabled)
+            {
+                app.UseOpenTelemetryPrometheusScrapingEndpoint(context => context.Request.Path == "/metrics");
+            }
 
             app.UseForwardedHeaders();
 
-            app.UseStaticFiles(PortalApiDependencyInjection.CreateStaticFileOptions());
+            // The built UI (wwwroot/ui) is the only folder served as files, at the site root.
+            var uiFiles = PortalApiDependencyInjection.CreateUiFileProvider(app.Environment);
+
+            app.UseStaticFiles(PortalApiDependencyInjection.CreateStaticFileOptions(uiFiles));
 
             app.UseRouting();
 
@@ -229,27 +229,14 @@ namespace Apilane.Portal
 
             app.UsePortalApiDocs();
 
-            app.MapControllerRoute(
-                    name: "default",
-                    pattern: "{controller=Applications}/{action=Index}/{id?}");
-
-            app.MapControllerRoute(
-                name: "AppRoute",
-                pattern: "App/{appid}/{controller}/{action}");
-
-
-            app.MapControllerRoute(
-                name: "EntRoute",
-                pattern: "App/{appid}/Ent/{entid}/{controller}/{action}");
-
-            app.MapControllerRoute(
-                name: "PropRoute",
-                pattern: "App/{appid}/Ent/{entid}/Prop/{propid}/{controller}/{action}");
-
-            app.MapPortalApiAndUi();
+            // The management API (/api/v1) and the internal API of the API servers (/api/internal).
+            app.MapControllers();
 
             app.MapHealthChecks("/health/liveness", AspNetCoreExtensions.SetupHealthCheck("live"));
             app.MapHealthChecks("/health/readiness", AspNetCoreExtensions.SetupHealthCheck("ready"));
+
+            // Last: everything that is not answered above is a screen of the UI.
+            app.MapPortalApiAndUi(uiFiles);
 
             app.Run(appConfig.Url);
         }

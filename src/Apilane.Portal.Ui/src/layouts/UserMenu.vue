@@ -18,7 +18,7 @@ const emit = defineEmits<{ changePassword: [] }>()
 
 const session = useSession()
 
-// The Portal's own API reference (Swagger UI of /api/v1). The Portal serves it outside /ui/, so it is a plain link.
+// The Portal's own API reference (Swagger UI of /api/v1). The Portal serves it itself, not this app, so it is a plain link.
 const apiReferenceUrl = '/swagger'
 
 const signOut = useMutation(() => unwrap(api.DELETE('/api/v1/session')))

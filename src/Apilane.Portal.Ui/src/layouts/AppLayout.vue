@@ -56,8 +56,8 @@ const sections = computed(() => {
 // the screen, and the address stays. The API refuses the same calls on its own.
 const forbidden = computed(() => route.meta.requiresOwner === true && application.value?.IsOwner !== true)
 
-// '/apps/<token>/entities/...' -> 'entities'
-const currentSegment = computed(() => route.path.split('/')[3])
+// '/apps/<token>/entities/...' -> 'entities'. Lower case: the path keeps the case that was typed.
+const currentSegment = computed(() => route.path.split('/')[3]?.toLowerCase())
 
 const infoOpen = ref(false)
 

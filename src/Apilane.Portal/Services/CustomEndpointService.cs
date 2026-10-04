@@ -78,7 +78,7 @@ namespace Apilane.Portal.Services
 
             ThrowIfNameIsTaken(application, name, exceptId: endpoint.ID);
 
-            // The three values the Razor form changes; DateModified stays as it is there too.
+            // Only these three values change; DateModified stays as it is.
             endpoint.Name = name;
             endpoint.Description = EmptyToNull(request.Description);
             endpoint.Query = request.Query;
@@ -93,7 +93,7 @@ namespace Apilane.Portal.Services
             var application = await _applicationAccessService.GetApplicationAsync(appToken);
             var endpoint = Find(application, id);
 
-            // Security rules written for its name stay, as with the Razor page.
+            // Security rules written for its name stay.
             _dbContext.CustomEndpoints.Remove(endpoint);
 
             await _applicationWriteScope.SaveAsync(application);
@@ -159,7 +159,7 @@ namespace Apilane.Portal.Services
             return $"{application.Server.ServerUrl.Trim('/')}/api/Custom/{endpoint.Name}?{string.Join("&", pairs)}";
         }
 
-        // What the Razor form does with a field left empty.
+        // A field left empty is stored as null.
         private static string? EmptyToNull(string? value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value;

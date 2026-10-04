@@ -35,7 +35,7 @@ async function draw(): Promise<void> {
       return
     }
 
-    // A chart is drawn afresh for new data, as the classic page does.
+    // A chart is drawn afresh for new data.
     chart?.destroy()
     chart = createReportChart(canvas.value, chartConfig(props.type, props.data, reportPalette()))
     ready.value = true

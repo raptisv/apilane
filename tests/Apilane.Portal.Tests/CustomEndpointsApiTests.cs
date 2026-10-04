@@ -409,7 +409,7 @@ namespace Apilane.Portal.Tests
             var read = await (await scene.Owner.GetAsync(scene.EndpointUrl(scene.AlphaId))).ReadJsonAsync<CustomEndpointResponse>();
             Assert.Equal(Comparable(updated), Comparable(read));
 
-            // The rules of the old name are kept, as with the Razor page.
+            // The rules of the old name are kept.
             Assert.Equal(AlphaRule, await LoadSecurityAsync(scene));
         }
 
@@ -488,7 +488,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
             Assert.False(await _portal.WithDbContextAsync(db => db.CustomEndpoints.AnyAsync(x => x.ID == scene.AlphaId)));
 
-            // The rules written for its name are kept, as with the Razor page.
+            // The rules written for its name are kept.
             Assert.Equal(AlphaRule, await LoadSecurityAsync(scene));
 
             await AssertNotFoundAsync(await scene.Owner.GetAsync(scene.EndpointUrl(scene.AlphaId)), "CustomEndpoint");
@@ -564,7 +564,7 @@ namespace Apilane.Portal.Tests
         // ---------- Audit ----------
 
         [Fact]
-        public async Task Writes_Should_Write_The_Audit_Rows_Of_The_Razor_Pages()
+        public async Task Writes_Should_Write_One_Audit_Row_Per_Change()
         {
             var scene = await CreateSceneAsync();
             ScriptApiServer();

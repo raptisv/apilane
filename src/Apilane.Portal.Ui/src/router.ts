@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteLocationRaw } from 'vue-router'
 import { loadedInstanceTitle } from '@/composables/useInstance'
 import AppShell from '@/layouts/AppShell.vue'
-import { appPath, safeReturnUrl } from '@/lib/returnUrl'
+import { isServerPath, safeReturnUrl } from '@/lib/returnUrl'
 import { currentSession } from '@/lib/session'
 
 declare module 'vue-router' {
@@ -28,8 +28,8 @@ declare module 'vue-router' {
  * carry meta.public.
  */
 export const router = createRouter({
-  // BASE_URL is the `base` of vite.config.ts (/ui/).
-  history: createWebHistory(import.meta.env.BASE_URL),
+  // The UI is served from the site root. Paths match whatever their letter case (/Account/Login).
+  history: createWebHistory(),
   // Back and Forward return to where the page was scrolled; a new screen or page of a list starts at
   // the top. Another change of the query alone (a dialog, ?item= of the security screen) stays put,
   // and so does opening or closing a sheet over a screen (meta.keepScroll).
@@ -107,7 +107,7 @@ export const router = createRouter({
             },
             {
               // The records of one entity: ?page=, ?pageSize= and ?sort=Name (-Name for descending).
-              // Without an entity it opens the one of ?entity=<name> (old links) or the first custom one.
+              // Without an entity it opens the first custom one.
               path: 'data/:entity?',
               name: 'app-data',
               component: () => import('@/pages/application/DataPage.vue'),
@@ -235,7 +235,7 @@ export const router = createRouter({
         },
         {
           // The records of any application: ?page=, ?pageSize= and ?sort=, as in 'app-data'. Without
-          // an entity it opens the one of ?entity=<name> or the first custom one.
+          // an entity it opens the first custom one.
           path: 'admin/applications/:appToken/data/:entity?',
           name: 'admin-application-data',
           component: () => import('@/pages/admin/ApplicationDataPage.vue'),
@@ -316,8 +316,8 @@ export const router = createRouter({
 
 /**
  * Where a user goes once signed in: to `returnUrl` when it is a path on this site (see
- * safeReturnUrl), otherwise to the applications page. Returns the route to open. For an address of the
- * classic portal it starts a full page load instead and returns false, so Razor pages still work.
+ * safeReturnUrl), otherwise to the applications page. Returns the route to open. For an address
+ * the Portal answers itself (/swagger) it starts a full page load instead and returns false.
  */
 export function afterSignIn(returnUrl: unknown): RouteLocationRaw | false {
   const target = safeReturnUrl(returnUrl)
@@ -326,10 +326,8 @@ export function afterSignIn(returnUrl: unknown): RouteLocationRaw | false {
     return { name: 'apps' }
   }
 
-  const path = appPath(target, import.meta.env.BASE_URL)
-
-  if (path !== undefined) {
-    return path
+  if (!isServerPath(target)) {
+    return target
   }
 
   location.assign(target)
@@ -350,7 +348,7 @@ router.beforeEach((to) => {
 
   // Sign in first, then come back to this screen. The plain applications page is where signing in
   // leads anyway.
-  return { name: 'login', query: to.fullPath === '/apps' ? {} : { returnUrl: router.resolve(to.fullPath).href } }
+  return { name: 'login', query: to.fullPath === '/apps' ? {} : { returnUrl: to.fullPath } }
 })
 
 /**
@@ -372,10 +370,9 @@ router.afterEach((to, _from, failure) => {
 // A tab opened before a deploy asks for chunks that no longer exist: load the target page afresh.
 // The second condition stops a reload loop when the chunk is still missing afterwards.
 router.onError((error, to) => {
-  const target = router.resolve(to.fullPath).href
   const current = location.pathname + location.search + location.hash
 
-  if (/dynamically imported module|module script failed/i.test(String(error)) && target !== current) {
-    location.assign(target)
+  if (/dynamically imported module|module script failed/i.test(String(error)) && to.fullPath !== current) {
+    location.assign(to.fullPath)
   }
 })

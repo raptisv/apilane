@@ -12,6 +12,8 @@ Custom endpoints offer an easy and direct way to expose complex functionality fo
 
 ![Apilane](../assets/custom_endpoints.png)
 
+Custom endpoints are created on the **Custom endpoints** tab of the application in the Portal (**New endpoint**). The editor shows the address and the parameters as you type, and **Test** runs the query with the values you enter.
+
 ## Parameters
 
 Parameters in your SQL query are wrapped in `{braces}` and are automatically bound from the request's query string.
@@ -58,7 +60,7 @@ The response is a nested array — one array per result set:
 
 ## Security
 
-Custom endpoint access is managed separately from entity security. Navigate to **Security** in the Portal and configure which roles can access each custom endpoint.
+Custom endpoint access is managed separately from entity security. Open the **Security** tab of the application in the Portal and configure which roles can access each custom endpoint. The rules are written for the name of the endpoint: after a rename they no longer apply and must be set again.
 
 See [Security > Custom endpoints](security.md#custom-endpoints) for more details.
 

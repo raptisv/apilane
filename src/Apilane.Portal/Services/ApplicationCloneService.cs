@@ -71,7 +71,7 @@ namespace Apilane.Portal.Services
 
             // The encryption key stays the one of the source: copied records encrypted with it could not be read with another.
 
-            // Saved before anything exists on the API server, as the Razor page does: the clone is
+            // Saved before anything exists on the API server: the clone is
             // listed at once, and stays listed when the operation fails.
             _dbContext.Applications.Add(clone);
             await _dbContext.SaveChangesAsync();
@@ -133,8 +133,8 @@ namespace Apilane.Portal.Services
         }
 
         /// <summary>
-        /// The Razor page takes the names as they come. Here a name that is not an entity of the
-        /// application is refused: the clone routine would skip it without a word.
+        /// A name that is not an entity of the application is refused: the clone routine would
+        /// skip it without a word.
         /// </summary>
         private static void ValidateEntities(DBWS_Application source, List<string>? entities)
         {
@@ -195,7 +195,7 @@ namespace Apilane.Portal.Services
                 customEndpoint.AppID = -1;
             }
 
-            // Reports and collaborators are not copied, as on the Razor page.
+            // Reports and collaborators are not copied.
             clone.Reports = new List<DBWS_ReportPanel>();
             clone.Collaborates = new List<DBWS_Collaborate>();
 

@@ -86,7 +86,7 @@ let confirmed: { payload: SchemaImportPayload; text: string } | undefined
 // The warnings of the last import that went through.
 const warnings = shallowRef<string[]>()
 
-// The text of the box is sent as written, as the classic page does: writing the parsed object out
+// The text of the box is sent as written: writing the parsed object out
 // again would round a Minimum or Maximum above 2^53.
 const run = useMutation(async (payload: SchemaImportPayload, text: string) => {
   const result = await unwrap(

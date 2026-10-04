@@ -2,15 +2,18 @@
 
 Apilane can bulk-import **entities, properties, constraints, security rules and custom endpoints** into an existing application from a single JSON document. This page is a precise specification of that JSON so an AI agent (or any automation) can generate a valid payload from scratch.
 
-Open it in the Portal at **Application → Import**, paste the JSON into the *JSON payload* box, and click **Import**. (The same page can also pre-fill the payload by diffing another application — the *Load from another application* panel — which is a good way to see a real payload.)
+Open the **Import** tab of the application in the Portal, paste the JSON into the *JSON payload* box, and click **Import**. (The same screen can also pre-fill the payload by diffing another application — pick it under *Load from another application* and click **Load diff** — which is a good way to see a real payload.)
+
+The same payload can be sent to the Portal's management API: `POST /api/v1/applications/{appToken}/schema-import`, and `GET /api/v1/applications/{appToken}/schema-import/diff?Source={otherAppToken}` returns the diff in this shape.
 
 ---
 
 ## How the import behaves
 
 - **Additive and idempotent.** The import only ever *creates* what is missing. Existing entities, properties, constraints, security rules and custom endpoints are never modified or deleted.
-- **Existing items are validated, not overwritten.** If an entity/property/security rule already exists, its metadata is compared against the payload. If it is identical, it is skipped (a warning is returned). If it differs, **the whole import aborts with an error** — nothing is half-applied for that mismatch.
-- **FK-dependency ordering is automatic.** Entities are created in foreign-key dependency order, so you may list them in any order — a child entity may appear before the parent it references, as long as both are in the payload (or the parent already exists).
+- **Existing items are validated, not overwritten.** If an entity/property/security rule already exists, its metadata is compared against the payload. If it is identical, it is skipped (a warning is returned). If it differs, **the import stops with an error** at that item.
+- **Not atomic.** The items are applied one by one. When one fails, the import stops there, everything applied before it stays applied, and the error names the place in the payload (e.g. `Entities[0].Properties[2].TypeID`). Sending the same payload again is safe: what was already applied is skipped.
+- **List referenced entities first.** Entities without a foreign key are created first, then the ones whose foreign keys lead to `Users`; the others are created in the order they are listed. So list an entity before the entities whose foreign keys point to it (or make sure it already exists in the application).
 - **System columns are added for you.** When a new entity is created, Apilane automatically adds its system properties (`ID`, `Owner`, `Created`, …). **Never** include them in `Properties`.
 
 ---
@@ -206,7 +209,7 @@ Each entry is a `DBWS_Security` rule granting a **role** permission to perform a
 |---|---|---|
 | `Name` | string | Endpoint name (used in the API path). |
 | `Description` | string \| null | Free-text description. |
-| `Query` | string | The SQL. Write it for your storage provider (SQLite / SQL Server / MySQL). Parameters are `{ParamName}` placeholders and are **big-integer (long) only**. Multiple `;`-separated statements return multiple result sets. |
+| `Query` | string | The SQL. Write it for your storage provider (SQLite / SQL Server / MySQL / PostgreSQL). Parameters are `{ParamName}` placeholders and are **big-integer (long) only**. Multiple `;`-separated statements return multiple result sets. |
 
 See [Custom Endpoints](custom_endpoints.md) for query authoring details. Importing a custom endpoint does **not** create a security rule for it — add a matching `Security` entry with `TypeID: 1` to expose it.
 
@@ -263,7 +266,7 @@ Creates a `Product` and `OrderItem` (with a foreign key to `Product`), makes `Pr
 - [ ] **Do not** include system properties (`ID`, `Owner`, `Created`) — they are added automatically.
 - [ ] Foreign keys: add a `Number` property to hold the reference, then a constraint `"LocalColumn,ReferencedEntity[,OnDeleteLogic]"`.
 - [ ] `DecimalPlaces` only for `Number`; `Encrypted`/`ValidationRegex` only for `String`; `Minimum`/`Maximum` mean *length* for strings and *value* for numbers/dates.
-- [ ] Every entity referenced by an FK must be in the payload or already exist in the target app.
+- [ ] Every entity referenced by an FK must already exist in the target app, or be in the payload before the entities that reference it.
 - [ ] To expose a custom endpoint, add a `Security` rule with `TypeID: 1` and `Action: "get"`.
 - [ ] Grant columns explicitly in each security rule's `Properties` — a `null` grants no non-PK columns.
 - [ ] For existing items, keep metadata identical to what is already in the app, or the import aborts.

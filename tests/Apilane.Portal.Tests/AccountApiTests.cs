@@ -31,7 +31,7 @@ namespace Apilane.Portal.Tests
 
         private const string NewPassword = "a-new-password";
 
-        private static readonly Regex _resetLink = new Regex("href=\"(http://localhost/ui/account/reset-password\\?code=([^\"&]+))\"", RegexOptions.Compiled);
+        private static readonly Regex _resetLink = new Regex("href=\"(http://localhost/account/reset-password\\?code=([^\"&]+))\"", RegexOptions.Compiled);
 
         private readonly PortalFactory _portal;
 
@@ -63,7 +63,7 @@ namespace Apilane.Portal.Tests
             var response = await client.PostAsync(RegisterUrl, new { Email = email, Password = NewPassword, ConfirmPassword = NewPassword }.ToJsonContent());
 
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-            Assert.False(response.SetsPersistentCookie(), "Register sets a session cookie, as the MVC register does.");
+            Assert.False(response.SetsPersistentCookie(), "Register sets a session cookie, not a persistent one.");
             Assert.NotEqual(string.Empty, response.GetSetCookieHeader());
             Assert.DoesNotContain(NewPassword, await response.Content.ReadAsStringAsync());
 
@@ -75,7 +75,7 @@ namespace Apilane.Portal.Tests
             // Signed in.
             Assert.Equal(email, (await (await client.GetAsync(SessionUrl)).ReadJsonAsync<SessionResponse>()).Email);
 
-            // What the MVC register writes.
+            // What registering stores.
             var user = await FindUserAsync(email);
             Assert.NotNull(user);
             Assert.Equal(email, user.UserName);
@@ -87,7 +87,7 @@ namespace Apilane.Portal.Tests
             Assert.False(await _portal.WithDbContextAsync(db => db.UserRoles.AnyAsync(x => x.UserId == user.Id)), "A new user must have no role.");
 
             // And the password works on the sign-in endpoint.
-            await _portal.SignInWithApiAsync(email, NewPassword);
+            await _portal.SignInAsync(email, NewPassword);
         }
 
         [Fact]
@@ -98,7 +98,7 @@ namespace Apilane.Portal.Tests
             var email = NewEmail();
             var client = _portal.CreateAnonymousClient();
 
-            // The body is checked first: a malformed one is 400, not 403 (the MVC page checks the setting first).
+            // The body is checked first: a malformed one is 400, not 403.
             var invalid = await client.PostAsync(RegisterUrl, new { Email = email, Password = "short", ConfirmPassword = "short" }.ToJsonContent());
             Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
             Assert.Equal(PortalErrorCode.Validation, (await invalid.ReadJsonAsync<ErrorResponse>()).Code);
@@ -251,10 +251,9 @@ namespace Apilane.Portal.Tests
             Assert.Equal(587, mail.MailServerPort);
             Assert.Equal("portal@portal.test", mail.MailFromAddress);
             Assert.DoesNotContain("{PLACEHOLDER}", mail.Body);
-            Assert.DoesNotContain("/Account/ResetPassword", mail.Body);
 
             var link = _resetLink.Match(mail.Body);
-            Assert.True(link.Success, "The mail has no link to /ui/account/reset-password?code=...");
+            Assert.True(link.Success, "The mail has no link to /account/reset-password?code=...");
 
             var code = Uri.UnescapeDataString(link.Groups[2].Value);
 
@@ -264,7 +263,7 @@ namespace Apilane.Portal.Tests
             // A reset does not sign in.
             Assert.Equal(string.Empty, response.GetSetCookieHeader());
 
-            await _portal.SignInWithApiAsync(email, NewPassword);
+            await _portal.SignInAsync(email, NewPassword);
 
             var oldSignIn = await client.PostAsync(SessionUrl, new { Email = email, Password = oldPassword }.ToJsonContent());
             Assert.Equal(HttpStatusCode.Unauthorized, oldSignIn.StatusCode);
@@ -326,7 +325,7 @@ namespace Apilane.Portal.Tests
             }
 
             // Nothing changed for the real user.
-            await _portal.SignInWithApiAsync(email, password);
+            await _portal.SignInAsync(email, password);
         }
 
         [Theory]
@@ -371,7 +370,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal("Password", Assert.Single(error.Errors ?? new List<ErrorDetail>()).Property);
 
             // Nothing changed for the user.
-            await _portal.SignInWithApiAsync(email, oldPassword);
+            await _portal.SignInAsync(email, oldPassword);
         }
 
         [Fact]
@@ -380,7 +379,7 @@ namespace Apilane.Portal.Tests
             await _portal.SetAccountSettingsAsync(allowRegister: true, mailConfigured: true);
 
             var (email, oldPassword) = await _portal.CreateUserAsync();
-            var session = await _portal.SignInWithApiAsync(email, oldPassword);
+            var session = await _portal.SignInAsync(email, oldPassword);
             var client = _portal.CreateAnonymousClient();
             var code = await RequestResetCodeAsync(client, email);
 
@@ -411,13 +410,13 @@ namespace Apilane.Portal.Tests
         public async Task ChangePassword_Should_Keep_The_Caller_Signed_In_And_End_Other_Copies_Of_The_Session()
         {
             var (email, oldPassword) = await _portal.CreateUserAsync();
-            var session = await _portal.SignInWithApiAsync(email, oldPassword);
+            var session = await _portal.SignInAsync(email, oldPassword);
 
             var response = await session.Client.PutAsync(ChangePasswordUrl, new { OldPassword = oldPassword, NewPassword, ConfirmPassword = NewPassword }.ToJsonContent());
 
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
             Assert.NotEqual(string.Empty, response.GetSetCookieHeader());
-            Assert.False(response.SetsPersistentCookie(), "Change password sets a session cookie, as the MVC page does.");
+            Assert.False(response.SetsPersistentCookie(), "Change password sets a session cookie, not a persistent one.");
 
             // The client holds the new cookie and is still signed in.
             var get = await session.Client.GetAsync(SessionUrl);
@@ -431,7 +430,7 @@ namespace Apilane.Portal.Tests
             // Only the new password signs in.
             var anonymous = _portal.CreateAnonymousClient();
             Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsync(SessionUrl, new { Email = email, Password = oldPassword }.ToJsonContent())).StatusCode);
-            await _portal.SignInWithApiAsync(email, NewPassword);
+            await _portal.SignInAsync(email, NewPassword);
 
             // No mail settings, no mail.
             Assert.Empty(_portal.Mail.SentTo(email));
@@ -443,7 +442,7 @@ namespace Apilane.Portal.Tests
             await _portal.SetAccountSettingsAsync(allowRegister: true, mailConfigured: true);
 
             var (email, oldPassword) = await _portal.CreateUserAsync();
-            var session = await _portal.SignInWithApiAsync(email, oldPassword);
+            var session = await _portal.SignInAsync(email, oldPassword);
 
             var response = await session.Client.PutAsync(ChangePasswordUrl, new { OldPassword = oldPassword, NewPassword, ConfirmPassword = NewPassword }.ToJsonContent());
 
@@ -451,7 +450,7 @@ namespace Apilane.Portal.Tests
 
             var mail = Assert.Single(_portal.Mail.SentTo(email));
             Assert.Equal("Password changed", mail.Subject);
-            Assert.Contains("href=\"http://localhost/ui/account/forgot-password\"", mail.Body);
+            Assert.Contains("href=\"http://localhost/account/forgot-password\"", mail.Body);
             Assert.DoesNotContain(NewPassword, mail.Body);
             Assert.DoesNotContain(oldPassword, mail.Body);
         }
@@ -460,7 +459,7 @@ namespace Apilane.Portal.Tests
         public async Task ChangePassword_With_A_Wrong_Old_Password_Should_Return_400_On_OldPassword_And_Change_Nothing()
         {
             var (email, oldPassword) = await _portal.CreateUserAsync();
-            var session = await _portal.SignInWithApiAsync(email, oldPassword);
+            var session = await _portal.SignInAsync(email, oldPassword);
 
             var response = await session.Client.PutAsync(ChangePasswordUrl, new { OldPassword = "not-the-password", NewPassword, ConfirmPassword = NewPassword }.ToJsonContent());
 
@@ -476,7 +475,7 @@ namespace Apilane.Portal.Tests
 
             // Still signed in, still the old password.
             Assert.Equal(HttpStatusCode.OK, (await session.Client.GetAsync(SessionUrl)).StatusCode);
-            await _portal.SignInWithApiAsync(email, oldPassword);
+            await _portal.SignInAsync(email, oldPassword);
         }
 
         [Fact]
@@ -485,7 +484,7 @@ namespace Apilane.Portal.Tests
             var host = _portal.CreateHost(services => services.Configure<IdentityOptions>(options => options.Password.RequireDigit = true));
 
             var (email, oldPassword) = await _portal.CreateUserAsync();
-            var session = await _portal.SignInWithApiAsync(email, oldPassword, host);
+            var session = await _portal.SignInAsync(email, oldPassword, host);
 
             var response = await session.Client.PutAsync(ChangePasswordUrl, new { OldPassword = oldPassword, NewPassword = "no-digit-here", ConfirmPassword = "no-digit-here" }.ToJsonContent());
 
@@ -533,56 +532,27 @@ namespace Apilane.Portal.Tests
         {
             var (email, oldPassword) = await _portal.CreateUserAsync();
 
-            var stale = await _portal.SignInWithApiAsync(email, oldPassword);
-            await _portal.SignInWithApiAsync(email, oldPassword);
+            var stale = await _portal.SignInAsync(email, oldPassword);
+            await _portal.SignInAsync(email, oldPassword);
 
             var response = await stale.Client.PutAsync(ChangePasswordUrl, new { OldPassword = oldPassword, NewPassword, ConfirmPassword = NewPassword }.ToJsonContent());
 
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-            await _portal.SignInWithApiAsync(email, oldPassword);
+            await _portal.SignInAsync(email, oldPassword);
         }
 
         [Fact]
         public async Task ChangePassword_Without_The_Csrf_Header_Should_Return_403_And_Change_Nothing()
         {
             var (email, oldPassword) = await _portal.CreateUserAsync();
-            var session = await _portal.SignInWithApiAsync(email, oldPassword);
+            var session = await _portal.SignInAsync(email, oldPassword);
             session.Client.DefaultRequestHeaders.Remove(PortalCsrfFilter.HeaderName);
 
             var response = await session.Client.PutAsync(ChangePasswordUrl, new { OldPassword = oldPassword, NewPassword, ConfirmPassword = NewPassword }.ToJsonContent());
 
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             Assert.Equal(PortalErrorCode.Forbidden, (await response.ReadJsonAsync<ErrorResponse>()).Code);
-            await _portal.SignInWithApiAsync(email, oldPassword);
-        }
-
-        // ---------- The MVC pages keep their own links ----------
-
-        [Fact]
-        public async Task Mvc_Forgot_Password_Should_Still_Mail_A_Link_To_The_Razor_Page()
-        {
-            await _portal.SetAccountSettingsAsync(allowRegister: true, mailConfigured: true);
-
-            var (email, _) = await _portal.CreateUserAsync();
-            var client = _portal.CreateAnonymousClient();
-
-            var page = await client.GetStringAsync("/Account/ForgotPassword");
-            var token = Regex.Match(page, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
-            Assert.True(token.Success, "The forgot-password page has no antiforgery field.");
-
-            var response = await client.PostAsync("/Account/ForgotPassword", new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["Email"] = email,
-                ["__RequestVerificationToken"] = WebUtility.HtmlDecode(token.Groups[1].Value)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-
-            // Url.Action("ResetPassword", "Account") must not resolve to the API action of the same name.
-            var mail = Assert.Single(_portal.Mail.SentTo(email));
-            Assert.Contains("http://localhost/Account/ResetPassword?", mail.Body);
-            Assert.DoesNotContain("/api/v1", mail.Body);
-            Assert.DoesNotContain("/ui/", mail.Body);
+            await _portal.SignInAsync(email, oldPassword);
         }
 
         // One entry: the property and its message.
@@ -604,7 +574,7 @@ namespace Apilane.Portal.Tests
             await client.PostAsync(ResetRequestUrl, new { Email = email }.ToJsonContent());
 
             var link = _resetLink.Match(Assert.Single(_portal.Mail.SentTo(email)).Body);
-            Assert.True(link.Success, "The mail has no link to /ui/account/reset-password?code=...");
+            Assert.True(link.Success, "The mail has no link to /account/reset-password?code=...");
 
             return Uri.UnescapeDataString(link.Groups[2].Value);
         }

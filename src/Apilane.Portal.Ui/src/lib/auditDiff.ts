@@ -1,11 +1,11 @@
 /**
- * Turns one changed property of an audit log entry into what the detail table shows. It is a port
- * of every display rule of the classic Views/Shared/_AuditLogDetail.cshtml, and is used by
- * components/AuditLogDetail.vue for the instance and the application audit log.
+ * Turns one changed property of an audit log entry into what the detail table shows. Every
+ * display rule of the audit log is here; components/AuditLogDetail.vue uses it for the instance
+ * and the application audit log.
  *
  * Pure functions only, no Vue: the rules can be unit-tested with stored Changes payloads.
  * Old and new values arrive as the raw stored strings. Items of a JSON array are compared by
- * their raw text, as the classic page does, so the result depends on the stored text itself.
+ * their raw text, so the result depends on the stored text itself.
  */
 
 /** The parts of an audit entry the rules need (Schemas['AuditChangeResponse'] fits). */
@@ -110,7 +110,7 @@ function parseJsonArray(json: string | null | undefined): JsonItem[] {
   try {
     values = JSON.parse(json)
   } catch {
-    // Not JSON: the classic page shows such a value as an empty list too.
+    // Not JSON: such a value shows as an empty list.
     return []
   }
 
@@ -321,7 +321,7 @@ function securityFieldDiffs(oldItem: JsonItem, newItem: JsonItem): SecurityField
     diffs.push({ field: 'Record', oldValue: oldRecord, newValue: newRecord })
   }
 
-  // '(none)' takes part as if it were a property name, as on the classic page: a rule that gets
+  // '(none)' takes part as if it were a property name: a rule that gets
   // its first properties shows '(none)' under 'Properties removed'.
   const oldProperties = propertySet(propertiesText(oldItem))
   const newProperties = propertySet(propertiesText(newItem))

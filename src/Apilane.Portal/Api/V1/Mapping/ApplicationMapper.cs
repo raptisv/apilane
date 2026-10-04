@@ -67,7 +67,7 @@ namespace Apilane.Portal.Api.V1.Mapping
             };
         }
 
-        // A tampered Razor Edit form can leave one on an SQLite application; the API server ignores it there.
+        // Older versions could leave one on an SQLite application; the API server ignores it there.
         private static bool HasConnectionString(this DBWS_Application application)
         {
             return application.DatabaseType != (int)DatabaseType.SQLLite && !string.IsNullOrWhiteSpace(application.ConnectionString);

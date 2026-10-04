@@ -4,15 +4,15 @@ import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { RouteLocationRaw } from 'vue-router'
 import StateMessage from '@/components/StateMessage.vue'
-import { dataEntityOrder, initialDataEntity } from '@/lib/entities'
+import { dataEntityOrder } from '@/lib/entities'
 import type { Entity } from '@/lib/entities'
 import type { DataApplication } from '@/lib/records'
 import EntityDataBrowser from './EntityDataBrowser.vue'
 import EntitySwitcher from './EntitySwitcher.vue'
 
 // The data browser of one application: the entity switcher and the records of the entity named by
-// the route parameter `entity`. With no entity in the address it opens the one of ?entity=<name>
-// (the address of the classic data browser) or else the first custom entity.
+// the route parameter `entity`. With no entity in the address it opens the first custom entity
+// (the first system one when there are no custom ones).
 //
 // Use it on a screen whose route ends in ':entity?'. The screen loads the entities, shows its own
 // loading, error and 'no entities' states, and mounts this once there is at least one entity:
@@ -39,18 +39,14 @@ const entityName = computed(() => (typeof route.params.entity === 'string' ? rou
 // Names are case-sensitive, as everywhere in the Portal.
 const current = computed(() => ordered.value.find((entity) => entity.Name === entityName.value))
 
-// No entity in the address: open the one of ?entity=, else the first.
+// No entity in the address: open the first.
 watch(
   [ordered, entityName],
   ([list, name]) => {
-    if (name !== undefined) {
-      return
-    }
+    const first = list[0]
 
-    const target = initialDataEntity(list, typeof route.query.entity === 'string' ? route.query.entity : undefined)
-
-    if (target) {
-      void router.replace(props.to(target.Name))
+    if (name === undefined && first) {
+      void router.replace(props.to(first.Name))
     }
   },
   { immediate: true },

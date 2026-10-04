@@ -47,7 +47,7 @@ namespace Apilane.Portal.Services
                 StartedAtUtc = DateTime.UtcNow,
                 ClonedApplicationToken = applicationToClone.Token,
                 SourceApplicationToken = sourceApplication.Token,
-                // Whoever starts a clone is made its owner, on the Razor page and in the API alike.
+                // Whoever starts a clone is made its owner.
                 StartedByUserId = applicationToClone.UserID
             };
 

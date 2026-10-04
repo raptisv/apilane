@@ -13,7 +13,7 @@ function csvField(value: string | null): string {
   return `"${(value ?? '').replaceAll('"', '""')}"`
 }
 
-/** The file name of an export, as the classic page names it: 'Orders_2026_10_03_14_05_09.csv', in local time. */
+/** The file name of an export: 'Orders_2026_10_03_14_05_09.csv', in local time. */
 export function csvFileName(name: string, now: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   const stamp = [now.getFullYear(), pad(now.getMonth() + 1), pad(now.getDate()), pad(now.getHours()), pad(now.getMinutes()), pad(now.getSeconds())]

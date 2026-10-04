@@ -6,7 +6,7 @@ import type { Access, SecurityRole } from '@/lib/securityAccess'
 
 // One allowed action in the tree and the matrix of the security screen: green for full access,
 // amber when restricted (owned records, some or no properties), dashed when inherited from
-// Anonymous or Authenticated. The rate limit shows next to the action, as on the classic matrix.
+// Anonymous or Authenticated. The rate limit shows next to the action.
 // The details are in its title and, for screen readers, in its text.
 const props = defineProps<{
   access: Access

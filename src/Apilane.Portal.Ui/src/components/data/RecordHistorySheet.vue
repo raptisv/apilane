@@ -30,7 +30,7 @@ const open = defineModel<boolean>('open', { required: true })
 
 const server = computed(() => apiServer(props.application.Server.ServerUrl, props.application.Token))
 
-// The columns of the classic panel (Data.cshtml:147-152): when, who, then the properties a caller may set.
+// The columns: when, who, then the properties a caller may set.
 const columns = computed(() => (props.entity.Properties ?? []).filter((property) => property.AllowEdit))
 
 const history = useAsync(

@@ -316,7 +316,7 @@ describe('recordErrors', () => {
 })
 
 describe('fileTooLarge', () => {
-  it('counts a KB as 1000 bytes, as the classic page', () => {
+  it('counts a KB as 1000 bytes', () => {
     expect(fileTooLarge(5000, 5)).toBe(false)
     expect(fileTooLarge(5001, 5)).toBe(true)
   })

@@ -1,5 +1,6 @@
 using Apilane.Common;
 using Apilane.Portal.Api;
+using Apilane.Portal.Api.Internal;
 using Apilane.Portal.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -15,6 +16,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Sdk;
@@ -30,6 +32,7 @@ namespace Apilane.Portal.Tests
     public class ApiContractTests
     {
         private const string ApiPrefix = "api/v1";
+        private const string InternalPrefix = "api/internal";
         private const string ContractsNamespace = "Apilane.Portal.Api.V1.Contracts";
 
         // Values that must never leave the Portal through the API. The same names the audit log masks
@@ -57,6 +60,15 @@ namespace Apilane.Portal.Tests
             "PortalAccount.Register",
             "PortalAccount.RequestPasswordReset",
             "PortalAccount.ResetPassword"
+        };
+
+        // The internal API: the only endpoints outside api/v1. Anonymous on purpose: an API server
+        // calls them without a login cookie, and the installation key is what lets a call in
+        // (InstallationKeyFilter). They answer with stored records, so they are not in the contract.
+        private static readonly string[] _internalActions =
+        {
+            "InternalApplications.Get",
+            "InternalApplications.GetAccess"
         };
 
         // The only endpoints that carry the sign-in rate limit.
@@ -264,13 +276,74 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
+        public void Internal_Endpoints_Should_Be_The_Listed_Ones_And_Require_The_Installation_Key()
+        {
+            var actions = GetPortalActions()
+                .Where(x => x.Route.StartsWith(InternalPrefix, StringComparison.OrdinalIgnoreCase))
+                .Select(x => x.Action)
+                .ToList();
+
+            Assert.Equal(
+                _internalActions.OrderBy(x => x),
+                actions.Select(x => $"{x.ControllerName}.{x.ActionName}").OrderBy(x => x));
+
+            Assert.All(actions, action => Assert.Contains(
+                action.FilterDescriptors,
+                x => x.Filter is ServiceFilterAttribute filter && filter.ServiceType == typeof(InstallationKeyFilter)));
+
+            // Hidden from ApiExplorer, the source the OpenAPI document is built from.
+            var described = _portal.Services.GetRequiredService<IApiDescriptionGroupCollectionProvider>()
+                .ApiDescriptionGroups.Items
+                .SelectMany(x => x.Items)
+                .Where(x => (x.RelativePath ?? string.Empty).StartsWith(InternalPrefix, StringComparison.OrdinalIgnoreCase));
+
+            Assert.Empty(described);
+        }
+
+        [Fact]
+        public void Controllers_Should_Be_Under_Api_V1_Or_Api_Internal()
+        {
+            // Every address outside /api, /swagger, /health and /metrics belongs to the UI.
+            var offenders = GetPortalActions()
+                .Where(x => !x.Route.StartsWith(ApiPrefix + "/", StringComparison.OrdinalIgnoreCase)
+                    && !x.Route.StartsWith(InternalPrefix + "/", StringComparison.OrdinalIgnoreCase))
+                .Select(x => $"{x.Action.ControllerName}.{x.Action.ActionName} is at {x.Route}")
+                .ToList();
+
+            Assert.True(offenders.Count == 0, string.Join(Environment.NewLine, offenders));
+        }
+
+        /// <summary>
+        /// The controller actions of the Portal itself, each with its route. Controllers of the
+        /// test project (ErrorTestController) are left out.
+        /// </summary>
+        private List<(string Route, ControllerActionDescriptor Action)> GetPortalActions()
+        {
+            var actions = new List<(string Route, ControllerActionDescriptor Action)>();
+
+            foreach (var endpoint in _portal.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>())
+            {
+                var action = endpoint.Metadata.GetMetadata<ControllerActionDescriptor>();
+
+                if (action is not null && action.ControllerTypeInfo.Assembly == typeof(Program).Assembly)
+                {
+                    actions.Add(((endpoint.RoutePattern.RawText ?? string.Empty).TrimStart('/'), action));
+                }
+            }
+
+            Assert.NotEmpty(actions);
+
+            return actions;
+        }
+
+        [Fact]
         public void Rate_Limit_Should_Be_On_The_Three_Anonymous_Account_Actions_Only()
         {
             var limited = _portal.Services.GetRequiredService<EndpointDataSource>().Endpoints
                 .Where(x => x.Metadata.GetMetadata<EnableRateLimitingAttribute>() is not null)
                 .ToList();
 
-            // Every limited endpoint is an API action: no MVC page carries the policy.
+            // Every limited endpoint is an API action.
             Assert.All(limited, x => Assert.StartsWith(
                 ApiPrefix,
                 ((x as RouteEndpoint)?.RoutePattern.RawText ?? string.Empty).TrimStart('/'),
@@ -327,6 +400,29 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
+        public async Task OpenApi_Document_Should_Describe_Api_V1_Only()
+        {
+            var client = await _portal.CreateAdminClientAsync();
+
+            var served = await client.GetStringAsync("/swagger/v1/swagger.json");
+            var committed = await File.ReadAllTextAsync(Path.Combine(FindRepositoryRoot(), "openapi", "portal-v1.json"));
+
+            foreach (var document in new[] { served, committed })
+            {
+                using var json = JsonDocument.Parse(document);
+
+                var paths = json.RootElement.GetProperty("paths").EnumerateObject().Select(x => x.Name).ToList();
+
+                Assert.NotEmpty(paths);
+                Assert.All(paths, x => Assert.StartsWith("/api/v1/", x));
+
+                // The internal API is for the API servers: neither its addresses nor its controller are described.
+                Assert.DoesNotContain(InternalPrefix, document, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("InternalApplications", document, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        [Fact]
         public async Task OpenApi_Document_Should_Describe_The_Csrf_Header()
         {
             var client = await _portal.CreateAdminClientAsync();
@@ -350,7 +446,7 @@ namespace Apilane.Portal.Tests
             var response = await first.GetAsync("/swagger/v1/swagger.json");
 
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-            Assert.Contains("/Account/Login", response.Headers.Location?.ToString());
+            Assert.EndsWith("/account/login?returnUrl=%2Fswagger%2Fv1%2Fswagger.json", response.Headers.Location?.OriginalString);
         }
 
         [Fact]
@@ -361,7 +457,7 @@ namespace Apilane.Portal.Tests
             var response = await client.GetAsync("/swagger/v1/swagger.json");
 
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-            Assert.Contains("/Account/Login", response.Headers.Location?.ToString());
+            Assert.EndsWith("/account/login?returnUrl=%2Fswagger%2Fv1%2Fswagger.json", response.Headers.Location?.OriginalString);
         }
 
         private const string UpdateHint =

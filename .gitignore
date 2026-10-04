@@ -342,9 +342,6 @@ ASALocalRun/
 .sisyphus
 .claude
 
-# Tailwind CLI binary (platform-specific, ~100MB+) — download via build-tools/README.md, never commit.
-/build-tools/tailwindcss*
-
 # Environment-specific settings hold secrets (installation key, connection strings, mail passwords).
 # They override the example values in appsettings.json; never commit the real file.
 src/Apilane.Api/appsettings.Development.json

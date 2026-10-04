@@ -9,11 +9,11 @@ A Server defines the connection URL where the Portal and client applications can
 | Property | Description |
 |---|---|
 | **Name** | A display name for the server (e.g., "Production", "Staging") |
-| **URL** | The base URL where the API service is accessible (e.g., `https://api.example.com`) |
+| **Address** | The base URL where the API service is accessible, http or https (e.g., `https://api.example.com`) |
 
 ## Create
 
-A `Server` has a URL where the Portal and any client application can access the API.
+Administrators add a server in the Portal under **Instance > Servers** with **Add server**. Its address is where the Portal, the browser of a Portal user and any client application can access the API.
 
 ![Apilane](../assets/server_create.png)
 

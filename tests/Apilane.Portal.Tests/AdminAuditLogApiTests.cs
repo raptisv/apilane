@@ -72,7 +72,7 @@ namespace Apilane.Portal.Tests
             Assert.Null(entry.Changes[1].OldValue);
             Assert.Equal("***", entry.Changes[1].NewValue);
 
-            // JSON values stay text, so the client can compare them the way the Razor page does.
+            // JSON values stay text, so the client can compare the old value with the new one itself.
             Assert.Equal("Security", entry.Changes[2].Property);
             Assert.Equal("[]", entry.Changes[2].OldValue);
             Assert.Equal("[{\"Name\":\"Users\",\"TypeID\":0}]", entry.Changes[2].NewValue);

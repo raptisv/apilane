@@ -4,13 +4,13 @@ An application is the backend of your client application. It encapsulates your d
 
 ## Create
 
-To create a new Application you need to define:
+To create a new Application, open **Applications** in the Portal and click **New application**. You need to define:
 
 | Setting | Required | Description |
 |---|---|---|
 | **Name** | Yes | Display name (4–100 characters, e.g., "MyApp") |
 | **Server** | Yes | The [Server](server_overview.md) where the application will be deployed |
-| **Storage provider** | Yes | Database type — see [Storage providers](storage_providers.md) |
+| **Database type** | Yes | Where the application's data lives — see [Storage providers](storage_providers.md). SQL Server, MySQL and PostgreSQL also need a **Connection string** |
 | **Differentiation entity** | No | Optional multi-tenant data isolation — see [below](#differentiation-entity) |
 
 ![Apilane](../assets/application_create.png)
@@ -25,22 +25,22 @@ Upon creation, the application receives:
 
 ## Application settings
 
-After creating an application, you can configure these settings from the Portal:
+After creating an application, you can configure these settings on its tabs in the Portal: authentication, files and IP access on the **Security** tab, mail on the **Email** tab, and the name, connection string and online status on the **Settings** tab.
 
 ### Authentication
 
 | Setting | Default | Description |
 |---|---|---|
-| **Auth token expiration** | varies | Minutes of **inactivity** before an authentication token expires. Each authenticated request resets the timer. Range: 1 to 2,147,483,647 |
-| **Force single login** | `false` | If enabled, each new login invalidates all previous auth tokens for that user |
-| **Allow unconfirmed email login** | `true` | If disabled, users must confirm their email before they can log in |
-| **Allow new user registration** | `true` | If disabled, no new users can register via the API |
+| **Auth token lifetime (minutes)** | varies | Minutes of **inactivity** before an authentication token expires. Each authenticated request resets the timer. Range: 1 to 2,147,483,647 |
+| **Allow only one sign-in at a time** | `false` | If enabled, each new login invalidates all previous auth tokens for that user |
+| **Allow users with an unconfirmed email to sign in** | `true` | If disabled, users must confirm their email before they can log in |
+| **Allow new users to register** | `true` | If disabled, no new users can register via the API |
 
 ### Files
 
 | Setting | Default | Description |
 |---|---|---|
-| **Max file size** | varies | Maximum allowed file size in KB. Range: 1 KB to 25,600 KB (25 MB) |
+| **Maximum file size (KB)** | varies | Maximum allowed file size in KB. Range: 1 KB to 25,600 KB (25 MB) |
 
 ### Email
 
@@ -49,25 +49,25 @@ SMTP settings for sending confirmation and password reset emails. See [Email Tem
 | Setting | Description |
 |---|---|
 | **Mail server** | SMTP server hostname |
-| **Mail server port** | SMTP port (1–65535) |
-| **Mail from address** | Sender email address |
-| **Mail from display name** | Sender display name |
-| **Mail username** | SMTP authentication username |
-| **Mail password** | SMTP authentication password |
+| **Port** | SMTP port (1–65535) |
+| **Sender address** | Sender email address |
+| **Sender display name** | Sender display name |
+| **User name** | SMTP authentication username |
+| **Password** | SMTP authentication password. Once saved it is never shown again; an empty box keeps the stored value |
 
 ### Networking
 
 | Setting | Description |
 |---|---|
-| **Online** | Whether the application is currently accepting API requests |
-| **IP allow/block** | Restrict access by IP address — see [Security](security.md#ip-allowblock) |
+| **Online** | Whether the application is currently accepting API requests (**Settings** tab: **Take offline** / **Bring online**) |
+| **IP access** | Restrict access by IP address — see [Security](security.md#ip-allowblock) |
 
 ### Advanced
 
 | Setting | Description |
 |---|---|
-| **Email confirmation redirect URL** | Where the browser redirects after a user confirms their email (max 10,000 characters) |
-| **Connection string** | Database connection string (for SQL Server and MySQL) |
+| **Redirect URL** (**Email** tab, 'Email confirmation landing page') | Where the browser redirects after a user confirms their email (max 10,000 characters). Empty: a default page of the Portal |
+| **Connection string** (**Settings** tab) | Database connection string (for SQL Server, MySQL and PostgreSQL). Once saved it is never shown again; an empty box keeps the stored value |
 
 ---
 
@@ -116,12 +116,14 @@ If User_A creates a record on a differentiated entity, the record column `Compan
 
 | Action | Description |
 |---|---|
-| **Create** | Define name, server, storage provider, and optional differentiation entity |
-| **Edit** | Update settings (authentication, email, IP rules, etc.) from the Portal |
-| **Clone** | Create a copy of an existing application |
-| **Delete** | Permanently remove the application and all its data |
-| **Toggle Online** | Bring the application online/offline without deleting it |
+| **Create** | Define name, server, database type, and optional differentiation entity |
+| **Edit** | Update settings (authentication, email, IP rules, etc.) on the **Security**, **Email** and **Settings** tabs |
+| **Clone** | Create a copy of an existing application, with or without its records (menu of the application's card) |
+| **Export / Import application** | **Export** downloads a zip of the application (menu of the application's card); **Import application** creates an application from the `application.json` inside it |
+| **Take offline / Bring online** | Stop or resume accepting API requests without deleting anything |
+| **Rebuild** | Drop all data and create the tables again, empty (**Settings** tab, Danger zone) |
+| **Delete** | Permanently remove the application and all its data (**Settings** tab, Danger zone) |
 
 ## Collaboration
 
-Applications support a collaboration model where multiple Portal users can manage the same application. The application owner can invite collaborators through the Portal.
+Applications support a collaboration model where multiple Portal users can manage the same application. The application owner shares it on the **Sharing** tab, by entering the email address of another Portal user exactly as in that user's account. A collaborator can do everything the owner can, except sharing.

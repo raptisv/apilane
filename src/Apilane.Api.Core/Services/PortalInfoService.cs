@@ -53,6 +53,13 @@ namespace Apilane.Api.Core.Services
 
         public async Task<bool> UserOwnsApplicationAsync(string authToken, string appToken)
         {
+            // The token is part of the address the Portal is asked at. An application token is a
+            // GUID; anything else (empty, '..') is nobody's application and would be another address.
+            if (!Guid.TryParse(appToken, out _))
+            {
+                return false;
+            }
+
             var cacheKey = $"{authToken}_{appToken}";
 
             if (!_memoryCache.TryGetValue(cacheKey, out bool userOwnsApplication))
@@ -70,7 +77,7 @@ namespace Apilane.Api.Core.Services
         {
             // The installation key and the portal user's token travel in headers, never in the URL,
             // so they do not end up in request logs, proxies or browser histories.
-            string url = $"{_apiConfiguration.PortalUrl.Trim('/')}/Info/UserOwnsApplication?appToken={Uri.EscapeDataString(appToken)}";
+            string url = $"{_apiConfiguration.PortalUrl.Trim('/')}/api/internal/applications/{Uri.EscapeDataString(appToken)}/access";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add(Globals.InstallationKeyHeaderName, _apiConfiguration.InstallationKey);
@@ -91,7 +98,7 @@ namespace Apilane.Api.Core.Services
 
         public async Task<DBWS_Application> GetApplicationAsync(string appToken)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, $"{_apiConfiguration.PortalUrl.Trim('/')}/Info/GetApplication?appToken={Uri.EscapeDataString(appToken)}");
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"{_apiConfiguration.PortalUrl.Trim('/')}/api/internal/applications/{Uri.EscapeDataString(appToken)}");
             request.Headers.Add(Globals.InstallationKeyHeaderName, _apiConfiguration.InstallationKey);
 
             using var client = _clientFactory.CreateClient(PortalInfoService.HttpClientName);

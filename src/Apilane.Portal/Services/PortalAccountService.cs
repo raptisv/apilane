@@ -67,7 +67,7 @@ namespace Apilane.Portal.Services
 
         public async Task<SessionResponse> SignInAsync(SignInRequest request)
         {
-            // The e-mail is the user name. Persistent cookie and no lockout, as the MVC login.
+            // The e-mail is the user name. Persistent cookie and no lockout.
             var result = await _signInManager.PasswordSignInAsync(request.Email, request.Password, isPersistent: true, lockoutOnFailure: false);
 
             if (!result.Succeeded)
@@ -125,7 +125,7 @@ namespace Apilane.Portal.Services
                     : nameof(RegisterRequest.Email));
             }
 
-            // A session cookie, where the login sets a persistent one. Same as the MVC register.
+            // A session cookie, where the login sets a persistent one.
             await _signInManager.SignInAsync(user, isPersistent: false);
 
             return await ToNewSessionAsync(user);
@@ -195,7 +195,7 @@ namespace Apilane.Portal.Services
             }
 
             // The new password made the cookie of this request invalid. Signing in again issues a
-            // new one (a session cookie, as the MVC page does) and ends the user's other sessions.
+            // new one (a session cookie) and ends the user's other sessions.
             await _signInManager.SignInAsync(user, isPersistent: false);
 
             _portalMailService.Send(

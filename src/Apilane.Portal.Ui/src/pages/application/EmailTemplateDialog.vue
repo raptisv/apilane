@@ -14,8 +14,8 @@ import type { EmailTemplate, EmailTemplateUpdate } from '@/lib/emailTemplates'
 import { formErrors } from '@/lib/forms'
 import * as toast from '@/lib/toast'
 
-// Edits one e-mail template. It is saved on the application's API server, as the classic page
-// does: PUT {ServerUrl}/api/Email/Update.
+// Edits one e-mail template. It is saved on the application's API server:
+// PUT {ServerUrl}/api/Email/Update.
 const props = defineProps<{ template: EmailTemplate }>()
 const emit = defineEmits<{ saved: [] }>()
 

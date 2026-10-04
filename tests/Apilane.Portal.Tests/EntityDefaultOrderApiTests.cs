@@ -75,15 +75,14 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Get_Should_Show_The_Stored_Order_As_The_Razor_Page_Does_And_So_That_It_Can_Be_Sent_Back()
+        public async Task Get_Should_Show_The_Stored_Order_So_That_It_Can_Be_Sent_Back()
         {
             var scene = await EntityScene.CreateAsync(_portal);
             ScriptApiServer();
 
-            // A property that was deleted, one stored in both directions (the Razor page allows
+            // A property that was deleted, one stored in both directions (older versions allowed
             // it), a direction in another letter case, and directions that are neither asc nor
-            // desc. Anything that is not asc reads as desc, as the Razor page labels it; a null
-            // direction goes beyond the Razor page, whose view fails on it.
+            // desc, null included. Anything that is not asc reads as desc.
             await scene.SetStoredAsync("Orders", x => x.EntDefaultOrder =
                 "[{\"Property\":\"Gone\",\"Direction\":\"asc\"}," +
                 "{\"Property\":\"Code\",\"Direction\":\"desc\"}," +
@@ -138,7 +137,7 @@ namespace Apilane.Portal.Tests
 
             // One audit row, for the entity; the constraints are untouched.
             var audit = Assert.Single(await scene.AuditRowsAsync(scene.OwnerEmail));
-            Assert.Equal("Modified", audit.Action);
+            Assert.Equal("Entity | Orders | Modified", $"{audit.EntityType} | {audit.EntityIdentifier} | {audit.Action}");
             Assert.Equal(scene.AppId, audit.AppID);
             Assert.Equal(EntityScene.SeedEntities(scene.AppId)[3].EntConstraints, (await scene.LoadEntityAsync("Orders")).EntConstraints);
         }
@@ -155,62 +154,11 @@ namespace Apilane.Portal.Tests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Empty((await response.ReadJsonAsync<DefaultOrderResponse>()).Items);
 
-            // What the Razor page stores when nothing is ticked.
+            // An empty list, not null.
             Assert.Equal("[]", (await scene.LoadEntityAsync("Orders")).EntDefaultOrder);
+            Assert.Single(_portal.ApiServer.Requests);
             Assert.Single(_portal.ApiServer.RequestsTo(FakeApiServer.ClearCachePath));
-        }
-
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task Put_Should_Store_Send_And_Audit_What_The_Razor_Page_Stores_Sends_And_Audits(bool empty)
-        {
-            var scene = await EntityScene.CreateAsync(_portal);
-            ScriptApiServer();
-
-            // Two equal entities, one saved through the Razor form...
-            await scene.AddTwinsAsync("RazorSide", "ApiSide", null, "[{\"Property\":\"ID\",\"Direction\":\"asc\"}]");
-
-            var posted = empty ? "[]" : "[{\"Property\":\"Code\",\"Direction\":\"desc\"},{\"Property\":\"Owner\",\"Direction\":\"asc\"}]";
-
-            var razorResponse = await scene.Owner.PostAsync($"/App/{scene.Token}/Ent/RazorSide/Entity/DefaultOrderSave", new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["DefaultOrder"] = posted,
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(scene.Owner, $"/App/{scene.Token}/Ent/RazorSide/Entity/DefaultOrder")
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-
-            // The Razor portal resets the cache in the background, after it has answered.
-            await scene.WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
-
-            var razorRequests = _portal.ApiServer.Requests;
-            var razorAudit = await scene.AuditRowsAsync(scene.OwnerEmail);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            // ...and one through the API.
-            var body = empty ? Body() : Body(("Code", "desc"), ("Owner", "asc"));
-            var apiResponse = await scene.Owner.PutAsync(scene.DefaultOrderUrl("ApiSide"), body.ToJsonContent());
-
-            Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
-
-            var apiRequests = _portal.ApiServer.Requests;
-            var apiAudit = (await scene.AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-
-            // The same single call, the same stored text and the same audit entry.
-            Assert.Single(razorRequests);
-            Assert.Equal(razorRequests.Select(x => $"{x.Method} {x.Url}"), apiRequests.Select(x => $"{x.Method} {x.Url}"));
-            Assert.Equal(
-                razorRequests[0].Headers.OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Value}"),
-                apiRequests[0].Headers.OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Value}"));
-
-            var razorStored = (await scene.LoadEntityAsync("RazorSide")).EntDefaultOrder;
-            Assert.Equal(posted, razorStored);
-            Assert.Equal(razorStored, (await scene.LoadEntityAsync("ApiSide")).EntDefaultOrder);
-
-            Assert.Single(razorAudit);
-            Assert.Equal(EntityScene.AuditShape(razorAudit, "RazorSide"), EntityScene.AuditShape(apiAudit, "ApiSide"));
+            Assert.Single(await scene.AuditRowsAsync(scene.OwnerEmail));
         }
 
         [Fact]

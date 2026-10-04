@@ -33,7 +33,7 @@ describe('templatePlaceholders', () => {
     })
   })
 
-  it('lists nothing for an unknown event, as the classic page', () => {
+  it('lists nothing for an unknown event', () => {
     expect(templatePlaceholders('Something')).toEqual([])
   })
 })

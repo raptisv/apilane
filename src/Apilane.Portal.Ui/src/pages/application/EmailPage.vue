@@ -28,8 +28,8 @@ const { application } = useApplication()
 // AppLayout gives every application a fresh screen, so the token is fixed for the life of this one.
 const appToken = application.value.Token
 
-// Settings: SMTP and the landing page after the confirmation, one form saved together (as the
-// classic page). They live in the Portal.
+// Settings: SMTP and the landing page after the confirmation, one form saved together. They live
+// in the Portal.
 const { data, error, loading, reload } = useAsync(() =>
   unwrap(api.GET('/api/v1/applications/{appToken}/email-settings', { params: { path: { appToken } } })),
 )
@@ -112,7 +112,7 @@ async function submit(): Promise<void> {
   toast.success('Email settings saved.')
 }
 
-// Templates: read from the application's API server by the browser, as the classic page does. A
+// Templates: read from the application's API server by the browser. A
 // failure shows in their section only; the settings above keep working.
 const templates = useAsync(() =>
   apiServer(application.value.Server.ServerUrl, appToken).get<EmailTemplate[]>('/api/Email/GetEmails'),

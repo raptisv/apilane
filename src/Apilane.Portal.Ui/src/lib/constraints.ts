@@ -90,8 +90,8 @@ export function constraintRequests(rows: readonly ConstraintRow[]): ConstraintRe
 /** The pending edits of the list: what Save would add and remove. */
 export interface ConstraintEdits {
   /**
-   * The saved constraints that are to be removed, as the very objects of the saved list: rows the
-   * Razor page stored twice are removed one at a time.
+   * The saved constraints that are to be removed, as the very objects of the saved list: rows
+   * that older versions stored twice are removed one at a time.
    */
   removed: Constraint[]
   /** The constraints that are not saved yet. */

@@ -12,7 +12,6 @@ using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -27,7 +26,7 @@ namespace Apilane.Portal.Tests
     {
         private const string UserRolesJson = "[{\"Roles\":\"Editors\"},{\"Roles\":\"Viewers,Admins\"},{\"Roles\":null},{\"Roles\":\" \"},{\"Roles\":\"Editors\"}]";
 
-        // A stored rule list as the Razor page writes it, plus rules older versions and other writers
+        // A stored rule list as the Portal writes it, plus rules older versions and other writers
         // left behind. The comments say what the API makes of each.
         private const string StoredWithLegacyRules = "["
             // Read as is.
@@ -39,7 +38,7 @@ namespace Apilane.Portal.Tests
             + "{\"Name\":\"Alpha\",\"TypeID\":1,\"RoleID\":\"Gone role\",\"Action\":\"get\",\"Record\":1,\"Properties\":null,\"RateLimit\":{\"MaxRequests\":10,\"TimeWindowType\":2,\"TimeWindow\":\"00:01:00\"}},"
             + "{\"Name\":\"Schema\",\"TypeID\":2,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null},"
             // Left out: a second rule for the same cell, an entity that is gone (its role still gets
-            // a row, as on the Razor page), an unknown type, an unknown action, Schema with post, an
+            // a row), an unknown type, an unknown action, Schema with post, an
             // empty role, actions the item does not offer (Users post, a custom endpoint put),
             // something that is not a rule and a rule that cannot be read.
             + "{\"Name\":\"Orders\",\"TypeID\":0,\"RoleID\":\"ANONYMOUS\",\"Action\":\"GET\",\"Record\":1,\"Properties\":\"Code\",\"RateLimit\":null},"
@@ -53,6 +52,16 @@ namespace Apilane.Portal.Tests
             + "42,"
             + "{\"Name\":\"Orders\",\"TypeID\":\"zero\",\"RoleID\":\"Unread\",\"Action\":\"get\"}"
             + "]";
+
+        // What ValidRules() is stored as.
+        private const string ValidRulesAsStored =
+            "[{\"Name\":\"Orders\",\"TypeID\":0,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Code,Amount\",\"RateLimit\":null},"
+            + "{\"Name\":\"Orders\",\"TypeID\":0,\"RoleID\":\"Editors\",\"Action\":\"put\",\"Record\":1,\"Properties\":\"Amount\",\"RateLimit\":{\"MaxRequests\":30,\"TimeWindowType\":2,\"TimeWindow\":\"00:01:00\"}},"
+            + "{\"Name\":\"Orders\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"delete\",\"Record\":0,\"Properties\":\"\",\"RateLimit\":null},"
+            + "{\"Name\":\"Files\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"post\",\"Record\":0,\"Properties\":\"\",\"RateLimit\":{\"MaxRequests\":5,\"TimeWindowType\":1,\"TimeWindow\":\"00:00:01\"}},"
+            + "{\"Name\":\"Alpha\",\"TypeID\":1,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":{\"MaxRequests\":100,\"TimeWindowType\":3,\"TimeWindow\":\"01:00:00\"}},"
+            + "{\"Name\":\"Schema\",\"TypeID\":2,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null},"
+            + "{\"Name\":\"Users\",\"TypeID\":0,\"RoleID\":\"Editors\",\"Action\":\"get\",\"Record\":1,\"Properties\":\"Nickname,Email\",\"RateLimit\":null}]";
 
         private static readonly string[] _legacyRulesAsRead =
         {
@@ -109,7 +118,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal("Allow", security.Settings.ClientIPsLogic);
             Assert.Equal(new[] { "10.0.0.1", "10.0.0.2" }, security.Settings.ClientIPs);
 
-            // Built from the lower-cased server URL, as the Razor page builds them; the token keeps its case.
+            // Built from the lower-cased server URL; the token keeps its case.
             var lowerServerUrl = serverUrl.ToLowerInvariant();
             Assert.NotEqual(serverUrl, lowerServerUrl);
             Assert.Equal($"{lowerServerUrl}/App/{scene.Token}/Account/Manage/ForgotPassword", security.ForgotPasswordLinks.PageUrl);
@@ -148,7 +157,7 @@ namespace Apilane.Portal.Tests
 
             Assert.Equal(_legacyRulesAsRead, security.Rules.Select(Describe));
 
-            // The roles are asked for as the Razor page asks, as the caller, on the server URL as stored.
+            // The roles are asked for as the caller, on the server URL as stored.
             var request = Assert.Single(_portal.ApiServer.Requests);
             Assert.Equal(HttpMethod.Get, request.Method);
             Assert.Equal($"{serverUrl}/api/Stats/Distinct?Entity=Users&Property=Roles", request.Url);
@@ -234,7 +243,7 @@ namespace Apilane.Portal.Tests
 
             var security = await (await scene.Owner.GetAsync(Url(scene))).ReadJsonAsync<SecurityResponse>();
 
-            // ANONYMOUS is not listed twice; ' Admins' is not trimmed, as on the Razor page.
+            // ANONYMOUS is not listed twice; ' Admins' is not trimmed.
             Assert.True(security.RolesAvailable);
             Assert.Equal(new[] { "ANONYMOUS", "AUTHENTICATED", "Viewers", "Editors", " Admins" }, security.Roles.Select(x => x.RoleID));
         }
@@ -274,46 +283,6 @@ namespace Apilane.Portal.Tests
             _portal.ApiServer.Unreachable(FakeApiServer.StatsDistinctPath);
 
             await AssertDegradedAsync(scene);
-        }
-
-        [Fact]
-        public async Task Get_Should_Show_What_The_Razor_Page_Shows()
-        {
-            var scene = await CreateSceneAsync();
-            ScriptApiServer();
-
-            var saved = await scene.Owner.PutAsync(RulesUrl(scene), new { Rules = ValidRules() }.ToJsonContent());
-            Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
-
-            var security = await (await scene.Owner.GetAsync(Url(scene))).ReadJsonAsync<SecurityResponse>();
-
-            var html = await scene.Owner.GetStringAsync($"/App/{scene.Token}/Application/Security");
-            var match = Regex.Match(html, "<script id=\"security-diagram-data\" type=\"application/json\">(.*?)</script>", RegexOptions.Singleline);
-            Assert.True(match.Success, "The Razor page has no security-diagram-data block.");
-
-            using var razor = JsonDocument.Parse(match.Groups[1].Value);
-            var types = new[] { "Entity", "CustomEndpoint", "Schema" };
-            var windows = new[] { "None", "Per_Second", "Per_Minute", "Per_Hour" };
-
-            // Files: the Razor grid offers no properties for its post either; its put is never allowed.
-            Assert.Equal(
-                razor.RootElement.GetProperty("items").EnumerateArray().Select(x =>
-                    $"{types[x.GetProperty("TypeID").GetInt32()]} {x.GetProperty("Name").GetString()}"
-                    + $" post:{x.GetProperty("AllowPost").GetBoolean()} put:{x.GetProperty("AllowPut").GetBoolean()} delete:{x.GetProperty("AllowDelete").GetBoolean()}"
-                    + $" owner:{x.GetProperty("HasOwner").GetBoolean()} get:[{Join(x.GetProperty("PropsGet"))}]"
-                    + $" postput:[{(x.GetProperty("Name").GetString() == "Files" ? string.Empty : Join(x.GetProperty("PropsPostPut")))}]"),
-                security.Items.Select(Describe));
-
-            Assert.Equal(
-                razor.RootElement.GetProperty("roles").EnumerateArray().Select(x => x.GetProperty("roleId").GetString()),
-                security.Roles.Select(x => x.RoleID));
-
-            Assert.Equal(
-                razor.RootElement.GetProperty("security").EnumerateArray().Select(x =>
-                    $"{types[x.GetProperty("TypeID").GetInt32()]} {x.GetProperty("Name").GetString()} {x.GetProperty("RoleID").GetString()} {x.GetProperty("Action").GetString()}"
-                    + $" {(x.GetProperty("Record").GetInt32() == 1 ? "Owned" : "All")} [{(x.GetProperty("Properties").ValueKind == JsonValueKind.String ? x.GetProperty("Properties").GetString() : string.Empty)}]"
-                    + $" {(x.GetProperty("RateTw").GetInt32() == 0 ? "-" : $"{x.GetProperty("RateMax").GetInt32()}/{windows[x.GetProperty("RateTw").GetInt32()]}")}"),
-                security.Rules.Select(Describe));
         }
 
         // ---------- Settings ----------
@@ -419,7 +388,7 @@ namespace Apilane.Portal.Tests
             var scene = await CreateSceneAsync();
 
             var body = SettingsBody();
-            // The last four pass the Razor page's check, but the API server compares addresses as text, so they could never match.
+            // The last four would pass a lenient parser, but the API server compares addresses as text, so they could never match.
             body["ClientIPs"] = new[] { "10.0.0.1", "300.1.1.1", "", "abc", "1.2.3", "::1", "10.0.0.1,10.0.0.2", " 192.168.0.1 ", "010.0.0.1", "+10.0.0.1", "10. 0.0.1", "10.0.0.-0" };
 
             var response = await scene.Owner.PutAsync(SettingsUrl(scene), body.ToJsonContent());
@@ -556,73 +525,27 @@ namespace Apilane.Portal.Tests
             var read = await (await scene.Owner.GetAsync(Url(scene))).ReadJsonAsync<SecurityResponse>();
             Assert.Equal(expected, read.Rules.Select(Describe));
 
-            Assert.Equal(
-                "[{\"Name\":\"Orders\",\"TypeID\":0,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Code,Amount\",\"RateLimit\":null},"
-                + "{\"Name\":\"Orders\",\"TypeID\":0,\"RoleID\":\"Editors\",\"Action\":\"put\",\"Record\":1,\"Properties\":\"Amount\",\"RateLimit\":{\"MaxRequests\":30,\"TimeWindowType\":2,\"TimeWindow\":\"00:01:00\"}},"
-                + "{\"Name\":\"Orders\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"delete\",\"Record\":0,\"Properties\":\"\",\"RateLimit\":null},"
-                + "{\"Name\":\"Files\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"post\",\"Record\":0,\"Properties\":\"\",\"RateLimit\":{\"MaxRequests\":5,\"TimeWindowType\":1,\"TimeWindow\":\"00:00:01\"}},"
-                + "{\"Name\":\"Alpha\",\"TypeID\":1,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":{\"MaxRequests\":100,\"TimeWindowType\":3,\"TimeWindow\":\"01:00:00\"}},"
-                + "{\"Name\":\"Schema\",\"TypeID\":2,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null},"
-                + "{\"Name\":\"Users\",\"TypeID\":0,\"RoleID\":\"Editors\",\"Action\":\"get\",\"Record\":1,\"Properties\":\"Nickname,Email\",\"RateLimit\":null}]",
-                (await LoadAsync(scene.AppId)).Security);
+            Assert.Equal(ValidRulesAsStored, (await LoadAsync(scene.AppId)).Security);
 
             Assert.Single(_portal.ApiServer.RequestsTo(FakeApiServer.ClearCachePath));
         }
 
         [Fact]
-        public async Task Replace_Rules_Should_Store_What_The_Razor_Page_Stores_And_Audit_It_The_Same_Way()
+        public async Task Replace_Rules_Should_Audit_The_Stored_Text_Before_And_After()
         {
             var scene = await CreateSceneAsync();
-            var twin = await CreateTwinAsync(scene);
             ScriptApiServer();
 
-            // The same rules through the Razor form, in the shape its script posts them...
-            var formUrl = $"/App/{twin.Token}/Application/Security";
-            var razorResponse = await scene.Owner.PostAsync(formUrl, new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["AuthTokenExpireMinutes"] = "60",
-                ["MaxAllowedFileSizeInKB"] = "1024",
-                ["ClientIPsLogic"] = "0",
-                ["ClientIPsValue"] = "",
-                ["AllowUserRegister"] = "false",
-                ["AllowLoginUnconfirmedEmail"] = "false",
-                ["ForceSingleLogin"] = "false",
-                ["SecurityItems"] = JsonSerializer.Serialize(RazorItems()),
-                ["return"] = "",
-                ["entity"] = "",
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(scene.Owner, formUrl)
-            }));
+            var response = await scene.Owner.PutAsync(RulesUrl(scene), new { Rules = ValidRules() }.ToJsonContent());
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-            Assert.Equal(HttpStatusCode.OK, razorResponse.StatusCode);
+            var stored = await LoadAsync(scene.AppId);
+            var row = Assert.Single(await scene.AuditRowsAsync(scene.OwnerEmail));
 
-            // The Razor portal resets the cache in the background, after it has answered.
-            await scene.WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
+            Assert.Equal($"Application | {stored.Name} | Modified | {scene.AppId}", Shape(row));
 
-            var razorStored = (await LoadAsync(twin.ID)).Security;
-            Assert.False(string.IsNullOrEmpty(razorStored));
-
-            var razorRows = await scene.AuditRowsAsync(scene.OwnerEmail);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            // ...and through the API.
-            var apiResponse = await scene.Owner.PutAsync(RulesUrl(scene), new { Rules = ValidRules() }.ToJsonContent());
-            Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
-
-            Assert.Equal(razorStored, (await LoadAsync(scene.AppId)).Security);
-
-            var apiRows = (await scene.AuditRowsAsync(scene.OwnerEmail)).Skip(razorRows.Count).ToList();
-            var razorRow = Assert.Single(razorRows);
-            var apiRow = Assert.Single(apiRows);
-
-            Assert.Equal($"Application | {twin.Name} | Modified | {twin.ID}", Shape(razorRow));
-            Assert.Equal($"Application | {(await LoadAsync(scene.AppId)).Name} | Modified | {scene.AppId}", Shape(apiRow));
-
-            // The same columns change, and Security carries the stored JSON before and after.
-            Assert.Equal(new[] { "Security" }, ChangedProperties(razorRow));
-            Assert.Equal(new[] { "Security" }, ChangedProperties(apiRow));
-            Assert.Equal($"Security:  -> {razorStored}", Changes(apiRow).Single(x => x.StartsWith("Security:", StringComparison.Ordinal)));
-            Assert.Equal(Changes(razorRow).Single(x => x.StartsWith("Security:", StringComparison.Ordinal)), Changes(apiRow).Single(x => x.StartsWith("Security:", StringComparison.Ordinal)));
+            // Only the Security column changes, from nothing to the stored text.
+            Assert.Equal(new[] { $"Security:  -> {ValidRulesAsStored}" }, Changes(row));
         }
 
         [Fact]
@@ -911,29 +834,6 @@ namespace Apilane.Portal.Tests
             return scene;
         }
 
-        /// <summary>
-        /// A second application of the scene's owner with the same entities and custom endpoints.
-        /// </summary>
-        private async Task<DBWS_Application> CreateTwinAsync(EntityScene scene)
-        {
-            var serverId = (await LoadAsync(scene.AppId)).ServerID;
-            var twin = (await _portal.CreateApplicationAsync(serverId, scene.OwnerEmail, $"security-twin-{Guid.NewGuid():N}")).Application;
-
-            await _portal.WithDbContextAsync(db =>
-            {
-                db.Entities.AddRange(EntityScene.SeedEntities(twin.ID));
-                return db.SaveChangesAsync();
-            });
-
-            await AddCustomEndpointsAsync(twin.ID);
-
-            // Both start from the same stored values, so their audit rows can be compared.
-            await SetApplicationAsync(twin.ID, x => x.ClientIPsValue = string.Empty);
-            await SetApplicationAsync(scene.AppId, x => x.ClientIPsValue = string.Empty);
-
-            return await LoadAsync(twin.ID);
-        }
-
         private Task<int> AddCustomEndpointsAsync(long appId)
         {
             return _portal.WithDbContextAsync(db =>
@@ -1004,7 +904,7 @@ namespace Apilane.Portal.Tests
         }
 
         /// <summary>
-        /// One rule of each kind the Razor grid can produce.
+        /// One rule of each kind the rule grid can produce.
         /// </summary>
         private static List<Dictionary<string, object?>> ValidRules()
         {
@@ -1017,23 +917,6 @@ namespace Apilane.Portal.Tests
                 Rule("CustomEndpoint", "Alpha", "ANONYMOUS", "get", "All", null, 100, "Per_Hour"),
                 Rule("Schema", "Schema", "AUTHENTICATED", "get", "All"),
                 Rule("Entity", "Users", "Editors", "get", "Owned", new[] { "Nickname", "Email" })
-            };
-        }
-
-        /// <summary>
-        /// <see cref="ValidRules"/> as the Razor page's script posts them (SecurityItemInput).
-        /// </summary>
-        private static List<object> RazorItems()
-        {
-            return new List<object>
-            {
-                new { Name = "Orders", TypeID = 0, Action = "get", RoleID = "ANONYMOUS", Record = 0, Properties = "Code,Amount", RateLimitType = 0, RateLimitValue = 0 },
-                new { Name = "Orders", TypeID = 0, Action = "put", RoleID = "Editors", Record = 1, Properties = "Amount", RateLimitType = 2, RateLimitValue = 30 },
-                new { Name = "Orders", TypeID = 0, Action = "delete", RoleID = "AUTHENTICATED", Record = 0, Properties = "", RateLimitType = 0, RateLimitValue = 0 },
-                new { Name = "Files", TypeID = 0, Action = "post", RoleID = "AUTHENTICATED", Record = 0, Properties = "", RateLimitType = 1, RateLimitValue = 5 },
-                new { Name = "Alpha", TypeID = 1, Action = "get", RoleID = "ANONYMOUS", Record = 0, Properties = "", RateLimitType = 3, RateLimitValue = 100 },
-                new { Name = "Schema", TypeID = 2, Action = "get", RoleID = "AUTHENTICATED", Record = 0, Properties = "", RateLimitType = 0, RateLimitValue = 0 },
-                new { Name = "Users", TypeID = 0, Action = "get", RoleID = "Editors", Record = 1, Properties = "Nickname,Email", RateLimitType = 0, RateLimitValue = 0 }
             };
         }
 
@@ -1062,11 +945,6 @@ namespace Apilane.Portal.Tests
             var rateLimit = rule.RateLimit is null ? "-" : $"{rule.RateLimit.MaxRequests}/{rule.RateLimit.TimeWindow}";
 
             return $"{rule.Type} {rule.Name} {rule.RoleID} {rule.Action} {rule.Record} [{string.Join(",", rule.Properties)}] {rateLimit}";
-        }
-
-        private static string Join(JsonElement names)
-        {
-            return string.Join(",", names.EnumerateArray().Select(x => x.GetString()));
         }
 
         private async Task<DBWS_Application> LoadAsync(long appId)
@@ -1134,11 +1012,6 @@ namespace Apilane.Portal.Tests
                 .Select(x => $"{x.GetProperty("Property").GetString()}: {x.GetProperty("OldValue").GetString()} -> {x.GetProperty("NewValue").GetString()}")
                 .OrderBy(x => x, StringComparer.Ordinal)
                 .ToList();
-        }
-
-        private static List<string> ChangedProperties(PortalAuditLog row)
-        {
-            return Changes(row).Select(x => x.Substring(0, x.IndexOf(':'))).ToList();
         }
     }
 }

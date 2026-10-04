@@ -45,7 +45,7 @@ namespace Apilane.Portal.Services
             settings.AllowRegisterToPortal = request.AllowRegisterToPortal
                 ?? throw PortalException.Validation(nameof(InstanceSettingsRequest.AllowRegisterToPortal), "Required");
 
-            // Empty text is stored as null, which is what the Razor form stores for an empty box.
+            // Empty text is stored as null.
             settings.MailServer = NullIfEmpty(request.MailServer);
             settings.MailServerPort = request.MailServerPort;
             settings.MailUserName = NullIfEmpty(request.MailUserName);

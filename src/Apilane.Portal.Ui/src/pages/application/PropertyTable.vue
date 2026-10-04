@@ -75,7 +75,7 @@ defineEmits<{ edit: [property: Property]; rename: [property: Property]; delete: 
           </TableCell>
 
           <TableCell class="pr-4 text-right align-top">
-            <!-- A system property cannot be edited, renamed or deleted, so it gets no menu, as in the classic portal. -->
+            <!-- A system property cannot be edited, renamed or deleted, so it gets no menu. -->
             <DropdownMenu v-if="!property.IsSystem">
               <DropdownMenuTrigger as-child>
                 <Button variant="ghost" size="icon-sm">

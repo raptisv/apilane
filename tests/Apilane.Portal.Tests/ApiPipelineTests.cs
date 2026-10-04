@@ -1,7 +1,6 @@
 using Apilane.Portal.Abstractions;
 using Apilane.Portal.Api;
 using Apilane.Portal.Api.V1.Contracts;
-using Apilane.Portal.Extensions;
 using Apilane.Portal.Tests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -9,10 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using FakeItEasy;
 using System;
@@ -27,7 +24,7 @@ namespace Apilane.Portal.Tests
 {
     /// <summary>
     /// What every management API endpoint gets from the shared pipeline: the error body, the CSRF
-    /// check, the fallbacks and the cache headers. Also pins that MVC pages still redirect.
+    /// check, the answer for an unknown route and the cache headers.
     /// </summary>
     [Collection(PortalCollection.Name)]
     public class ApiPipelineTests
@@ -328,7 +325,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
-        // ---------- Fallbacks ----------
+        // ---------- Unknown routes ----------
 
         [Theory]
         [InlineData("GET", "/api/v1/does-not-exist")]
@@ -345,98 +342,6 @@ namespace Apilane.Portal.Tests
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
             Assert.True(response.Headers.CacheControl?.NoStore);
             Assert.Equal(PortalErrorCode.NotFound, (await response.ReadJsonAsync<ErrorResponse>()).Code);
-        }
-
-        [Fact]
-        public async Task Ui_Client_Route_Should_Return_The_Index_Page()
-        {
-            var host = _portal.CreateHostWithUi("<html>ui-marker</html>");
-
-            var response = await _portal.CreateAnonymousClient(host).GetAsync("/ui/some/client/route");
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
-            Assert.True(response.Headers.CacheControl?.NoCache);
-            Assert.Contains("ui-marker", await response.Content.ReadAsStringAsync());
-        }
-
-        [Fact]
-        public async Task Ui_Client_Route_Should_Say_The_Ui_Is_Not_Built()
-        {
-            var host = _portal.CreateHostWithUi(null);
-
-            var response = await _portal.CreateAnonymousClient(host).GetAsync("/ui/some/client/route");
-
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-            Assert.Equal("text/plain", response.Content.Headers.ContentType?.MediaType);
-            Assert.Contains("has not been built", await response.Content.ReadAsStringAsync());
-        }
-
-        [Fact]
-        public async Task Ui_Client_Route_Should_Refuse_A_Post_With_405()
-        {
-            var response = await _portal.CreateAnonymousClient().PostAsync("/ui/admin/servers", null);
-
-            Assert.Equal(HttpStatusCode.MethodNotAllowed, response.StatusCode);
-        }
-
-        [Fact]
-        public async Task Ui_Missing_File_Should_Return_404_Not_The_Index_Page()
-        {
-            var response = await _portal.CreateAnonymousClient().GetAsync("/ui/assets/missing.js");
-
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-            Assert.NotEqual("text/html", response.Content.Headers.ContentType?.MediaType);
-        }
-
-        [Theory]
-        [InlineData("/ui/assets/index-abc123.js", "public, max-age=31536000, immutable")]
-        [InlineData("/ui/favicon.ico", "no-cache")]
-        [InlineData("/assets/custom.js", null)]
-        public void Static_Files_Should_Get_The_Ui_Cache_Policy(string path, string? expected)
-        {
-            var context = new DefaultHttpContext();
-            context.Request.Path = path;
-
-            var options = PortalApiDependencyInjection.CreateStaticFileOptions();
-            options.OnPrepareResponse(new StaticFileResponseContext(context, new NotFoundFileInfo(path)));
-
-            var actual = context.Response.Headers.CacheControl.ToString();
-
-            Assert.Equal(expected ?? string.Empty, actual);
-        }
-
-        // ---------- MVC pages keep their behaviour ----------
-
-        [Fact]
-        public async Task Mvc_Page_Anonymous_Should_Still_Redirect_To_Login()
-        {
-            var response = await _portal.CreateAnonymousClient().GetAsync("/Applications");
-
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-            Assert.Contains("/Account/Login", response.Headers.Location?.ToString());
-        }
-
-        [Fact]
-        public async Task Mvc_Admin_Page_Without_Admin_Role_Should_Still_Redirect_To_Login()
-        {
-            var client = await _portal.CreateUserClientAsync();
-
-            var response = await client.GetAsync("/Admin/Servers");
-
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-            Assert.Contains("/Account/Login", response.Headers.Location?.ToString());
-        }
-
-        [Fact]
-        public async Task Mvc_Admin_Servers_Page_Should_Still_Work_For_An_Admin()
-        {
-            var client = await _portal.CreateAdminClientAsync();
-
-            var response = await client.GetAsync("/Admin/Servers");
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
         }
     }
 }

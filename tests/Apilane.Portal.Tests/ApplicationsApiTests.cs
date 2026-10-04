@@ -85,7 +85,7 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task List_Should_Sort_Names_As_The_Razor_Portal_Does_Lower_Case_Before_Upper_Case()
+        public async Task List_Should_Sort_Names_Lower_Case_Before_Upper_Case()
         {
             var (email, password) = await _portal.CreateUserAsync();
             var server = await _portal.CreateServerAsync();
@@ -135,7 +135,7 @@ namespace Apilane.Portal.Tests
             var (collaboratorEmail, collaboratorPassword) = await _portal.CreateUserAsync();
             var server = await _portal.CreateServerAsync();
 
-            // Same rule as the Razor portal (BaseWebController.GetUserApplications): the share row must match the account e-mail exactly.
+            // The share row must match the account e-mail exactly.
             var shared = await _portal.CreateApplicationAsync(server.ID, ownerEmail, "shared-other-case", collaboratorEmail.ToUpperInvariant());
             var client = await _portal.CreateSignedInClientAsync(collaboratorEmail, collaboratorPassword);
 
@@ -648,7 +648,7 @@ namespace Apilane.Portal.Tests
         }
 
         /// <summary>
-        /// The one call the Razor portal makes for a cache reset of 'b-owned': the URL of its own
+        /// The one call the Portal makes for a cache reset of 'b-owned': the URL of its own
         /// server, the application token and the caller's own API token.
         /// </summary>
         private async Task AssertClearCacheCallAsync(Scene scene, string callerEmail)

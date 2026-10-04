@@ -179,7 +179,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal("Deleted", audit.Action);
             Assert.Equal(email, audit.UserEmail);
 
-            // A session that was already open keeps the role until its cookie is refreshed, like the Razor page.
+            // A session that was already open keeps the role until its cookie is refreshed.
             // Checked before the new sign-in, which ends the older session.
             Assert.Equal(HttpStatusCode.OK, (await targetClient.GetAsync(Url)).StatusCode);
 

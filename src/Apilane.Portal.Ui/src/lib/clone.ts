@@ -2,8 +2,8 @@ import type { Schemas } from './api'
 import { formatCount } from './entities'
 
 /**
- * The rules of the clone screens, taken from the classic Views/Application/Clone.cshtml and
- * CloneProgress.cshtml. Pure functions, no Vue, so they can be unit-tested (clone.test.ts).
+ * The rules of the clone screens (the form and the progress page). Pure functions, no Vue, so
+ * they can be unit-tested (clone.test.ts).
  */
 export type CloneOperation = Schemas['CloneOperationResponse']
 

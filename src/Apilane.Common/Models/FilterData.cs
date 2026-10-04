@@ -1,8 +1,6 @@
 ﻿using Apilane.Common.Enums;
-using Apilane.Common.Utilities;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -56,10 +54,6 @@ namespace Apilane.Common.Models
 
         [JsonIgnore]
         public PropertyType Type { get; set; }
-
-        public static List<(FilterOperators Operator, List<string> OperatorStrList)> AvailableFilterOperators = EnumProvider<FilterOperators>
-            .GetValues(FilterOperators.equal)
-            .Select(x => ((FilterOperators)x.Key, x.Value.ToString().Split(',').Select(y => y.Trim()).Where(y => !string.IsNullOrWhiteSpace(y)).ToList())).ToList();
 
         public void Add(FilterData filter)
         {

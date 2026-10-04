@@ -9,7 +9,7 @@ describe('newFilterRow', () => {
 })
 
 describe('filterText', () => {
-  it('writes the JSON the classic builder writes', () => {
+  it('writes the JSON the data API takes', () => {
     expect(
       filterText([
         { property: 'Status', operator: 'equal', value: 'paid' },

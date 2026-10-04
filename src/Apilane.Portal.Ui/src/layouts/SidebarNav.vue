@@ -14,9 +14,12 @@ const session = useSession()
 const route = useRoute()
 const router = useRouter()
 
+// The router matches a path whatever its letter case, and route.path keeps the case that was typed.
+const currentPath = computed(() => route.path.toLowerCase())
+
 // Vue Router marks a link active only on its own route and that route's children. 'apps/new' and
 // 'apps/import' are siblings of 'apps' (see router.ts), so the path decides for this one link.
-const inApplications = computed(() => route.path === '/apps' || route.path.startsWith('/apps/'))
+const inApplications = computed(() => currentPath.value === '/apps' || currentPath.value.startsWith('/apps/'))
 
 // The 'Instance' group, shown to administrators. A new admin screen adds one line here with its
 // `route`, which carries meta.requiresAdmin (see router.ts).
@@ -33,7 +36,7 @@ const instanceLinks: { route: string; label: string; icon: Component }[] = [
 function inSection(name: string): boolean {
   const path = router.resolve({ name }).path
 
-  return route.path === path || route.path.startsWith(`${path}/`)
+  return currentPath.value === path || currentPath.value.startsWith(`${path}/`)
 }
 
 // The base text colour sits on <nav> and is inherited, so it cannot compete with the active

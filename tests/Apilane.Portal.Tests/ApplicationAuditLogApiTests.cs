@@ -2,6 +2,7 @@ using Apilane.Portal.Api;
 using Apilane.Portal.Api.V1.Contracts;
 using Apilane.Portal.Models;
 using Apilane.Portal.Tests.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -70,30 +71,6 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task List_Should_Show_The_Entries_The_Razor_Page_Shows()
-        {
-            var scene = await EntityScene.CreateAsync(_portal);
-            var server = await _portal.CreateServerAsync();
-            var other = await _portal.CreateApplicationAsync(server.ID, scene.OwnerEmail, $"other-{Guid.NewGuid():N}");
-            var mine = $"mine-{Guid.NewGuid():N}";
-            var notMine = $"not-mine-{Guid.NewGuid():N}";
-            var instance = $"instance-{Guid.NewGuid():N}";
-
-            await AddAsync(mine, DateTime.UtcNow, scene.AppId);
-            await AddAsync(notMine, DateTime.UtcNow, other.Application.ID);
-            await AddAsync(instance, DateTime.UtcNow, appId: null);
-
-            var razor = await (await scene.Owner.GetAsync($"/App/{scene.Token}/Application/AuditLog")).Content.ReadAsStringAsync();
-            var api = await (await scene.Owner.GetAsync(Url(scene.Token))).ReadJsonAsync<ListResponse<AuditLogEntryResponse>>();
-
-            Assert.Contains(mine, razor);
-            Assert.DoesNotContain(notMine, razor);
-            Assert.DoesNotContain(instance, razor);
-
-            Assert.Equal(new[] { mine }, api.Data.Select(x => x.EntityIdentifier));
-        }
-
-        [Fact]
         public async Task List_Should_Show_A_Change_Made_Through_The_Api()
         {
             var scene = await EntityScene.CreateAsync(_portal);
@@ -107,11 +84,14 @@ namespace Apilane.Portal.Tests
             Assert.DoesNotContain("secret-value", text);
 
             var log = await response.ReadJsonAsync<ListResponse<AuditLogEntryResponse>>();
+            var owner = await _portal.WithDbContextAsync(db => db.Users.AsNoTracking().SingleAsync(x => x.Email == scene.OwnerEmail));
 
+            // The entry names who made the change, by e-mail and by ID.
             var entry = Assert.Single(log.Data);
             Assert.Equal("Application", entry.EntityType);
             Assert.Equal("Modified", entry.Action);
             Assert.Equal(scene.OwnerEmail, entry.UserEmail);
+            Assert.Equal(owner.Id, entry.UserId);
             Assert.Equal(
                 new[] { "MailPassword:  -> ***", "MailServer:  -> smtp.audit.test" },
                 entry.Changes.Select(x => $"{x.Property}: {x.OldValue} -> {x.NewValue}").OrderBy(x => x, StringComparer.Ordinal));

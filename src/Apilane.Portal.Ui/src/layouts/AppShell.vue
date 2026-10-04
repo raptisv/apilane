@@ -15,9 +15,9 @@ const session = useSession()
 const route = useRoute()
 const router = useRouter()
 
-const logo = `${import.meta.env.BASE_URL}favicon.ico`
+const logo = '/favicon.ico'
 
-// The instance name with its logo: a link to the applications page, as in the classic portal.
+// The instance name with its logo: a link to the applications page.
 const brandClass = 'flex min-w-0 items-center gap-2.5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
 const footerLinkClass = 'rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
 

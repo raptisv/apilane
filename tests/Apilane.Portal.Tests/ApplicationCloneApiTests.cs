@@ -14,7 +14,6 @@ using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -93,7 +92,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal("GetOrders", Assert.Single(clone.CustomEndpoints).Name);
             Assert.NotEqual(source.CustomEndpoints[0].ID, clone.CustomEndpoints[0].ID);
 
-            // Reports and collaborators are not, as on the Razor page.
+            // Reports and collaborators are not.
             Assert.Empty(clone.Reports);
             Assert.Empty(clone.Collaborates);
 
@@ -206,6 +205,63 @@ namespace Apilane.Portal.Tests
             Assert.Equal(2, operation.TotalRecordsImported);
         }
 
+        [Fact]
+        public async Task Start_With_CloneData_Should_Make_Its_Calls_In_Order_And_Audit_Everything_It_Creates()
+        {
+            var scene = await CreateSceneAsync();
+            var target = await _portal.CreateServerAsync();
+            ScriptApiServer();
+
+            var started = await StartAsync(scene.Owner, scene.Token, Body(target.ID, "MySQL", "Server=db;Database=clone", cloneData: true, entities: new[] { "Orders", "Customers" }));
+            await WaitForEndAsync(started.OperationId);
+
+            var requests = _portal.ApiServer.Requests;
+
+            // The application with its system entities, one call per other entity, the count of
+            // every entity to copy, then each entity read and written in turn.
+            Assert.Equal(
+                new[]
+                {
+                    $"POST {target.ServerUrl}/api/ApplicationNew/Generate",
+                    $"POST {target.ServerUrl}/api/Application/GenerateEntity",
+                    $"POST {target.ServerUrl}/api/Application/GenerateEntity",
+                    $"POST {target.ServerUrl}/api/Application/GenerateEntity",
+                    $"GET {scene.ServerUrl}/api/data/get?entity=Customers&pageIndex=1&pageSize=1000&getTotal=true",
+                    $"GET {scene.ServerUrl}/api/data/get?entity=Orders&pageIndex=1&pageSize=1000&getTotal=true",
+                    $"GET {scene.ServerUrl}/api/data/get?entity=Customers&pageIndex=1&pageSize=1000&getTotal=true",
+                    $"POST {target.ServerUrl}/api/Application/ImportData?Entity=Customers",
+                    $"GET {scene.ServerUrl}/api/data/get?entity=Orders&pageIndex=1&pageSize=1000&getTotal=true",
+                    $"POST {target.ServerUrl}/api/Application/ImportData?Entity=Orders"
+                },
+                requests.Select(x => $"{x.Method} {x.Url}"));
+
+            // No header but these; the installation key goes with Generate only.
+            Assert.Equal(
+                new[] { "Accept", "Authorization", "x-application-token", "x-client-id", "x-installation-key" },
+                requests[0].Headers.Keys.OrderBy(x => x));
+            Assert.All(requests.Skip(1), x => Assert.Equal(
+                new[] { "Accept", "Authorization", "x-application-token", "x-client-id" },
+                x.Headers.Keys.OrderBy(k => k)));
+
+            // The clone starts without reports and collaborators: Generate gets both lists, empty.
+            var generated = JsonNode.Parse(requests[0].Body)?.AsObject() ?? throw new InvalidOperationException("No Generate body.");
+            Assert.Empty(generated["Reports"]?.AsArray() ?? throw new InvalidOperationException("No Reports."));
+            Assert.Empty(generated["Collaborates"]?.AsArray() ?? throw new InvalidOperationException("No Collaborates."));
+
+            // Two records read and two written for each entity.
+            Assert.All(_portal.ApiServer.RequestsTo(ImportDataPath), x => Assert.Equal(2, JsonNode.Parse(x.Body)?.AsArray().Count));
+
+            // One audit row for the application, its custom endpoint, each of its 5 entities and
+            // each of their 16 properties, all caused by the caller. None carries an application.
+            var owner = await _portal.WithDbContextAsync(db => db.Users.AsNoTracking().SingleAsync(x => x.Email == scene.OwnerEmail));
+            var audit = await scene.AuditRowsAsync(scene.OwnerEmail);
+
+            Assert.Equal(
+                new[] { "Application 1", "Custom Endpoint 1", "Entity 5", "Property 16" },
+                audit.GroupBy(x => x.EntityType).Select(x => $"{x.Key} {x.Count()}").OrderBy(x => x));
+            Assert.All(audit, x => Assert.Equal($"Created | {owner.Id} | ", $"{x.Action} | {x.UserId} | {x.AppID}"));
+        }
+
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
@@ -215,7 +271,7 @@ namespace Apilane.Portal.Tests
             var target = await _portal.CreateServerAsync();
             ScriptApiServer();
 
-            // As on the Razor page, where 'Deselect all' copies everything too.
+            // No list and an empty list mean the same: every entity.
             var started = await StartAsync(scene.Owner, scene.Token, Body(target.ID, cloneData: true, entities: emptyList ? Array.Empty<string>() : null));
             await WaitForEndAsync(started.OperationId);
 
@@ -433,7 +489,7 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Collaborator_Should_Clone_And_Own_The_Clone_As_On_The_Razor_Page()
+        public async Task Collaborator_Should_Clone_And_Own_The_Clone()
         {
             var scene = await CreateSceneAsync();
             var target = await _portal.CreateServerAsync();
@@ -519,7 +575,7 @@ namespace Apilane.Portal.Tests
             // Only the first call was made.
             Assert.Single(_portal.ApiServer.Requests);
 
-            // As on the Razor page, the application saved for the clone is left behind.
+            // The application saved for the clone is left behind.
             Assert.Equal(HttpStatusCode.OK, (await scene.Owner.GetAsync($"/api/v1/applications/{started.ClonedApplicationToken}")).StatusCode);
         }
 
@@ -548,7 +604,7 @@ namespace Apilane.Portal.Tests
             // The routine stopped at the refusal.
             Assert.Single(_portal.ApiServer.RequestsTo(ImportDataPath));
 
-            // The application saved for the clone is left behind, as on the Razor page.
+            // The application saved for the clone is left behind.
             Assert.Equal(HttpStatusCode.OK, (await scene.Owner.GetAsync($"/api/v1/applications/{started.ClonedApplicationToken}")).StatusCode);
         }
 
@@ -653,115 +709,6 @@ namespace Apilane.Portal.Tests
             await EntityScene.AssertNotFoundAsync(await scene.Owner.GetAsync($"{ClonesUrl(scene.Token)}/{started.OperationId.ToUpperInvariant()}"), "CloneOperation");
         }
 
-        // ---------- Razor ----------
-
-        [Fact]
-        public async Task Razor_Clone_Should_Still_Work_And_Its_Operation_Should_Be_Readable_By_Its_Starter_Only()
-        {
-            var scene = await CreateSceneAsync();
-            var target = await _portal.CreateServerAsync();
-            ScriptApiServer();
-
-            var operationId = await StartWithRazorAsync(scene, target.ID, DatabaseType.SQLLite, null, cloneData: false);
-            var progress = await WaitForEndAsync(operationId);
-
-            Assert.Equal(CloneStatus.Completed, progress.Status);
-
-            // The progress page and the JSON it polls are what they were.
-            Assert.Equal(HttpStatusCode.OK, (await scene.Owner.GetAsync($"/App/{scene.Token}/Application/CloneProgress?operationId={operationId}")).StatusCode);
-
-            var status = JsonNode.Parse(await scene.Owner.GetStringAsync($"/App/{scene.Token}/Application/CloneStatus?operationId={operationId}"))?.AsObject()
-                ?? throw new InvalidOperationException("No status.");
-
-            Assert.Equal("Completed", status["StatusText"]?.GetValue<string>());
-            Assert.Equal((int)CloneStatus.Completed, status["Status"]?.GetValue<int>());
-            Assert.Equal(progress.ClonedApplicationToken, status["ClonedApplicationToken"]?.GetValue<string>());
-            Assert.Equal(
-                new[]
-                {
-                    "ClonedApplicationToken", "CurrentEntityCloningDataName", "CurrentEntityCreatingName", "CurrentEntityImportedRecords",
-                    "CurrentEntityTotalRecords", "EntitiesCreated", "EntitiesDataCloned", "ErrorMessage", "EstimatedRemainingSeconds",
-                    "OverallPercentage", "Status", "StatusText", "TotalEntitiesToCloneData", "TotalEntitiesToCreate",
-                    "TotalRecordsAllEntities", "TotalRecordsImported"
-                },
-                status.Select(x => x.Key).OrderBy(x => x, StringComparer.Ordinal));
-
-            // The same operation through the API: for the user who started it only.
-            var operation = await GetOperationAsync(scene.Owner, scene.Token, operationId);
-            Assert.Equal("Completed", operation.Status);
-            Assert.Equal(progress.ClonedApplicationToken, operation.ClonedApplicationToken);
-
-            await EntityScene.AssertNotFoundAsync(await scene.Collaborator.GetAsync($"{ClonesUrl(scene.Token)}/{operationId}"), "CloneOperation");
-        }
-
-        [Fact]
-        public async Task Start_Should_Store_And_Send_What_The_Razor_Page_Stores_And_Sends()
-        {
-            var scene = await CreateSceneAsync();
-            var target = await _portal.CreateServerAsync();
-            ScriptApiServer();
-
-            // The same clone through the Razor form...
-            var razorOperationId = await StartWithRazorAsync(scene, target.ID, DatabaseType.MySQL, "Server=db;Database=clone", cloneData: true, "Orders", "Customers");
-            var razorToken = (await WaitForEndAsync(razorOperationId)).ClonedApplicationToken ?? throw new InvalidOperationException("No token.");
-
-            // The one call the API does not make: the Razor portal resets the cache of the source after every post.
-            var razorRequests = _portal.ApiServer.Requests.Where(x => x.Path != FakeApiServer.ClearCachePath).ToList();
-            var razorAudit = await scene.AuditRowsAsync(scene.OwnerEmail);
-
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            // ...and through the API.
-            var started = await StartAsync(scene.Owner, scene.Token, Body(target.ID, "MySQL", "Server=db;Database=clone", cloneData: true, entities: new[] { "Orders", "Customers" }));
-            Assert.Equal(CloneStatus.Completed, (await WaitForEndAsync(started.OperationId)).Status);
-
-            var apiRequests = _portal.ApiServer.Requests;
-            var apiAudit = (await scene.AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-
-            // The same row, entities, properties and custom endpoint.
-            Assert.Equal(
-                Comparable(JsonSerializer.SerializeToNode(await LoadAsync(razorToken))),
-                Comparable(JsonSerializer.SerializeToNode(await LoadAsync(started.ClonedApplicationToken))));
-
-            // The same calls in the same order, with the same headers.
-            Assert.Equal(10, razorRequests.Count);
-            Assert.Equal(razorRequests.Select(x => $"{x.Method} {x.Url}"), apiRequests.Select(x => $"{x.Method} {x.Url}"));
-
-            for (var i = 0; i < razorRequests.Count; i++)
-            {
-                Assert.Equal(
-                    razorRequests[i].Headers.OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Value.Replace(razorToken, "<clone>")}"),
-                    apiRequests[i].Headers.OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Value.Replace(started.ClonedApplicationToken, "<clone>")}"));
-            }
-
-            // The same bodies. The one difference: the Razor page sends no report and no collaborator list, the API empty ones.
-            var razorBody = JsonNode.Parse(razorRequests[0].Body)?.AsObject() ?? throw new InvalidOperationException("No body.");
-            var apiBody = JsonNode.Parse(apiRequests[0].Body)?.AsObject() ?? throw new InvalidOperationException("No body.");
-
-            foreach (var list in new[] { "Reports", "Collaborates" })
-            {
-                Assert.Null(razorBody[list]);
-                Assert.Empty(apiBody[list]?.AsArray() ?? throw new InvalidOperationException($"No {list}."));
-                razorBody.Remove(list);
-                apiBody.Remove(list);
-            }
-
-            Assert.Equal(Comparable(razorBody), Comparable(apiBody));
-
-            for (var i = 1; i < razorRequests.Count; i++)
-            {
-                // The reads from the source have no body.
-                Assert.Equal(Comparable(razorRequests[i].Body), Comparable(apiRequests[i].Body));
-            }
-
-            // The same audit rows.
-            Assert.NotEmpty(razorAudit);
-            Assert.Equal(
-                razorAudit.Select(x => $"{x.EntityType} | {x.EntityIdentifier} | {x.Action} | {x.UserId}").OrderBy(x => x),
-                apiAudit.Select(x => $"{x.EntityType} | {x.EntityIdentifier} | {x.Action} | {x.UserId}").OrderBy(x => x));
-        }
-
         // ---------- Helpers ----------
 
         private static string ClonesUrl(string token)
@@ -826,37 +773,6 @@ namespace Apilane.Portal.Tests
             Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
 
             return await response.ReadJsonAsync<CloneStartedResponse>();
-        }
-
-        /// <summary>
-        /// Posts the Razor clone form as the owner and returns the id of the operation it started.
-        /// </summary>
-        private async Task<string> StartWithRazorAsync(EntityScene scene, long serverId, DatabaseType databaseType, string? connectionString, bool cloneData, params string[] entities)
-        {
-            var formUrl = $"/App/{scene.Token}/Application/Clone";
-
-            var form = new List<KeyValuePair<string, string>>
-            {
-                new KeyValuePair<string, string>("ServerID", serverId.ToString()),
-                new KeyValuePair<string, string>("DatabaseType", ((int)databaseType).ToString()),
-                new KeyValuePair<string, string>("ConnectionString", connectionString ?? string.Empty),
-                new KeyValuePair<string, string>("CloneData", cloneData ? "true" : "false"),
-                new KeyValuePair<string, string>("__RequestVerificationToken", await _portal.GetAntiforgeryTokenAsync(scene.Owner, formUrl))
-            };
-
-            form.AddRange(entities.Select(x => new KeyValuePair<string, string>("EntitiesToClone", x)));
-
-            var response = await scene.Owner.PostAsync(formUrl, new FormUrlEncodedContent(form));
-
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-
-            var match = Regex.Match(response.Headers.Location?.ToString() ?? string.Empty, "/Application/CloneProgress\\?operationId=([0-9a-f]{32})$");
-            Assert.True(match.Success, $"The Razor clone did not redirect to its progress page: {response.Headers.Location}");
-
-            // The Razor portal resets the cache of the source in the background, after it has answered.
-            await scene.WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
-
-            return match.Groups[1].Value;
         }
 
         /// <summary>
@@ -944,44 +860,6 @@ namespace Apilane.Portal.Tests
             Assert.Equal(0, await CountClonesAsync(scene));
             Assert.Empty(await scene.AuditRowsAsync(scene.OwnerEmail));
             Assert.False(await _portal.WithDbContextAsync(db => db.AuditLogs.AnyAsync(x => x.AppID == appId)));
-        }
-
-        private static string Comparable(string body)
-        {
-            return body.Length == 0 ? body : Comparable(JsonNode.Parse(body));
-        }
-
-        /// <summary>
-        /// JSON without what differs between any two clones of one application: IDs, token and timestamps.
-        /// </summary>
-        private static string Comparable(JsonNode? node)
-        {
-            Scrub(node);
-
-            return (node ?? throw new InvalidOperationException("No JSON.")).ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        }
-
-        private static void Scrub(JsonNode? node)
-        {
-            if (node is JsonArray array)
-            {
-                foreach (var item in array)
-                {
-                    Scrub(item);
-                }
-            }
-            else if (node is JsonObject item)
-            {
-                foreach (var key in new[] { "ID", "AppID", "EntityID", "Token", "DateModified" })
-                {
-                    item.Remove(key);
-                }
-
-                foreach (var child in item.ToList())
-                {
-                    Scrub(child.Value);
-                }
-            }
         }
     }
 }

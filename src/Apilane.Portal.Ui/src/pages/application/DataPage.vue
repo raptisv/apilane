@@ -15,7 +15,7 @@ import { setTitle } from '@/router'
 
 // The data browser of an application (/apps/:appToken/data/:entity): the entity switcher and the
 // records of one entity, both drawn by ApplicationDataBrowser. /apps/:appToken/data alone opens the
-// entity of ?entity=Name (the address of the classic data browser) or else the first custom entity.
+// first custom entity.
 const route = useRoute()
 const { application } = useApplication()
 

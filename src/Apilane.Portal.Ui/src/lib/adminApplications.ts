@@ -37,8 +37,7 @@ export interface ApplicationDetail {
 }
 
 /**
- * What the list shows when a row is opened: the settings the table itself has no column for, in
- * the order of the classic page.
+ * What the list shows when a row is opened: the settings the table itself has no column for.
  */
 export function applicationDetails(application: AdminApplication): ApplicationDetail[] {
   return [

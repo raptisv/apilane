@@ -25,7 +25,7 @@ namespace Apilane.Portal.Services
             _clientFactory = clientFactory;
         }
 
-        public async Task<Either<string, HttpStatusCode>> GetAsync(
+        private async Task<Either<string, HttpStatusCode>> GetAsync(
             string url,
             string appToken,
             string portalUserAuthToken)
@@ -52,7 +52,7 @@ namespace Apilane.Portal.Services
             }
         }
 
-        public async Task<Either<T, HttpStatusCode>> GetAsync<T>(
+        private async Task<Either<T, HttpStatusCode>> GetAsync<T>(
             string url,
             string appToken,
             string portalUserAuthToken)
@@ -81,8 +81,6 @@ namespace Apilane.Portal.Services
                 Data = new List<Dictionary<string, object?>>()
             };
 
-            var sort = JsonSerializer.Serialize(new SortData() { Direction = "ASC", Property = "ID" });
-            var url = $"{serverUrl.Trim('/')}/api/data/get?entity={entity}&pageIndex={pageIndex}&pageSize={pageSize}&sort={sort}&getTotal=true";
             var dataTotalResult = await GetDataAsync(serverUrl, appToken, entity, pageIndex, pageSize, portalUserAuthToken);
 
             if (dataTotalResult.IsError(out var error1))
@@ -110,7 +108,7 @@ namespace Apilane.Portal.Services
             return data;
         }
 
-        public async Task<Either<DataTotalResponse, HttpStatusCode>> GetDataAsync(
+        private async Task<Either<DataTotalResponse, HttpStatusCode>> GetDataAsync(
             string serverUrl,
             string appToken,
             string entity,

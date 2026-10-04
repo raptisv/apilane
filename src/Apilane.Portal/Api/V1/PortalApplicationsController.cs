@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Apilane.Portal.Api.V1
 {
-    // 'Portal' in the name keeps it apart from the MVC ApplicationsController.
+    // Renaming the controller changes the contract: operation ids are built from its name.
     [Route("api/v1/applications")]
     public class PortalApplicationsController : PortalApiControllerBase
     {

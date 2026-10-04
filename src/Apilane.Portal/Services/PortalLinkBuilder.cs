@@ -18,7 +18,7 @@ namespace Apilane.Portal.Services
             var request = _httpContextAccessor.HttpContext?.Request
                 ?? throw new Exception("A portal link can only be built during a request.");
 
-            return $"{request.Scheme}://{request.Host}{request.PathBase}/ui/{path.TrimStart('/')}";
+            return $"{request.Scheme}://{request.Host}{request.PathBase}/{path.TrimStart('/')}";
         }
 
         public string ResetPassword(string code)

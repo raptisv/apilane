@@ -15,10 +15,10 @@ namespace Apilane.Portal.Tests.Infrastructure
     public record ApiServerRequest(HttpMethod Method, string Url, string Path, Dictionary<string, string> Headers, string Body);
 
     /// <summary>
-    /// Stands in for the API servers: the last handler of the HttpClient the Portal calls them with,
-    /// for the new API and for the Razor pages alike. It records every request and answers what
-    /// the test scripted for the path. Strict: a request to a path nobody scripted throws, so it
-    /// fails the test instead of going out on the network.
+    /// Stands in for the API servers: the last handler of the HttpClient the Portal calls them
+    /// with. It records every request and answers what the test scripted for the path. Strict:
+    /// a request to a path nobody scripted throws, so it fails the test instead of going out on
+    /// the network.
     /// </summary>
     public class FakeApiServer : HttpMessageHandler
     {

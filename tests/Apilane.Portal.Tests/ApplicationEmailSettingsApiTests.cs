@@ -176,7 +176,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.True((await response.ReadJsonAsync<EmailSettingsResponse>()).HasMailPassword);
 
-            // Stored as sent, as the Razor page stores it.
+            // Stored as sent: not trimmed.
             Assert.Equal(" replaced password ", (await LoadAsync(scene.AppId)).MailPassword);
         }
 
@@ -386,66 +386,35 @@ namespace Apilane.Portal.Tests
         // ---------- Audit ----------
 
         [Fact]
-        public async Task Update_Should_Audit_What_The_Razor_Page_Audits_With_The_Password_Masked()
+        public async Task Update_Of_The_Password_Only_Should_Audit_The_Change_With_Both_Values_Masked()
         {
             var scene = await CreateSceneAsync();
-            var twin = await _portal.CreateApplicationAsync(scene.Server.ID, scene.OwnerEmail, $"email-twin-{Guid.NewGuid():N}", scene.CollaboratorEmail);
-            await SetStoredAsync(twin.Application.ID, SetMailSettings);
             ScriptApiServer();
 
-            // A password-only change through the Razor form, which posts every field...
-            var formUrl = $"/App/{twin.Application.Token}/Application/Email";
-            var razorResponse = await scene.Owner.PostAsync(formUrl, new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["MailServer"] = "smtp.example.test",
-                ["MailServerPort"] = "587",
-                ["MailFromAddress"] = "noreply@example.test",
-                ["MailFromDisplayName"] = "Example",
-                ["MailUserName"] = "mailer",
-                ["MailPassword"] = "razor-new-password",
-                ["EmailConfirmationRedirectUrl"] = "https://example.test/confirmed",
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(scene.Owner, formUrl)
-            }));
-
-            Assert.Equal(HttpStatusCode.OK, razorResponse.StatusCode);
-            Assert.Equal("razor-new-password", (await LoadAsync(twin.Application.ID)).MailPassword);
-
-            // The Razor portal resets the cache in the background, after it has answered.
-            await WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
-
-            var razorAudit = await AuditRowsAsync(scene.OwnerEmail);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            // ...and through the API, leaving out nothing but the new password.
-            var apiBody = new Dictionary<string, object?>
+            // Every field as it is stored, and a new password.
+            var body = new Dictionary<string, object?>
             {
                 ["MailServer"] = "smtp.example.test",
                 ["MailServerPort"] = 587,
                 ["MailFromAddress"] = "noreply@example.test",
                 ["MailFromDisplayName"] = "Example",
                 ["MailUserName"] = "mailer",
-                ["MailPassword"] = "api-new-password",
+                ["MailPassword"] = "a-new-password",
                 ["EmailConfirmationRedirectUrl"] = "https://example.test/confirmed"
             };
 
-            var apiResponse = await scene.Owner.PutAsync(scene.Url, apiBody.ToJsonContent());
-            Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
+            var response = await scene.Owner.PutAsync(scene.Url, body.ToJsonContent());
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Single(_portal.ApiServer.RequestsTo(FakeApiServer.ClearCachePath));
 
-            var apiAudit = (await AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
+            var row = Assert.Single(await AuditRowsAsync(scene.OwnerEmail));
 
-            var razorRow = Assert.Single(razorAudit);
-            var apiRow = Assert.Single(apiAudit);
-
-            Assert.Equal($"Application | {twin.Application.Name} | Modified | {twin.Application.ID}", Shape(razorRow));
-            Assert.Equal($"Application | {scene.Name} | Modified | {scene.AppId}", Shape(apiRow));
+            Assert.Equal($"Application | {scene.Name} | Modified | {scene.AppId}", Shape(row));
 
             // Compared before masking, so the change is recorded; the values never are.
-            Assert.Equal(new[] { "MailPassword: *** -> ***" }, Changes(razorRow));
-            Assert.Equal(new[] { "MailPassword: *** -> ***" }, Changes(apiRow));
-            Assert.DoesNotContain("api-new-password", apiRow.Changes);
-            Assert.DoesNotContain(StoredPassword, apiRow.Changes);
+            Assert.Equal(new[] { "MailPassword: *** -> ***" }, Changes(row));
+            Assert.DoesNotContain("a-new-password", row.Changes);
+            Assert.DoesNotContain(StoredPassword, row.Changes);
         }
 
         [Fact]
@@ -735,19 +704,9 @@ namespace Apilane.Portal.Tests
                 .ToList();
         }
 
-        private async Task WaitForRequestsAsync(string path, int count)
-        {
-            for (var attempt = 0; attempt < 200 && _portal.ApiServer.RequestsTo(path).Count < count; attempt++)
-            {
-                await Task.Delay(50);
-            }
-
-            Assert.Equal(count, _portal.ApiServer.RequestsTo(path).Count);
-        }
-
         /// <summary>
         /// The headers every Portal call carries: the application token, the caller's own API
-        /// token and no installation key.
+        /// token, the client name and Accept. Nothing else: no installation key.
         /// </summary>
         private async Task AssertPortalHeadersAsync(ApiServerRequest request, string appToken, string callerEmail)
         {
@@ -760,7 +719,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal(appToken, request.Headers["x-application-token"]);
             Assert.Equal("portal", request.Headers["x-client-id"]);
             Assert.Equal($"Bearer {token}", request.Headers["Authorization"]);
-            Assert.False(request.Headers.ContainsKey("x-installation-key"));
+            Assert.Equal(new[] { "Accept", "Authorization", "x-application-token", "x-client-id" }, request.Headers.Keys.OrderBy(x => x));
         }
     }
 }

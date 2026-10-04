@@ -121,7 +121,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal("portal@portal.test", mail.MailFromAddress);
             Assert.Equal($"Apilane tests - admin rights to {scene.Application.Application.Name}", mail.Subject);
             Assert.Contains($"User {scene.OwnerEmail} shared administrator rights to application <b>{scene.Application.Application.Name}</b> with you.", mail.Body);
-            Assert.Contains("<a href='http://localhost/ui/apps'>portal</a>", mail.Body);
+            Assert.Contains("<a href='http://localhost/apps'>portal</a>", mail.Body);
         }
 
         [Fact]

@@ -25,7 +25,7 @@ namespace Apilane.Portal.Abstractions
         Task<SchemaImportRequest> GetDiffAsync(string appToken, string sourceAppToken);
 
         /// <summary>
-        /// Applies the request step by step: entities in the foreign-key order of the Razor import
+        /// Applies the request step by step: entities in foreign-key order
         /// (each with its properties, then its constraints), then security rules, then custom
         /// endpoints, then one reset of the API server's cache. Not atomic: the first step that fails stops the import
         /// with a <see cref="Api.PortalException"/> that names it, the steps before it stay applied

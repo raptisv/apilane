@@ -79,7 +79,7 @@ namespace Apilane.Portal.Services
                 throw PortalException.Validation(errors);
             }
 
-            // The format of the Razor page: an empty list is stored as '[]'.
+            // An empty list is stored as '[]'.
             entity.EntDefaultOrder = JsonSerializer.Serialize(order);
 
             // Nothing to call: the cache reset is how the API server learns about the change.
@@ -93,7 +93,7 @@ namespace Apilane.Portal.Services
             var names = entity.Properties.OrderBy(x => x.ID).Select(x => x.Name).ToList();
             var items = new List<DefaultOrderItem>();
 
-            // As the Razor page shows it: a property that no longer exists is left out, and
+            // A property that no longer exists is left out, and
             // anything that is not 'asc' sorts descending. A property stored twice counts once,
             // so what is returned here can always be sent back.
             foreach (var stored in ReadStored(entity))

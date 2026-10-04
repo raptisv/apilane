@@ -27,7 +27,7 @@ namespace Apilane.Portal.Services
             var applications = await _dbContext.Applications
                 .AsNoTracking()
                 .Include(x => x.Server)
-                // The Razor page has no order: the order they were created.
+                // The order they were created.
                 .OrderBy(x => x.ID)
                 .ToListAsync();
 

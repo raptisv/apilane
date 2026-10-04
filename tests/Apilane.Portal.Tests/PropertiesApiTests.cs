@@ -32,7 +32,7 @@ namespace Apilane.Portal.Tests
         // ---------- List and get ----------
 
         [Fact]
-        public async Task List_Should_Return_The_Properties_In_The_Order_Of_The_Razor_Page()
+        public async Task List_Should_Return_The_Key_Then_The_Custom_Properties_Then_The_System_Ones()
         {
             var scene = await CreateSceneAsync();
 
@@ -70,8 +70,8 @@ namespace Apilane.Portal.Tests
             var list = await (await scene.Owner.GetAsync(scene.PropertiesUrl("Orders"))).ReadJsonAsync<ListResponse<PropertyResponse>>();
             var positions = list.Data.ToDictionary(x => x.Name, x => x.Position);
 
-            // The order of the Razor data browser: the system properties first, then the custom
-            // ones as they were added, whatever their names.
+            // The order they were created in: the system properties first, then the custom ones
+            // as they were added, whatever their names.
             Assert.Equal(0, positions["ID"]);
             Assert.Equal(1, positions["Owner"]);
             Assert.Equal(2, positions["Created"]);
@@ -277,7 +277,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal(decimalPlaces, created.DecimalPlaces);
             Assert.Equal(encrypted, created.Encrypted);
 
-            // The exact request of the Razor portal, then the cache reset.
+            // One request with the property as its body, then the cache reset.
             var requests = _portal.ApiServer.Requests;
             Assert.Equal(2, requests.Count);
 
@@ -317,78 +317,6 @@ namespace Apilane.Portal.Tests
             Assert.Equal("Created", audit.Action);
             Assert.Equal("Total", audit.EntityIdentifier);
             Assert.Equal(scene.AppId, audit.AppID);
-        }
-
-        [Fact]
-        public async Task Create_Should_Store_Send_And_Audit_What_The_Razor_Page_Stores_Sends_And_Audits()
-        {
-            var scene = await CreateSceneAsync();
-            ScriptApiServer();
-
-            // The same values through the Razor form...
-            var formUrl = $"/App/{scene.Token}/Ent/Invoices/Entity/PropertyCreate";
-            var razorResponse = await scene.Owner.PostAsync(formUrl, new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["Name"] = "RazorMade",
-                ["Description"] = "Same values",
-                ["TypeID"] = "2",
-                ["ValidationRegex"] = "^x$",
-                ["DecimalPlaces"] = "2",
-                ["Minimum"] = "1",
-                ["Maximum"] = "9",
-                ["Encrypted"] = "true",
-                ["Required"] = "true",
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(scene.Owner, formUrl)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-
-            // The Razor portal resets the cache in the background, after it has answered.
-            await WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
-
-            var razorRequests = _portal.ApiServer.Requests;
-            var razorAudit = await AuditRowsAsync(scene.OwnerEmail);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            // ...and through the API.
-            var body = CreateBody("ApiMade", "Number", decimalPlaces: 2);
-            body["Description"] = "Same values";
-            body["ValidationRegex"] = "^x$";
-            body["Minimum"] = 1;
-            body["Maximum"] = 9;
-            body["Encrypted"] = true;
-            body["Required"] = true;
-
-            Assert.Equal(HttpStatusCode.Created, (await scene.Owner.PostAsync(scene.PropertiesUrl("Invoices"), body.ToJsonContent())).StatusCode);
-
-            var apiRequests = _portal.ApiServer.Requests;
-            var apiAudit = (await AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-
-            // The same two calls with the same headers, and the same body but for the name.
-            Assert.Equal(2, razorRequests.Count);
-            Assert.Equal(razorRequests.Select(x => $"{x.Method} {x.Url}"), apiRequests.Select(x => $"{x.Method} {x.Url}"));
-
-            for (var i = 0; i < razorRequests.Count; i++)
-            {
-                Assert.Equal(
-                    razorRequests[i].Headers.OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Value}"),
-                    apiRequests[i].Headers.OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Value}"));
-            }
-
-            Assert.Equal(
-                Comparable(JsonSerializer.Deserialize<DBWS_EntityProperty>(razorRequests[0].Body) ?? throw new InvalidOperationException("No body."), "RazorMade"),
-                Comparable(JsonSerializer.Deserialize<DBWS_EntityProperty>(apiRequests[0].Body) ?? throw new InvalidOperationException("No body."), "ApiMade"));
-
-            // The same rows, field by field.
-            var properties = (await LoadEntityAsync(scene, "Invoices")).Properties;
-            Assert.Equal(
-                Comparable(Assert.Single(properties, x => x.Name == "RazorMade"), "RazorMade"),
-                Comparable(Assert.Single(properties, x => x.Name == "ApiMade"), "ApiMade"));
-
-            // The same audit entry.
-            Assert.Single(razorAudit);
-            Assert.Equal(AuditShape(razorAudit, "RazorMade"), AuditShape(apiAudit, "ApiMade"));
         }
 
         [Fact]
@@ -488,10 +416,10 @@ namespace Apilane.Portal.Tests
         [InlineData("Abcd")]
         [InlineData("With_Underscore_")]
         [InlineData("____")]
-        // Only the exact suffix is refused, as by the Razor form.
+        // Only the exact suffix is refused.
         [InlineData("Total_data")]
         [InlineData("Total_Data_")]
-        public async Task Create_Should_Accept_Names_The_Razor_Form_Accepts(string name)
+        public async Task Create_Should_Accept_Names_With_Underscores_And_Near_Misses_Of_The_Reserved_Suffix(string name)
         {
             var scene = await CreateSceneAsync();
             ScriptApiServer();
@@ -939,7 +867,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal(-5, updated.Minimum);
             Assert.Equal(5000, updated.Maximum);
 
-            // The Razor portal does not call the API server for it either: only the cache reset.
+            // The API server is not asked to change anything: only the cache reset.
             var request = Assert.Single(_portal.ApiServer.Requests);
             Assert.Equal($"{scene.ServerUrl}/api/Application/ClearCache", request.Url);
             await AssertPortalHeadersAsync(request, scene, scene.OwnerEmail);
@@ -1117,7 +1045,7 @@ namespace Apilane.Portal.Tests
             var scene = await CreateSceneAsync();
             ScriptApiServer();
 
-            // A schema import, a clone or the Razor page can store any long. The maximum of a String
+            // A schema import, a clone or an older version can store any long. The maximum of a String
             // cannot be edited, so it must not stop the description from being saved.
             await _portal.WithDbContextAsync(async db =>
             {
@@ -1243,65 +1171,6 @@ namespace Apilane.Portal.Tests
             Assert.Equal(50, storedSecret.Maximum);
         }
 
-        [Fact]
-        public async Task Update_Should_Store_And_Audit_What_The_Razor_Page_Stores_And_Audits()
-        {
-            var scene = await CreateSceneAsync();
-            ScriptApiServer();
-
-            // Two equal properties: one edited through the Razor form...
-            await _portal.WithDbContextAsync(async db =>
-            {
-                var invoices = await db.Entities.SingleAsync(x => x.AppID == scene.AppId && x.Name == "Invoices");
-
-                foreach (var name in new[] { "RazorEdit", "ApiEdit" })
-                {
-                    var property = Property(name, PropertyType.Number, entityId: invoices.ID);
-                    property.DecimalPlaces = 2;
-                    property.Minimum = 1;
-                    property.Maximum = 2;
-                    db.EntityProperties.Add(property);
-                }
-
-                return await db.SaveChangesAsync();
-            });
-
-            var formUrl = $"/App/{scene.Token}/Ent/Invoices/Prop/RazorEdit/Property/Edit";
-            var razorResponse = await scene.Owner.PostAsync(formUrl, new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["Name"] = "RazorEdit",
-                ["TypeID"] = "2",
-                ["Description"] = "Edited",
-                ["Minimum"] = "3",
-                ["Maximum"] = "4",
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(scene.Owner, formUrl)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-            await WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
-
-            var razorRequests = _portal.ApiServer.Requests;
-            var razorAudit = await AuditRowsAsync(scene.OwnerEmail);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            // ...and one through the API.
-            var apiResponse = await scene.Owner.PutAsync(scene.PropertyUrl("Invoices", "ApiEdit"), new { Description = "Edited", Minimum = 3, Maximum = 4 }.ToJsonContent());
-            Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
-
-            var apiAudit = (await AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-
-            Assert.Equal(razorRequests.Select(x => $"{x.Method} {x.Url}"), _portal.ApiServer.Requests.Select(x => $"{x.Method} {x.Url}"));
-
-            var properties = (await LoadEntityAsync(scene, "Invoices")).Properties;
-            Assert.Equal(
-                Comparable(Assert.Single(properties, x => x.Name == "RazorEdit"), "RazorEdit"),
-                Comparable(Assert.Single(properties, x => x.Name == "ApiEdit"), "ApiEdit"));
-
-            Assert.Single(razorAudit);
-            Assert.Equal(AuditShape(razorAudit, "RazorEdit"), AuditShape(apiAudit, "ApiEdit"));
-        }
-
         // ---------- Rename ----------
 
         [Fact]
@@ -1341,53 +1210,6 @@ namespace Apilane.Portal.Tests
             Assert.Equal(scene.AppId, audit.AppID);
             Assert.Contains("Amount", audit.Changes);
             Assert.Contains("Total", audit.Changes);
-        }
-
-        [Fact]
-        public async Task Rename_Should_Send_And_Audit_What_The_Razor_Page_Sends_And_Audits()
-        {
-            var scene = await CreateSceneAsync();
-            ScriptApiServer();
-
-            await _portal.WithDbContextAsync(async db =>
-            {
-                var invoices = await db.Entities.SingleAsync(x => x.AppID == scene.AppId && x.Name == "Invoices");
-                db.EntityProperties.Add(Property("RazorOld", PropertyType.Boolean, entityId: invoices.ID));
-                db.EntityProperties.Add(Property("ApiOld", PropertyType.Boolean, entityId: invoices.ID));
-
-                return await db.SaveChangesAsync();
-            });
-
-            var razorId = (await LoadPropertyAsync(scene, "Invoices", "RazorOld")).ID;
-            var apiId = (await LoadPropertyAsync(scene, "Invoices", "ApiOld")).ID;
-
-            var formUrl = $"/App/{scene.Token}/Ent/Invoices/Prop/RazorOld/Property/Rename";
-            var razorResponse = await scene.Owner.PostAsync(formUrl, new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["Name"] = "RazorNew",
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(scene.Owner, formUrl)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-            await WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
-
-            var razorRequests = _portal.ApiServer.Requests;
-            var razorAudit = await AuditRowsAsync(scene.OwnerEmail);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            var apiResponse = await scene.Owner.PostAsync($"{scene.PropertyUrl("Invoices", "ApiOld")}/rename", new { NewName = "ApiNew" }.ToJsonContent());
-            Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
-
-            var apiAudit = (await AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-
-            Assert.Equal(2, razorRequests.Count);
-            Assert.Equal(
-                razorRequests.Select(x => $"{x.Method} {x.Url}".Replace($"ID={razorId}", "ID=<id>").Replace("RazorNew", "<name>")),
-                _portal.ApiServer.Requests.Select(x => $"{x.Method} {x.Url}".Replace($"ID={apiId}", "ID=<id>").Replace("ApiNew", "<name>")));
-
-            Assert.Single(razorAudit);
-            Assert.Equal(AuditShape(razorAudit, "RazorNew"), AuditShape(apiAudit, "ApiNew"));
         }
 
         [Theory]
@@ -1457,7 +1279,7 @@ namespace Apilane.Portal.Tests
         [Theory]
         [InlineData("Amount")]
         [InlineData("amount")]
-        public async Task Rename_To_Its_Own_Name_Should_Be_Left_To_The_Api_Server_As_In_The_Razor_Portal(string newName)
+        public async Task Rename_To_Its_Own_Name_Should_Be_Left_To_The_Api_Server(string newName)
         {
             var scene = await CreateSceneAsync();
             ScriptApiServer();
@@ -1539,55 +1361,7 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Delete_Should_Send_And_Audit_What_The_Razor_Page_Sends_And_Audits()
-        {
-            var scene = await CreateSceneAsync();
-            ScriptApiServer();
-
-            await _portal.WithDbContextAsync(async db =>
-            {
-                var invoices = await db.Entities.SingleAsync(x => x.AppID == scene.AppId && x.Name == "Invoices");
-                db.EntityProperties.Add(Property("RazorGone", PropertyType.Boolean, entityId: invoices.ID));
-                db.EntityProperties.Add(Property("ApiGone", PropertyType.Boolean, entityId: invoices.ID));
-
-                return await db.SaveChangesAsync();
-            });
-
-            var razorId = (await LoadPropertyAsync(scene, "Invoices", "RazorGone")).ID;
-            var apiId = (await LoadPropertyAsync(scene, "Invoices", "ApiGone")).ID;
-
-            var formUrl = $"/App/{scene.Token}/Ent/Invoices/Prop/RazorGone/Property/Delete";
-            var razorResponse = await scene.Owner.PostAsync(formUrl, new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["Name"] = "RazorGone",
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(scene.Owner, formUrl)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-            await WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
-
-            var razorRequests = _portal.ApiServer.Requests;
-            var razorAudit = await AuditRowsAsync(scene.OwnerEmail);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            Assert.Equal(HttpStatusCode.NoContent, (await scene.Owner.DeleteAsync(scene.PropertyUrl("Invoices", "ApiGone"))).StatusCode);
-
-            var apiAudit = (await AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-
-            Assert.Equal(2, razorRequests.Count);
-            Assert.Equal(
-                razorRequests.Select(x => $"{x.Method} {x.Url}".Replace($"ID={razorId}", "ID=<id>")),
-                _portal.ApiServer.Requests.Select(x => $"{x.Method} {x.Url}".Replace($"ID={apiId}", "ID=<id>")));
-
-            Assert.Single(razorAudit);
-            Assert.Equal(AuditShape(razorAudit, "RazorGone"), AuditShape(apiAudit, "ApiGone"));
-
-            await AssertSeedUnchangedAsync(scene);
-        }
-
-        [Fact]
-        public async Task Delete_System_Property_Should_Return_409_With_The_Razor_Message()
+        public async Task Delete_System_Property_Should_Return_409_Saying_It_Is_Part_Of_A_Module()
         {
             var scene = await CreateSceneAsync();
             ScriptApiServer();
@@ -2070,24 +1844,6 @@ namespace Apilane.Portal.Tests
                 .ToListAsync());
         }
 
-        private static List<string> AuditShape(List<PortalAuditLog> rows, string propertyName)
-        {
-            return rows
-                .Select(x => $"{x.EntityType} | {x.EntityIdentifier.Replace(propertyName, "<name>")} | {x.Action} | app {x.AppID} | {x.UserId}")
-                .OrderBy(x => x)
-                .ToList();
-        }
-
-        private async Task WaitForRequestsAsync(string path, int count)
-        {
-            for (var attempt = 0; attempt < 200 && _portal.ApiServer.RequestsTo(path).Count < count; attempt++)
-            {
-                await Task.Delay(50);
-            }
-
-            Assert.Equal(count, _portal.ApiServer.RequestsTo(path).Count);
-        }
-
         /// <summary>
         /// The seeded entities and every value of their properties are as the scene was seeded.
         /// </summary>
@@ -2147,14 +1903,14 @@ namespace Apilane.Portal.Tests
 
         /// <summary>
         /// The headers every Portal call carries: the application token, the caller's own API
-        /// token and no installation key.
+        /// token, the client name and Accept. Nothing else: no installation key.
         /// </summary>
         private async Task AssertPortalHeadersAsync(ApiServerRequest request, Scene scene, string callerEmail)
         {
             Assert.Equal(scene.Token, request.Headers["x-application-token"]);
             Assert.Equal("portal", request.Headers["x-client-id"]);
             Assert.Equal($"Bearer {await StoredTokenAsync(callerEmail)}", request.Headers["Authorization"]);
-            Assert.False(request.Headers.ContainsKey("x-installation-key"));
+            Assert.Equal(new[] { "Accept", "Authorization", "x-application-token", "x-client-id" }, request.Headers.Keys.OrderBy(x => x));
         }
 
         private async Task<string> StoredTokenAsync(string email)

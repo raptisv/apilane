@@ -147,33 +147,6 @@ namespace Apilane.Portal.Tests.Infrastructure
         }
 
         /// <summary>
-        /// Adds two entities with the same properties and the same stored values, one for the
-        /// Razor page and one for the API, so a test can compare what each of them does.
-        /// </summary>
-        public Task<int> AddTwinsAsync(string razorName, string apiName, string? constraints, string? defaultOrder)
-        {
-            return Portal.WithDbContextAsync(db =>
-            {
-                foreach (var name in new[] { razorName, apiName })
-                {
-                    var twin = Entity(AppId, name, false,
-                        Property("ID", PropertyType.Number, isSystem: true, isPrimaryKey: true),
-                        Property("Owner", PropertyType.Number, isSystem: true, decimalPlaces: 0),
-                        Property("Customer_ID", PropertyType.Number, decimalPlaces: 0),
-                        Property("Code", PropertyType.String),
-                        Property("Paid", PropertyType.Boolean));
-
-                    twin.EntConstraints = constraints;
-                    twin.EntDefaultOrder = defaultOrder;
-
-                    db.Entities.Add(twin);
-                }
-
-                return db.SaveChangesAsync();
-            });
-        }
-
-        /// <summary>
         /// The entities of the application with their properties, in the order they were added.
         /// </summary>
         public async Task<List<DBWS_Entity>> LoadEntitiesAsync()
@@ -218,24 +191,6 @@ namespace Apilane.Portal.Tests.Infrastructure
                 .ToListAsync());
         }
 
-        public static List<string> AuditShape(List<PortalAuditLog> rows, string entityName)
-        {
-            return rows
-                .Select(x => $"{x.EntityType} | {x.EntityIdentifier.Replace(entityName, "<name>")} | {x.Action} | app {x.AppID} | {x.UserId}")
-                .OrderBy(x => x)
-                .ToList();
-        }
-
-        public async Task WaitForRequestsAsync(string path, int count)
-        {
-            for (var attempt = 0; attempt < 200 && Portal.ApiServer.RequestsTo(path).Count < count; attempt++)
-            {
-                await Task.Delay(50);
-            }
-
-            Assert.Equal(count, Portal.ApiServer.RequestsTo(path).Count);
-        }
-
         /// <summary>
         /// The constraints and the default sorting of every seeded entity are as they were seeded,
         /// and nobody caused an audit row.
@@ -253,7 +208,7 @@ namespace Apilane.Portal.Tests.Infrastructure
 
         /// <summary>
         /// The headers every Portal call carries: the application token, the caller's own API
-        /// token and no installation key.
+        /// token, the client name and Accept. Nothing else: no installation key.
         /// </summary>
         public async Task AssertPortalHeadersAsync(ApiServerRequest request, string callerEmail)
         {
@@ -266,7 +221,7 @@ namespace Apilane.Portal.Tests.Infrastructure
             Assert.Equal(Token, request.Headers["x-application-token"]);
             Assert.Equal("portal", request.Headers["x-client-id"]);
             Assert.Equal($"Bearer {token}", request.Headers["Authorization"]);
-            Assert.False(request.Headers.ContainsKey("x-installation-key"));
+            Assert.Equal(new[] { "Accept", "Authorization", "x-application-token", "x-client-id" }, request.Headers.Keys.OrderBy(x => x));
         }
 
         public static void AssertWarning(HttpResponseMessage response)

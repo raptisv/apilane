@@ -180,7 +180,7 @@ namespace Apilane.Portal.Tests
         }
 
         [Theory]
-        // The Razor form has no upper limit for its custom range.
+        // A custom range has no upper limit.
         [InlineData("5000d", "Last 5000 days")]
         [InlineData("7D", "Last 7 days")]
         [InlineData(" 7d ", "Last 7 days")]
@@ -319,7 +319,7 @@ namespace Apilane.Portal.Tests
         {
             var scene = await EntityScene.CreateAsync(_portal);
 
-            // The Razor form stores whatever number is posted.
+            // Older versions stored whatever number was posted.
             await SeedAsync(scene.AppId, "Odd type", (ReportType)9, 0, 0, 6, 4, null, 30, Series("Fine", "Orders", "Code", "ID.Count"));
 
             var response = await scene.Owner.GetAsync(ReportsUrl(scene));
@@ -490,7 +490,7 @@ namespace Apilane.Portal.Tests
         }
 
         [Theory]
-        // The Razor dashboard stores any row and height; the new panel stays on the grid of this API.
+        // Older versions stored any row and height; the new panel stays on the grid of this API.
         [InlineData(int.MaxValue, 1, 10000)]
         [InlineData(20000, 4, 10000)]
         [InlineData(-50, 4, 0)]
@@ -680,184 +680,6 @@ namespace Apilane.Portal.Tests
             var audit = Assert.Single(await scene.AuditRowsAsync(scene.OwnerEmail));
             Assert.Equal("Report | Deleted | Going", $"{audit.EntityType} | {audit.Action} | {audit.EntityIdentifier}");
             Assert.Equal(scene.AppId, audit.AppID);
-            Assert.Empty(_portal.ApiServer.Requests);
-        }
-
-        // ---------- The same as the Razor pages ----------
-
-        [Fact]
-        public async Task Create_Should_Store_And_Audit_What_The_Razor_Form_Stores_And_Audits()
-        {
-            var scene = await EntityScene.CreateAsync(_portal);
-            await SeedAsync(scene.AppId, "Existing", ReportType.Line, 2, 1, 4, 4, null, 30, Series("A", "Orders", "Created.Year", "ID.Count"));
-
-            const string title = "Orders per month";
-
-            // One report through the Razor form...
-            var razorResponse = await scene.Owner.PostAsync($"/App/{scene.Token}/Reports/Create", new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["Title"] = title,
-                ["TypeID"] = ((int)ReportType.StackedBar).ToString(),
-                ["TimeRange"] = "30d",
-                ["MaxRecords"] = "40",
-                ["seriesJson"] = JsonSerializer.Serialize(new object[]
-                {
-                    new { Label = " Paid ", Entity = "Orders", GroupBy = "Created.Year,Created.Month", Property = "Amount.Sum", Filter = OrdersFilter },
-                    new { Label = "All", Entity = "Customers", GroupBy = "Name", Property = "ID.Count", Filter = "" }
-                }),
-                ["__RequestVerificationToken"] = await RazorTokenAsync(scene)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-
-            var razorAudit = await scene.AuditRowsAsync(scene.OwnerEmail);
-
-            // ...and the same one through the API.
-            var apiResponse = await scene.Owner.PostAsync(ReportsUrl(scene), Body("StackedBar", "30d", 40, title,
-                SeriesBody(" Paid ", "Orders", "Created.Year,Created.Month", "Amount.Sum", OrdersFilter),
-                SeriesBody("All", "Customers", "Name", "ID.Count", "")).ToJsonContent());
-
-            Assert.Equal(HttpStatusCode.Created, apiResponse.StatusCode);
-
-            var apiAudit = (await scene.AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-            var stored = (await LoadAsync(scene.AppId)).Where(x => x.Title == title).ToList();
-
-            Assert.Equal(2, stored.Count);
-
-            // The same values and series, each below what was there: the first under 'Existing', the second under the first.
-            Assert.Equal(Describe(stored[0], withPlace: false), Describe(stored[1], withPlace: false));
-            Assert.Equal("0,5,6,4", $"{stored[0].X},{stored[0].Y},{stored[0].W},{stored[0].H}");
-            Assert.Equal("0,9,6,4", $"{stored[1].X},{stored[1].Y},{stored[1].W},{stored[1].H}");
-            Assert.Equal(
-                $"5 | {title} | 40 | 30d | 0:Paid|Orders|Created.Year,Created.Month|Amount.Sum|{OrdersFilter} ; 1:All|Customers|Name|ID.Count|<null>",
-                Describe(stored[1], withPlace: false));
-
-            // The same audit row. Neither calls the API server.
-            Assert.Single(razorAudit);
-            Assert.Equal(razorAudit.Select(x => AuditShape(x, scene.AppId)), apiAudit.Select(x => AuditShape(x, scene.AppId)));
-            Assert.Empty(_portal.ApiServer.Requests);
-        }
-
-        [Fact]
-        public async Task Update_Should_Store_And_Audit_What_The_Razor_Form_Stores_And_Audits()
-        {
-            var scene = await EntityScene.CreateAsync(_portal);
-
-            // Two equal reports, one saved through the Razor form...
-            var razorSide = await SeedAsync(scene.AppId, "Before", ReportType.Line, 1, 2, 3, 4, "24h", 30, Series("Old", "Orders", "Created.Year", "ID.Count"));
-            var apiSide = await SeedAsync(scene.AppId, "Before", ReportType.Line, 1, 2, 3, 4, "24h", 30, Series("Old", "Orders", "Created.Year", "ID.Count"));
-
-            var razorResponse = await scene.Owner.PostAsync($"/App/{scene.Token}/Reports/Edit", new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["ID"] = razorSide.ID.ToString(),
-                ["AppID"] = scene.AppId.ToString(),
-                ["Title"] = "After",
-                ["TypeID"] = ((int)ReportType.Grid).ToString(),
-                ["TimeRange"] = "",
-                ["MaxRecords"] = "75",
-                ["seriesJson"] = JsonSerializer.Serialize(new object[]
-                {
-                    new { Label = "First", Entity = "Orders", GroupBy = "Code", Property = "Code.Max", Filter = OrdersFilter },
-                    new { Label = "Second", Entity = "Orders", GroupBy = "Created.Year", Property = "Created.Min", Filter = "" }
-                }),
-                ["__RequestVerificationToken"] = await RazorTokenAsync(scene)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-
-            var razorAudit = await scene.AuditRowsAsync(scene.OwnerEmail);
-
-            // ...and one through the API.
-            var apiResponse = await scene.Owner.PutAsync(ReportUrl(scene, apiSide.ID), Body("Grid", null, 75, "After",
-                SeriesBody("First", "Orders", "Code", "Code.Max", OrdersFilter),
-                SeriesBody("Second", "Orders", "Created.Year", "Created.Min", "")).ToJsonContent());
-
-            Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
-
-            var apiAudit = (await scene.AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-            var stored = await LoadAsync(scene.AppId);
-            var razorStored = Assert.Single(stored, x => x.ID == razorSide.ID);
-            var apiStored = Assert.Single(stored, x => x.ID == apiSide.ID);
-
-            Assert.Equal(
-                $"0 | After | 75 | <null> | 1,2,3,4 | 0:First|Orders|Code|Code.Max|{OrdersFilter} ; 1:Second|Orders|Created.Year|Created.Min|<null>",
-                Describe(razorStored));
-            Assert.Equal(Describe(razorStored), Describe(apiStored));
-
-            // Both stamp the change and replace the series rows.
-            Assert.NotEqual(_seeded, razorStored.DateModified);
-            Assert.NotEqual(_seeded, apiStored.DateModified);
-            Assert.Equal(4, await _portal.WithDbContextAsync(db => db.ReportSeries.CountAsync(x => x.PanelID == razorSide.ID || x.PanelID == apiSide.ID)));
-
-            Assert.Single(razorAudit);
-            Assert.Equal(razorAudit.Select(x => AuditShape(x, scene.AppId)), apiAudit.Select(x => AuditShape(x, scene.AppId)));
-            Assert.Empty(_portal.ApiServer.Requests);
-        }
-
-        [Fact]
-        public async Task Delete_Should_Remove_And_Audit_What_The_Razor_Form_Removes_And_Audits()
-        {
-            var scene = await EntityScene.CreateAsync(_portal);
-
-            var razorSide = await SeedAsync(scene.AppId, "Going", ReportType.Line, 0, 0, 6, 4, null, 30, Series("A", "Orders", "Created.Year", "ID.Count"));
-            var apiSide = await SeedAsync(scene.AppId, "Going", ReportType.Line, 6, 0, 6, 4, null, 30, Series("A", "Orders", "Created.Year", "ID.Count"));
-
-            var razorResponse = await scene.Owner.PostAsync($"/App/{scene.Token}/Reports/Delete", new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["ID"] = razorSide.ID.ToString(),
-                ["__RequestVerificationToken"] = await RazorTokenAsync(scene)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-
-            var razorAudit = await scene.AuditRowsAsync(scene.OwnerEmail);
-
-            Assert.Equal(HttpStatusCode.NoContent, (await scene.Owner.DeleteAsync(ReportUrl(scene, apiSide.ID))).StatusCode);
-
-            var apiAudit = (await scene.AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-
-            Assert.Empty(await LoadAsync(scene.AppId));
-            Assert.False(await _portal.WithDbContextAsync(db => db.ReportSeries.AnyAsync(x => x.PanelID == razorSide.ID || x.PanelID == apiSide.ID)));
-
-            Assert.Single(razorAudit);
-            Assert.Equal(razorAudit.Select(x => AuditShape(x, scene.AppId)), apiAudit.Select(x => AuditShape(x, scene.AppId)));
-            Assert.Empty(_portal.ApiServer.Requests);
-        }
-
-        [Fact]
-        public async Task Layout_Should_Store_And_Audit_What_The_Razor_Dashboard_Stores_And_Audits()
-        {
-            var scene = await EntityScene.CreateAsync(_portal);
-
-            var razorSide = await SeedAsync(scene.AppId, "Panel", ReportType.Line, 0, 0, 6, 4, null, 30, Series("A", "Orders", "Created.Year", "ID.Count"));
-            var apiSide = await SeedAsync(scene.AppId, "Panel", ReportType.Line, 0, 0, 6, 4, null, 30, Series("A", "Orders", "Created.Year", "ID.Count"));
-
-            // The dashboard posts a bare list with the antiforgery token in a header.
-            var razorRequest = new HttpRequestMessage(HttpMethod.Post, $"/App/{scene.Token}/Reports/SaveLayout")
-            {
-                Content = new[] { new { Id = razorSide.ID, X = 3, Y = 7, W = 5, H = 2 } }.ToJsonContent()
-            };
-            razorRequest.Headers.Add("RequestVerificationToken", await RazorTokenAsync(scene));
-
-            Assert.Equal(HttpStatusCode.OK, (await scene.Owner.SendAsync(razorRequest)).StatusCode);
-
-            var razorAudit = await scene.AuditRowsAsync(scene.OwnerEmail);
-
-            var apiResponse = await scene.Owner.PutAsync(LayoutUrl(scene), Layout((apiSide.ID, 3, 7, 5, 2)).ToJsonContent());
-
-            Assert.Equal(HttpStatusCode.NoContent, apiResponse.StatusCode);
-
-            var apiAudit = (await scene.AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-            var stored = await LoadAsync(scene.AppId);
-
-            Assert.Equal("2 | Panel | 30 | <null> | 3,7,5,2 | 0:A|Orders|Created.Year|ID.Count|<null>", Describe(stored[0]));
-            Assert.Equal(Describe(stored[0]), Describe(stored[1]));
-
-            // Neither stamps the report: only the four numbers change.
-            Assert.All(stored, x => Assert.Equal(_seeded, x.DateModified));
-
-            Assert.Equal(new[] { "Report | Modified | Panel | H,W,X,Y" }, razorAudit.Select(x => AuditShape(x, scene.AppId)));
-            Assert.Equal(razorAudit.Select(x => AuditShape(x, scene.AppId)), apiAudit.Select(x => AuditShape(x, scene.AppId)));
             Assert.Empty(_portal.ApiServer.Requests);
         }
 
@@ -1177,37 +999,6 @@ namespace Apilane.Portal.Tests
 
         // ---------- Report fields ----------
 
-        [Theory]
-        [InlineData(ReportType.Grid, "Orders")]
-        [InlineData(ReportType.Pie, "Orders")]
-        [InlineData(ReportType.Line, "Orders")]
-        [InlineData(ReportType.Bar, "Orders")]
-        [InlineData(ReportType.Radar, "Orders")]
-        [InlineData(ReportType.StackedBar, "Orders")]
-        [InlineData(ReportType.Grid, "Users")]
-        [InlineData(ReportType.Line, "Users")]
-        [InlineData(ReportType.Pie, "Invoices")]
-        public async Task Report_Fields_Should_Equal_What_The_Razor_Editor_Gets(ReportType type, string entity)
-        {
-            var scene = await EntityScene.CreateAsync(_portal);
-
-            var razorResponse = await scene.Owner.GetAsync($"/App/{scene.Token}/Ent/{entity}/Entity/GetProperties?typeID={(int)type}");
-            var apiResponse = await scene.Owner.GetAsync(FieldsUrl(scene, entity, type.ToString()));
-
-            Assert.Equal(HttpStatusCode.OK, razorResponse.StatusCode);
-            Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
-
-            // Strict: the contract has no property the Razor answer lacks.
-            await apiResponse.ReadJsonAsync<ReportFieldsResponse>();
-
-            var razor = JsonNode.Parse(await razorResponse.Content.ReadAsStringAsync());
-            var api = JsonNode.Parse(await apiResponse.Content.ReadAsStringAsync());
-
-            Assert.NotNull(razor?["Properties"]);
-            Assert.Equal(razor?.ToJsonString(), api?.ToJsonString());
-            Assert.Empty(_portal.ApiServer.Requests);
-        }
-
         [Fact]
         public async Task Report_Fields_Of_A_Grid_Should_Offer_Max_And_Min_Of_Texts_And_Dates()
         {
@@ -1271,12 +1062,29 @@ namespace Apilane.Portal.Tests
                 fields.Groupings.Select(Describe));
         }
 
+        [Theory]
+        [InlineData("Grid", "Users", "{\"Properties\":[{\"Name\":\"ID\",\"Subs\":[\"Count\"]},{\"Name\":\"Email\",\"Subs\":[\"Max\",\"Min\"]},{\"Name\":\"Nickname\",\"Subs\":[\"Max\",\"Min\"]}],\"Groupings\":[{\"Name\":\"Email\",\"Subs\":[]},{\"Name\":\"Nickname\",\"Subs\":[]}]}")]
+        [InlineData("Line", "Users", "{\"Properties\":[{\"Name\":\"ID\",\"Subs\":[\"Count\"]}],\"Groupings\":[]}")]
+        [InlineData("Pie", "Invoices", "{\"Properties\":[{\"Name\":\"ID\",\"Subs\":[\"Count\"]}],\"Groupings\":[]}")]
+        public async Task Report_Fields_Of_Entities_With_Texts_Only_Or_Nothing_But_A_Key_Should_Offer_What_The_Type_Can_Show(string type, string entity, string expected)
+        {
+            var scene = await EntityScene.CreateAsync(_portal);
+
+            var response = await scene.Owner.GetAsync(FieldsUrl(scene, entity, type));
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(expected, await response.Content.ReadAsStringAsync());
+
+            // Reading does not involve the API server.
+            Assert.Empty(_portal.ApiServer.Requests);
+        }
+
         [Fact]
         public async Task Report_Fields_Of_An_Entity_Without_A_Primary_Key_Should_Offer_No_Count()
         {
             var scene = await EntityScene.CreateAsync(_portal);
 
-            // Only an imported application file can hold such an entity; the Razor editor fails on it.
+            // Only an imported application file can hold such an entity.
             await _portal.WithDbContextAsync(db =>
             {
                 db.Entities.Add(EntityScene.Entity(scene.AppId, "Keyless", false, EntityScene.Property("Name", PropertyType.String)));
@@ -1445,14 +1253,6 @@ namespace Apilane.Portal.Tests
         private static string FieldsUrl(EntityScene scene, string entity, string type)
         {
             return $"{scene.AppUrl}/entities/{entity}/report-fields?Type={type}";
-        }
-
-        /// <summary>
-        /// The antiforgery token of the Razor pages of the owner. Any form of the user gives one that fits them all.
-        /// </summary>
-        private Task<string> RazorTokenAsync(EntityScene scene)
-        {
-            return _portal.GetAntiforgeryTokenAsync(scene.Owner, $"/App/{scene.Token}/Reports/Create");
         }
 
         private static DBWS_ReportSeries Series(string label, string entity, string groupBy, string property, string? filter = null, int? order = null)

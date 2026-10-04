@@ -79,7 +79,7 @@ namespace Apilane.Portal.Tests
 
             var list = await response.ReadJsonAsync<ListResponse<EntityResponse>>();
 
-            // Sorted as the Razor page sorts them: 'archive' before 'Customers', whatever order they were added in.
+            // Sorted by name without regard to letter case: 'archive' before 'Customers', whatever order they were added in.
             Assert.Equal(new[] { "archive", "Customers", "Files", "Invoices", "Orders", "Users" }, list.Data.Select(x => x.Name));
             Assert.Equal(6, list.Total);
             Assert.All(list.Data, x => Assert.Null(x.Properties));
@@ -209,7 +209,7 @@ namespace Apilane.Portal.Tests
             var one = await (await scene.Owner.GetAsync(scene.EntityUrl("Invoices"))).ReadJsonAsync<EntityResponse>();
             Assert.Empty(one.Constraints);
 
-            // The Razor pages fail on such a value; here rename and delete of the other entities still work.
+            // Such a value does not get in the way: rename and delete of the other entities still work.
             // (The entity such a foreign key points to stays protected: see the 409 theory under Delete.)
             Assert.Equal(HttpStatusCode.NoContent, (await scene.Owner.DeleteAsync(scene.EntityUrl("Orders"))).StatusCode);
         }
@@ -266,7 +266,7 @@ namespace Apilane.Portal.Tests
         // ---------- Get one ----------
 
         [Fact]
-        public async Task Get_Should_Return_The_Entity_With_Its_Properties_In_The_Order_Of_The_Razor_Page()
+        public async Task Get_Should_Return_The_Entity_With_Its_Key_Then_Its_Custom_Properties_Then_The_System_Ones()
         {
             var scene = await CreateSceneAsync();
 
@@ -514,7 +514,7 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Create_Should_Send_The_Three_Requests_The_Razor_Portal_Sends_And_Store_The_Entity()
+        public async Task Create_Should_Send_Three_Requests_To_The_Api_Server_And_Store_The_Entity()
         {
             var scene = await CreateSceneAsync();
             ScriptApiServer();
@@ -570,69 +570,6 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Create_Should_Store_Send_And_Audit_What_The_Razor_Page_Stores_Sends_And_Audits()
-        {
-            var scene = await CreateSceneAsync();
-            ScriptApiServer();
-
-            // The same values through the Razor form...
-            var formUrl = $"/App/{scene.Token}/Application/EntityCreate";
-            var razorResponse = await scene.Owner.PostAsync(formUrl, new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["Name"] = "RazorMade",
-                ["Description"] = "Same values",
-                ["RequireChangeTracking"] = "true",
-                ["HasDifferentiationProperty"] = "false",
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(scene.Owner, formUrl)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-
-            // The Razor portal resets the cache in the background, after it has answered.
-            await WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
-
-            var razorRequests = _portal.ApiServer.Requests;
-            var razorAudit = await AuditRowsAsync(scene.OwnerEmail);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            // ...and through the API.
-            var body = CreateBody("ApiMade");
-            body["Description"] = "Same values";
-            body["RequireChangeTracking"] = true;
-
-            var apiResponse = await scene.Owner.PostAsync(scene.EntitiesUrl, body.ToJsonContent());
-            Assert.Equal(HttpStatusCode.Created, apiResponse.StatusCode);
-
-            var apiRequests = _portal.ApiServer.Requests;
-            var apiAudit = (await AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-
-            // The same three calls with the same headers, and the same GenerateEntity body but for the name.
-            Assert.Equal(3, razorRequests.Count);
-            Assert.Equal(razorRequests.Select(x => $"{x.Method} {x.Url}"), apiRequests.Select(x => $"{x.Method} {x.Url}"));
-
-            for (var i = 0; i < razorRequests.Count; i++)
-            {
-                Assert.Equal(
-                    razorRequests[i].Headers.OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Value}"),
-                    apiRequests[i].Headers.OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Value}"));
-            }
-
-            Assert.Equal(
-                Comparable(JsonSerializer.Deserialize<DBWS_Entity>(razorRequests[1].Body) ?? throw new InvalidOperationException("No body."), "RazorMade"),
-                Comparable(JsonSerializer.Deserialize<DBWS_Entity>(apiRequests[1].Body) ?? throw new InvalidOperationException("No body."), "ApiMade"));
-
-            // The same rows, field by field.
-            Assert.Equal(
-                Comparable(await LoadEntityAsync(scene, "RazorMade"), "RazorMade"),
-                Comparable(await LoadEntityAsync(scene, "ApiMade"), "ApiMade"));
-
-            // The same audit entries: the entity and each of its properties.
-            Assert.Equal(4, razorAudit.Count);
-            Assert.Equal(AuditShape(razorAudit, "RazorMade"), AuditShape(apiAudit, "ApiMade"));
-        }
-
-        [Fact]
         public async Task Create_Should_Write_Audit_Rows_For_The_Entity_And_Its_Properties()
         {
             var scene = await CreateSceneAsync();
@@ -641,6 +578,8 @@ namespace Apilane.Portal.Tests
             await scene.Owner.PostAsync(scene.EntitiesUrl, CreateBody("Shipments").ToJsonContent());
 
             var audit = await AuditRowsAsync(scene.OwnerEmail);
+
+            Assert.Equal(4, audit.Count);
 
             var entity = Assert.Single(audit, x => x.EntityType == "Entity");
             Assert.Equal("Shipments", entity.EntityIdentifier);
@@ -651,6 +590,9 @@ namespace Apilane.Portal.Tests
             Assert.Equal(
                 new[] { "Created", "ID", "Owner" },
                 audit.Where(x => x.EntityType == "Property" && x.Action == "Created").Select(x => x.EntityIdentifier).OrderBy(x => x));
+
+            // The rows of the system properties of a new entity carry no application.
+            Assert.All(audit.Where(x => x.EntityType == "Property"), x => Assert.Null(x.AppID));
         }
 
         [Theory]
@@ -1098,7 +1040,7 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Rename_Entity_Referenced_By_A_Foreign_Key_Should_Return_409_With_The_Razor_Message()
+        public async Task Rename_Entity_Referenced_By_A_Foreign_Key_Should_Return_409_Naming_The_Entity_That_Refers_To_It()
         {
             var scene = await CreateSceneAsync();
             ScriptApiServer();
@@ -1142,7 +1084,7 @@ namespace Apilane.Portal.Tests
         [Theory]
         [InlineData("Invoices")]
         [InlineData("INVOICES")]
-        public async Task Rename_To_Its_Own_Name_Should_Be_Left_To_The_Api_Server_As_In_The_Razor_Portal(string newName)
+        public async Task Rename_To_Its_Own_Name_Should_Be_Left_To_The_Api_Server(string newName)
         {
             var scene = await CreateSceneAsync();
             ScriptApiServer();
@@ -1222,6 +1164,8 @@ namespace Apilane.Portal.Tests
 
             var audit = await AuditRowsAsync(scene.OwnerEmail);
 
+            Assert.Equal(1 + before.Properties.Count, audit.Count);
+
             var entity = Assert.Single(audit, x => x.EntityType == "Entity");
             Assert.Equal("Orders", entity.EntityIdentifier);
             Assert.Equal("Deleted", entity.Action);
@@ -1230,52 +1174,6 @@ namespace Apilane.Portal.Tests
             Assert.Equal(
                 before.Properties.Select(x => x.Name).OrderBy(x => x),
                 audit.Where(x => x.EntityType == "Property" && x.Action == "Deleted").Select(x => x.EntityIdentifier).OrderBy(x => x));
-        }
-
-        [Fact]
-        public async Task Delete_Should_Send_And_Audit_What_The_Razor_Page_Sends_And_Audits()
-        {
-            var scene = await CreateSceneAsync();
-            ScriptApiServer();
-
-            // Two entities with the same properties: one deleted through the Razor form...
-            await _portal.WithDbContextAsync(db =>
-            {
-                db.Entities.Add(Entity(scene.AppId, "RazorGone", false, Property("ID", PropertyType.Number, isSystem: true, isPrimaryKey: true), Property("Title", PropertyType.String)));
-                db.Entities.Add(Entity(scene.AppId, "ApiGone", false, Property("ID", PropertyType.Number, isSystem: true, isPrimaryKey: true), Property("Title", PropertyType.String)));
-                return db.SaveChangesAsync();
-            });
-
-            var formUrl = $"/App/{scene.Token}/Ent/RazorGone/Entity/Delete";
-            var razorResponse = await scene.Owner.PostAsync(formUrl, new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["Name"] = "RazorGone",
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(scene.Owner, formUrl)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-            await WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
-
-            var razorRequests = _portal.ApiServer.Requests;
-            var razorAudit = await AuditRowsAsync(scene.OwnerEmail);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            // ...and one through the API.
-            Assert.Equal(HttpStatusCode.NoContent, (await scene.Owner.DeleteAsync(scene.EntityUrl("ApiGone"))).StatusCode);
-
-            var apiRequests = _portal.ApiServer.Requests;
-            var apiAudit = (await AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-
-            Assert.Equal(2, razorRequests.Count);
-            Assert.Equal(
-                razorRequests.Select(x => $"{x.Method} {x.Url}".Replace("RazorGone", "ApiGone")),
-                apiRequests.Select(x => $"{x.Method} {x.Url}"));
-
-            Assert.Equal(3, razorAudit.Count);
-            Assert.Equal(AuditShape(razorAudit, "RazorGone"), AuditShape(apiAudit, "ApiGone"));
-
-            Assert.DoesNotContain(await LoadEntitiesAsync(scene), x => x.Name == "RazorGone" || x.Name == "ApiGone");
         }
 
         [Theory]
@@ -1705,29 +1603,6 @@ namespace Apilane.Portal.Tests
         }
 
         /// <summary>
-        /// An entity as JSON without what differs between any two: IDs and the name. In a request
-        /// body EntityID is a placeholder the Portal database replaces when the row is saved.
-        /// </summary>
-        private static string Comparable(DBWS_Entity entity, string name)
-        {
-            entity.Properties = entity.Properties.OrderBy(x => x.ID).ToList();
-
-            var root = JsonSerializer.SerializeToNode(entity)?.AsObject() ?? throw new InvalidOperationException("No entity.");
-
-            Assert.Equal(name, root["Name"]?.GetValue<string>());
-            root.Remove("Name");
-            root.Remove("ID");
-
-            foreach (var property in root["Properties"]?.AsArray() ?? new JsonArray())
-            {
-                property?.AsObject().Remove("ID");
-                property?.AsObject().Remove("EntityID");
-            }
-
-            return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        }
-
-        /// <summary>
         /// The audit rows a user caused, oldest first. Seeding writes none: it has no signed-in request.
         /// </summary>
         private async Task<List<PortalAuditLog>> AuditRowsAsync(string userEmail)
@@ -1737,24 +1612,6 @@ namespace Apilane.Portal.Tests
                 .Where(x => x.UserEmail == userEmail)
                 .OrderBy(x => x.ID)
                 .ToListAsync());
-        }
-
-        private static List<string> AuditShape(List<PortalAuditLog> rows, string entityName)
-        {
-            return rows
-                .Select(x => $"{x.EntityType} | {x.EntityIdentifier.Replace(entityName, "<name>")} | {x.Action} | app {x.AppID} | {x.UserId}")
-                .OrderBy(x => x)
-                .ToList();
-        }
-
-        private async Task WaitForRequestsAsync(string path, int count)
-        {
-            for (var attempt = 0; attempt < 200 && _portal.ApiServer.RequestsTo(path).Count < count; attempt++)
-            {
-                await Task.Delay(50);
-            }
-
-            Assert.Equal(count, _portal.ApiServer.RequestsTo(path).Count);
         }
 
         /// <summary>
@@ -1807,14 +1664,14 @@ namespace Apilane.Portal.Tests
 
         /// <summary>
         /// The headers every Portal call carries: the application token, the caller's own API
-        /// token and no installation key.
+        /// token, the client name and Accept. Nothing else: no installation key.
         /// </summary>
         private async Task AssertPortalHeadersAsync(ApiServerRequest request, Scene scene, string callerEmail)
         {
             Assert.Equal(scene.Token, request.Headers["x-application-token"]);
             Assert.Equal("portal", request.Headers["x-client-id"]);
             Assert.Equal($"Bearer {await StoredTokenAsync(callerEmail)}", request.Headers["Authorization"]);
-            Assert.False(request.Headers.ContainsKey("x-installation-key"));
+            Assert.Equal(new[] { "Accept", "Authorization", "x-application-token", "x-client-id" }, request.Headers.Keys.OrderBy(x => x));
         }
 
         private async Task<string> StoredTokenAsync(string email)

@@ -6,7 +6,7 @@ import { needsConnectionString } from './applications'
  * functions and constants, so both places say the same thing and the rules can be unit-tested.
  */
 
-/** What being offline means, as the classic portal says it. */
+/** What being offline means. */
 export const offlineWarning = 'The application will not be available to the users, until the status is set back online.'
 
 /** The box the user ticks before a rebuild or a delete. */
@@ -18,7 +18,7 @@ export interface Consequence {
   strong?: boolean
 }
 
-/** What a rebuild does, as the classic page lists it. */
+/** What a rebuild does. */
 export const rebuildConsequences: readonly Consequence[] = [
   { text: 'The application token will remain the same.' },
   { text: 'All entities and their properties will remain as is.' },
@@ -26,7 +26,7 @@ export const rebuildConsequences: readonly Consequence[] = [
   { text: 'This action is not reversible!', strong: true },
 ]
 
-/** What a delete does: the classic page's warning, then what goes with the application. */
+/** What a delete does: the warning, then what goes with the application. */
 export const deleteConsequences: readonly Consequence[] = [
   { text: 'The application will be deleted. This action is not reversible!', strong: true },
   {

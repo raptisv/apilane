@@ -8,8 +8,7 @@ using System.Threading.Tasks;
 
 namespace Apilane.Portal.Api.V1
 {
-    // Not named AccountController: the MVC AccountController builds its mail links with
-    // Url.Action("ResetPassword", "Account"), which must keep resolving to the MVC action.
+    // Renaming the controller changes the contract: operation ids are built from its name.
     [Route("api/v1/account")]
     public class PortalAccountController : PortalApiControllerBase
     {

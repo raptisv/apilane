@@ -131,11 +131,11 @@ async function submit(): Promise<void> {
   await router.push({ name: 'app-clone-progress', params: { appToken, operationId: started.OperationId } })
 }
 
-// What a clone is, from the classic page.
+// What a clone is.
 const notes = [
   'The cloned application is going to be identical to the original.',
   'Entities, properties, custom endpoints and security will be identical.',
-  'If "Clone data" is selected, data will also be migrated. Otherwise the new database will be empty.',
+  'If "Clone data" is selected, data will also be copied. Otherwise the new database will be empty.',
   'You can select which entities to clone data for. By default, all entities are selected.',
   'A new application token will be automatically generated.',
   'The applications (source and clone) will not be connected to each other.',

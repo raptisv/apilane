@@ -91,7 +91,7 @@ namespace Apilane.Portal.Services
                     continue;
                 }
 
-                // Several stored rows for one foreign key come from the Razor page; keeping any of them is fine.
+                // Several stored rows for one foreign key come from older versions; keeping any of them is fine.
                 var onDelete = requested[i]?.OnDelete;
                 if (constraint.TypeID == (int)ConstraintType.ForeignKey
                     && storedForeignKeys.Any(x => x.Key == key)
@@ -125,7 +125,7 @@ namespace Apilane.Portal.Services
             };
         }
 
-        // What the Razor constraints page offers, in the order the properties and entities were created.
+        // What a constraint can be made of, in the order the properties and entities were created.
         private static ConstraintCandidatesResponse GetCandidates(DBWS_Application application, DBWS_Entity entity)
         {
             var properties = entity.Properties.OrderBy(x => x.ID).ToList();

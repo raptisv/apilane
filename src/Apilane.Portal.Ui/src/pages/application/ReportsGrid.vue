@@ -5,7 +5,7 @@ import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 import type { Schemas } from '@/lib/api'
 import type { Report } from '@/lib/reportData'
 
-// The dashboard on a wide screen: a 12-column grid (gridstack, as in the classic portal) whose
+// The dashboard on a wide screen: a 12-column grid (gridstack) whose
 // panels are dragged by their title ('.report-drag-handle') and resized by their edges. What a
 // panel shows comes from the default slot. ReportsPage loads this component with a dynamic import,
 // so gridstack is downloaded only when a dashboard is shown on a wide screen.
@@ -57,8 +57,8 @@ onMounted(() => {
     }
   }
 
-  // The settings of the classic dashboard (Views/Reports/Index.cshtml), so a stored layout looks
-  // the same in both. 'top' is what gridstack 14 calls float: false: panels move up into gaps.
+  // Stored layouts are in these units (12 columns, rows of 70px): changing them reshapes every
+  // saved dashboard. 'top' is what gridstack 14 calls float: false: panels move up into gaps.
   grid =
     GridStack.init(
       { column: 12, cellHeight: 70, margin: 6, handle: '.report-drag-handle', mode: 'top', resizable: { handles: 'e, se, s, sw, w' } },

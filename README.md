@@ -57,3 +57,5 @@ See the [SDK documentation](https://docs.apilane.com/developer_guide/sdk/) for u
 # Documentation
 
 For more info check [our docs](https://docs.apilane.com).
+
+The Portal (its UI and the management API under `/api/v1`) is documented in [src/Apilane.Portal.Ui/README.md](src/Apilane.Portal.Ui/README.md): how it behaves, how to run, build and deploy it, and how to call its API.

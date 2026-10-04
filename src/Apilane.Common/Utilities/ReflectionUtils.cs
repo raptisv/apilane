@@ -1,4 +1,7 @@
-﻿using System;
+﻿// Adapted from ReflectionUtils.cs in Westwind.Utilities (https://github.com/RickStrahl/Westwind.Utilities).
+// Author: Rick Strahl, (c) West Wind Technologies, 2008 - 2009. MIT License: see licenses/Westwind.Utilities-MIT.
+
+using System;
 using System.Collections;
 using System.ComponentModel;
 using System.Diagnostics;

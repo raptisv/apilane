@@ -31,7 +31,7 @@ namespace Apilane.Portal.Tests
         // ---------- Get ----------
 
         [Fact]
-        public async Task Get_Should_Return_The_Constraints_And_What_The_Razor_Page_Offers()
+        public async Task Get_Should_Return_The_Constraints_And_What_Can_Be_Chosen()
         {
             var scene = await EntityScene.CreateAsync(_portal);
 
@@ -131,7 +131,7 @@ namespace Apilane.Portal.Tests
             const string expected = "[" + EntityScene.OwnerConstraint + ",{\"IsSystem\":false,\"TypeID\":1,\"Properties\":\"Paid,Code\"}]";
             Assert.Equal(expected, (await scene.LoadEntityAsync("Orders")).EntConstraints);
 
-            // The request of the Razor portal with the whole list as its body, then the cache reset.
+            // One request with the whole list as its body, then the cache reset.
             var requests = _portal.ApiServer.Requests;
             Assert.Equal(2, requests.Count);
             Assert.Equal(HttpMethod.Post, requests[0].Method);
@@ -151,7 +151,7 @@ namespace Apilane.Portal.Tests
 
             // One audit row, for the entity.
             var audit = Assert.Single(await scene.AuditRowsAsync(scene.OwnerEmail));
-            Assert.Equal("Modified", audit.Action);
+            Assert.Equal("Entity | Orders | Modified", $"{audit.EntityType} | {audit.EntityIdentifier} | {audit.Action}");
             Assert.Equal(scene.AppId, audit.AppID);
         }
 
@@ -204,92 +204,6 @@ namespace Apilane.Portal.Tests
                 "{\"IsSystem\":false,\"TypeID\":2,\"Properties\":\"Customer_ID,Customers,ON_DELETE_CASCADE\"}," +
                 "{\"IsSystem\":false,\"TypeID\":2,\"Properties\":\"Agent_ID,Orders,ON_DELETE_NO_ACTION\"}]",
                 (await scene.LoadEntityAsync("Orders")).EntConstraints);
-        }
-
-        [Fact]
-        public async Task Put_Should_Store_Send_And_Audit_What_The_Razor_Page_Stores_Sends_And_Audits()
-        {
-            var scene = await EntityScene.CreateAsync(_portal);
-            ScriptApiServer();
-
-            // Two equal entities with a system constraint and a custom one...
-            await scene.AddTwinsAsync("RazorSide", "ApiSide", $"[{EntityScene.OwnerConstraint},{CodeConstraint}]", null);
-
-            // ...one saved through the Razor form: the custom constraint edited, two added, and
-            // the empty row the page always posts.
-            var formUrl = $"/App/{scene.Token}/Ent/RazorSide/Entity/Constraints";
-            var razorResponse = await scene.Owner.PostAsync(formUrl, new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["[0].IsSystem"] = "True",
-                ["[0].TypeID"] = "2",
-                ["[0].Properties"] = "Owner,Users,ON_DELETE_SET_NULL",
-                ["[1].IsSystem"] = "False",
-                ["[1].TypeID"] = "1",
-                ["[1].Properties"] = "Code,Paid",
-                ["[2].IsSystem"] = "False",
-                ["[2].TypeID"] = "2",
-                ["[2].Properties"] = "Customer_ID,Customers,ON_DELETE_CASCADE",
-                ["[3].IsSystem"] = "False",
-                ["[3].TypeID"] = "1",
-                ["[3].Properties"] = "Paid",
-                ["[4].IsSystem"] = "False",
-                ["[4].TypeID"] = "1",
-                ["[4].Properties"] = "",
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(scene.Owner, formUrl)
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-
-            // The Razor portal resets the cache in the background, after it has answered.
-            await scene.WaitForRequestsAsync(FakeApiServer.ClearCachePath, 1);
-
-            var razorRequests = _portal.ApiServer.Requests;
-            var razorAudit = await scene.AuditRowsAsync(scene.OwnerEmail);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            // ...and one through the API, without the system constraint.
-            var apiResponse = await scene.Owner.PutAsync(
-                scene.ConstraintsUrl("ApiSide"),
-                Body(
-                    new { Type = "Unique", Properties = new[] { "Code", "Paid" } },
-                    new { Type = "ForeignKey", Property = "Customer_ID", ForeignEntity = "Customers", OnDelete = "ON_DELETE_CASCADE" },
-                    new { Type = "Unique", Properties = new[] { "Paid" } }).ToJsonContent());
-
-            Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
-
-            var apiRequests = _portal.ApiServer.Requests;
-            var apiAudit = (await scene.AuditRowsAsync(scene.OwnerEmail)).Skip(razorAudit.Count).ToList();
-
-            // The same two calls with the same headers and the same body, byte for byte.
-            Assert.Equal(2, razorRequests.Count);
-            Assert.Equal(
-                razorRequests.Select(x => $"{x.Method} {x.Url}".Replace("RazorSide", "ApiSide")),
-                apiRequests.Select(x => $"{x.Method} {x.Url}"));
-
-            for (var i = 0; i < razorRequests.Count; i++)
-            {
-                Assert.Equal(
-                    razorRequests[i].Headers.OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Value}"),
-                    apiRequests[i].Headers.OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Value}"));
-            }
-
-            Assert.Equal(razorRequests[0].Body, apiRequests[0].Body);
-
-            // The same stored text.
-            var razorStored = (await scene.LoadEntityAsync("RazorSide")).EntConstraints;
-            Assert.Equal(
-                "[" + EntityScene.OwnerConstraint + "," +
-                "{\"IsSystem\":false,\"TypeID\":1,\"Properties\":\"Code,Paid\"}," +
-                "{\"IsSystem\":false,\"TypeID\":2,\"Properties\":\"Customer_ID,Customers,ON_DELETE_CASCADE\"}," +
-                "{\"IsSystem\":false,\"TypeID\":1,\"Properties\":\"Paid\"}]",
-                razorStored);
-            Assert.Equal(razorStored, (await scene.LoadEntityAsync("ApiSide")).EntConstraints);
-            Assert.Equal(razorStored, razorRequests[0].Body);
-
-            // The same audit entry.
-            Assert.Single(razorAudit);
-            Assert.Equal(EntityScene.AuditShape(razorAudit, "RazorSide"), EntityScene.AuditShape(apiAudit, "ApiSide"));
         }
 
         [Fact]
@@ -372,9 +286,9 @@ namespace Apilane.Portal.Tests
         }
 
         [Theory]
-        // The Razor page stores a second foreign key on the same property and entity with another action.
+        // Older versions stored a second foreign key on the same property and entity with another action.
         [InlineData("Customer_ID,Customers,ON_DELETE_CASCADE", 2, "Customer_ID,Customers,ON_DELETE_SET_NULL", 2)]
-        // Only from an import or hand-edited data: the Razor form lists unique properties in a fixed order.
+        // Only from an import or hand-edited data.
         [InlineData("Code,Paid", 1, "Paid,Code", 1)]
         public async Task Get_Then_Put_Of_Stored_Duplicates_Should_Return_400_And_Change_Nothing(string first, int firstType, string second, int secondType)
         {

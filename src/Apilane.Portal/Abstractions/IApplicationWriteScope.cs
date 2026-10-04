@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace Apilane.Portal.Abstractions
 {
     /// <summary>
-    /// The one order every write to an application follows, the same as the Razor portal:
+    /// The one order every write to an application follows:
     /// the caller validates and changes the tracked entities, then this calls the API server,
     /// saves the Portal database and tells the API server to reload the application.
     /// </summary>

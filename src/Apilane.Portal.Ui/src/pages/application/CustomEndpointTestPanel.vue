@@ -25,7 +25,7 @@ const address = computed(() => endpointAddress(props.serverUrl, props.appToken, 
 
 // A value stays when its parameter leaves the SQL and comes back, so editing the SQL loses nothing typed.
 // The boxes are text boxes: a number box would hand over a JavaScript number, which rounds a long
-// integer above 2^53 (a 64-bit ID). The text is sent as typed, as on the Razor page.
+// integer above 2^53 (a 64-bit ID). The text is sent as typed.
 const values = reactive<Record<string, string | number>>({})
 
 const result = shallowRef<unknown>()
@@ -40,7 +40,7 @@ const test = useMutation(async () => {
 
 async function run(): Promise<void> {
   if (!(await test.run())) {
-    // As on the Razor page: an error replaces the last result.
+    // An error replaces the last result.
     result.value = undefined
   }
 }

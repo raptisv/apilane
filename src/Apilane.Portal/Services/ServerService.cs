@@ -24,7 +24,7 @@ namespace Apilane.Portal.Services
 
         public async Task<List<ServerResponse>> GetAllAsync()
         {
-            // Same order as the Razor page: the order the servers were added.
+            // The order the servers were added.
             return await _dbContext.Servers
                 .AsNoTracking()
                 .OrderBy(x => x.ID)
@@ -82,7 +82,7 @@ namespace Apilane.Portal.Services
 
             var server = await FindAsync(id);
 
-            // DateModified is left as it is, like the Razor page does.
+            // DateModified is left as it is.
             server.Name = request.Name;
             server.ServerUrl = request.ServerUrl;
 

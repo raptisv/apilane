@@ -109,7 +109,7 @@ namespace Apilane.Portal.Services
             await _dbContext.SaveChangesAsync();
         }
 
-        // The mail of CollaborateController.Share, with the link pointing to the Portal UI.
+        // Tells the new collaborator by mail, with a link to the applications page (/apps).
         // The share is saved already, so a mail that cannot be handed over is reported as
         // NotificationSent = false instead of a 500. SMTP errors are logged by EmailService itself.
         private bool SendNotification(DBWS_Application application, string recipient)

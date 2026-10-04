@@ -34,7 +34,7 @@ async function submit(): Promise<boolean> {
 
   const target = afterSignIn(route.query.returnUrl)
 
-  // false: a full page load to a classic portal page is under way.
+  // false: a full page load is under way, to an address the Portal answers itself (/swagger).
   if (target) {
     await router.replace(target)
   }

@@ -1,6 +1,6 @@
 // The e-mail templates of an application. They live on its API server, not in the Portal: the
 // e-mail screen reads them with GET {ServerUrl}/api/Email/GetEmails and saves one with
-// PUT {ServerUrl}/api/Email/Update (through lib/apiServer.ts), as the classic page does.
+// PUT {ServerUrl}/api/Email/Update (through lib/apiServer.ts).
 
 /** A template as GET /api/Email/GetEmails answers it. */
 export interface EmailTemplate {
@@ -29,7 +29,7 @@ export interface Placeholder {
   description: string
 }
 
-/** The templates the screen lists: the classic page skips one without an event code. */
+/** The templates the screen lists: one without an event code is left out. */
 export function visibleTemplates(templates: readonly EmailTemplate[]): EmailTemplate[] {
   return templates.filter((template) => template.EventCode !== null)
 }
@@ -52,7 +52,7 @@ const eventPlaceholders: Record<string, Placeholder[]> = {
   ],
 }
 
-/** The placeholders a template can use, as the classic page lists them. None for an unknown event. */
+/** The placeholders a template can use. None for an unknown event. */
 export function templatePlaceholders(eventCode: string): Placeholder[] {
   const own = eventPlaceholders[eventCode]
 

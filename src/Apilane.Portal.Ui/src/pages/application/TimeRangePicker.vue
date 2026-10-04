@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { parseTimeRange } from '@/lib/reportData'
 import { quickTimeRanges, timeUnits } from '@/lib/reports'
 
-// The time range of a report in the editor: the quick ranges of the classic portal, or 'Custom'
+// The time range of a report in the editor: one of the quick ranges, or 'Custom'
 // with a number and a unit. The value is the code the API stores ('7d'), '' for none. Inside a
 // FormField bind the slot's `field` onto it like onto an Input.
 defineOptions({ inheritAttrs: false })

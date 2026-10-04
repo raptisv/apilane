@@ -40,7 +40,7 @@ namespace Apilane.Portal.Services
             var application = await _applicationAccessService.GetApplicationWithEntitiesAsync(appToken);
             var entity = _applicationAccessService.GetEntity(application, entityName);
 
-            // The mapper puts them in the order of the Razor properties page.
+            // The mapper sorts them (EntityMapper).
             return entity.ToResponse(application, withProperties: true).Properties ?? new List<PropertyResponse>();
         }
 
@@ -58,7 +58,7 @@ namespace Apilane.Portal.Services
             var application = await _applicationAccessService.GetApplicationWithEntitiesAsync(appToken);
             var entity = _applicationAccessService.GetEntity(application, entityName);
 
-            // The Razor page sends the user back to the entities list.
+            // Some system entities take no new properties.
             if (!entity.AllowAddProperties())
             {
                 throw PortalException.Conflict("Properties cannot be added to this entity", EntityName);
@@ -189,7 +189,7 @@ namespace Apilane.Portal.Services
 
         /// <summary>
         /// The one set of type-dependent rules, for a new property and for a changed one. First
-        /// drops the values the type has no use for, as the Razor forms do, then checks the rest.
+        /// drops the values the type has no use for, then checks the rest.
         /// The errors name the request properties, which are called the same in both requests.
         /// </summary>
         private static List<ErrorDetail> NormaliseAndValidate(DBWS_EntityProperty property, bool isNew)
@@ -354,7 +354,7 @@ namespace Apilane.Portal.Services
             return false;
         }
 
-        // What the Razor form does with a field left empty.
+        // A field left empty is stored as null.
         private static string? EmptyToNull(string? value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value;

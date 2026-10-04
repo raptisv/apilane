@@ -92,7 +92,7 @@ namespace Apilane.Portal.Services
             var user = await _portalAccessService.GetCurrentUserAsync();
             var application = await _applicationAccessService.GetApplicationAsync(appToken);
 
-            // The stored type decides, never the request: the Razor form posts it as a hidden field.
+            // The stored type decides, never the request.
             if (application.DatabaseType != (int)DatabaseType.SQLLite)
             {
                 if (request.ConnectionString is not null)
@@ -144,7 +144,7 @@ namespace Apilane.Portal.Services
 
         public async Task DeleteAsync(string appToken)
         {
-            // Entities and properties are loaded, as on the Razor page, so they are removed and audited
+            // Entities and properties are loaded, so they are removed and audited
             // with the application, like its collaborators and custom endpoints. Reports go with it in the database.
             var application = await _applicationAccessService.GetApplicationWithEntitiesAsync(appToken);
 

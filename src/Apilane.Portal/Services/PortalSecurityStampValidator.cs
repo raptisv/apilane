@@ -10,7 +10,7 @@ namespace Apilane.Portal.Services
     /// <summary>
     /// Identity rebuilds the principal of a login cookie every validation interval (30 minutes).
     /// That refresh must not start a new session: this validator hands the session token of the
-    /// incoming cookie to <see cref="Controllers.AccountController.AppClaimsPrincipalFactory"/>,
+    /// incoming cookie to <see cref="AppClaimsPrincipalFactory"/>,
     /// which then keeps it instead of minting a new one. A token that was already revoked stays revoked.
     /// </summary>
     public class PortalSecurityStampValidator : SecurityStampValidator<ApplicationUser>

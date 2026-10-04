@@ -104,7 +104,7 @@ const update = useMutation((entity: Entity) =>
       ...entityPath(entity),
       body: {
         Description: editForm.Description.trim() || null,
-        // Without the switch (records that cannot be updated) change tracking is off, as in the classic portal.
+        // Without the switch (records that cannot be updated) change tracking is off.
         RequireChangeTracking: entity.AllowPut && editForm.RequireChangeTracking,
       },
     }),

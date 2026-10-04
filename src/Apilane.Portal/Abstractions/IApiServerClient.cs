@@ -9,7 +9,7 @@ namespace Apilane.Portal.Abstractions
     /// The calls the management API makes to an API server, as the signed-in user. Every failure is
     /// a <see cref="Api.PortalException"/>: VALIDATION (400) with the API server's own message and
     /// property when the API server answered 400, UPSTREAM_ERROR (502) for every other answer and
-    /// when it cannot be reached. The Razor portal keeps using IApiHttpService.
+    /// when it cannot be reached. The clone routine (ICloneService) sends through IApiHttpService instead.
     /// </summary>
     public interface IApiServerClient
     {

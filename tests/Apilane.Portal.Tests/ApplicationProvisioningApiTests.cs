@@ -188,7 +188,7 @@ namespace Apilane.Portal.Tests
             var server = await _portal.CreateServerAsync();
             ScriptApiServer();
 
-            // Through the API only: the Razor page does not trim.
+            // A server URL stored with a trailing slash.
             await _portal.WithDbContextAsync(async db =>
             {
                 var stored = await db.Servers.SingleAsync(x => x.ID == server.ID);
@@ -348,7 +348,7 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Create_Should_Send_The_Three_Requests_The_Razor_Portal_Sends()
+        public async Task Create_Should_Send_Three_Requests_To_The_Api_Server()
         {
             var user = await NewUserAsync();
             var server = await _portal.CreateServerAsync();
@@ -367,6 +367,16 @@ namespace Apilane.Portal.Tests
 
             var requests = _portal.ApiServer.Requests;
             Assert.Equal(3, requests.Count);
+
+            // No header but these; the installation key goes with Generate only.
+            Assert.Equal(
+                new[]
+                {
+                    "Accept,Authorization,x-application-token,x-client-id",
+                    "Accept,Authorization,x-application-token,x-client-id,x-installation-key",
+                    "Accept,Authorization,x-application-token,x-client-id"
+                },
+                requests.Select(x => string.Join(",", x.Headers.Keys.OrderBy(k => k))));
 
             // 1. The system entities, before the application exists: the token header is empty. The value is trimmed and encoded.
             Assert.Equal(HttpMethod.Get, requests[0].Method);
@@ -410,7 +420,7 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Create_Should_Store_The_Defaults_Of_The_Razor_Portal()
+        public async Task Create_Should_Store_The_Defaults_Of_A_New_Application()
         {
             var user = await NewUserAsync();
             var server = await _portal.CreateServerAsync();
@@ -459,69 +469,6 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Create_Should_Store_And_Send_What_The_Razor_Page_Stores_And_Sends()
-        {
-            var user = await NewUserAsync();
-            var server = await _portal.CreateServerAsync();
-            ScriptApiServer();
-
-            // The same values through the Razor form...
-            var razorName = UniqueName();
-            var razorResponse = await user.Client.PostAsync("/Applications/Create", new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["Name"] = razorName,
-                ["ServerID"] = server.ID.ToString(),
-                ["DatabaseType"] = ((int)DatabaseType.PostgreSQL).ToString(),
-                ["ConnectionString"] = "Host=db;Database=app",
-                ["DifferentiationEntity"] = " Company ",
-                ["__RequestVerificationToken"] = await _portal.GetAntiforgeryTokenAsync(user.Client, "/Applications/Create")
-            }));
-
-            Assert.Equal(HttpStatusCode.Redirect, razorResponse.StatusCode);
-
-            var razorRequests = _portal.ApiServer.Requests;
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            // ...and through the API.
-            var body = CreateBody(UniqueName(), server.ID, "PostgreSQL", "Host=db;Database=app");
-            body["DifferentiationEntity"] = " Company ";
-
-            var apiResponse = await user.Client.PostAsync(Url, body.ToJsonContent());
-            Assert.Equal(HttpStatusCode.Created, apiResponse.StatusCode);
-
-            var apiRequests = _portal.ApiServer.Requests;
-            var created = await apiResponse.ReadJsonAsync<ApplicationResponse>();
-
-            var razorToken = await _portal.WithDbContextAsync(db => db.Applications.Where(x => x.Name == razorName).Select(x => x.Token).SingleAsync());
-
-            // Field by field, entities, properties, report and series included.
-            Assert.Equal(
-                Comparable(JsonSerializer.SerializeToNode(await LoadAsync(razorToken))),
-                Comparable(JsonSerializer.SerializeToNode(await LoadAsync(created.Token))));
-
-            // The same three calls, with the same headers and the same Generate body.
-            Assert.Equal(razorRequests.Select(x => $"{x.Method} {x.Url}"), apiRequests.Select(x => $"{x.Method} {x.Url}"));
-
-            for (var i = 0; i < razorRequests.Count; i++)
-            {
-                Assert.Equal(razorRequests[i].Headers.Keys.OrderBy(x => x), apiRequests[i].Headers.Keys.OrderBy(x => x));
-                Assert.Equal(razorRequests[i].Headers["Authorization"], apiRequests[i].Headers["Authorization"]);
-                Assert.Equal(razorRequests[i].Headers["x-client-id"], apiRequests[i].Headers["x-client-id"]);
-            }
-
-            Assert.Equal(razorRequests[1].Headers["x-installation-key"], apiRequests[1].Headers["x-installation-key"]);
-            Assert.Equal(Comparable(JsonNode.Parse(razorRequests[1].Body)), Comparable(JsonNode.Parse(apiRequests[1].Body)));
-
-            // The same audit entry for the new application.
-            var razorAudit = await AuditRowAsync(razorName);
-            var apiAudit = await AuditRowAsync(created.Name);
-            Assert.Equal(razorAudit.UserEmail, apiAudit.UserEmail);
-            Assert.Equal(razorAudit.UserId, apiAudit.UserId);
-            Assert.Equal(razorAudit.AppID, apiAudit.AppID);
-        }
-
-        [Fact]
         public async Task Create_Should_Write_The_Audit_Row_Of_A_New_Application()
         {
             var user = await NewUserAsync();
@@ -532,8 +479,13 @@ namespace Apilane.Portal.Tests
             var response = await user.Client.PostAsync(Url, CreateBody(name, server.ID, "SQLServer", "Server=audit-secret").ToJsonContent());
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
+            var owner = await _portal.WithDbContextAsync(db => db.Users.AsNoTracking().SingleAsync(x => x.Email == user.Email));
+
+            // The row of a new application names who created it and carries no application ID.
             var audit = await AuditRowAsync(name);
             Assert.Equal(user.Email, audit.UserEmail);
+            Assert.Equal(owner.Id, audit.UserId);
+            Assert.Null(audit.AppID);
             Assert.Contains(name, audit.Changes);
             Assert.DoesNotContain("audit-secret", audit.Changes);
         }
@@ -728,8 +680,11 @@ namespace Apilane.Portal.Tests
             Assert.Equal("Orders per day", Assert.Single(stored.Reports).Title);
             Assert.Equal("Orders", Assert.Single(stored.Reports[0].Series).Label);
 
-            // One call: Generate, with the installation key. No system entities and no cache reset, as the Razor import.
+            // One call: Generate, with the installation key. No system entities and no cache reset.
             var request = Assert.Single(_portal.ApiServer.Requests);
+            Assert.Equal(
+                new[] { "Accept", "Authorization", "x-application-token", "x-client-id", "x-installation-key" },
+                request.Headers.Keys.OrderBy(x => x));
             Assert.Equal(HttpMethod.Post, request.Method);
             Assert.Equal($"{server.ServerUrl}/api/ApplicationNew/Generate", request.Url);
             Assert.Equal(export.Token, request.Headers["x-application-token"]);
@@ -745,63 +700,12 @@ namespace Apilane.Portal.Tests
             Assert.Equal(server.ServerUrl, sent.Server.ServerUrl);
             Assert.Null(sent.ConnectionString);
             Assert.Empty(sent.Collaborates);
+            Assert.Contains("\"Collaborates\":[]", request.Body);
             Assert.Equal(new[] { "Users", "Files", "Orders" }, sent.Entities.Select(x => x.Name));
             Assert.All(sent.Entities, x => Assert.Equal(0, x.ID));
             Assert.All(sent.Entities.SelectMany(x => x.Properties), x => Assert.Equal(0, x.ID));
             Assert.All(sent.CustomEndpoints, x => Assert.Equal(0, x.ID));
             Assert.All(sent.Reports, x => Assert.Equal(0, x.ID));
-        }
-
-        [Fact]
-        public async Task Import_Should_Store_And_Send_What_The_Razor_Import_Stores_And_Sends()
-        {
-            var user = await NewUserAsync();
-            var server = await _portal.CreateServerAsync();
-            ScriptApiServer();
-
-            // Two files that differ in token and name only. Series ID 0: the Razor import keeps the
-            // series IDs of the file, which fails when a row with that ID exists.
-            var razorExport = Export();
-            var apiExport = Export();
-            razorExport.Reports[0].Series[0].ID = 0;
-            apiExport.Reports[0].Series[0].ID = 0;
-
-            var razorForm = new MultipartFormDataContent();
-            razorForm.Add(new ByteArrayContent(Encoding.UTF8.GetBytes(Json(razorExport))), "fileUpload", "application.json");
-            razorForm.Add(new StringContent(server.ID.ToString()), "ServerID");
-            razorForm.Add(new StringContent(((int)DatabaseType.PostgreSQL).ToString()), "DatabaseType");
-            razorForm.Add(new StringContent("Host=db;Database=app"), "ConnectionString");
-
-            var razorResponse = await user.Client.PostAsync("/Applications/Import", razorForm);
-            Assert.Equal(HttpStatusCode.OK, razorResponse.StatusCode);
-
-            var razorRequest = Assert.Single(_portal.ApiServer.Requests);
-            _portal.ApiServer.Reset();
-            ScriptApiServer();
-
-            var apiResponse = await user.Client.PostAsync(ImportUrl, ImportBody(Json(apiExport), server.ID, "PostgreSQL", "Host=db;Database=app"));
-            Assert.Equal(HttpStatusCode.Created, apiResponse.StatusCode);
-
-            var apiRequest = Assert.Single(_portal.ApiServer.Requests);
-
-            Assert.Equal(
-                Comparable(JsonSerializer.SerializeToNode(await LoadAsync(razorExport.Token))),
-                Comparable(JsonSerializer.SerializeToNode(await LoadAsync(apiExport.Token))));
-
-            Assert.Equal($"{razorRequest.Method} {razorRequest.Url}", $"{apiRequest.Method} {apiRequest.Url}");
-            Assert.Equal(razorRequest.Headers.Keys.OrderBy(x => x), apiRequest.Headers.Keys.OrderBy(x => x));
-            Assert.Equal(razorRequest.Headers["Authorization"], apiRequest.Headers["Authorization"]);
-            Assert.Equal(razorRequest.Headers["x-installation-key"], apiRequest.Headers["x-installation-key"]);
-
-            // The one difference in the body: the Razor import sends no collaborator list, the API an empty one.
-            var razorBody = JsonNode.Parse(razorRequest.Body)?.AsObject() ?? throw new InvalidOperationException("No body.");
-            var apiBody = JsonNode.Parse(apiRequest.Body)?.AsObject() ?? throw new InvalidOperationException("No body.");
-            Assert.Null(razorBody["Collaborates"]);
-            Assert.Empty(apiBody["Collaborates"]?.AsArray() ?? throw new InvalidOperationException("No Collaborates."));
-            razorBody.Remove("Collaborates");
-            apiBody.Remove("Collaborates");
-
-            Assert.Equal(Comparable(razorBody), Comparable(apiBody));
         }
 
         [Fact]
@@ -1395,45 +1299,6 @@ namespace Apilane.Portal.Tests
             application.Entities.ForEach(x => x.Properties = x.Properties.OrderBy(p => p.ID).ToList());
 
             return application;
-        }
-
-        /// <summary>
-        /// An application as JSON without what differs between any two applications: IDs, token,
-        /// name, encryption key and timestamps.
-        /// </summary>
-        private static string Comparable(JsonNode? application)
-        {
-            var root = application?.AsObject() ?? throw new InvalidOperationException("No application.");
-
-            root.Remove("Token");
-            root.Remove("Name");
-            root.Remove("EncryptionKey");
-            Scrub(root);
-
-            return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        }
-
-        private static void Scrub(JsonNode? node)
-        {
-            if (node is JsonArray array)
-            {
-                foreach (var item in array)
-                {
-                    Scrub(item);
-                }
-            }
-            else if (node is JsonObject item)
-            {
-                foreach (var key in new[] { "ID", "AppID", "EntityID", "PanelID", "DateModified" })
-                {
-                    item.Remove(key);
-                }
-
-                foreach (var child in item.ToList())
-                {
-                    Scrub(child.Value);
-                }
-            }
         }
 
         private async Task<PortalAuditLog> AuditRowAsync(string applicationName)

@@ -23,7 +23,7 @@ const route = useRoute()
 const groups = computed(() => groupByServer(applications.value ?? []))
 // Only on the screens of one application: the admin data browser (/admin/applications/:appToken/data) has an :appToken too.
 const current = computed(() =>
-  route.path.startsWith('/apps/')
+  route.path.toLowerCase().startsWith('/apps/')
     ? applications.value?.find((application) => application.Token === route.params.appToken)
     : undefined,
 )

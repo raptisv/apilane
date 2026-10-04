@@ -79,7 +79,7 @@ const propertyOptions = computed(() =>
     : [series.value.Property, ...offeredProperties.value],
 )
 
-// Changing the type of the report keeps what was chosen, as the classic editor does. What the new
+// Changing the type of the report keeps what was chosen. What the new
 // type does not offer is pointed out here, before the API refuses it.
 const notOfferedText = computed(() => `Not offered for a ${reportTypeLabel(props.type)} report on ${series.value.Entity}`)
 

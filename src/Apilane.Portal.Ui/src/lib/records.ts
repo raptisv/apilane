@@ -6,8 +6,7 @@ import type { Entity } from './entities'
 /**
  * The rules of the data browser (EntityDataBrowser): which records an entity offers to do what,
  * the sort and filter sent to the API server, how values are shown and edited, the body of a save
- * and the history of a record. A copy of what the classic page (Views/Entity/Data.cshtml) does,
- * as pure functions, so they can be unit-tested (records.test.ts).
+ * and the history of a record. Pure functions, so they can be unit-tested (records.test.ts).
  *
  * Records, files and history live on the API server: the browser calls it through apiServer
  * (lib/apiServer.ts). Its answers are not in the Portal contract, so their shapes are described here.
@@ -51,7 +50,7 @@ export function isUsers(entity: Pick<Entity, 'Name'>): boolean {
   return entity.Name === 'Users'
 }
 
-/** What the data browser offers for an entity, from its flags (Data.cshtml:45, 477-495). */
+/** What the data browser offers for an entity, from its flags. */
 export interface RecordActions {
   /** The 'New record', 'Register user' or 'Upload' button. */
   create: boolean
@@ -100,7 +99,7 @@ export function pageCount(total: number, pageSize: number): number {
 
 // Sorting --------------------------------------------------------------------------------------
 
-/** The sort of the grid: one column at most, as in the classic page. */
+/** The sort of the grid: one column at most. */
 export interface Sort {
   Property: string
   Direction: 'asc' | 'desc'
@@ -151,7 +150,7 @@ export interface ColumnFilter {
 }
 
 /**
- * The operators a column's filter offers, the default first (Data.cshtml:87-101): a String
+ * The operators a column's filter offers, the default first: a String
  * 'contains' or 'equal', an encrypted String 'equal' only (its stored value is encrypted, so only a
  * whole value can be found), a Number, Date or Boolean 'equal'.
  */
@@ -174,7 +173,7 @@ export function hasFilters(filters: Record<string, ColumnFilter>): boolean {
 /**
  * The `filter` parameter of Data/Get: { Logic: 'and', Filters: [{ Property, Operator, Value }] } as
  * JSON, one entry per box with a value, or undefined when there is none. A Boolean is sent as '1' or
- * '0', the way the classic page does.
+ * '0'.
  */
 export function filterParam(properties: readonly Property[], filters: Record<string, ColumnFilter>): string | undefined {
   const items: { Property: string; Operator: FilterOperator; Value: string }[] = []
@@ -228,8 +227,8 @@ export function formatRecordDate(value: number | Date, local: boolean): string {
 
 /**
  * The text of a value in the grid and the history, or null for a null value (the grid shows a
- * 'null' marker). Dates follow Data.cshtml:507: the system UTC dates (Created, LastLogin: IsUtc) in
- * the browser's local time, every other date as stored, in UTC.
+ * 'null' marker). The system UTC dates (Created, LastLogin: IsUtc) show in the browser's local
+ * time, every other date as stored, in UTC.
  */
 export function cellText(property: Property, value: unknown): string | null {
   if (value === null || value === undefined) {
@@ -253,7 +252,7 @@ export type RecordForm = Record<string, FormValue>
 
 /**
  * The properties the record form shows: those the data API lets a caller set (AllowEdit). A new
- * user is registered without Roles, which Account/Register does not take (Data.cshtml:859-862).
+ * user is registered without Roles, which Account/Register does not take.
  */
 export function formProperties(entity: Entity, creating: boolean): Property[] {
   return (entity.Properties ?? []).filter(
@@ -262,9 +261,9 @@ export function formProperties(entity: Entity, creating: boolean): Property[] {
 }
 
 /**
- * The boxes of the record form, filled as the classic page fills them (Data.cshtml:922-940): for a
- * new record every date is now, in the browser's local time; for an edit every date is the stored
- * value in UTC. `now` is a parameter so the tests can fix it.
+ * The boxes of the record form, filled: for a new record every date is now, in the browser's
+ * local time; for an edit every date is the stored value in UTC. `now` is a parameter so the
+ * tests can fix it.
  */
 export function initialForm(properties: readonly Property[], record: DataRecord | undefined, now: Date): RecordForm {
   const form: RecordForm = {}
@@ -304,7 +303,7 @@ export function bodyValue(property: Property, value: FormValue | undefined): str
   return text
 }
 
-/** The body of a new record: every box of the form (Data.cshtml:779-802). */
+/** The body of a new record: every box of the form. */
 export function createBody(properties: readonly Property[], form: RecordForm): Record<string, string | null> {
   return Object.fromEntries(properties.map((property) => [property.Name, bodyValue(property, form[property.Name])]))
 }
@@ -357,8 +356,8 @@ export function recordErrors(error: Error | undefined, fieldNames: readonly stri
 // Files ----------------------------------------------------------------------------------------
 
 /**
- * Whether a file is larger than the application allows. The classic page counts a KB as 1000
- * bytes (Data.cshtml:906); the API server still checks on its own.
+ * Whether a file is larger than the application allows. A KB counts as 1000 bytes here; the API
+ * server still checks on its own.
  */
 export function fileTooLarge(size: number, maxSizeInKB: number): boolean {
   return size > maxSizeInKB * 1000
@@ -366,12 +365,12 @@ export function fileTooLarge(size: number, maxSizeInKB: number): boolean {
 
 // History --------------------------------------------------------------------------------------
 
-/** How many history entries the panel shows: the newest, as the classic page (Data.cshtml:662). */
+/** How many history entries the panel shows: the newest. */
 export const historyLimit = 100
 
 export interface HistoryRow {
   id: number
-  /** When the change was made, in the browser's local time (Data.cshtml:679). */
+  /** When the change was made, in the browser's local time. */
   timestamp: string
   owner: number | null
   /** The record before the change. */

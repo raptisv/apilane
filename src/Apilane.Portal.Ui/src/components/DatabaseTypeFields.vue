@@ -39,7 +39,7 @@ defineProps<{
 const databaseType = defineModel<string>('databaseType', { required: true })
 const connectionString = defineModel<string>('connectionString', { required: true })
 
-// The notes of the classic portal, per database type. `warning` is [before, emphasised, after].
+// The notes per database type. `warning` is [before, emphasised, after].
 const notes: Record<string, { examplesUrl: string; examplesLabel: string; warning: [string, string, string] }> = {
   SQLServer: {
     examplesUrl: 'https://www.connectionstrings.com/sql-server/',

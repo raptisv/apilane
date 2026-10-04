@@ -110,7 +110,7 @@ export function rolesThatApply(roleId: string): string[] {
 }
 
 /**
- * The note next to a switch of the editor, as the classic page shows it: when Anonymous has the
+ * The note next to a switch of the editor: when Anonymous has the
  * cell, every other role inherits it (even with its own rule on); otherwise a role without its own
  * rule inherits what Authenticated has.
  */
@@ -166,7 +166,7 @@ const windowSeconds: Record<string, number> = { Per_Second: 1, Per_Minute: 60, P
 const windowShort: Record<string, string> = { Per_Second: 'sec', Per_Minute: 'min', Per_Hour: 'hr' }
 const windowLong: Record<string, string> = { Per_Second: 'second', Per_Minute: 'minute', Per_Hour: 'hour' }
 
-/** '10/min', as the classic tree and matrix show it. */
+/** '10/min', as the tree and the matrix show it. */
 export function rateLimitShort(rateLimit: RateLimit): string {
   return `${rateLimit.MaxRequests}/${windowShort[rateLimit.TimeWindow] ?? rateLimit.TimeWindow}`
 }

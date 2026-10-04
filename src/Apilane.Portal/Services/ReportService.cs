@@ -68,7 +68,7 @@ namespace Apilane.Portal.Services
                 .Where(x => x.AppID == application.ID)
                 .ToListAsync();
 
-            // The order the Razor dashboard places them in.
+            // The order of the dashboard: top to bottom, then left to right.
             return reports
                 .OrderBy(x => x.Y)
                 .ThenBy(x => x.X)
@@ -102,7 +102,7 @@ namespace Apilane.Portal.Services
                 MaxRecords = values.MaxRecords,
                 TimeRange = values.TimeRange,
                 X = 0,
-                // Summed as long and kept on the grid: rows saved by the Razor dashboard have no bounds.
+                // Summed as long and kept on the grid: rows saved by older versions have no bounds.
                 Y = (int)Math.Clamp(panels.Select(x => (long)x.Y + x.H).DefaultIfEmpty(0).Max(), 0, MaxRow),
                 W = NewPanelWidth,
                 H = NewPanelHeight,
@@ -112,7 +112,7 @@ namespace Apilane.Portal.Services
 
             _dbContext.Reports.Add(report);
 
-            // Reports live in the Portal only: no API server call and no cache reset, as with the Razor pages.
+            // Reports live in the Portal only: no API server call and no cache reset.
             await _dbContext.SaveChangesAsync();
 
             return ToResponse(report, application);
@@ -124,7 +124,7 @@ namespace Apilane.Portal.Services
             var report = await FindAsync(application, reportId);
             var values = Validate(application, request);
 
-            // The values the Razor form changes; the place of the panel stays.
+            // The place of the panel stays.
             report.TypeID = (int)values.Type;
             report.Title = request.Title;
             report.MaxRecords = values.MaxRecords;
@@ -220,7 +220,7 @@ namespace Apilane.Portal.Services
                 place.Report.H = place.Height;
             }
 
-            // A panel that did not move is not changed, so it gets no audit row. DateModified stays, as with the Razor page.
+            // A panel that did not move is not changed, so it gets no audit row. DateModified stays.
             await _dbContext.SaveChangesAsync();
         }
 
@@ -247,10 +247,10 @@ namespace Apilane.Portal.Services
         }
 
         /// <summary>
-        /// The rules of the Razor form (a series needs an entity that exists and a filter that
-        /// can be read) and the ones it leaves to its pickers: a known type, a time range that
-        /// can be read, and a property and group-bys that report-fields offers for the entity
-        /// and the type. Every problem is reported, each with the path of its value.
+        /// The rules of a report: a known type, a time range that can be read, and for every
+        /// series an entity that exists, a filter that can be read, and a property and group-bys
+        /// that report-fields offers for the entity and the type. Every problem is reported,
+        /// each with the path of its value.
         /// </summary>
         private static (ReportType Type, int MaxRecords, string? TimeRange, List<DBWS_ReportSeries> Series) Validate(DBWS_Application application, ReportRequest request)
         {
@@ -267,7 +267,7 @@ namespace Apilane.Portal.Services
                 errors.Add(Error(nameof(ReportRequest.Type), TypeMessage()));
             }
 
-            // What the Razor form stores: the code, or null for none.
+            // Stored as the code, or null for none.
             var timeRange = string.IsNullOrWhiteSpace(request.TimeRange) ? null : request.TimeRange.Trim();
 
             if (timeRange is not null && !_timeRangePattern.IsMatch(timeRange))
@@ -297,7 +297,7 @@ namespace Apilane.Portal.Services
                     continue;
                 }
 
-                // The row the Razor form stores: the four texts trimmed, an empty filter as null,
+                // The stored row: the four texts trimmed, an empty filter as null,
                 // the position as the order.
                 var row = new DBWS_ReportSeries
                 {
@@ -361,7 +361,7 @@ namespace Apilane.Portal.Services
             return (type, maxRecords, timeRange, series);
         }
 
-        // The check of the Razor form: the text must read as a filter of the data API.
+        // The text must read as a filter of the data API.
         private static bool IsReadableFilter(string? filter)
         {
             if (filter is null)
@@ -380,8 +380,7 @@ namespace Apilane.Portal.Services
         }
 
         /// <summary>
-        /// What the report editor offers for an entity and a type: the same lists as
-        /// EntityController.GetPropertiesGroups of the Razor portal. The primary key can be
+        /// What the report editor offers for an entity and a type. The primary key can be
         /// counted. A Number has every aggregate and can be grouped by. A String and a Date have
         /// Max and Min in a Grid only. A Line groups by numbers and dates only; every other type
         /// by any property. A Date is grouped by its parts.
@@ -468,8 +467,7 @@ namespace Apilane.Portal.Services
 
         /// <summary>
         /// The series as stored, and what its texts mean for the entity as it is now. Reading is
-        /// tolerant: the Razor dashboard fails as a whole when a property is gone and hides a
-        /// series whose entity is gone; here that series gets an Error and the rest is answered.
+        /// tolerant: a series whose entity or property is gone gets an Error and the rest is answered.
         /// Names are matched whatever their letter case, as the API server matches them.
         /// </summary>
         private static ReportSeriesResponse ToResponse(DBWS_ReportSeries series, DBWS_Application application, bool hasTimeRange)

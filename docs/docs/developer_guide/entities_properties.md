@@ -4,7 +4,7 @@ Entities and properties are the building blocks of your application's data model
 
 ## Entities
 
-An entity represents a conceptual object in your application — for example `Products`, `Orders`, or `Invoices`. When you create an entity, Apilane creates the underlying database table and automatically adds [system properties](#system-properties).
+An entity represents a conceptual object in your application — for example `Products`, `Orders`, or `Invoices`. When you create an entity (the **Entities** tab of the application in the Portal, **New entity**), Apilane creates the underlying database table and automatically adds [system properties](#system-properties).
 
 ### System Entities
 
@@ -15,7 +15,7 @@ Every application is created with the following system entities:
 | **Users** | Stores application user accounts (email, username, password, roles, etc.) |
 | **Files** | Stores file metadata (name, size, UID, public flag). Managed via the [Files](files.md) endpoints. |
 
-System entities cannot be deleted. You can add custom properties to them just like any other entity.
+System entities cannot be renamed or deleted. You can add custom properties to `Users` just like to any other entity; `Files` takes none.
 
 ### Change Tracking
 
@@ -32,7 +32,7 @@ Change tracking data can be accessed via the [GetHistoryByID](../api_reference.m
 
 ## Properties
 
-A property is a specific piece of data within an entity — like `Name`, `Price`, or `IsActive`. Each property has a type and optional validation rules.
+A property is a specific piece of data within an entity — like `Name`, `Price`, or `IsActive`. Each property has a type and optional validation rules. In the Portal, open an entity to see its properties and add one with **New property**. The type, **Required**, **Encrypted**, the decimal places and the maximum length of a String cannot be changed after the property is created.
 
 ### Property Types
 
@@ -62,7 +62,7 @@ Each property supports the following validation options:
 | Option | Applies to | Description |
 |---|---|---|
 | **Required** | All types | The property must have a value when creating a record |
-| **Unique** | All types | No two records can have the same value |
+| **Unique** | All types | No two records can have the same value. Set as a [constraint](#constraints) of the entity, not on the property |
 | **Minimum** | String, Number | Minimum length (String) or minimum value (Number) |
 | **Maximum** | String, Number | Maximum length (String) or maximum value (Number) |
 | **Decimal Places** | Number | Number of decimal places to store |
@@ -74,15 +74,15 @@ Each property supports the following validation options:
 
 ## Constraints
 
-Constraints enforce data integrity rules between entities.
+Constraints enforce data integrity rules between entities. They are managed on the **Constraints** tab of an entity in the Portal: add or remove constraints in the list, then save them together.
 
 ### Unique Constraint
 
-Ensures that no two records in an entity share the same value for a given property. This is configured per-property via the **Unique** validation option.
+Ensures that no two records in an entity share the same value for a given property, or the same combination of values for several properties.
 
 ### Foreign Key Constraint
 
-Links a property to the `ID` column of another entity, enforcing referential integrity. When creating a foreign key, you choose the delete behavior:
+Links a property to the `ID` column of another entity, enforcing referential integrity. When creating a foreign key, you choose the delete behavior. To change the delete behavior of an existing foreign key, remove it, save, add it again and save.
 
 | Behavior | Description |
 |---|---|

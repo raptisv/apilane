@@ -116,6 +116,18 @@ The API service exposes utility endpoints:
 | `/swagger` | Swagger UI for interactive API documentation |
 | `/metrics` | OpenTelemetry Prometheus scraping endpoint |
 
+The Portal serves its UI at the root of its host name and keeps these addresses for itself:
+
+| Endpoint | Description |
+|---|---|
+| `/api/v1` | The management API the UI is built on |
+| `/api/internal` | Called by the API services only, with the installation key |
+| `/swagger` | Swagger UI of the management API, for signed-in Portal users |
+| `/health/liveness`, `/health/readiness` | Health checks, see [Health checks](#health-checks) |
+| `/metrics` | OpenTelemetry Prometheus scraping endpoint |
+
+Every other address is a screen of the UI (`/apps`, `/account/login`, `/admin/servers`, ...). The Portal must be served at the root of its host name, not under a sub-path. Addresses, settings and behaviour of the Portal are described in the [Portal README](https://github.com/raptisv/apilane/blob/main/src/Apilane.Portal.Ui/README.md).
+
 ---
 
 ## Observability
@@ -221,10 +233,11 @@ If the `Type` is specified, the system attempts to use that clustering provider.
 
 ## Production considerations
 
-- **CORS**: The API allows all origins, methods, and headers by default. For production, consider placing the API behind a reverse proxy (e.g., Nginx, Traefik) with stricter CORS policies.
+- **CORS**: The API allows all origins, methods, and headers by default. For production, consider placing the API behind a reverse proxy (e.g., Nginx, Traefik) with stricter CORS policies. Keep the Portal's origin allowed: the Portal UI calls the API straight from the browser (data browser, files, reports), so each server's address under **Instance > Servers** must also be reachable from the browsers of Portal users.
 - **File caching**: File downloads (via `/files/download`) are served with a `Cache-Control: max-age=31536000` (1 year) header for optimal caching.
 - **Thread pool**: Both services support a `MinThreads` environment variable to tune the .NET thread pool minimum worker threads for high-throughput scenarios.
 - **Blocked file extensions**: The API service has a configurable list of invalid file extensions (`InvalidFilesExtentions`) to prevent uploading potentially dangerous files.
 - **InstallationKey**: The `InstallationKey` must be the same value for both Portal and API — it is used for secure communication between the two services.
+- **Upgrade both services together**: The API calls the Portal's internal API (`/api/internal`) and sends users to a page of the Portal UI after they confirm their email. Neither is versioned, so a Portal and its API services must run the same version.
 - **Portal sign-in rate limit**: The Portal's `/api/v1` sign in, sign up and password-reset request endpoints together allow 30 calls per 60 seconds per client address (`AccountRateLimit__PermitLimit`, `AccountRateLimit__WindowSeconds`). Behind a reverse proxy the Portal sees the proxy's address, so all visitors share one budget. Either raise the limit, or set `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` on the Portal — only when the proxy is the only way to reach the Portal and it overwrites `X-Forwarded-For`, because the header is otherwise trusted from any sender.
 - **AllowedHosts (Portal)**: The link in a password-reset email is built from the host of the request. Set `AllowedHosts` on the Portal to its public host name (and the host used in the API's `PortalUrl`), so a request with a forged `Host` header is refused instead of producing a link to another site.

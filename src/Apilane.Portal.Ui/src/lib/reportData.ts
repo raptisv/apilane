@@ -4,9 +4,8 @@ import { serverBase } from './apiServer'
 /**
  * Everything a report panel works out from its definition and from the rows the API server
  * answers: the time window, the Stats/Aggregate call of each series, the badges and legend labels,
- * the shared x-axis, the table of a Grid and the Chart.js configuration of a chart. A copy of what
- * the classic page does (Views/Shared/Report.cshtml and renderReportPanel with its helpers in
- * wwwroot/assets/custom.js), as pure functions, so they can be unit-tested (reportData.test.ts).
+ * the shared x-axis, the table of a Grid and the Chart.js configuration of a chart. Pure
+ * functions, so they can be unit-tested (reportData.test.ts).
  *
  * The rows come from GET {ServerUrl}/api/Stats/Aggregate, called by the browser through apiServer
  * (lib/apiServer.ts). That answer is not in the Portal contract: it is a list of AggregateRow.
@@ -61,8 +60,8 @@ function addMonths(date: Date, months: number): Date {
 }
 
 /**
- * The time window of a time range, in Unix milliseconds: from `now` minus the range until `now`
- * (DBWS_ReportPanel.GetTimeWindowMs). The panel computes it at every load and every refresh.
+ * The time window of a time range, in Unix milliseconds: from `now` minus the range until `now`.
+ * The panel computes it at every load and every refresh.
  */
 export function timeWindow(code: string | null | undefined, now: Date): { start: number; end: number } | undefined {
   const range = parseTimeRange(code)
@@ -99,8 +98,8 @@ export type AggregateQuery = {
 
 /**
  * The filter a series sends. A windowed series (the report has a time range and the series is
- * grouped by a date first) sends its stored filter AND the time window on that date
- * (DBWS_ReportSeries.BuildWindowedFilter); every other series sends its stored filter as it is.
+ * grouped by a date first) sends its stored filter AND the time window on that date; every other
+ * series sends its stored filter as it is.
  * Throws when the stored filter of a windowed series is not JSON.
  */
 export function seriesFilter(report: Report, series: ReportSeries, now: Date): string | undefined {
@@ -130,9 +129,8 @@ export function seriesFilter(report: Report, series: ReportSeries, now: Date): s
 }
 
 /**
- * The Stats/Aggregate call of one series (DBWS_ReportSeries.GetApiUrl): its own entity, value and
- * group-by, and the report's Top N as the page size. The classic page also sends 'Sort=Desc',
- * which the API server does not read: groups come newest or largest first either way.
+ * The Stats/Aggregate call of one series: its own entity, value and group-by, and the report's
+ * Top N as the page size.
  */
 export function seriesQuery(report: Report, series: ReportSeries, now: Date): AggregateQuery {
   const compact = (text: string) => text.replace(/\s/g, '')
@@ -168,7 +166,7 @@ export interface PanelScope {
 }
 
 /**
- * What a panel covers (Report.cshtml:25-43): the time range applies to windowed series, Top N to
+ * What a panel covers: the time range applies to windowed series, Top N to
  * the others. A panel with both kinds shows no badge; each series says its own scope in its label.
  * A series with an Error does not count.
  */
@@ -212,7 +210,7 @@ interface LabelPart {
 
 const dateParts = ['year', 'month', 'day', 'hour', 'minute', 'second'] as const
 
-/** The parts of one date property as 'd/m/y h:m:s', only the parts grouped by and without leading zeros (custom.js getLabelForGroup). */
+/** The parts of one date property as 'd/m/y h:m:s', only the parts grouped by and without leading zeros. */
 function datePart(groups: readonly Group[], row: AggregateRow): LabelPart {
   const [year, month, day, hour, minute, second] = dateParts.map((part) => {
     const group = groups.find((item) => item.Part?.toLowerCase() === part)
@@ -241,7 +239,7 @@ function datePart(groups: readonly Group[], row: AggregateRow): LabelPart {
 }
 
 /**
- * The label of one row, in parts (custom.js getLabelForGroup): the group-bys of one type together,
+ * The label of one row, in parts: the group-bys of one type together,
  * types in the order they first appear, and one part per property. A date grouped by its parts
  * gives one part; any other property gives its value.
  */
@@ -283,7 +281,7 @@ export interface CombinedReport {
 }
 
 /**
- * Puts the series of a panel on one x-axis (custom.js renderCombinedReport): the label of a row is
+ * Puts the series of a panel on one x-axis: the label of a row is
  * its parts joined with ' / ', the axis holds every label of every series once, and it is sorted by
  * time when the first part is a date and by text otherwise.
  */
@@ -343,7 +341,7 @@ export function gridText(value: unknown): string {
 
 // Charts -----------------------------------------------------------------------------------------
 
-/** A value as a number for a chart, or null when it is missing or not numeric (custom.js toNumberOrNull). */
+/** A value as a number for a chart, or null when it is missing or not numeric. */
 export function toNumberOrNull(value: unknown): number | null {
   if (value === undefined || value === null || value === '') {
     return null
@@ -354,7 +352,7 @@ export function toNumberOrNull(value: unknown): number | null {
   return Number.isNaN(number) ? null : number
 }
 
-/** A '#rrggbb' colour as rgba() with the given alpha (custom.js hexWithAlpha). Any other colour is returned as it is. */
+/** A '#rrggbb' colour as rgba() with the given alpha. Any other colour is returned as it is. */
 export function withAlpha(color: string, alpha: number): string {
   if (!/^#[0-9a-f]{6}$/i.test(color)) {
     return color
@@ -373,7 +371,7 @@ export interface ReportChartConfig {
 }
 
 /**
- * The Chart.js configuration of a report that is not a Grid (custom.js renderCombinedReport):
+ * The Chart.js configuration of a report that is not a Grid:
  * - Pie: the first series only, one slice per label, legend on the right.
  * - Bar, StackedBar, Radar, and Line for anything else: one dataset per series, legend below, the
  *   value axis starting at 0. A stacked bar sums the series at each label.

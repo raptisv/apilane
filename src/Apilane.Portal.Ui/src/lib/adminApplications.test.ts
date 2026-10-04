@@ -83,7 +83,7 @@ describe('applicationDetails', () => {
     return applicationDetails(application).find((row) => row.label === label)
   }
 
-  it('lists the settings in the order of the classic page', () => {
+  it('lists the settings in a fixed order', () => {
     expect(applicationDetails(shop).map((row) => row.label)).toEqual([
       'ID',
       'Connection string',

@@ -40,7 +40,7 @@ namespace Apilane.Portal.Services
             };
         }
 
-        // Entities are matched by their exact name, as the Razor compare dialog matches them.
+        // Entities are matched by their exact name.
         private static ComparisonEntities CompareEntities(DBWS_Application source, DBWS_Application target)
         {
             var sourceEntities = SchemaDiff.Entities(source);
@@ -96,7 +96,7 @@ namespace Apilane.Portal.Services
                     .ToList()
             };
 
-            // ...while changed pairs the custom properties whatever their letter case. Both rules are the Razor dialog's.
+            // ...while changed pairs the custom properties whatever their letter case.
             foreach (var sourceProperty in sourceProperties)
             {
                 var targetProperty = targetProperties.FirstOrDefault(x => x.Name.Equals(sourceProperty.Name, StringComparison.OrdinalIgnoreCase));

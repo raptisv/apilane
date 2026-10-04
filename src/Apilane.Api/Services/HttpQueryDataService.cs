@@ -65,8 +65,8 @@ namespace Apilane.Api.Services
 
         private string GetRequestAppToken()
         {
-            // On manage and help controllers search for apptoken route value
-            if (RouteController == "manage" || RouteController == "help")
+            // On the manage controller search for apptoken route value
+            if (RouteController == "manage")
             {
                 return _actionContextAccessor.ActionContext?.RouteData.Values["apptoken"]?.ToString() ?? string.Empty;
             }

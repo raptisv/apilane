@@ -6,7 +6,6 @@ import {
   dataEntityOrder,
   filterEntities,
   formatCount,
-  initialDataEntity,
   onDeleteText,
 } from './entities'
 import type { Constraint, Entity } from './entities'
@@ -104,32 +103,6 @@ describe('dataEntityOrder', () => {
     const list = [entity('Files', true), entity('Orders'), entity('Users', true), entity('Customers')]
 
     expect(dataEntityOrder(list).map((e) => e.Name)).toEqual(['Orders', 'Customers', 'Files', 'Users'])
-  })
-})
-
-describe('initialDataEntity', () => {
-  const list = dataEntityOrder([entity('Customers'), entity('Orders'), entity('Files', true), entity('Users', true)])
-
-  it('opens the entity named by ?entity=', () => {
-    expect(initialDataEntity(list, 'Orders')?.Name).toBe('Orders')
-  })
-
-  it('opens a system entity when asked, even when there are custom ones', () => {
-    expect(initialDataEntity(list, 'Users')?.Name).toBe('Users')
-  })
-
-  it('falls back to the first custom entity for a name of another case, an unknown name or none', () => {
-    expect(initialDataEntity(list, 'orders')?.Name).toBe('Customers')
-    expect(initialDataEntity(list, 'Nope')?.Name).toBe('Customers')
-    expect(initialDataEntity(list, undefined)?.Name).toBe('Customers')
-  })
-
-  it('opens the first system entity when there are no custom ones', () => {
-    expect(initialDataEntity([entity('Files', true), entity('Users', true)], undefined)?.Name).toBe('Files')
-  })
-
-  it('gives nothing for an empty list', () => {
-    expect(initialDataEntity([], 'Orders')).toBeUndefined()
   })
 })
 

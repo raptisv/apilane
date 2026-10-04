@@ -210,7 +210,7 @@ namespace Apilane.Portal.Tests
         [InlineData("{\"Name\":\"x\",\"ServerUrl\":\"not a url\"}", "ServerUrl", "Not a valid url")]
         [InlineData("{\"Name\":\"x\",\"ServerUrl\":\"/relative/path\"}", "ServerUrl", "Not a valid url")]
         [InlineData("{\"Name\":\"x\",\"ServerUrl\":\"api.example.test\"}", "ServerUrl", "Not a valid url")]
-        // Only http and https. The Razor page still accepts these.
+        // Only http and https.
         [InlineData("{\"Name\":\"x\",\"ServerUrl\":\"javascript:alert(1)\"}", "ServerUrl", "Not a valid url")]
         [InlineData("{\"Name\":\"x\",\"ServerUrl\":\"ftp://one.example.test\"}", "ServerUrl", "Not a valid url")]
         [InlineData("{\"Name\":\"x\",\"ServerUrl\":\"localhost:5000\"}", "ServerUrl", "Not a valid url")]
@@ -256,7 +256,7 @@ namespace Apilane.Portal.Tests
         [InlineData("https://x.example.test", true)]
         public async Task Create_Should_Store_The_Values_As_Sent(string serverUrl, bool padName)
         {
-            // Like the Razor page: no trimming and no trailing-slash clean-up.
+            // No trimming and no trailing-slash clean-up.
             var client = await _portal.CreateAdminClientAsync();
             var name = padName ? $" {NewName()} " : NewName();
 
@@ -400,7 +400,7 @@ namespace Apilane.Portal.Tests
             var stored = await _portal.WithDbContextAsync(db => db.Servers.AsNoTracking().SingleAsync(x => x.ID == seeded.ID));
             Assert.Equal(name, stored.Name);
             Assert.Equal("https://two.example.test", stored.ServerUrl);
-            // The Razor page leaves DateModified alone on an edit; so does the API.
+            // An edit leaves DateModified alone.
             Assert.Equal(before.DateModified, stored.DateModified);
 
             var audit = await FindAuditAsync(name, "Modified");

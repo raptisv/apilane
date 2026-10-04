@@ -220,7 +220,7 @@ namespace Apilane.Portal.Tests
         [Fact]
         public async Task Update_Without_The_Mail_Settings_Should_Clear_Them()
         {
-            // Unlike the secrets, a mail setting that is left out is written as empty, like the Razor form does.
+            // Unlike the secrets, a mail setting that is left out is written as empty.
             var client = await _portal.CreateAdminClientAsync();
 
             var response = await client.PutAsync(Url, Json("{\"InstanceTitle\":\"After\",\"AllowRegisterToPortal\":true}"));

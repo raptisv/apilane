@@ -26,7 +26,7 @@ import type { DataApplication, DataRecord, RecordForm } from '@/lib/records'
 
 // Creates or edits one record of an entity, in a side sheet with one box per property a caller may
 // set (AllowEdit), generated from the property metadata. A new user of the Users entity registers
-// through Account/Register, as in the classic page. An edit sends only the boxes that changed.
+// through Account/Register of the API server. An edit sends only the boxes that changed.
 // Problems the API server reports at a property show under its box.
 const props = defineProps<{
   application: DataApplication
@@ -137,7 +137,7 @@ function help(property: Property): string | undefined {
   }
 
   if (property.Type === 'Date') {
-    // A new record is filled with local time, as in the classic page, but the value is read as UTC.
+    // A new record is filled with local time, but the value is read as UTC.
     parts.push(
       creating.value ? `Format ${dateFormat}, read as UTC. Filled with your local time now.` : `Format ${dateFormat}, in UTC.`,
     )

@@ -7,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -22,24 +21,6 @@ namespace Apilane.Portal.Tests
         {
             _portal = portal;
             _portal.ResetApiServer();
-        }
-
-        [Fact]
-        public async Task Comparison_Should_Equal_What_The_Razor_Dialog_Loads()
-        {
-            var scene = await SchemaScene.CreateAsync(_portal);
-            var source = await scene.AddApplicationAsync("left", FillLeft);
-            var target = await scene.AddApplicationAsync("right", FillRight);
-
-            await AssertEqualsRazorAsync(scene, source, target);
-
-            // The other way round, where Added and Removed change places.
-            await AssertEqualsRazorAsync(scene, target, source);
-
-            // Reading does not involve the API server and writes no audit row.
-            Assert.Empty(_portal.ApiServer.Requests);
-            Assert.Empty(await scene.AuditAsync(source));
-            Assert.Empty(await scene.AuditAsync(target));
         }
 
         [Fact]
@@ -167,7 +148,75 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Comparison_Of_Applications_With_The_Same_Schema_Should_Return_Empty_Lists_As_The_Razor_Dialog_Does()
+        public async Task Comparison_The_Other_Way_Round_Should_Swap_Added_With_Removed_And_Before_With_After()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var left = await scene.AddApplicationAsync("left", FillLeft);
+            var right = await scene.AddApplicationAsync("right", FillRight);
+
+            var body = await (await scene.Owner.GetAsync(CompareUrl(right, left))).ReadJsonAsync<ApplicationComparisonResponse>();
+
+            Assert.Equal(right.Name, body.ApplicationSource);
+            Assert.Equal(left.Name, body.ApplicationTarget);
+
+            Assert.Equal(new[] { "Orders", "Invoices" }, body.Entities.Added.Select(x => x.Name));
+            Assert.Equal(new[] { "Shipments", "invoices" }, body.Entities.Removed.Select(x => x.Name));
+            Assert.Equal(new[] { "Users", "Customers" }, body.Entities.Changed.Select(x => x.Name));
+
+            Assert.Equal("Nickname", Assert.Single(body.Entities.Changed[0].PropertiesRemoved).Name);
+            Assert.Empty(body.Entities.Changed[0].PropertiesAdded);
+
+            var customers = body.Entities.Changed[1];
+
+            Assert.Equal(
+                new[] { "Description: Clients of the shop -> Clients", "RequireChangeTracking: True -> False", "HasDifferentiationProperty: True -> False" },
+                customers.MetadataChanges.Select(Text));
+            Assert.Equal(new[] { "Phone", "Notes" }, customers.PropertiesAdded.Select(x => x.Name));
+            Assert.Equal(new[] { "notes String", "Email String" }, customers.PropertiesRemoved.Select(x => $"{x.Name} {x.TypeLabel}"));
+            Assert.Equal(new[] { "Name", "Level", "notes" }, customers.PropertiesChanged.Select(x => x.Name));
+            Assert.Equal(new[] { "Maximum: 200 -> 100" }, customers.PropertiesChanged[0].Changes.Select(Text));
+            Assert.Equal(
+                new[] { "Type: String -> Number", "Required: False -> True", "Minimum:  -> 1", "Maximum:  -> 5", "DecimalPlaces:  -> 0" },
+                customers.PropertiesChanged[1].Changes.Select(Text));
+            Assert.Equal(
+                new[] { "Encrypted: True -> False", "ValidationRegex: ^[a-z]+$ -> ", "Description: New text -> Old text" },
+                customers.PropertiesChanged[2].Changes.Select(Text));
+            Assert.Equal(new[] { "1 Phone" }, customers.ConstraintsAdded.Select(x => $"{x.TypeID} {x.Properties}"));
+            Assert.Equal(new[] { "1 Email" }, customers.ConstraintsRemoved.Select(x => $"{x.TypeID} {x.Properties}"));
+
+            Assert.Equal(new[] { "OnlyLeft", "CaseName" }, body.CustomEndpoints.Added.Select(x => x.Name));
+            Assert.Equal(new[] { "OnlyRight", "casename" }, body.CustomEndpoints.Removed.Select(x => x.Name));
+            Assert.Equal(
+                new[] { "Totals | Sums -> Sums | SELECT 1 + 1 -> SELECT 1", "Described | New -> Old | SELECT 3 -> SELECT 3" },
+                body.CustomEndpoints.Changed.Select(x => $"{x.Name} | {x.DescriptionBefore} -> {x.DescriptionAfter} | {x.QueryBefore} -> {x.QueryAfter}"));
+
+            Assert.Equal(new[] { "Entity Orders - admin get | admin | Entity |  | get | All | " }, body.Security.Added.Select(Text));
+            Assert.Equal(
+                new[]
+                {
+                    "Entity Shipments - ANONYMOUS get | ANONYMOUS | Entity | 20 request per hour | get | All | Address",
+                    "Entity Shipments - AUTHENTICATED post | AUTHENTICATED | Entity |  | post | Owned | "
+                },
+                body.Security.Removed.Select(Text));
+            Assert.Equal(
+                new[]
+                {
+                    "Entity Customers - ANONYMOUS get",
+                    "Entity Customers - AUTHENTICATED put",
+                    "CustomEndpoint Totals - ANONYMOUS get"
+                },
+                body.Security.Changed.Select(x => x.Name));
+            Assert.Equal("Entity Customers - AUTHENTICATED put | AUTHENTICATED | Entity | 10 request per minute | put | All | Name", Text(body.Security.Changed[1].SecurityBefore));
+            Assert.Equal("Entity Customers - AUTHENTICATED put | AUTHENTICATED | Entity | 5 request per second | put | Owned | Name", Text(body.Security.Changed[1].SecurityAfter));
+
+            // Reading does not involve the API server and writes no audit row.
+            Assert.Empty(_portal.ApiServer.Requests);
+            Assert.Empty(await scene.AuditAsync(left));
+            Assert.Empty(await scene.AuditAsync(right));
+        }
+
+        [Fact]
+        public async Task Comparison_Of_Applications_With_The_Same_Schema_Should_Return_Empty_Lists()
         {
             var scene = await SchemaScene.CreateAsync(_portal);
             var source = await scene.AddApplicationAsync("left", FillLeft);
@@ -187,12 +236,10 @@ namespace Apilane.Portal.Tests
             Assert.Empty(body.Security.Added);
             Assert.Empty(body.Security.Removed);
             Assert.Empty(body.Security.Changed);
-
-            await AssertEqualsRazorAsync(scene, source, target);
         }
 
         [Fact]
-        public async Task Comparison_With_An_Application_Without_Security_Rules_Should_Work_As_The_Razor_Dialog_Does()
+        public async Task Comparison_With_An_Application_Without_Security_Rules_Should_List_Every_Rule_Of_The_Other()
         {
             var scene = await SchemaScene.CreateAsync(_portal);
 
@@ -211,8 +258,12 @@ namespace Apilane.Portal.Tests
             Assert.Empty(body.Security.Removed);
             Assert.Empty(body.Security.Changed);
 
-            await AssertEqualsRazorAsync(scene, source, target);
-            await AssertEqualsRazorAsync(scene, target, source);
+            // The other way round the same rules are the removed ones.
+            var reverse = await (await scene.Owner.GetAsync(CompareUrl(target, source))).ReadJsonAsync<ApplicationComparisonResponse>();
+
+            Assert.Empty(reverse.Security.Added);
+            Assert.Equal(body.Security.Added.Select(Text), reverse.Security.Removed.Select(Text));
+            Assert.Empty(reverse.Security.Changed);
         }
 
         [Fact]
@@ -320,37 +371,6 @@ namespace Apilane.Portal.Tests
         private static string Text(ComparisonSecurityRule rule)
         {
             return $"{rule.Name} | {rule.Role} | {rule.Type} | {rule.RateLimit} | {rule.Action} | {rule.Record} | {rule.Properties}";
-        }
-
-        /// <summary>
-        /// The answer of the API is the answer of ApplicationsController.CompareApplications for
-        /// the same two applications.
-        /// </summary>
-        private static async Task AssertEqualsRazorAsync(SchemaScene scene, DBWS_Application source, DBWS_Application target)
-        {
-            var response = await scene.Owner.GetAsync(CompareUrl(source, target));
-            var razorResponse = await scene.Owner.GetAsync($"/Applications/CompareApplications?appTokenSource={source.Token}&appTokenTarget={target.Token}");
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal(HttpStatusCode.OK, razorResponse.StatusCode);
-
-            var api = JsonNode.Parse(await response.Content.ReadAsStringAsync());
-            var razor = JsonNode.Parse(await razorResponse.Content.ReadAsStringAsync());
-
-            // The one difference: in its Added and Removed lists the Razor answer says 'none' for
-            // a rule without a rate limit (and null in Changed); the API says null everywhere.
-            foreach (var list in new[] { "Added", "Removed" })
-            {
-                foreach (var rule in razor?["Security"]?[list]?.AsArray() ?? new JsonArray())
-                {
-                    if (rule is JsonObject item && item["RateLimit"]?.GetValue<string>() == "none")
-                    {
-                        item["RateLimit"] = null;
-                    }
-                }
-            }
-
-            Assert.True(JsonNode.DeepEquals(razor, api), $"Razor:{Environment.NewLine}{razor}{Environment.NewLine}API:{Environment.NewLine}{api}");
         }
 
         private static DBWS_EntityProperty Stored(string name, PropertyType type, Action<DBWS_EntityProperty>? set = null)

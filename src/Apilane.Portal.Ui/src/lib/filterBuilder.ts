@@ -1,8 +1,7 @@
 /**
  * The rules of the filter builder (FilterBuilder.vue): a flat list of conditions that must all hold,
- * read from and written to the JSON text the data API takes as its Filter. A copy of what the
- * classic builder does (Views/Shared/FilterBuilder.cshtml), as pure functions, so they can be
- * unit-tested (filterBuilder.test.ts).
+ * read from and written to the JSON text the data API takes as its Filter. Pure functions, so
+ * they can be unit-tested (filterBuilder.test.ts).
  *
  * The data browser's column filters (filterOperators and filterParam of lib/records.ts) write the
  * same JSON shape but offer only 'contains' and 'equal'; the builder offers every operator.

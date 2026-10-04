@@ -30,7 +30,7 @@ namespace Apilane.Portal.Tests
         // ---------- List ----------
 
         [Fact]
-        public async Task List_Admin_Should_Return_Applications_Of_Other_Users_With_The_Razor_Columns()
+        public async Task List_Admin_Should_Return_Applications_Of_Other_Users_With_Every_Column()
         {
             var seeded = await CreateApplicationOfAnotherUserAsync("admin-list");
             var server = await LoadServerAsync(seeded.Application.ServerID);

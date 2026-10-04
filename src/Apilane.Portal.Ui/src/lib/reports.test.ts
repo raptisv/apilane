@@ -26,7 +26,7 @@ function validation(errors: { Property: string; Message: string }[]): ApiError {
 }
 
 describe('reportTypeLabel', () => {
-  it('names the six types as the classic portal does', () => {
+  it('names the types', () => {
     expect(reportTypeLabel('Grid')).toBe('Grid')
     expect(reportTypeLabel('StackedBar')).toBe('Stacked bar chart')
   })

@@ -31,7 +31,7 @@ namespace Apilane.Portal.Services
 
             var applications = await Visible(_dbContext.Applications.AsNoTracking(), user).ToListAsync();
 
-            // Sorted in memory, as the Razor portal does: SQLite would order names by byte value ('Zeta' before 'alpha').
+            // Sorted in memory: SQLite would order names by byte value ('Zeta' before 'alpha').
             return applications
                 .OrderByDescending(x => x.UserID == user.Id)
                 .ThenBy(x => x.Name)
@@ -90,7 +90,7 @@ namespace Apilane.Portal.Services
                 ?? throw PortalException.NotFound("Property");
         }
 
-        // The same rule as the Razor portal: the owner, or anyone the application is shared with by e-mail.
+        // The owner, or anyone the application is shared with by e-mail.
         private static IQueryable<DBWS_Application> Visible(IQueryable<DBWS_Application> applications, ApplicationUser user)
         {
             return WithIncludes(applications)

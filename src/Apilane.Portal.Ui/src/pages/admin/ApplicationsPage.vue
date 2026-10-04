@@ -36,8 +36,7 @@ import { databaseTypeLabel } from '@/lib/applications'
 import * as toast from '@/lib/toast'
 
 // Every application of the instance, whoever owns it, in the order they were created. The table
-// keeps the columns an administrator looks for; the other settings of the classic page open under
-// the row. A secret (connection string, mail password) is never sent: only whether one is stored.
+// keeps the columns an administrator looks for; the other settings open under the row. A secret (connection string, mail password) is never sent: only whether one is stored.
 const { data, error, loading, reload } = useAsync(() => unwrap(api.GET('/api/v1/admin/applications')))
 
 const all = computed(() => data.value?.Data ?? [])

@@ -58,13 +58,13 @@ export function testParameters(
   parameters: readonly string[],
   values: Readonly<Record<string, string | number | undefined>>,
 ): Record<string, string | number> {
-  // An empty value reaches the API server as 'Name=', which it turns into SQL null, as on the Razor page.
+  // An empty value reaches the API server as 'Name=', which it turns into SQL null.
   return Object.fromEntries(parameters.map((name) => [name, values[name] ?? '']))
 }
 
 /**
  * The body of POST {ServerUrl}/api/Custom/TestQuery. The API server checks the name as it checks
- * a saved one, so it gets a fixed valid name, as from the Razor page; only the query is run.
+ * a saved one, so it gets a fixed valid name; only the query is run.
  */
 export function testQueryBody(query: string): { Name: string; Query: string } {
   return { Name: 'test', Query: query }

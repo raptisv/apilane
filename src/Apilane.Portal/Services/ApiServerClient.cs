@@ -20,7 +20,7 @@ namespace Apilane.Portal.Services
     public class ApiServerClient : IApiServerClient
     {
         /// <summary>
-        /// The named HttpClient the Razor portal's ApiHttpService uses too (ServiceDependencyInjection).
+        /// The named HttpClient ApiHttpService uses too (ServiceDependencyInjection).
         /// </summary>
         public const string HttpClientName = "Api";
 
@@ -59,7 +59,7 @@ namespace Apilane.Portal.Services
         {
             var url = $"{BaseUrl(server)}/api/ApplicationNew/GetSystemEntities?differentiationEntity={Uri.EscapeDataString(differentiationEntity)}";
 
-            // The application does not exist yet, so the token header is empty, as the Razor portal sends it.
+            // The application does not exist yet, so the token header is empty.
             var json = await SendAsync(new HttpRequestMessage(HttpMethod.Get, url), appToken: string.Empty);
 
             List<DBWS_Entity>? entities = null;
@@ -227,7 +227,7 @@ namespace Apilane.Portal.Services
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .ToList();
 
-            // The same list as the Razor page: single values first, then the split ones, no trimming.
+            // Single values first, then the split ones, no trimming.
             return values
                 .Where(x => !x.Contains(','))
                 .Concat(values.Where(x => x.Contains(',')).SelectMany(x => x.Split(',')).Where(x => !string.IsNullOrWhiteSpace(x)))

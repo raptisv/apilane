@@ -62,9 +62,9 @@ import RecordHistorySheet from './RecordHistorySheet.vue'
 import RecordPaging from './RecordPaging.vue'
 
 // The records of one entity: a grid with a sort per column, a filter per column, paging, row
-// actions, the record form, the history and, for Files, upload and download. It replaces the
-// classic Views/Entity/Data.cshtml and follows its rules (see lib/records.ts). The records are read
-// and written on the API server, straight from the browser (lib/apiServer.ts).
+// actions, the record form, the history and, for Files, upload and download. Its rules are in
+// lib/records.ts. The records are read and written on the API server, straight from the browser
+// (lib/apiServer.ts).
 //
 // Give it a :key of the entity name, so another entity gets a fresh grid. The page (?page=), page
 // size (?pageSize=) and sort (?sort=Name or ?sort=-Name) are in the address; the filters are not.
@@ -87,8 +87,8 @@ const router = useRouter()
 const server = apiServer(props.application.Server.ServerUrl, props.application.Token)
 const entityName = props.entity.Name
 const files = isFiles(props.entity)
-// The classic page shows the columns, the form and the history in creation order, not in the
-// order of the properties page the API sends.
+// The columns, the form and the history are in creation order, not in the order of the properties
+// page the API sends.
 const ordered = computed<Entity>(() => ({
   ...props.entity,
   Properties: [...(props.entity.Properties ?? [])].sort((a, b) => a.Position - b.Position),
@@ -181,7 +181,7 @@ watch(appliedFilter, () => {
   }
 })
 
-/** After a create, an edit or a delete the grid starts again at page 1, as in the classic page. */
+/** After a create, an edit or a delete the grid starts again at page 1. */
 function reloadFromFirstPage(): void {
   if (page.value !== 1) {
     void router.push(query({ page: undefined }))
@@ -265,7 +265,7 @@ function onSaved(): void {
 
 function onUploaded(): void {
   toast.success('File uploaded.')
-  // The classic page stays on the same page after an upload.
+  // An upload keeps the grid on the page it is on.
   void records.reload()
 }
 

@@ -27,7 +27,7 @@ namespace Apilane.Portal.Services
         {
             var application = await _applicationAccessService.GetApplicationAsync(appToken);
 
-            // Empty text is stored as null, which is what the Razor form stores for an empty box.
+            // Empty text is stored as null.
             application.MailServer = NullIfEmpty(request.MailServer);
             application.MailServerPort = request.MailServerPort;
             application.MailFromAddress = NullIfEmpty(request.MailFromAddress);

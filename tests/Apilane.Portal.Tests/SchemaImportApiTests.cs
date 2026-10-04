@@ -35,20 +35,7 @@ namespace Apilane.Portal.Tests
         // ---------- Diff ----------
 
         [Fact]
-        public async Task Diff_Should_Equal_What_The_Razor_Page_Loads()
-        {
-            var scene = await SchemaScene.CreateAsync(_portal);
-            var target = await scene.AddApplicationAsync("target", FillTarget);
-            var source = await scene.AddApplicationAsync("source", FillSource);
-
-            await AssertDiffEqualsRazorAsync(scene, target, source);
-
-            // Reading does not involve the API server.
-            Assert.Empty(_portal.ApiServer.Requests);
-        }
-
-        [Fact]
-        public async Task Diff_And_Import_Into_An_Application_Without_Security_Rules_Should_Work_As_The_Razor_Page()
+        public async Task Diff_And_Import_Into_An_Application_Without_Security_Rules_Should_Work()
         {
             var scene = await SchemaScene.CreateAsync(_portal);
 
@@ -60,8 +47,6 @@ namespace Apilane.Portal.Tests
             });
             var source = await scene.AddApplicationAsync("source", FillSource);
             scene.ScriptApiServer();
-
-            await AssertDiffEqualsRazorAsync(scene, target, source);
 
             var payload = await (await scene.Owner.GetAsync(DiffUrl(target, source))).Content.ReadAsStringAsync();
             var diff = JsonSerializer.Deserialize<SchemaImportRequest>(payload) ?? throw new InvalidOperationException("No diff.");
@@ -148,6 +133,9 @@ namespace Apilane.Portal.Tests
             Assert.Equal("TopOrders", endpoint.Name);
             Assert.Equal("The biggest orders", endpoint.Description);
             Assert.Equal("SELECT TOP {Top} * FROM [Orders]", endpoint.Query);
+
+            // Reading does not involve the API server.
+            Assert.Empty(_portal.ApiServer.Requests);
         }
 
         [Fact]
@@ -269,30 +257,9 @@ namespace Apilane.Portal.Tests
 
             // Customers has no foreign key, Orders points to Users, OrderLines to Orders: in that
             // order, although the payload lists OrderLines before Orders. One cache reset, last.
-            var server = scene.Server.ServerUrl;
             var requests = _portal.ApiServer.Requests;
 
-            Assert.Equal(
-                new[]
-                {
-                    $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Customers",
-                    $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Customers",
-                    $"POST {server}{ApiPrefix}/GenerateConstraints?Entity=Customers",
-                    $"GET {server}{ApiPrefix}/GetSystemPropertiesAndConstraints?entityHasDifferentiationProperty=False",
-                    $"POST {server}{ApiPrefix}/GenerateEntity",
-                    $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Orders",
-                    $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Orders",
-                    $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Orders",
-                    $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Orders",
-                    $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Orders",
-                    $"POST {server}{ApiPrefix}/GenerateConstraints?Entity=Orders",
-                    $"GET {server}{ApiPrefix}/GetSystemPropertiesAndConstraints?entityHasDifferentiationProperty=False",
-                    $"POST {server}{ApiPrefix}/GenerateEntity",
-                    $"POST {server}{ApiPrefix}/GenerateProperty?Entity=OrderLines",
-                    $"POST {server}{ApiPrefix}/GenerateConstraints?Entity=OrderLines",
-                    $"GET {server}{ApiPrefix}/ClearCache"
-                },
-                requests.Select(x => $"{x.Method} {x.Url}"));
+            Assert.Equal(CallsOfTheDiff(scene.Server.ServerUrl), requests.Select(x => $"{x.Method} {x.Url}"));
 
             // Every call as the caller, for this application.
             var callerToken = await _portal.WithDbContextAsync(db => db.Users.AsNoTracking().Where(x => x.Email == scene.OwnerEmail).Select(x => x.AdminAuthToken).SingleAsync());
@@ -344,7 +311,7 @@ namespace Apilane.Portal.Tests
             Assert.Contains("endpoint GetCustomers |  | SELECT * FROM [Customers]", schema);
             Assert.Contains("endpoint TopOrders | The biggest orders | SELECT TOP {Top} * FROM [Orders]", schema);
 
-            // The rules it had stay first and as they were; the new ones follow as the Razor pages store them.
+            // The rules it had stay first and as they were; the new ones follow.
             Assert.Contains(
                 "security [{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Name\",\"RateLimit\":null}," +
                 "{\"Name\":\"Orders\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"get\",\"Record\":1,\"Properties\":\"Code,Amount\",\"RateLimit\":{\"MaxRequests\":10,\"TimeWindowType\":2,\"TimeWindow\":\"00:01:00\"}}," +
@@ -354,26 +321,7 @@ namespace Apilane.Portal.Tests
 
             // One audit row per thing created or changed, in the order of the steps. (The rows of
             // the system properties of a new entity carry no application, as with every new entity.)
-            Assert.Equal(
-                new[]
-                {
-                    "Property | Phone | Created",
-                    "Property | Level | Created",
-                    "Entity | Customers | Modified",
-                    "Entity | Orders | Created",
-                    "Property | Customer_ID | Created",
-                    "Property | Agent_ID | Created",
-                    "Property | Amount | Created",
-                    "Property | Code | Created",
-                    "Property | Secret | Created",
-                    "Entity | Orders | Modified",
-                    "Entity | OrderLines | Created",
-                    "Property | Order_ID | Created",
-                    "Entity | OrderLines | Modified",
-                    $"Application | {target.Name} | Modified",
-                    "Custom Endpoint | TopOrders | Created"
-                }.Select(x => $"{x} | {scene.OwnerEmail}"),
-                await scene.AuditAsync(target));
+            Assert.Equal(AuditOfTheDiff(target, scene.OwnerEmail), await scene.AuditAsync(target));
 
             // Nothing is missing any more, and the source was only read.
             Assert.Equal(
@@ -383,17 +331,16 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Import_Should_Call_Store_Warn_And_Audit_What_The_Razor_Page_Does()
+        public async Task Import_Of_Items_The_Application_Has_In_Another_Letter_Case_Should_Skip_Them_With_A_Warning()
         {
             var scene = await SchemaScene.CreateAsync(_portal);
-            var razorTarget = await scene.AddApplicationAsync("razor-target", FillTarget);
-            var apiTarget = await scene.AddApplicationAsync("api-target", FillTarget);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
             var source = await scene.AddApplicationAsync("source", FillSource);
             scene.ScriptApiServer();
 
-            // One payload for two equal applications: what the source has more, plus items they
-            // already have, so both produce warnings too.
-            var diff = JsonNode.Parse(await (await scene.Owner.GetAsync(DiffUrl(apiTarget, source))).Content.ReadAsStringAsync())?.AsObject()
+            // What the source has more, plus a rule, a custom endpoint, a property and a constraint
+            // the application already has, written in another letter case.
+            var diff = JsonNode.Parse(await (await scene.Owner.GetAsync(DiffUrl(target, source))).Content.ReadAsStringAsync())?.AsObject()
                 ?? throw new InvalidOperationException("No diff.");
 
             diff["Security"]?.AsArray().Add(JsonNode.Parse("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"anonymous\",\"Action\":\"GET\",\"Record\":0,\"Properties\":\"Name\",\"RateLimit\":null}"));
@@ -402,48 +349,29 @@ namespace Apilane.Portal.Tests
                 "{\"Name\":\"NAME\",\"TypeID\":1,\"Required\":false,\"Minimum\":null,\"Maximum\":100,\"DecimalPlaces\":null,\"Encrypted\":false,\"ValidationRegex\":null,\"Description\":\"Not compared\"}"));
             diff["Entities"]?[0]?["Constraints"]?.AsArray().Add(JsonNode.Parse("{\"IsSystem\":false,\"TypeID\":1,\"Properties\":\" NAME \"}"));
 
-            var payload = diff.ToJsonString();
+            var response = await scene.Owner.PostAsync(ImportUrl(target), Json(diff.ToJsonString()));
 
-            // Through the Razor page...
-            var razorResponse = await scene.Owner.PostAsync($"/App/{razorTarget.Token}/Import/Index", Json(payload));
-            Assert.Equal(HttpStatusCode.OK, razorResponse.StatusCode);
-
-            var razorResult = JsonNode.Parse(await razorResponse.Content.ReadAsStringAsync());
-            Assert.True(razorResult?["Success"]?.GetValue<bool>(), razorResult?.ToJsonString());
-
-            var razorRequests = _portal.ApiServer.Requests;
-            _portal.ApiServer.Reset();
-            scene.ScriptApiServer();
-
-            // ...and through the API.
-            var apiResponse = await scene.Owner.PostAsync(ImportUrl(apiTarget), Json(payload));
-            Assert.Equal(HttpStatusCode.OK, apiResponse.StatusCode);
-
-            var apiRequests = _portal.ApiServer.Requests;
-
-            // The same calls in the same order with the same bodies, each for its own application.
-            Assert.Equal(16, razorRequests.Count);
-            Assert.Equal(razorRequests.Select(Comparable), apiRequests.Select(Comparable));
-            Assert.All(razorRequests, x => Assert.Equal(razorTarget.Token, x.Headers["x-application-token"]));
-            Assert.All(apiRequests, x => Assert.Equal(apiTarget.Token, x.Headers["x-application-token"]));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal(
-                razorRequests.Select(x => $"{x.Headers["Authorization"]} {x.Headers["x-client-id"]}"),
-                apiRequests.Select(x => $"{x.Headers["Authorization"]} {x.Headers["x-client-id"]}"));
+                new[]
+                {
+                    "Entity 'Customers' already exists — skipped creation.",
+                    "Property 'Customers.NAME' already exists — skipped creation.",
+                    "Constraint on entity 'Customers' (TypeID=1, Properties=' NAME ') already exists — skipped.",
+                    "Security item 'Entity Customers - anonymous GET' already exists — skipped.",
+                    "Custom endpoint 'getCUSTOMERS' already exists — skipped creation."
+                },
+                (await response.ReadJsonAsync<SchemaImportResponse>()).Warnings);
 
-            // The same warnings.
-            var razorWarnings = (razorResult?["Warnings"]?.AsArray() ?? new JsonArray()).Select(x => x?.GetValue<string>() ?? string.Empty).ToList();
-            Assert.Equal(5, razorWarnings.Count);
-            Assert.Equal(razorWarnings, (await apiResponse.ReadJsonAsync<SchemaImportResponse>()).Warnings);
+            // The calls and the audit rows are those of the diff alone...
+            Assert.Equal(CallsOfTheDiff(scene.Server.ServerUrl), _portal.ApiServer.Requests.Select(x => $"{x.Method} {x.Url}"));
+            Assert.Equal(AuditOfTheDiff(target, scene.OwnerEmail), await scene.AuditAsync(target));
 
-            // The same rows.
-            Assert.Equal(await scene.StoredSchemaAsync(razorTarget), await scene.StoredSchemaAsync(apiTarget));
-
-            // The same audit entries.
-            var razorAudit = await scene.AuditAsync(razorTarget);
-            Assert.Equal(15, razorAudit.Count);
-            Assert.Equal(
-                razorAudit.Select(x => x.Replace(razorTarget.Name, "<application>")),
-                (await scene.AuditAsync(apiTarget)).Select(x => x.Replace(apiTarget.Name, "<application>")));
+            // ...and what was skipped left no trace.
+            var schema = await scene.StoredSchemaAsync(target);
+            Assert.DoesNotContain("NAME", schema);
+            Assert.DoesNotContain("anonymous", schema);
+            Assert.DoesNotContain("getCUSTOMERS", schema);
         }
 
         [Fact]
@@ -486,7 +414,7 @@ namespace Apilane.Portal.Tests
                 },
                 (await response.ReadJsonAsync<SchemaImportResponse>()).Warnings);
 
-            // Nothing to create: the cache reset is the only call, as with the Razor page.
+            // Nothing to create: the cache reset is the only call.
             Assert.Equal(FakeApiServer.ClearCachePath, Assert.Single(_portal.ApiServer.Requests).Path);
             Assert.Equal(before, await scene.StoredSchemaAsync(source));
             Assert.Empty(await scene.AuditAsync(source));
@@ -545,8 +473,8 @@ namespace Apilane.Portal.Tests
             var target = await scene.AddApplicationAsync("target", FillTarget);
             scene.ScriptApiServer();
 
-            // As the Razor page: the order is computed from Users down, so a chain of foreign keys
-            // that does not reach Users is processed as it is listed.
+            // The order is computed from Users down, so a chain of foreign keys that does not
+            // reach Users is processed as it is listed.
             var response = await scene.Owner.PostAsync(ImportUrl(target), new
             {
                 Entities = new object[]
@@ -677,7 +605,7 @@ namespace Apilane.Portal.Tests
             var target = await scene.AddApplicationAsync("target", FillTarget);
             scene.ScriptApiServer();
 
-            // As the Razor page, and unlike POST entities: accepted although the application has no differentiation entity.
+            // Unlike POST entities: accepted although the application has no differentiation entity.
             var entity = Entity("Suppliers");
             entity["HasDifferentiationProperty"] = true;
 
@@ -701,8 +629,7 @@ namespace Apilane.Portal.Tests
 
             var rule = new { Name = "Suppliers", TypeID = 0, RoleID = "ANONYMOUS", Action = "get", Record = 0 };
 
-            // The second mention finds what the first one created. (The Razor page fails on the
-            // second entity and the second property.)
+            // The second mention finds what the first one created.
             var response = await scene.Owner.PostAsync(ImportUrl(target), new
             {
                 Entities = new[]
@@ -757,7 +684,7 @@ namespace Apilane.Portal.Tests
         {
             var scene = await SchemaScene.CreateAsync(_portal);
 
-            // The Razor pages stop on such an application; the API reads it.
+            // The same rule stored twice.
             var rule = SchemaScene.Rule(SecurityTypes.Entity, "Customers", "ANONYMOUS", "get", properties: "Name");
             var target = await scene.AddApplicationAsync("target", x =>
             {
@@ -796,7 +723,7 @@ namespace Apilane.Portal.Tests
             });
             scene.ScriptApiServer();
 
-            // The name rules are for new items only, as the Razor page has none: 'ID' (the stored
+            // The name rules are for new items only: 'ID' (the stored
             // primary key, 2 characters) and 'Top_1' would both be refused as new names.
             var id = Property("ID", PropertyType.Number);
             id["Required"] = true;
@@ -1363,7 +1290,7 @@ namespace Apilane.Portal.Tests
             scene.ScriptApiServer();
 
             // What PUT security/rules and POST properties would refuse or clean up, the import
-            // passes on, as the Razor page does: a rule for an entity that does not exist, with an
+            // passes on: a rule for an entity that does not exist, with an
             // action in capitals; a Boolean with a maximum and decimal places.
             var property = Property("Active", PropertyType.Boolean);
             property["Maximum"] = 7;
@@ -1528,27 +1455,58 @@ namespace Apilane.Portal.Tests
         }
 
         /// <summary>
-        /// The answer of the API is the answer of ImportController.GetImportFromDiff for the same
-        /// two applications.
+        /// The calls of an import of the diff between <see cref="FillTarget"/> and <see cref="FillSource"/>.
+        /// Customers has no foreign key, Orders points to Users, OrderLines to Orders: in that
+        /// order, although the payload lists OrderLines before Orders. One cache reset, last.
         /// </summary>
-        private static async Task AssertDiffEqualsRazorAsync(SchemaScene scene, DBWS_Application target, DBWS_Application source)
+        private static string[] CallsOfTheDiff(string server)
         {
-            var response = await scene.Owner.GetAsync(DiffUrl(target, source));
-            var razorResponse = await scene.Owner.GetAsync($"/App/{target.Token}/Import/GetImportFromDiff?sourceAppToken={source.Token}");
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal(HttpStatusCode.OK, razorResponse.StatusCode);
-
-            var api = JsonNode.Parse(await response.Content.ReadAsStringAsync());
-            var razor = JsonNode.Parse(await razorResponse.Content.ReadAsStringAsync());
-
-            // The one difference: the Razor answer also carries TimeWindow, a value the model computes from TimeWindowType.
-            foreach (var rule in razor?["Security"]?.AsArray() ?? new JsonArray())
+            return new[]
             {
-                (rule?["RateLimit"] as JsonObject)?.Remove("TimeWindow");
-            }
+                $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Customers",
+                $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Customers",
+                $"POST {server}{ApiPrefix}/GenerateConstraints?Entity=Customers",
+                $"GET {server}{ApiPrefix}/GetSystemPropertiesAndConstraints?entityHasDifferentiationProperty=False",
+                $"POST {server}{ApiPrefix}/GenerateEntity",
+                $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Orders",
+                $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Orders",
+                $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Orders",
+                $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Orders",
+                $"POST {server}{ApiPrefix}/GenerateProperty?Entity=Orders",
+                $"POST {server}{ApiPrefix}/GenerateConstraints?Entity=Orders",
+                $"GET {server}{ApiPrefix}/GetSystemPropertiesAndConstraints?entityHasDifferentiationProperty=False",
+                $"POST {server}{ApiPrefix}/GenerateEntity",
+                $"POST {server}{ApiPrefix}/GenerateProperty?Entity=OrderLines",
+                $"POST {server}{ApiPrefix}/GenerateConstraints?Entity=OrderLines",
+                $"GET {server}{ApiPrefix}/ClearCache"
+            };
+        }
 
-            Assert.True(JsonNode.DeepEquals(razor, api), $"Razor:{Environment.NewLine}{razor}{Environment.NewLine}API:{Environment.NewLine}{api}");
+        /// <summary>
+        /// The audit rows of that import: one per thing created or changed, in the order of the
+        /// steps. (The rows of the system properties of a new entity carry no application, as
+        /// with every new entity.)
+        /// </summary>
+        private static IEnumerable<string> AuditOfTheDiff(DBWS_Application target, string ownerEmail)
+        {
+            return new[]
+            {
+                "Property | Phone | Created",
+                "Property | Level | Created",
+                "Entity | Customers | Modified",
+                "Entity | Orders | Created",
+                "Property | Customer_ID | Created",
+                "Property | Agent_ID | Created",
+                "Property | Amount | Created",
+                "Property | Code | Created",
+                "Property | Secret | Created",
+                "Entity | Orders | Modified",
+                "Entity | OrderLines | Created",
+                "Property | Order_ID | Created",
+                "Entity | OrderLines | Modified",
+                $"Application | {target.Name} | Modified",
+                "Custom Endpoint | TopOrders | Created"
+            }.Select(x => $"{x} | {ownerEmail}");
         }
 
         /// <summary>
@@ -1679,43 +1637,6 @@ namespace Apilane.Portal.Tests
                 (client, appUrl) => client.GetAsync($"{appUrl}/schema-import/diff?Source={source.Token}"),
                 (client, appUrl) => client.PostAsync($"{appUrl}/schema-import", new { Entities = new[] { Entity("Suppliers") } }.ToJsonContent())
             };
-        }
-
-        /// <summary>
-        /// A call to the API server without what differs between two applications: their IDs.
-        /// </summary>
-        private static string Comparable(ApiServerRequest request)
-        {
-            if (request.Body.Length == 0)
-            {
-                return $"{request.Method} {request.Url}";
-            }
-
-            var body = JsonNode.Parse(request.Body);
-            RemoveIds(body);
-
-            return $"{request.Method} {request.Url} {body?.ToJsonString()}";
-        }
-
-        private static void RemoveIds(JsonNode? node)
-        {
-            if (node is JsonObject item)
-            {
-                item.Remove("AppID");
-                item.Remove("EntityID");
-
-                foreach (var child in item.Select(x => x.Value).ToList())
-                {
-                    RemoveIds(child);
-                }
-            }
-            else if (node is JsonArray list)
-            {
-                foreach (var child in list)
-                {
-                    RemoveIds(child);
-                }
-            }
         }
 
         private async Task<List<DBWS_Entity>> LoadEntitiesAsync(DBWS_Application application)

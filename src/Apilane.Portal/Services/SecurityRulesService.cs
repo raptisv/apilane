@@ -53,7 +53,7 @@ namespace Apilane.Portal.Services
             }
             catch (PortalException exception)
             {
-                // The Razor page fails as a whole here; the rest of the page does not need the API server.
+                // Not fatal: the rest of the page does not need the API server.
                 _logger.LogWarning(exception, "Roles of the application's users could not be read | Application {Token}", application.Token);
             }
 
@@ -86,7 +86,7 @@ namespace Apilane.Portal.Services
             {
                 var address = sent[i]?.Trim();
 
-                // Empty entries are dropped, as the Razor page drops them.
+                // Empty entries are dropped.
                 if (string.IsNullOrEmpty(address))
                 {
                     continue;
@@ -143,15 +143,16 @@ namespace Apilane.Portal.Services
 
             await _applicationWriteScope.SaveAsync(application);
 
-            return new SecurityRulesResponse { Rules = ReadRules(application) };
+            return new SecurityRulesResponse { Rules = ReadRules(application, ParseStored(application)) };
         }
 
-        public List<SecurityRuleResponse> ReadRules(DBWS_Application application)
-        {
-            return ReadRules(application, ParseStored(application));
-        }
-
-        public string SerializeRules(DBWS_Application application, IReadOnlyList<SecurityRuleRequest?> rules, string path)
+        /// <summary>
+        /// The rules as the Security column stores them. Throws a VALIDATION
+        /// <see cref="PortalException"/> for the first rule that is not acceptable; its property
+        /// starts with <paramref name="path"/> ('Rules[3].Action'). The application must have its
+        /// entities with their properties and its custom endpoints loaded.
+        /// </summary>
+        private static string SerializeRules(DBWS_Application application, IReadOnlyList<SecurityRuleRequest?> rules, string path)
         {
             var stored = new List<DBWS_Security>();
             var seen = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -171,7 +172,7 @@ namespace Apilane.Portal.Services
                 stored.Add(rule);
             }
 
-            // The same class and serializer as the Razor page, so the stored JSON is the same.
+            // DBWS_Security with the default serializer: the shape the API server reads.
             return JsonSerializer.Serialize(stored);
         }
 
@@ -299,14 +300,14 @@ namespace Apilane.Portal.Services
                 Action = action,
                 RoleID = roleId,
                 Record = (int)record,
-                // Entity rules store their list, empty included; other rules store none (as the Razor page does).
+                // Entity rules store their list, empty included; other rules store none.
                 Properties = entity is null ? null : string.Join(",", properties),
                 RateLimit = rateLimit
             };
         }
 
         /// <summary>
-        /// The stored rules that can apply, as the API shows them. Tolerant: the Razor page and older
+        /// The stored rules that can apply, as the API shows them. Tolerant: older
         /// versions stored the action in any case, and anything the API server ignores is left out
         /// instead of failing the whole answer.
         /// </summary>
@@ -332,7 +333,7 @@ namespace Apilane.Portal.Services
                 var type = (SecurityTypes)rule.TypeID;
                 DBWS_Entity? entity = null;
 
-                // Rules of items that are gone are not shown; the Razor page drops them on its next save too.
+                // Rules of items that are gone are not shown.
                 if (type == SecurityTypes.Entity)
                 {
                     entity = FindEntity(application, rule.Name);
@@ -351,13 +352,13 @@ namespace Apilane.Portal.Services
                     continue;
                 }
 
-                // A rule for an action the item does not offer has no cell; the Razor page drops it on its next save.
+                // A rule for an action the item does not offer has no cell.
                 if (!ItemAllows(type, entity, action))
                 {
                     continue;
                 }
 
-                // The first of two rules for the same cell wins, as on the Razor page.
+                // The first of two rules for the same cell wins.
                 if (!seen.Add(Key(rule.TypeID, rule.Name, rule.RoleID, action)))
                 {
                     continue;
@@ -469,7 +470,7 @@ namespace Apilane.Portal.Services
             };
         }
 
-        // The rows of the Razor grid: the two built-in roles, then the roles of stored rules, then the users' roles.
+        // The rows of the grid: the two built-in roles, then the roles of stored rules, then the users' roles.
         private static List<SecurityRoleResponse> ToRoles(List<DBWS_Security> stored, List<string>? userRoles)
         {
             var roles = new List<SecurityRoleResponse>
@@ -495,7 +496,7 @@ namespace Apilane.Portal.Services
             return roles;
         }
 
-        // The tabs of the Razor page, in its order.
+        // The items of the security page, in the order it lists them.
         private static List<SecurityItemResponse> GetItems(DBWS_Application application)
         {
             var items = new List<SecurityItemResponse>
@@ -530,7 +531,7 @@ namespace Apilane.Portal.Services
         }
 
         /// <summary>
-        /// The properties the Razor grid offers for an action of an entity: never the primary key,
+        /// The properties a rule may name for an action of an entity: never the primary key,
         /// only editable ones for post and put, none for delete and none for a post to Files.
         /// </summary>
         private static List<string> AllowedProperties(DBWS_Application application, DBWS_Entity entity, string action)
@@ -550,7 +551,7 @@ namespace Apilane.Portal.Services
         }
 
         /// <summary>
-        /// Whether the item has the action, as the Razor grid draws its columns: every item has get;
+        /// Whether the item has the action: every item has get;
         /// only entities have post, put and delete, and only when the entity allows them.
         /// </summary>
         private static bool ItemAllows(SecurityTypes type, DBWS_Entity? entity, string action)

@@ -81,7 +81,7 @@ namespace Apilane.Portal.Services
             }
             catch (JsonException)
             {
-                // Text that is not the expected JSON is shown as an entry without detail, like the Razor page does.
+                // Text that is not the expected JSON is shown as an entry without detail.
                 return new List<AuditChangeResponse>();
             }
         }

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 
@@ -12,28 +11,6 @@ namespace Apilane.Common.Utilities
 {
     public static class EnumProvider<T>
     {
-        public static IList<KeyValuePair<int, string>> GetValues(Enum value)
-        {
-            var enumValues = new List<T>();
-
-            foreach (FieldInfo fi in value.GetType().GetFields(BindingFlags.Static | BindingFlags.Public))
-            {
-                enumValues.Add((T)Enum.Parse(value.GetType(), fi.Name, false));
-            }
-
-            List<KeyValuePair<int, string>> Result = new List<KeyValuePair<int, string>>();
-
-            foreach (var item in enumValues)
-            {
-                if (item is not null)
-                {
-                    Result.Add(new KeyValuePair<int, string>(Convert.ToInt32(item), GetDisplayValue(Parse(item.ToString()))));
-                }
-            }
-
-            return Result;
-        }
-
         public static T Parse(string value)
         {
             return (T)Enum.Parse(typeof(T), value, true);

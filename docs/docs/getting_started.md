@@ -13,7 +13,7 @@ docker-compose -p apilane up -d
 
 This starts:
 
-- **Portal** on [http://localhost:5000](http://localhost:5000) — management UI
+- **Portal** on [http://localhost:5000](http://localhost:5000) — management UI (and the management API it is built on, under `/api/v1`)
 - **API** on [http://localhost:5001](http://localhost:5001) — REST API for client applications
 
 ## 2. Log in to the Portal
@@ -24,24 +24,24 @@ Open [http://localhost:5000](http://localhost:5000) and log in with the default 
 - **Password:** `admin`
 
 !!!warning "Important"
-    Change the admin password immediately after first login. You can also override the admin email via the `AdminEmail` environment variable before deployment.
+    Change the admin password immediately after first login (user menu, **Change password**). You can also override the admin email via the `AdminEmail` environment variable before deployment.
 
 ## 3. Create Your First Application
 
-1. In the Portal, navigate to **Applications** and click **Create**
+1. In the Portal, open **Applications** and click **New application**
 2. Enter a name (e.g., `MyApp`)
 3. Select a **Server** (the API service)
-4. Choose a **Storage Provider** (SQLite is recommended for getting started)
-5. Click **Create**
+4. Choose a **Database type** (SQLite is recommended for getting started)
+5. Click **Save**
 
-Your application is now ready. Note the **Application Token** — you'll need it for API calls.
+Your application is now ready and its **Entities** tab opens. Note the **Application Token** — you'll need it for API calls. The **Info** button of the application shows it.
 
 ## 4. Define an Entity
 
 1. Open your application in the Portal
-2. Navigate to **Entities** and click **Create**
+2. On the **Entities** tab click **New entity**
 3. Name it `Products`
-4. Add properties:
+4. Open the entity and add its properties with **New property**:
     - `Name` (String, Required)
     - `Price` (Number)
     - `InStock` (Boolean)
@@ -95,7 +95,7 @@ curl -X DELETE "http://localhost:5001/api/Data/Delete?entity=Products&ids=1" \
 
 ## 6. Register a User
 
-To use authenticated endpoints, first allow user registration in the Portal under **Security**, then:
+To use authenticated endpoints, first make sure **Allow new users to register** is on (the **Security** tab of the application in the Portal), then:
 
 ```bash
 curl -X POST "http://localhost:5001/api/Account/Register" \
@@ -153,7 +153,7 @@ Regardless of deployment method (Docker, k8s, cloud), you can override default s
 | `InstallationKey` | *(required, no default)* | Must be identical to the Portal's key (`APILANE_INSTALLATION_KEY` in the compose file) |
 
 !!!warning "Changing the installation key"
-    The Portal uses the key stored in its database (**Admin > Settings**); the `InstallationKey` setting only seeds it on first start. To change the key of an existing installation, update it under Admin > Settings, set the same value as `InstallationKey` for both services, and restart them.
+    The Portal uses the key stored in its database (**Instance > Settings**); the `InstallationKey` setting only seeds it on first start. To change the key of an existing installation, update it under Instance > Settings, set the same value as `InstallationKey` for both services, and restart them.
 
 !!!info "Next steps"
     - Configure [Security](developer_guide/security.md) rules for your entities

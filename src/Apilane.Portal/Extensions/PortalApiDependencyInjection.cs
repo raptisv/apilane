@@ -1,16 +1,19 @@
 using Apilane.Portal.Abstractions;
 using Apilane.Portal.Api;
+using Apilane.Portal.Api.Internal;
 using Apilane.Portal.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
@@ -18,19 +21,35 @@ using Microsoft.OpenApi;
 using System;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading.RateLimiting;
 
 namespace Apilane.Portal.Extensions
 {
     /// <summary>
-    /// Everything the management API (/api/v1) and the Portal UI (/ui) add to the host, kept out
-    /// of Program.cs so the legacy MVC setup there stays as it is.
+    /// Everything the management API (/api/v1), the internal API of the API servers
+    /// (/api/internal) and the Portal UI add to the host.
     /// </summary>
     public static class PortalApiDependencyInjection
     {
-        private const string UiPath = "/ui";
-        private const string UiIndexFile = "ui/index.html";
+        // The folder under the web root that holds the built UI. It is a folder, not an address:
+        // its content is served at the site root.
+        private const string UiFolder = "ui";
+        private const string UiIndexFile = "index.html";
+        private const string UiAssetsPath = "/assets";
         private const string SwaggerPath = "/swagger";
+
+        // The only addresses the Portal answers itself; every other address belongs to the UI.
+        // Under these an unknown address is 404, never the UI's index page: an API server or a
+        // monitor must not get a page with status 200.
+        // The dev server of the UI forwards the same addresses to the Portal (vite.config.ts).
+        private static readonly PathString[] _serverPaths =
+        {
+            PortalApiErrors.PathPrefix,
+            SwaggerPath,
+            "/health",
+            "/metrics"
+        };
 
         public static IServiceCollection AddPortalApi(this IServiceCollection services)
         {
@@ -65,14 +84,15 @@ namespace Apilane.Portal.Extensions
                 .AddScoped<IApplicationCloneService, ApplicationCloneService>()
                 .AddScoped<PortalSessionFilter>()
                 .AddScoped<PortalApiExceptionFilter>()
+                .AddScoped<InstallationKeyFilter>()
                 .AddSingleton<PortalCsrfFilter>()
                 // Replaces the validator AddIdentity registered, so a cookie refresh keeps its session token.
                 .AddScoped<ISecurityStampValidator, PortalSecurityStampValidator>()
-                // Registered before AddMvc, which only adds its ProblemDetails factory when none exists.
+                // Registered before AddControllers, which only adds its ProblemDetails factory when none exists.
                 .AddSingleton<IClientErrorFactory, PortalClientErrorFactory>();
 
             // An invalid request body gets the same error body as every other failure.
-            // PostConfigure, because AddMvc sets its own factory after this method has run.
+            // PostConfigure, because AddControllers sets its own factory after this method has run.
             services.PostConfigure<ApiBehaviorOptions>(options =>
             {
                 options.InvalidModelStateResponseFactory = context =>
@@ -133,7 +153,7 @@ namespace Apilane.Portal.Extensions
                         "without it the answer is 403 FORBIDDEN."
                 });
 
-                // The legacy MVC controllers are not part of the contract.
+                // Only /api/v1 is the contract: /api/internal is for the API servers.
                 options.DocInclusionPredicate((_, api) =>
                     (api.RelativePath ?? string.Empty).StartsWith("api/v1", StringComparison.OrdinalIgnoreCase));
 
@@ -222,7 +242,7 @@ namespace Apilane.Portal.Extensions
                     await next();
                 });
 
-                // Inside the /api branch, so no MVC page can ever be limited.
+                // Inside the /api branch, so nothing outside the API can ever be limited.
                 branch.UseRateLimiter();
             });
 
@@ -230,25 +250,40 @@ namespace Apilane.Portal.Extensions
         }
 
         /// <summary>
-        /// Cache policy of the built UI. Vite puts a content hash in every file name under
-        /// /ui/assets, so those never change; everything else under /ui is revalidated.
+        /// The files of the built UI: the folder 'ui' under the web root. The folder is created when
+        /// it is missing (the UI has not been built yet), so a build made while the Portal runs is
+        /// served without a restart. Without a web root (the Portal was started from a folder that
+        /// has no 'wwwroot') nothing is served, and the API still starts.
         /// </summary>
-        public static StaticFileOptions CreateStaticFileOptions()
+        public static IFileProvider CreateUiFileProvider(IWebHostEnvironment environment)
+        {
+            if (string.IsNullOrEmpty(environment.WebRootPath))
+            {
+                return new NullFileProvider();
+            }
+
+            var folder = Path.Combine(environment.WebRootPath, UiFolder);
+
+            Directory.CreateDirectory(folder);
+
+            return new PhysicalFileProvider(folder);
+        }
+
+        /// <summary>
+        /// Serves the built UI at the site root. Vite puts a content hash in every file name under
+        /// /assets, so those never change; everything else is revalidated.
+        /// </summary>
+        public static StaticFileOptions CreateStaticFileOptions(IFileProvider uiFiles)
         {
             return new StaticFileOptions
             {
+                FileProvider = uiFiles,
                 OnPrepareResponse = context =>
                 {
-                    var path = context.Context.Request.Path;
-
-                    if (path.StartsWithSegments($"{UiPath}/assets"))
-                    {
-                        context.Context.Response.Headers[HeaderNames.CacheControl] = "public, max-age=31536000, immutable";
-                    }
-                    else if (path.StartsWithSegments(UiPath))
-                    {
-                        context.Context.Response.Headers[HeaderNames.CacheControl] = "no-cache";
-                    }
+                    context.Context.Response.Headers[HeaderNames.CacheControl] =
+                        context.Context.Request.Path.StartsWithSegments(UiAssetsPath)
+                            ? "public, max-age=31536000, immutable"
+                            : "no-cache";
                 }
             };
         }
@@ -286,15 +321,22 @@ namespace Apilane.Portal.Extensions
         }
 
         /// <summary>
-        /// Maps the Portal UI and the API's "no such route" answer. Call after the MVC routes.
+        /// Maps the Portal UI and the API's "no such route" answer. Call after every other route.
         /// </summary>
-        public static void MapPortalApiAndUi(this WebApplication app)
+        public static void MapPortalApiAndUi(this WebApplication app, IFileProvider uiFiles)
         {
-            // Any /ui path that is not a file is a client-side route: the UI's index page handles it.
-            // "Not a file" means the last segment has no dot, so client routes must not end in one.
-            app.MapFallback($"{UiPath}/{{*path:nonfile}}", async context =>
+            // Any GET that is neither a file nor one of the Portal's own addresses is a screen of the
+            // UI: its index page handles it. "Not a file" means the last segment has no dot, so
+            // client routes must not end in one.
+            app.MapFallback("{*path:nonfile}", async context =>
             {
-                var index = app.Environment.WebRootFileProvider.GetFileInfo(UiIndexFile);
+                if (_serverPaths.Any(x => context.Request.Path.StartsWithSegments(x)))
+                {
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    return;
+                }
+
+                var index = uiFiles.GetFileInfo(UiIndexFile);
 
                 if (!index.Exists)
                 {
@@ -302,7 +344,7 @@ namespace Apilane.Portal.Extensions
                     context.Response.ContentType = "text/plain; charset=utf-8";
                     await context.Response.WriteAsync(
                         "The Portal UI has not been built. In src/Apilane.Portal.Ui run 'npm ci' once, then 'npm run build' " +
-                        "(or 'npm run dev' and browse http://localhost:5173/ui/).");
+                        "(or 'npm run dev' and browse http://localhost:5173/).");
                     return;
                 }
 
@@ -312,7 +354,7 @@ namespace Apilane.Portal.Extensions
             })
             .WithMetadata(new HttpMethodMetadata(new[] { HttpMethods.Get, HttpMethods.Head }));
 
-            // An unknown API route is a JSON 404, never the UI's index page or an MVC view.
+            // An unknown API route is a JSON 404, never the UI's index page.
             // A known route called with the wrong method ends here too.
             app.MapFallback($"{PortalApiErrors.PathPrefix}/{{**path}}", context =>
                 PortalApiErrors.WriteAsync(context, StatusCodes.Status404NotFound, PortalErrorCode.NotFound, "Unknown API route or method."));

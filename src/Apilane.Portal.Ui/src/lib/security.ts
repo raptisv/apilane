@@ -22,7 +22,7 @@ export function toEditable(rule: Schemas['SecurityRuleResponse']): SecurityRule 
 }
 
 /**
- * A cell switched on: every record, no rate limit and no properties, as the classic page starts it.
+ * A cell switched on: every record, no rate limit and no properties.
  * The editor shows that as 'no properties' and offers 'Select all'.
  */
 export function newRule(item: SecurityItem, roleId: string, action: string): SecurityRule {
@@ -31,8 +31,8 @@ export function newRule(item: SecurityItem, roleId: string, action: string): Sec
 
 /**
  * A cell switched on again before a save: the properties and the rate limit it had when it was
- * switched off come back, as on the classic page (a slip of the hand loses nothing). The record
- * scope starts at 'All' again, as there. Without a remembered rule the new one is returned as it is.
+ * switched off come back (a slip of the hand loses nothing). The record scope starts at 'All'
+ * again. Without a remembered rule the new one is returned as it is.
  */
 export function restoreRule(fresh: SecurityRule, kept: SecurityRule | undefined): SecurityRule {
   return kept ? { ...fresh, Properties: [...kept.Properties], RateLimit: kept.RateLimit ? { ...kept.RateLimit } : null } : fresh

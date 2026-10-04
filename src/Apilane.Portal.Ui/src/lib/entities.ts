@@ -53,14 +53,6 @@ export function dataEntityOrder(entities: readonly Entity[]): Entity[] {
   return [...entities.filter((entity) => !entity.IsSystem), ...entities.filter((entity) => entity.IsSystem)]
 }
 
-/**
- * The entity the data browser opens when the address names none: the one `asked` names (the
- * ?entity= of the classic data browser; names are case-sensitive), else the first of the list.
- */
-export function initialDataEntity(entities: readonly Entity[], asked: string | undefined): Entity | undefined {
-  return entities.find((entity) => entity.Name === asked) ?? entities[0]
-}
-
 /** A count as a person reads it: 1234567 -> '1,234,567'. */
 export function formatCount(count: number): string {
   return count.toLocaleString('en-US')

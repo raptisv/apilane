@@ -123,7 +123,7 @@ namespace Apilane.Portal.Api.V1.Contracts
 
     /// <summary>
     /// The rules of a custom endpoint name: the letters of DBWS_CustomEndpoint.Name, with the spaces
-    /// around it allowed because they are removed, and the 80 characters of the Razor form.
+    /// around it allowed because they are removed, and at most 80 characters.
     /// </summary>
     public static class CustomEndpointNameRules
     {

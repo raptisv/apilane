@@ -8,7 +8,7 @@ import { usePageQuery } from '@/composables/usePageQuery'
 import { formatCount } from '@/lib/entities'
 import { pageCount, pageSizes } from '@/lib/records'
 
-// The paging bar under the record grid, as in the classic page: page size, first / previous /
+// The paging bar under the record grid: page size, first / previous /
 // 'page x of y' / next / last, and the total. The page (?page=) and the size (?pageSize=) are in the
 // address; a new size starts again at page 1.
 const props = defineProps<{

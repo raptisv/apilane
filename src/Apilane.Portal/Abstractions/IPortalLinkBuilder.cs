@@ -1,9 +1,8 @@
 namespace Apilane.Portal.Abstractions
 {
     /// <summary>
-    /// Absolute links to pages of the Portal UI (/ui), for mails sent by the management API.
-    /// The address is the one the current request came in on, like the links in the mails of
-    /// the MVC pages.
+    /// Absolute links to pages of the Portal UI, for mails sent by the management API.
+    /// The address is the one the current request came in on.
     /// </summary>
     public interface IPortalLinkBuilder
     {

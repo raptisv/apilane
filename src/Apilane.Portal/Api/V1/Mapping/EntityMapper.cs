@@ -30,7 +30,7 @@ namespace Apilane.Portal.Api.V1.Mapping
                 Constraints = entity.ToConstraintResponses(),
                 Properties = withProperties
                     ? entity.Properties
-                        // The order of the Razor properties page.
+                        // The primary key first, then the custom properties, then the system ones, each by name.
                         .OrderByDescending(x => x.IsPrimaryKey)
                         .ThenBy(x => x.IsSystem)
                         .ThenBy(x => x.Name)

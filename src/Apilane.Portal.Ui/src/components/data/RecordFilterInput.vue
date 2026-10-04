@@ -6,7 +6,7 @@ import type { Property } from '@/lib/properties'
 import { filterOperators } from '@/lib/records'
 import type { ColumnFilter } from '@/lib/records'
 
-// The filter box of one grid column, by the property's type (Data.cshtml:87-101): a String has
+// The filter box of one grid column, by the property's type: a String has
 // 'contains' or 'equal' (a button switches), an encrypted String 'equal' only, a Number and a Date
 // 'equal', a Boolean a choice of true / false.
 const props = defineProps<{ property: Property }>()

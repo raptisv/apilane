@@ -39,7 +39,7 @@ namespace Apilane.Portal.Services
         {
             var application = await _applicationAccessService.GetApplicationWithEntitiesAsync(appToken);
 
-            // Sorted in memory, as the Razor page does. The properties are loaded either way.
+            // Sorted in memory. The properties are loaded either way.
             return application.Entities
                 .OrderBy(x => x.Name)
                 .Select(x => x.ToResponse(application, withProperties: includeProperties))
@@ -102,7 +102,7 @@ namespace Apilane.Portal.Services
             var requireChangeTracking = request.RequireChangeTracking
                 ?? throw PortalException.Validation(nameof(UpdateEntityRequest.RequireChangeTracking), "Required");
 
-            // The Razor form does not offer the switch for such an entity.
+            // Change tracking is only for entities whose records can be updated.
             if (requireChangeTracking && !entity.AllowPut())
             {
                 throw PortalException.Validation(
@@ -202,7 +202,7 @@ namespace Apilane.Portal.Services
             return false;
         }
 
-        // What the Razor form does with a field left empty.
+        // A field left empty is stored as null.
         private static string? EmptyToNull(string? value)
         {
             return string.IsNullOrWhiteSpace(value) ? null : value;

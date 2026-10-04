@@ -89,7 +89,7 @@ async function submit(): Promise<void> {
   await router.push({ name: 'app-entities', params: { appToken: created.Token } })
 }
 
-// The questions and answers of the classic page.
+// The questions and answers shown next to the form.
 const questions: { question: string; answer: string[] }[] = [
   { question: 'What is an application?', answer: ['An application is the backend of your client application.'] },
   { question: 'Can I change the application name later?', answer: ['Yes you can change the application name at any time.'] },

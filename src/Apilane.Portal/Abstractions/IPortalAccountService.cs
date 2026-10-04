@@ -5,8 +5,8 @@ namespace Apilane.Portal.Abstractions
 {
     /// <summary>
     /// Signing in and out, registering and passwords of portal users, for the management API.
-    /// Built on the same SignInManager and UserManager as the MVC account pages, so a sign-in here
-    /// starts a session in exactly the same way.
+    /// Built on Identity's SignInManager and UserManager; every sign-in starts a new session
+    /// (<see cref="Services.AppClaimsPrincipalFactory"/>).
     /// </summary>
     public interface IPortalAccountService
     {

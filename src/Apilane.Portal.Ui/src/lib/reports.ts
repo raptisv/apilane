@@ -5,14 +5,13 @@ import type { Report } from './reportData'
 
 /**
  * The rules of the report editor (ReportEditorSheet): the choices it offers, the form it edits,
- * the request it sends and where the problems the API reports belong. A copy of what the classic
- * editor does (Views/Reports/AddEdit.cshtml), as pure functions, so they can be unit-tested
- * (reports.test.ts). What a panel draws is in lib/reportData.ts.
+ * the request it sends and where the problems the API reports belong. Pure functions, so they can
+ * be unit-tested (reports.test.ts). What a panel draws is in lib/reportData.ts.
  */
 
 type ReportField = Schemas['ReportFieldResponse']
 
-/** The report types, in the order the editor offers them, with their names in the classic portal. */
+/** The report types, in the order the editor offers them, with the names it shows. */
 export const reportTypes: readonly { value: string; label: string }[] = [
   { value: 'Grid', label: 'Grid' },
   { value: 'Pie', label: 'Pie chart' },
@@ -95,7 +94,7 @@ export function reportForm(report: Report): ReportForm {
   }
 }
 
-/** A row with no label, group-by and property: the editor leaves it out of the save, as the classic one does. */
+/** A row with no label, group-by and property: the editor leaves it out of the save. */
 function isEmptyRow(series: SeriesForm): boolean {
   return series.Label.trim() === '' && series.GroupBy === '' && series.Property === ''
 }
@@ -201,7 +200,7 @@ export function splitGroupBy(text: string): string[] {
 
 /**
  * Ticks or unticks one group-by. The result lists the offered ones in the order report-fields has
- * them, as the classic picker does, not in the order they were ticked. Parts that are not offered
+ * them, not in the order they were ticked. Parts that are not offered
  * (any more) stay, in front, until they are unticked themselves.
  */
 export function toggleGroupBy(offered: readonly string[], text: string, name: string): string {

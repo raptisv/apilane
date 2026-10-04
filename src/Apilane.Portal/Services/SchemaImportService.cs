@@ -336,7 +336,7 @@ namespace Apilane.Portal.Services
 
         /// <summary>
         /// The positions of the entities in the order to process them, computed the way the API
-        /// server orders the tables of a new application and the Razor import orders its payload:
+        /// server orders the tables of a new application:
         /// from Users (and the differentiation entity) down the foreign keys of the payload, an
         /// entity that is pointed to before the entities that point to it. Entities that chain
         /// does not reach keep the order of the payload among themselves and come last; entities
@@ -608,7 +608,7 @@ namespace Apilane.Portal.Services
                 return;
             }
 
-            // The same class and serializer as the Razor pages, so the stored JSON is the same.
+            // The same class and serializer as SecurityRulesService, so the stored JSON is the same.
             application.Security = JsonSerializer.Serialize(rules);
 
             await _dbContext.SaveChangesAsync();

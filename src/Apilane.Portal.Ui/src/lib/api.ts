@@ -117,7 +117,7 @@ export async function unwrapAnonymous<T>(call: Promise<ApiResult<T>>): Promise<T
 
 /** The address of the login page of this UI. `returnUrl` is where to come back to after signing in. */
 export function loginUrl(returnUrl?: string): string {
-  const login = `${import.meta.env.BASE_URL}account/login`
+  const login = '/account/login'
 
   return returnUrl ? `${login}?returnUrl=${encodeURIComponent(returnUrl)}` : login
 }
