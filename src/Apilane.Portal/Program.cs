@@ -105,10 +105,12 @@ namespace Apilane.Portal
                 op.Cookie.Name = "Apilane.Portal.Identity";
                 op.Cookie.Domain = appConfig.AuthCookieDomain;
                 op.AccessDeniedPath = new PathString("/Account/Login");
+                op.UseApiStatusCodes();
             });
 
             builder.Services
                 .AddServices(appConfig)
+                .AddPortalApi()
                 .AddAssets()
                 .AddOpenTelemetry(appConfig.OpenTelemetry);
 
@@ -215,13 +217,17 @@ namespace Apilane.Portal
 
             app.UseForwardedHeaders();
 
-            app.UseStaticFiles();
+            app.UseStaticFiles(PortalApiDependencyInjection.CreateStaticFileOptions());
 
             app.UseRouting();
+
+            app.UsePortalApiDefaults();
 
             app.UseAuthentication();
 
             app.UseAuthorization();
+
+            app.UsePortalApiDocs();
 
             app.MapControllerRoute(
                     name: "default",
@@ -239,6 +245,8 @@ namespace Apilane.Portal
             app.MapControllerRoute(
                 name: "PropRoute",
                 pattern: "App/{appid}/Ent/{entid}/Prop/{propid}/{controller}/{action}");
+
+            app.MapPortalApiAndUi();
 
             app.MapHealthChecks("/health/liveness", AspNetCoreExtensions.SetupHealthCheck("live"));
             app.MapHealthChecks("/health/readiness", AspNetCoreExtensions.SetupHealthCheck("ready"));

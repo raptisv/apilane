@@ -118,5 +118,60 @@ namespace Apilane.UnitTests
             Assert.AreEqual("C", a.Children[0].Children[0].ID);
             Assert.AreEqual("D", a.Children[0].Children[0].Children[0].ID);
         }
+
+        [TestMethod]
+        public void BuildTree_SelfReference_Should_Terminate()
+        {
+            // An entity with a foreign key to Users and one to itself.
+            var items = new List<GroupItem>
+            {
+                new GroupItem { ID = "Users", ParentID = null },
+                new GroupItem { ID = "Comments", ParentID = "Users" },
+                new GroupItem { ID = "Comments", ParentID = "Comments" }
+            };
+
+            var result = items.BuildTree();
+
+            Assert.AreEqual(1, result.Count);
+            CollectionAssert.AreEqual(new[] { 1, 2, 3 }, items.Select(x => x.Level).ToArray());
+        }
+
+        [TestMethod]
+        public void BuildTree_Cycle_Should_Terminate()
+        {
+            // Two entities that point to each other, one of them to Users too.
+            var items = new List<GroupItem>
+            {
+                new GroupItem { ID = "Users", ParentID = null },
+                new GroupItem { ID = "Alpha", ParentID = "Users" },
+                new GroupItem { ID = "Alpha", ParentID = "Bravo" },
+                new GroupItem { ID = "Bravo", ParentID = "Alpha" }
+            };
+
+            var result = items.BuildTree();
+
+            Assert.AreEqual(1, result.Count);
+            CollectionAssert.AreEqual(new[] { 1, 2, 4, 3 }, items.Select(x => x.Level).ToArray());
+        }
+
+        [TestMethod]
+        public void BuildTree_NodeReachedThroughTwoPaths_Should_Keep_The_Deepest_Level()
+        {
+            // Comments is reached through Tasks twice: from Users directly (level 3) and through
+            // Projects (level 4). The second visit must not be skipped: the longer path counts.
+            var items = new List<GroupItem>
+            {
+                new GroupItem { ID = "Users", ParentID = null },
+                new GroupItem { ID = "Tasks", ParentID = "Users" },
+                new GroupItem { ID = "Projects", ParentID = "Users" },
+                new GroupItem { ID = "Tasks", ParentID = "Projects" },
+                new GroupItem { ID = "Comments", ParentID = "Tasks" },
+                new GroupItem { ID = "Replies", ParentID = "Comments" }
+            };
+
+            items.BuildTree();
+
+            CollectionAssert.AreEqual(new[] { 1, 2, 2, 3, 4, int.MaxValue }, items.Select(x => x.Level).ToArray());
+        }
     }
 }

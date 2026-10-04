@@ -3,8 +3,10 @@ using Apilane.Common.Abstractions;
 using Apilane.Common.Models;
 using Apilane.Portal.Abstractions;
 using Apilane.Portal.Models;
+using Apilane.Portal.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -69,28 +71,41 @@ namespace Apilane.Portal.Controllers
         public class AppClaimsPrincipalFactory : UserClaimsPrincipalFactory<ApplicationUser, IdentityRole>
         {
             private ApplicationDbContext _dbontextInner;
+            private readonly IHttpContextAccessor _httpContextAccessor;
 
             public AppClaimsPrincipalFactory(
                 UserManager<ApplicationUser> userManager,
                 RoleManager<IdentityRole> roleManager,
                 IOptions<IdentityOptions> options,
-                ApplicationDbContext dbontextInner)
+                ApplicationDbContext dbontextInner,
+                IHttpContextAccessor httpContextAccessor)
                 : base(userManager, roleManager, options)
             {
                 _dbontextInner = dbontextInner;
+                _httpContextAccessor = httpContextAccessor;
             }
 
             public async override Task<ClaimsPrincipal> CreateAsync(ApplicationUser user)
             {
-                // Create a new token
-                string portalUserAuthToken = Guid.NewGuid().ToString();
+                string portalUserAuthToken;
 
-                user.LastLogin = DateTime.UtcNow;
-                user.AdminAuthToken = portalUserAuthToken;
-                _dbontextInner.Attach(user);
-                _dbontextInner.Entry(user).Property(x => x.AdminAuthToken).IsModified = true;
-                _dbontextInner.Entry(user).Property(x => x.LastLogin).IsModified = true;
-                await _dbontextInner.SaveChangesAsync();
+                // A periodic refresh of the login cookie is not a sign-in: the session keeps the token it has.
+                if (_httpContextAccessor.HttpContext?.Items[PortalSecurityStampValidator.SessionTokenItemKey] is string refreshedSessionToken)
+                {
+                    portalUserAuthToken = refreshedSessionToken;
+                }
+                else
+                {
+                    // Create a new token
+                    portalUserAuthToken = Guid.NewGuid().ToString();
+
+                    user.LastLogin = DateTime.UtcNow;
+                    user.AdminAuthToken = portalUserAuthToken;
+                    _dbontextInner.Attach(user);
+                    _dbontextInner.Entry(user).Property(x => x.AdminAuthToken).IsModified = true;
+                    _dbontextInner.Entry(user).Property(x => x.LastLogin).IsModified = true;
+                    await _dbontextInner.SaveChangesAsync();
+                }
 
                 var principal = await base.CreateAsync(user);
 

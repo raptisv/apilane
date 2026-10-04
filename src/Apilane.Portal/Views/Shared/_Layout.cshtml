@@ -79,6 +79,7 @@
                             <a class="nav-link flex items-center" href="#" @@click.prevent="open = !open">Admin</a>
                             <div class="dropdown-menu" x-show="open" x-transition x-cloak @@click="open = false">
                                 <a class="dropdown-item" href="@Url.Action("Servers", "Admin")"><i class="bi bi-hdd-rack me-2"></i>Servers</a>
+                                <a class="dropdown-item" href="~/ui/admin/servers"><i class="bi bi-stars me-2"></i>Servers (new UI)</a>
                                 <a class="dropdown-item" href="@Url.Action("Users", "Admin")"><i class="bi bi-person me-2"></i>Users</a>
                                 <a class="dropdown-item" href="@Url.Action("UserApplications", "Admin")"><i class="bi bi-window me-2"></i>Applications</a>
                                 <a class="dropdown-item" href="@Url.Action("Settings", "Admin")"><i class="bi bi-gear me-2"></i>Settings</a>

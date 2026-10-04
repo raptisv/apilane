@@ -392,13 +392,14 @@ namespace Apilane.Portal.Models
 
                 EntityState.Modified => entry.Properties
                     .Where(p => p.IsModified && !p.Metadata.IsPrimaryKey())
+                    // Compared before masking: a changed secret would otherwise read '***' -> '***' and be dropped.
+                    .Where(p => !string.Equals(dbValues?[p.Metadata.Name]?.ToString(), p.CurrentValue?.ToString(), StringComparison.Ordinal))
                     .Select(p => new AuditPropertyChange
                     {
                         Property = p.Metadata.Name,
                         OldValue = MaskIfSensitive(p.Metadata.Name, dbValues?[p.Metadata.Name]),
                         NewValue = MaskIfSensitive(p.Metadata.Name, p.CurrentValue)
                     })
-                    .Where(c => !string.Equals(c.OldValue, c.NewValue, StringComparison.Ordinal))
                     .ToList(),
 
                 EntityState.Deleted => entry.Properties

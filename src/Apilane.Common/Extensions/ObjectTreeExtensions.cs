@@ -30,15 +30,24 @@ namespace Apilane.Common.Extensions
             if (roots.Count > 0)
             {
                 var dict = groups.Where(g => !string.IsNullOrWhiteSpace(g.Key)).ToDictionary(g => g.Key!, g => g.ToList());
+                var path = new HashSet<GroupItem>();
                 for (int i = 0; i < roots.Count; i++)
-                    AddChildren(roots[i], dict, 1);
+                    AddChildren(roots[i], dict, 1, path);
             }
 
             return roots;
         }
 
-        private static void AddChildren(GroupItem node, IDictionary<string, List<GroupItem>> source, int level)
+        private static void AddChildren(GroupItem node, IDictionary<string, List<GroupItem>> source, int level, HashSet<GroupItem> path)
         {
+            // A foreign-key cycle (an entity pointing to itself, or two pointing to each other)
+            // would otherwise recurse until the stack overflows. Only the current path is
+            // remembered: reaching a node again through a longer path is what raises its level.
+            if (!path.Add(node))
+            {
+                return;
+            }
+
             if (source.ContainsKey(node.ID))
             {
                 node.Children = source[node.ID];
@@ -48,12 +57,14 @@ namespace Apilane.Common.Extensions
                     node.Level = level;
                 }
                 for (int i = 0; i < node.Children.Count; i++)
-                    AddChildren(node.Children[i], source, (level + 1));
+                    AddChildren(node.Children[i], source, (level + 1), path);
             }
             else
             {
                 node.Children = new List<GroupItem>();
             }
+
+            path.Remove(node);
         }
     }
 }

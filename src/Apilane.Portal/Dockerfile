@@ -6,6 +6,17 @@ WORKDIR /app
 EXPOSE 5000
 
 
+# This stage builds the Portal UI (src/Apilane.Portal.Ui) into static files. Node exists only
+# here: the final image gets the files, not the toolchain. The folder layout mirrors the
+# repository because the UI builds into ../Apilane.Portal/wwwroot/ui (see vite.config.ts).
+FROM node:24.13.0-alpine AS ui
+WORKDIR /src/src/Apilane.Portal.Ui
+COPY ["src/Apilane.Portal.Ui/package.json", "src/Apilane.Portal.Ui/package-lock.json", "./"]
+RUN npm ci --no-audit --no-fund
+COPY src/Apilane.Portal.Ui/ ./
+RUN npm run build
+
+
 # This stage is used to build the service project
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
@@ -30,4 +41,5 @@ RUN dotnet publish "./Apilane.Portal.csproj" -c $BUILD_CONFIGURATION -o /app/pub
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+COPY --from=ui /src/src/Apilane.Portal/wwwroot/ui ./wwwroot/ui
 ENTRYPOINT ["dotnet", "Apilane.Portal.dll"]

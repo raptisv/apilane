@@ -45,7 +45,10 @@ namespace Apilane.Portal.Services
                 OperationId = operationId,
                 Status = CloneStatus.Pending,
                 StartedAtUtc = DateTime.UtcNow,
-                ClonedApplicationToken = applicationToClone.Token
+                ClonedApplicationToken = applicationToClone.Token,
+                SourceApplicationToken = sourceApplication.Token,
+                // Whoever starts a clone is made its owner, on the Razor page and in the API alike.
+                StartedByUserId = applicationToClone.UserID
             };
 
             _operations[operationId] = progress;
@@ -67,8 +70,9 @@ namespace Apilane.Portal.Services
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Clone operation {OperationId} failed: {Message}", operationId, ex.Message);
-                    progress.Status = CloneStatus.Failed;
+                    // The status last: whoever reads a final status finds its details set.
                     progress.ErrorMessage = ex.Message;
+                    progress.Status = CloneStatus.Failed;
                 }
             });
 
@@ -163,8 +167,8 @@ namespace Apilane.Portal.Services
                     progress);
             }
 
-            progress.Status = CloneStatus.Completed;
             progress.CompletedAtUtc = DateTime.UtcNow;
+            progress.Status = CloneStatus.Completed;
 
             _logger.LogInformation("Clone {OperationId} completed successfully. {EntitiesCreated} entities created, {TotalRecords} records imported.",
                 progress.OperationId, progress.EntitiesCreated, progress.TotalRecordsImported);

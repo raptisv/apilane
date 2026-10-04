@@ -1,0 +1,3 @@
+# Generated files keep LF on every platform, so regenerating them on Windows gives no diff.
+openapi/*.json text eol=lf
+src/Apilane.Portal.Ui/src/lib/api-types.ts text eol=lf

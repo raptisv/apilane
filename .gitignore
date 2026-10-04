@@ -267,6 +267,9 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
+# Portal UI build output (src/Apilane.Portal.Ui builds into it; the Docker image builds its own)
+src/Apilane.Portal/wwwroot/ui/
+
 # Visual Studio 6 build log
 *.plg
 

@@ -14,9 +14,11 @@ It uses Microsoft Orleans for distributed actor state and targets SQLite, SQL Se
 | `Apilane.Common` | `src/Apilane.Common/` | Shared models, enums, extensions, utilities |
 | `Apilane.Data` | `src/Apilane.Data/` | Data access layer (multi-DB) |
 | `Apilane.Portal` | `src/Apilane.Portal/` | Admin portal web app |
+| `Apilane.Portal.Ui` | `src/Apilane.Portal.Ui/` | Vue 3 single-page app served by the Portal under `/ui/` (not in the `.sln`; see its `README.md`) |
 | `Apilane.Net` | `sdk/Apilane.Net/` | .NET client SDK (NuGet package) |
 | `Apilane.UnitTests` | `tests/Apilane.UnitTests/` | MSTest unit tests |
 | `Apilane.Api.Component.Tests` | `tests/Apilane.Api.Component.Tests/` | xUnit component/integration tests |
+| `Apilane.Portal.Tests` | `tests/Apilane.Portal.Tests/` | xUnit + `WebApplicationFactory` tests of the Portal's `/api/v1` (throw-away SQLite, no Docker) |
 
 ---
 
@@ -55,6 +57,9 @@ dotnet test tests/Apilane.UnitTests/
 # Run only component/integration tests (xUnit)
 dotnet test tests/Apilane.Api.Component.Tests/
 
+# Run only the Portal API tests (xUnit)
+dotnet test tests/Apilane.Portal.Tests/
+
 # Run a single MSTest method by name
 dotnet test tests/Apilane.UnitTests/ --filter "TestMethod=IsRateLimited_Empty_Should_Work"
 
@@ -69,7 +74,8 @@ dotnet test --logger "console;verbosity=detailed"
 ```
 
 **Unit tests** use **MSTest** (`[TestClass]`, `[TestMethod]`).  
-**Component tests** use **xUnit** (`[Fact]`, `[Theory]`) + **FakeItEasy** mocks.
+**Component tests** use **xUnit** (`[Fact]`, `[Theory]`) + **FakeItEasy** mocks.  
+**Portal tests** use **xUnit** + `WebApplicationFactory` (`Infrastructure/PortalFactory.cs`): the real Portal in memory on a throw-away SQLite database. They need no Docker.
 
 Component tests run against SQLite, SQL Server, MySQL and PostgreSQL. The three servers are started
 as Docker containers by **Testcontainers** (see `Infrastructure/DatabaseContainers.cs`), on random
@@ -226,6 +232,32 @@ new FilterData(Globals.PrimaryKeyColumn, FilterData.FilterOperators.contains,
 
 In the SDK the same idiom is `new FilterItem("ID", FilterOperator.contains, string.Join(",", ids))`.
 On a **string** property `contains` is a substring `LIKE`, not set membership.
+
+---
+
+## Portal API and UI
+
+The Portal has a Vue 3 single-page app (`src/Apilane.Portal.Ui`, served under `/ui/`) with a screen for
+every page of the Portal, on top of a JSON management API (`/api/v1`, in `src/Apilane.Portal/Api`,
+contract in `openapi/portal-v1.json`). The older Razor views and MVC controllers still run next to it
+until the cut-over described in `src/Apilane.Portal.Ui/MIGRATION.md`.
+
+- API controllers inherit `PortalApiControllerBase`. Request and response shapes live only in
+  `Api/V1/Contracts` (never EF models, never secrets; the one response that carries a secret is
+  `connection-info`, the encryption key shown on demand). Service interfaces go in `src/Apilane.Portal/Abstractions/`.
+- Writes (POST, PUT, DELETE) are rejected without the header `X-Apilane-Portal: 1`.
+- New screens and endpoints go into the SPA and `/api/v1` only. Do not change or extend the MVC controllers
+  and Razor views: they keep working as they are and are removed in one go, in the order `MIGRATION.md` gives.
+- `InfoController` (`/Info/...`) and `AuthenticateController.InRole` are not part of that removal: API servers
+  and external apps call them, so their addresses and answers must stay exactly as they are
+  (`tests/Apilane.Portal.Tests/LegacyServiceEndpointsTests.cs` pins them).
+- `openapi/portal-v1.json` is written by the Portal tests, never by hand. After any API change follow
+  "When the API changes" in `src/Apilane.Portal.Ui/README.md` (test run with `UPDATE_OPENAPI=1`,
+  `npm run api:types`, `npm run build`) and commit the JSON and the regenerated
+  `src/Apilane.Portal.Ui/src/lib/api-types.ts` together.
+- UI layout, commands and conventions are in `src/Apilane.Portal.Ui/README.md`. Node is needed only in that folder.
+- What the SPA does differently from the Razor pages on purpose, the decisions still open and the plan for
+  removing the Razor pages are in `src/Apilane.Portal.Ui/MIGRATION.md`.
 
 ---
 

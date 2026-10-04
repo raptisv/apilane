@@ -1,0 +1,126 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/shadcn.css";
+
+/*
+ * Dark is the only theme. <html class="dark"> in index.html keeps the `dark:` variants of the
+ * shadcn-vue components active; there is no light set of values and no switcher.
+ */
+@custom-variant dark (&:is(.dark *));
+
+/* Maps the design tokens below onto Tailwind colour and radius utilities (bg-card, text-muted-foreground, rounded-lg, ...). */
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-link: var(--link);
+    --color-destructive: var(--destructive);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+    --color-preview: var(--preview);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+}
+
+/*
+ * Design tokens. Every colour in the UI comes from here: change a value once and every screen
+ * follows. Surfaces step up in lightness (background < sidebar < card < popover) so layers read
+ * as depth; blue is the single accent, kept from the classic portal.
+ * --primary is for filled backgrounds (buttons): as text on these dark surfaces it is too dim to
+ * read. Blue text and inline links use --link (text-link).
+ */
+:root {
+    color-scheme: dark;
+
+    --radius: 0.5rem;
+
+    --background: oklch(0.141 0.005 285.8);
+    --foreground: oklch(0.967 0.001 286.4);
+
+    --sidebar: oklch(0.165 0.005 285.8);
+    --sidebar-foreground: oklch(0.871 0.006 286.3);
+    --sidebar-accent: oklch(0.274 0.006 286);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 8%);
+
+    --card: oklch(0.185 0.006 285.9);
+    --card-foreground: oklch(0.967 0.001 286.4);
+    --popover: oklch(0.21 0.006 285.9);
+    --popover-foreground: oklch(0.967 0.001 286.4);
+
+    --primary: oklch(0.546 0.245 262.9);
+    --primary-foreground: oklch(0.985 0 0);
+    --link: oklch(0.707 0.165 254.6);
+    --secondary: oklch(0.274 0.006 286);
+    --secondary-foreground: oklch(0.967 0.001 286.4);
+    --muted: oklch(0.274 0.006 286);
+    --muted-foreground: oklch(0.705 0.015 286.1);
+    --accent: oklch(0.274 0.006 286);
+    --accent-foreground: oklch(0.985 0 0);
+
+    --destructive: oklch(0.704 0.191 22.2);
+    --success: oklch(0.765 0.177 163.2);
+    --warning: oklch(0.828 0.16 84.4);
+
+    /* The page behind an e-mail preview (HtmlPreview): white, as in most mail programs. */
+    --preview: oklch(1 0 0);
+
+    /*
+     * The colours of the series of a report chart, used in turn (lib/reportChart.ts reads them).
+     * The same ten as the classic portal. Keep them as #rrggbb: a radar chart derives its
+     * see-through fill from them.
+     */
+    --chart-1: #4e79a7;
+    --chart-2: #f28e2b;
+    --chart-3: #e15759;
+    --chart-4: #76b7b2;
+    --chart-5: #59a14f;
+    --chart-6: #edc948;
+    --chart-7: #b07aa1;
+    --chart-8: #ff9da7;
+    --chart-9: #9c755f;
+    --chart-10: #bab0ac;
+
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.623 0.214 259.8);
+}
+
+@layer base {
+    * {
+        @apply border-border outline-ring/50;
+    }
+
+    body {
+        @apply bg-background text-foreground font-sans antialiased;
+    }
+}
+
+/*
+ * The reports dashboard (gridstack). Its own stylesheet is loaded with the dashboard grid; these
+ * rules only give its drop target the colours of this theme.
+ */
+.grid-stack > .grid-stack-placeholder > .placeholder-content {
+    @apply rounded-lg border border-dashed border-ring bg-accent/40;
+}

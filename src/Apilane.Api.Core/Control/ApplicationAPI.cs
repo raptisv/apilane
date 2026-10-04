@@ -82,6 +82,10 @@ namespace Apilane.Api.Core
                 // Then rebuild the application
                 await _applicationBuilder.BuildApplicationAsync(application);
 
+                // The drop above removed the system tables too (record history, email templates).
+                // They are otherwise created once per process and token, so they would stay missing.
+                await _applicationBuilder.EnsureSystemTablesAsync();
+
                 scope.Complete();
             }
 
