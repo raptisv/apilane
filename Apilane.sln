@@ -24,6 +24,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{BE8EF20A-5
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "sdk", "sdk", "{F729F015-1D46-41DB-B6A8-84E4FB976443}"
+	ProjectSection(SolutionItems) = preProject
+		sdk\LICENSE = sdk\LICENSE
+	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apilane.Net", "sdk\Apilane.Net\Apilane.Net.csproj", "{60918BA4-4CDE-4494-8D56-478D4D2E5558}"
 EndProject
@@ -99,16 +102,45 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "licenses", "licenses", "{99
 	ProjectSection(SolutionItems) = preProject
 		licenses\AWSSDK.S3-Apache-2.0 = licenses\AWSSDK.S3-Apache-2.0
 		licenses\Azure.Storage.Blobs-MIT = licenses\Azure.Storage.Blobs-MIT
-		licenses\d3.txt = licenses\d3.txt
+		licenses\Chart.js-MIT = licenses\Chart.js-MIT
+		licenses\class-variance-authority-Apache-2.0 = licenses\class-variance-authority-Apache-2.0
+		licenses\clsx-MIT = licenses\clsx-MIT
+		licenses\CodeMirror-MIT = licenses\CodeMirror-MIT
+		licenses\DefinitelyTyped-MIT = licenses\DefinitelyTyped-MIT
+		licenses\dotnet-MIT = licenses\dotnet-MIT
 		licenses\FakeItEasy-MIT = licenses\FakeItEasy-MIT
 		licenses\Google.Cloud.Storage.V1-Apache-2.0 = licenses\Google.Cloud.Storage.V1-Apache-2.0
-		licenses\LigerShark.WebOptimizer.Core-Apache-2.0 = licenses\LigerShark.WebOptimizer.Core-Apache-2.0
+		licenses\GridStack-MIT = licenses\GridStack-MIT
+		licenses\Lucide-ISC = licenses\Lucide-ISC
+		licenses\Microsoft.Data.SqlClient-MIT = licenses\Microsoft.Data.SqlClient-MIT
+		licenses\Microsoft.NET.Test.Sdk-MIT = licenses\Microsoft.NET.Test.Sdk-MIT
+		licenses\Microsoft.Orleans-MIT = licenses\Microsoft.Orleans-MIT
+		licenses\MSTest-MIT = licenses\MSTest-MIT
 		licenses\MySqlConnector-MIT = licenses\MySqlConnector-MIT
+		licenses\Npgsql-PostgreSQL = licenses\Npgsql-PostgreSQL
+		licenses\openapi-typescript-MIT = licenses\openapi-typescript-MIT
 		licenses\OpenTelemetry-Apache-2.0 = licenses\OpenTelemetry-Apache-2.0
-		licenses\OrleansDashboard-MIT = licenses\OrleansDashboard-MIT
+		licenses\RekaUI-MIT = licenses\RekaUI-MIT
 		licenses\Serilog-Apache-2.0 = licenses\Serilog-Apache-2.0
+		licenses\Serilog.Enrichers.Span-MIT = licenses\Serilog.Enrichers.Span-MIT
+		licenses\Serilog.Sinks.Graylog-MIT = licenses\Serilog.Sinks.Graylog-MIT
+		licenses\shadcn-vue-MIT = licenses\shadcn-vue-MIT
 		licenses\Swashbuckle.AspNetCore-MIT = licenses\Swashbuckle.AspNetCore-MIT
 		licenses\System.Data.SQLite.Core = licenses\System.Data.SQLite.Core
+		licenses\tailwind-merge-MIT = licenses\tailwind-merge-MIT
+		licenses\Tailwind-MIT = licenses\Tailwind-MIT
+		licenses\Testcontainers-MIT = licenses\Testcontainers-MIT
+		licenses\tw-animate-css-MIT = licenses\tw-animate-css-MIT
+		licenses\TypeScript-Apache-2.0 = licenses\TypeScript-Apache-2.0
+		licenses\Vite-MIT = licenses\Vite-MIT
+		licenses\vite-plugin-vue-MIT = licenses\vite-plugin-vue-MIT
+		licenses\Vitest-MIT = licenses\Vitest-MIT
+		licenses\vue-sonner-MIT = licenses\vue-sonner-MIT
+		licenses\vue-tsc-MIT = licenses\vue-tsc-MIT
+		licenses\vue-tsconfig-MIT = licenses\vue-tsconfig-MIT
+		licenses\Vue.js-MIT = licenses\Vue.js-MIT
+		licenses\VueRouter-MIT = licenses\VueRouter-MIT
+		licenses\VueUse-MIT = licenses\VueUse-MIT
 		licenses\xunit-Apache-2.0 = licenses\xunit-Apache-2.0
 	EndProjectSection
 EndProject
@@ -117,6 +149,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Js", "Js", "{26279FAE-1F2C-
 		sdk\Apilane.Js\apilane.js = sdk\Apilane.Js\apilane.js
 		sdk\Apilane.Js\README.md = sdk\Apilane.Js\README.md
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apilane.Portal.Tests", "tests\Apilane.Portal.Tests\Apilane.Portal.Tests.csproj", "{ECDB11D7-471D-480E-94C8-7E511669E762}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -190,6 +224,14 @@ Global
 		{48B6AE8C-972F-47D8-B9A8-828B62839EC3}.Release|Any CPU.Build.0 = Release|Any CPU
 		{48B6AE8C-972F-47D8-B9A8-828B62839EC3}.Release|x86.ActiveCfg = Release|Any CPU
 		{48B6AE8C-972F-47D8-B9A8-828B62839EC3}.Release|x86.Build.0 = Release|Any CPU
+		{ECDB11D7-471D-480E-94C8-7E511669E762}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECDB11D7-471D-480E-94C8-7E511669E762}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ECDB11D7-471D-480E-94C8-7E511669E762}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{ECDB11D7-471D-480E-94C8-7E511669E762}.Debug|x86.Build.0 = Debug|Any CPU
+		{ECDB11D7-471D-480E-94C8-7E511669E762}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ECDB11D7-471D-480E-94C8-7E511669E762}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ECDB11D7-471D-480E-94C8-7E511669E762}.Release|x86.ActiveCfg = Release|Any CPU
+		{ECDB11D7-471D-480E-94C8-7E511669E762}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -203,6 +245,7 @@ Global
 		{C9EC0B0B-BD5A-4977-9A05-32A52F7177BF} = {B9A9401E-790D-4DAF-9433-9D49CF9263A3}
 		{996916D6-04A2-4416-A081-0C841E317CFD} = {BE8EF20A-5557-451B-9E3C-B345B4CAEA87}
 		{26279FAE-1F2C-480E-B9F5-7856966E82FC} = {F729F015-1D46-41DB-B6A8-84E4FB976443}
+		{ECDB11D7-471D-480E-94C8-7E511669E762} = {E315B173-DF38-44BE-A412-686DAAABCD37}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {1CE543A9-552F-4700-878C-A89AEA809584}

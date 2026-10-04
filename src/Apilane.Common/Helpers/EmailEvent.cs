@@ -1,5 +1,4 @@
 ﻿using Apilane.Common.Enums;
-using Apilane.Common.Utilities;
 using System.Collections.Generic;
 
 namespace Apilane.Common.Helpers
@@ -19,48 +18,6 @@ namespace Apilane.Common.Helpers
             { "Username", "The username" },
             { "Email", "The user email" }
         };
-
-        public static List<object> GetEventsPlaceholdersAndDescriptions()
-        {
-            var result = new List<object>();
-            foreach (var ev in EmailEvents)
-            {
-                foreach (var prop in UserProperties)
-                {
-                    result.Add(new
-                    {
-                        Event = ev.Code.ToString(),
-                        Name = $"{{Users.{prop.Key}}}",
-                        Description = prop.Value
-                    });
-                }
-
-                if (!ev.IsUserTriggeredSameAsAcceptingTheEmail)
-                {
-                    foreach (var prop in UserProperties)
-                    {
-                        result.Add(new
-                        {
-                            Event = ev.Code.ToString(),
-                            Name = $"{{Users.From.{prop.Key}}}",
-                            Description = prop.Value
-                        });
-                    }
-                }
-
-                foreach (var ph in ev.Placeholders)
-                {
-                    result.Add(new
-                    {
-                        Event = ev.Code.ToString(),
-                        Name = $"{{{ph.ToString()}}}",
-                        Description = EnumProvider<EmailEventsPlaceholders>.GetDisplayValue(ph)
-                    });
-                }
-            }
-
-            return result;
-        }
 
         public static List<EmailEvent> EmailEvents = new()
         {

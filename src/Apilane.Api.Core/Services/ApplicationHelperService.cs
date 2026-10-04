@@ -14,6 +14,11 @@ namespace Apilane.Api.Core.Services
 {
     public class ApplicationHelperService : IApplicationHelperService
     {
+        /// <summary>
+        /// How long a password reset link works after it was requested.
+        /// </summary>
+        private static readonly TimeSpan PasswordResetTokenLifetime = TimeSpan.FromHours(24);
+
         private readonly IApplicationDataStoreFactory _factory;
 
         public ApplicationHelperService(IApplicationDataStoreFactory applicationDataStoreFactory)
@@ -159,8 +164,8 @@ namespace Apilane.Api.Core.Services
 
         public async Task CreatePasswordResetTokenAsync(long userId, string resetToken)
         {
-            // Delete expired tokens (older than 24 hours)
-            var expiryMs = Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow) - (1440L * 60 * 1000);
+            // Delete expired tokens
+            var expiryMs = Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow.Subtract(PasswordResetTokenLifetime));
             await _factory.DeleteDataAsync(
                 nameof(H_Auth_Password_Reset_Tokens),
                 new FilterData(nameof(H_Auth_Password_Reset_Tokens.Created), FilterData.FilterOperators.less, expiryMs, PropertyType.Date));
@@ -206,7 +211,14 @@ namespace Apilane.Api.Core.Services
                 return null;
             }
 
-            var filter = new FilterData(nameof(H_Auth_Password_Reset_Tokens.Token), FilterData.FilterOperators.equal, resetToken, PropertyType.String);
+            // Expired tokens are only deleted when the next one is created, so the age is checked here too
+            var oldestValidMs = Utils.GetUnixTimestampMilliseconds(DateTime.UtcNow.Subtract(PasswordResetTokenLifetime));
+
+            var filter = new FilterData(FilterData.FilterLogic.AND, new List<FilterData>()
+            {
+                new FilterData(nameof(H_Auth_Password_Reset_Tokens.Token), FilterData.FilterOperators.equal, resetToken, PropertyType.String),
+                new FilterData(nameof(H_Auth_Password_Reset_Tokens.Created), FilterData.FilterOperators.greaterorequal, oldestValidMs, PropertyType.Date)
+            });
 
             var rows = await _factory.GetPagedDataAsync(nameof(H_Auth_Password_Reset_Tokens), null, filter, null, 1, 1);
 

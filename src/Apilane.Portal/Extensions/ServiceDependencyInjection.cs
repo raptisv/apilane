@@ -5,7 +5,6 @@ using Apilane.Portal.Models;
 using Apilane.Portal.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
-using Serilog;
 using System.Net.Http.Headers;
 
 namespace Apilane.Portal.Extensions
@@ -19,13 +18,12 @@ namespace Apilane.Portal.Extensions
             services
             // Singleton
             .AddSingleton<PortalConfiguration>((s) => portalConfiguration)
-            .AddSingleton<ILogger>((s) => Log.Logger)
             .AddSingleton<IEmailService, EmailService>()
             .AddSingleton<IApiHttpService, ApiHttpService>()
             .AddSingleton<ICloneService, CloneService>()
             // Scoped
             .AddScoped<IPortalSettingsService, PortalSettingsService>()
-            .AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, Controllers.AccountController.AppClaimsPrincipalFactory>()
+            .AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, AppClaimsPrincipalFactory>()
             // Http client
             .AddHttpClient("Api", c =>
             {

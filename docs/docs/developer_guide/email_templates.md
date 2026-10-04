@@ -6,16 +6,16 @@ Apilane supports sending emails to users for account-related events such as regi
 
 ## SMTP configuration
 
-Before emails can be sent, you must configure the SMTP settings for your application. Navigate to the **Email** section of your application in the Portal.
+Before emails can be sent, you must configure the SMTP settings for your application. Open the **Email** tab of your application in the Portal. **Save settings** saves the SMTP settings and the confirmation landing page together.
 
 | Setting | Description |
 |---|---|
 | **Mail server** | SMTP server hostname (e.g., `smtp.gmail.com`) |
-| **Mail server port** | SMTP port — typically `587` (TLS) or `465` (SSL) |
-| **Mail from address** | The "From" email address shown to recipients |
-| **Mail from display name** | The display name shown alongside the from address |
-| **Mail username** | SMTP authentication username |
-| **Mail password** | SMTP authentication password |
+| **Port** | SMTP port — typically `587` (TLS) or `465` (SSL) |
+| **Sender address** | The "From" email address shown to recipients |
+| **Sender display name** | The display name shown alongside the sender address |
+| **User name** | SMTP authentication username |
+| **Password** | SMTP authentication password. Once saved it is never shown again; an empty box keeps the stored value |
 
 ![Apilane](../assets/email_settings.png)
 
@@ -26,7 +26,7 @@ Before emails can be sent, you must configure the SMTP settings for your applica
 
 ## Available templates
 
-Apilane provides two built-in email templates. Each can be individually enabled or disabled, and both the subject and body can be fully customized.
+Apilane provides two built-in email templates. Each can be individually enabled or disabled, and both the subject and body can be fully customized. They are listed under **Email templates** on the same tab; editing one shows a live preview of its body.
 
 ### Email confirmation
 
@@ -161,6 +161,8 @@ sequenceDiagram
 5. The email is sent to the user
 6. The user follows the link to set a new password
 
+The link works for 24 hours. After that the user has to request a new one.
+
 !!!info "Security note"
     Both `RequestConfirmation` and `ForgotPassword` endpoints return success even if the email does not exist in the system. This prevents email enumeration attacks.
 
@@ -168,6 +170,6 @@ sequenceDiagram
 
 ## Confirmation landing page
 
-After a user confirms their email by following the URL provided in the email, the browser eventually lands on a page. There is a default landing page for each application. This landing page can be configured to a URL of your choice.
+After a user confirms their email by following the URL provided in the email, the browser eventually lands on a page. By default this is a page of the Portal (`{PortalUrl}/account/email-confirmed`, where `PortalUrl` is the API's setting). To use a URL of your choice, set **Redirect URL** under 'Email confirmation landing page' on the **Email** tab.
 
 ![Apilane](../assets/email_confirm_land.png)

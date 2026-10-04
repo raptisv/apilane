@@ -328,6 +328,21 @@ namespace Apilane.Api.Component.Tests
                 // All data must be wiped — no rows should remain
                 Assert.Empty(page.Data);
             }
+
+            // Verify: the system tables were recreated too. Rebuild drops every table, and the record
+            // history table is otherwise created only once per process and application token.
+            using (new WithApplicationOwnerAccess(TestApplication.Token, PortalInfoServiceMock))
+            {
+                var countResponse = await HttpClient.RequestAsync(
+                    HttpMethod.Get,
+                    $"/api/Stats/CountDataAndHistory?appToken={TestApplication.Token}&entity={SchemaTestItem.EntityName}");
+
+                if (!countResponse.IsSuccessStatusCode)
+                {
+                    var body = await countResponse.Content.ReadAsStringAsync();
+                    throw new Exception($"CountDataAndHistory after rebuild failed: {countResponse.StatusCode} | {body}");
+                }
+            }
         }
 
         /// <summary>

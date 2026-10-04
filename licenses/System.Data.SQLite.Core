@@ -1,5 +1,14 @@
-This project uses System.Data.SQLite.Core, which is licensed under the Microsoft Public License.
-https://opensource.org/license/ms-pl-html
+This project uses System.Data.SQLite.Core (https://system.data.sqlite.org/).
+Its source code is dedicated to the public domain:
+https://system.data.sqlite.org/index.html/doc/trunk/www/copyright.wiki
+
+The Microsoft Public License covers only the "SQL Generation" code of System.Data.SQLite.Linq and
+System.Data.SQLite.EF6, which this project does not use.
 
 SQLite itself is in the public domain.
 For more information, visit: https://www.sqlite.org/copyright.html
+
+The published binaries of version 1.0.119 are also built with the SQLite Encryption Extension (SEE) of
+Hipp, Wyrick & Company, Inc. (https://sqlite.org/see), which is not public domain and needs its own license
+to be used. This project does not use it. The Windows native library includes zlib
+(https://zlib.net/zlib_license.html).

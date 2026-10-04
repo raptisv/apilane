@@ -1,7 +1,5 @@
 using Apilane.Common.Attributes;
 using Apilane.Common.Enums;
-using Apilane.Common.Utilities;
-using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
@@ -70,30 +68,6 @@ namespace Apilane.Common.Models
         // One or more series (query targets) overlaid in this panel. Each series carries its own
         // entity and group-by; they share this panel's MaxRecords and are aligned on the x-axis by value.
         public List<DBWS_ReportSeries> Series { get; set; } = new();
-
-        /// <summary>
-        /// Resolves the relative <see cref="TimeRange"/> to an absolute [start, end] window in unix
-        /// milliseconds (end = now). Returns null when no time range is set.
-        /// </summary>
-        public static (long StartMs, long EndMs)? GetTimeWindowMs(string? timeRange)
-        {
-            if (!TryParseTimeRange(timeRange, out var amount, out var unit))
-            {
-                return null;
-            }
-
-            var now = DateTime.UtcNow;
-            var start = unit switch
-            {
-                'h' => now.AddHours(-amount),
-                'd' => now.AddDays(-amount),
-                'm' => now.AddMonths(-amount),
-                'y' => now.AddYears(-amount),
-                _ => now
-            };
-
-            return (Utils.GetUnixTimestampMilliseconds(start), Utils.GetUnixTimestampMilliseconds(now));
-        }
 
         /// <summary>
         /// Friendly label for a <see cref="TimeRange"/> code (e.g. "Last 30 days"), or null when no range is set.

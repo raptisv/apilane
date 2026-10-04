@@ -162,6 +162,9 @@ namespace Apilane.Api.Areas.Account.Controllers
 		public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model, [FromQuery] string Token)
 		{
 			ViewBag.Application = Application;
+			// The view builds the form address from it: without it a form shown again after a validation error
+			// would post without the token.
+			ViewBag.Token = Token;
 
 			if (!ModelState.IsValid)
 			{

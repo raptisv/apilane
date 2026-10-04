@@ -471,3 +471,7 @@ Verify the API is running:
 ```csharp
 var health = await _apilaneService.HealthCheckAsync();
 ```
+
+## License
+
+The Apilane SDKs are released under the [MIT License](https://github.com/raptisv/apilane/blob/main/sdk/LICENSE). The Apilane server (API and Portal) is licensed under [AGPL-3.0](https://github.com/raptisv/apilane/blob/main/LICENSE).

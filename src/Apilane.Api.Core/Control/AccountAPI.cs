@@ -423,7 +423,7 @@ namespace Apilane.Api.Core
             // Do not delete the token, it might be requested again.
 
             var redirectToUrl = string.IsNullOrWhiteSpace(emailConfirmationRedirectUrl) ?
-                $"{_apiConfiguration.PortalUrl.Trim('/')}/Account/AppEmailConfirmed"
+                $"{_apiConfiguration.PortalUrl.Trim('/')}/account/email-confirmed"
                 : emailConfirmationRedirectUrl;
 
             return redirectToUrl;

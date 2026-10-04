@@ -18,7 +18,7 @@ It offers features such as database management, user authentication, file storag
 | **Transactions** | [Atomic multi-operation transactions](developer_guide/transactions.md) with cross-referencing between operations. |
 | **Custom Endpoints** | Run [custom SQL queries](developer_guide/custom_endpoints.md) as API endpoints with parameterized inputs. |
 | **Aggregation & Stats** | Run aggregate functions (Count, Sum, Avg, Min, Max) and distinct queries on your data. |
-| **Reports** | Build [visual reports](developer_guide/reports.md) (grids, pie charts, line charts) from the Portal. |
+| **Reports** | Build [visual reports](developer_guide/reports.md) (grids and pie, line, bar, radar and stacked bar charts) from the Portal. |
 | **Email Templates** | Configurable [email templates](developer_guide/email_templates.md) for registration confirmation and password reset. |
 | **Change Tracking** | Optional [entity history](developer_guide/entities_properties.md#change-tracking) to audit record changes over time. |
 | **Schema API** | Retrieve your [application schema](api_reference.md#get-application-schema) programmatically at runtime. |

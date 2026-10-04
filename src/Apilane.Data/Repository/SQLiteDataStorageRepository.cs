@@ -36,24 +36,56 @@ namespace Apilane.Data.Repository
             {
                 _databaseConnection.Open();
 
-                // Extensions are enabled only long enough to load FTS5. While they are enabled, SQL can call
-                // load_extension() and load any native library into this process.
-                _databaseConnection.EnableExtensions(true);
-                _databaseConnection.LoadExtension(GetPathToSqliteInterop(), "sqlite3_fts5_init");
-                _databaseConnection.EnableExtensions(false);
-
-                // Application owners write custom endpoint SQL that runs on this connection, so confine it to
-                // its own database file: no attached databases (which also disables VACUUM INTO), and an
-                // authorizer for the statements a limit cannot express.
-                _databaseConnection.SetLimitOption(SQLiteLimitOpsEnum.SQLITE_LIMIT_ATTACHED, 0);
-
-                // Defensive mode: SQL cannot write raw pages (sqlite_dbpage), FTS shadow tables or the schema
-                // table, so it cannot craft a deliberately corrupt database for the engine to parse.
-                _databaseConnection.SetConfigurationOption(SQLiteConfigDbOpsEnum.SQLITE_DBCONFIG_DEFENSIVE, true);
-
-                _databaseConnection.Authorize -= AuthorizeStatement;
-                _databaseConnection.Authorize += AuthorizeStatement;
+                try
+                {
+                    ConfigureOpenConnection(_databaseConnection);
+                }
+                catch
+                {
+                    // A connection that is open but not confined must never be used: a caller that swallows
+                    // this error would otherwise carry on with it.
+                    _databaseConnection.Close();
+                    throw;
+                }
             }
+
+            // A connection joins a transaction scope by itself only when it is opened inside that scope.
+            // This one may have been opened earlier in the request (a read that came before the scope), and
+            // the scope would then not cover its commands: nothing would be rolled back. So join the
+            // current transaction on every command; joining the same one again does nothing.
+            var currentTransaction = System.Transactions.Transaction.Current;
+            if (currentTransaction is not null)
+            {
+                // A transaction that already ended (a scope that timed out) must be refused before the
+                // provider starts a transaction of its own on the connection, which nobody would finish.
+                if (currentTransaction.TransactionInformation.Status != System.Transactions.TransactionStatus.Active)
+                {
+                    throw new System.Transactions.TransactionAbortedException();
+                }
+
+                _databaseConnection.EnlistTransaction(currentTransaction);
+            }
+        }
+
+        private void ConfigureOpenConnection(SQLiteConnection connection)
+        {
+            // Extensions are enabled only long enough to load FTS5. While they are enabled, SQL can call
+            // load_extension() and load any native library into this process.
+            connection.EnableExtensions(true);
+            connection.LoadExtension(GetPathToSqliteInterop(), "sqlite3_fts5_init");
+            connection.EnableExtensions(false);
+
+            // Application owners write custom endpoint SQL that runs on this connection, so confine it to
+            // its own database file: no attached databases (which also disables VACUUM INTO), and an
+            // authorizer for the statements a limit cannot express.
+            connection.SetLimitOption(SQLiteLimitOpsEnum.SQLITE_LIMIT_ATTACHED, 0);
+
+            // Defensive mode: SQL cannot write raw pages (sqlite_dbpage), FTS shadow tables or the schema
+            // table, so it cannot craft a deliberately corrupt database for the engine to parse.
+            connection.SetConfigurationOption(SQLiteConfigDbOpsEnum.SQLITE_DBCONFIG_DEFENSIVE, true);
+
+            connection.Authorize -= AuthorizeStatement;
+            connection.Authorize += AuthorizeStatement;
         }
 
         /// <summary>
@@ -140,23 +172,30 @@ namespace Apilane.Data.Repository
 
         private static string GetPathToSqliteInterop()
         {
-            var pathToSqliteInterop = string.Empty;
-
-            // On linux the path to SQLite.Interop.dll is defferent.
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                // This is the default path on linux
-                pathToSqliteInterop = "/app/runtimes/linux-x64/native";
-            }
+            const string fileName = "SQLite.Interop.dll";
 
             // Can be overriden by this environment variable
             var customPathToSqliteInterop = Environment.GetEnvironmentVariable("CUSTOM_PATH_TO_SQLITE_INTEROP");
             if (!string.IsNullOrWhiteSpace(customPathToSqliteInterop))
             {
-                pathToSqliteInterop = customPathToSqliteInterop;
+                return Path.Combine(customPathToSqliteInterop, fileName);
             }
 
-            return Path.Combine(pathToSqliteInterop, "SQLite.Interop.dll");
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                // A publish for one runtime (the Docker images) puts the library next to the application;
+                // a portable build keeps it in the package's runtimes folder.
+                var nextToApplication = Path.Combine(AppContext.BaseDirectory, fileName);
+                if (File.Exists(nextToApplication))
+                {
+                    return nextToApplication;
+                }
+
+                var architecture = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
+                return Path.Combine(AppContext.BaseDirectory, "runtimes", $"linux-{architecture}", "native", fileName);
+            }
+
+            return fileName;
         }
 
         public ValueTask DisposeAsync()
@@ -343,30 +382,25 @@ namespace Apilane.Data.Repository
 
         public async Task<bool> ExistsTableAsync(string tableName)
         {
-            try
-            {
-                await ExecNQAsync($"SELECT * FROM [{tableName}] LIMIT 1;");
-            }
-            catch
-            {
-                return false;
-            }
-
-            return true;
+            return (await GetColumnNamesAsync(tableName)).Count > 0;
         }
 
         public async Task<bool> ExistsColumnAsync(string tableName, string columnName)
         {
-            try
-            {
-                await ExecNQAsync($"SELECT [{columnName}] FROM [{tableName}] LIMIT 1;");
-            }
-            catch
-            {
-                return false;
-            }
+            return (await GetColumnNamesAsync(tableName)).Contains(columnName, StringComparer.OrdinalIgnoreCase);
+        }
 
-            return true;
+        /// <summary>
+        /// The columns of a table, read from the schema; none when the table does not exist. An error (a
+        /// locked database, a connection that cannot be set up) is thrown, never answered as "missing".
+        /// </summary>
+        private async Task<List<string>> GetColumnNamesAsync(string tableName)
+        {
+            var columns = await ExecTableAsync($"PRAGMA table_info('{tableName.Replace("'", "''")}');");
+
+            return columns.Rows.Cast<DataRow>()
+                .Select(row => Convert.ToString(row["name"]) ?? string.Empty)
+                .ToList();
         }
 
         public Task CreateColumnAsync(

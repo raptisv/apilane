@@ -2,8 +2,9 @@
 
 ## Project Overview
 
-Apilane is a .NET 10 backend-as-a-service platform (ASP.NET Core API + ASP.NET MVC Portal).
-It uses Microsoft Orleans for distributed actor state and targets SQLite, SQL Server, and MySQL.
+Apilane is a .NET 10 backend-as-a-service platform: an ASP.NET Core API server, and a Portal (a JSON
+management API with a Vue 3 UI) to manage it.
+It uses Microsoft Orleans for distributed actor state and targets SQLite, SQL Server, MySQL and PostgreSQL.
 
 **Solution:** `Apilane.sln`
 
@@ -13,10 +14,12 @@ It uses Microsoft Orleans for distributed actor state and targets SQLite, SQL Se
 | `Apilane.Api.Core` | `src/Apilane.Api.Core/` | Business logic, Orleans grains, service abstractions |
 | `Apilane.Common` | `src/Apilane.Common/` | Shared models, enums, extensions, utilities |
 | `Apilane.Data` | `src/Apilane.Data/` | Data access layer (multi-DB) |
-| `Apilane.Portal` | `src/Apilane.Portal/` | Admin portal web app |
-| `Apilane.Net` | `sdk/Apilane.Net/` | .NET client SDK (NuGet package) |
+| `Apilane.Portal` | `src/Apilane.Portal/` | Portal host: the management API (`/api/v1`), and the built UI served at the site root |
+| `Apilane.Portal.Ui` | `src/Apilane.Portal.Ui/` | The Portal UI: a Vue 3 single-page app (not in the `.sln`; its `README.md` documents the UI and the management API) |
+| `Apilane.Net` | `sdk/Apilane.Net/` | .NET client SDK (NuGet package; MIT, see `sdk/LICENSE`) |
 | `Apilane.UnitTests` | `tests/Apilane.UnitTests/` | MSTest unit tests |
 | `Apilane.Api.Component.Tests` | `tests/Apilane.Api.Component.Tests/` | xUnit component/integration tests |
+| `Apilane.Portal.Tests` | `tests/Apilane.Portal.Tests/` | xUnit + `WebApplicationFactory` tests of the Portal: `/api/v1`, `/api/internal` and how the UI is served (throw-away SQLite, no Docker) |
 
 ---
 
@@ -32,7 +35,7 @@ dotnet build src/Apilane.Api/Apilane.Api.csproj
 # Run the API locally (requires appsettings.Development.json)
 dotnet run --project src/Apilane.Api
 
-# Run the Portal locally
+# Run the Portal locally (its UI is built separately: see src/Apilane.Portal.Ui/README.md)
 dotnet run --project src/Apilane.Portal
 
 # Docker Compose (full stack)
@@ -55,6 +58,9 @@ dotnet test tests/Apilane.UnitTests/
 # Run only component/integration tests (xUnit)
 dotnet test tests/Apilane.Api.Component.Tests/
 
+# Run only the Portal API tests (xUnit)
+dotnet test tests/Apilane.Portal.Tests/
+
 # Run a single MSTest method by name
 dotnet test tests/Apilane.UnitTests/ --filter "TestMethod=IsRateLimited_Empty_Should_Work"
 
@@ -69,7 +75,8 @@ dotnet test --logger "console;verbosity=detailed"
 ```
 
 **Unit tests** use **MSTest** (`[TestClass]`, `[TestMethod]`).  
-**Component tests** use **xUnit** (`[Fact]`, `[Theory]`) + **FakeItEasy** mocks.
+**Component tests** use **xUnit** (`[Fact]`, `[Theory]`) + **FakeItEasy** mocks.  
+**Portal tests** use **xUnit** + `WebApplicationFactory` (`Infrastructure/PortalFactory.cs`): the real Portal in memory on a throw-away SQLite database. They need no Docker.
 
 Component tests run against SQLite, SQL Server, MySQL and PostgreSQL. The three servers are started
 as Docker containers by **Testcontainers** (see `Infrastructure/DatabaseContainers.cs`), on random
@@ -204,7 +211,8 @@ Grain interfaces extend `IGrainObserver` where change notification is needed.
 Use `ValueTask<T>` for hot-path grain methods; `Task<T>` elsewhere.
 
 ### Controllers
-- Inherit from `BaseApplicationApiController`
+- API server controllers (`src/Apilane.Api/Controllers`) inherit from `BaseApplicationApiController`;
+  Portal controllers follow "Portal API and UI" below
 - Use `[ServiceFilter]` for cross-cutting concerns (logging, auth filters)
 - Document every action with XML `<summary>` comments (Swagger is generated from them)
 - Return typed `ProducesResponseType` attributes for all status codes
@@ -226,6 +234,38 @@ new FilterData(Globals.PrimaryKeyColumn, FilterData.FilterOperators.contains,
 
 In the SDK the same idiom is `new FilterItem("ID", FilterOperator.contains, string.Join(",", ids))`.
 On a **string** property `contains` is a substring `LIKE`, not set membership.
+
+---
+
+## Portal API and UI
+
+The Portal (`src/Apilane.Portal`) is one ASP.NET process: a JSON management API (`/api/v1`, in `Api/V1`,
+contract in `openapi/portal-v1.json`) and a Vue 3 single-page app (`src/Apilane.Portal.Ui`) that it serves
+at the site root. It renders no pages on the server. `src/Apilane.Portal.Ui/README.md` is the document for
+both: addresses, behaviour, known limits, open decisions, commands, layout and conventions.
+
+- The Portal answers only `/api`, `/swagger`, `/health` and `/metrics` itself; every other address gets the
+  UI's index page. Every controller sits under `api/v1` or `api/internal` (a test checks it).
+- A new screen is a page in the UI plus endpoints under `/api/v1`: follow "Adding a screen" in that README.
+- API controllers inherit `PortalApiControllerBase` (`PortalApplicationApiControllerBase` for the endpoints of
+  one application, `PortalAdminApiControllerBase` for administrators). Request and response shapes live only in
+  `Api/V1/Contracts` (never EF models, never secrets; the one response that carries a secret of an application is
+  `connection-info`, the encryption key shown on demand). Service interfaces go in `src/Apilane.Portal/Abstractions/`.
+- Writes (POST, PUT, DELETE) are rejected without the header `X-Apilane-Portal: 1`.
+- Agents: a portal user whose address ends with `@agent.local` (`PortalAgent.IsAgent`) calls `/api/v1` with `Authorization: Bearer apl_...` and needs no
+  `X-Apilane-Portal` header. The key check and the one list of what an agent is refused (every DELETE, `/api/v1/admin`, actions marked
+  `[NoAgent]`) are in `UsePortalAgentKeys` (`Extensions/PortalApiDependencyInjection.cs`); mark a new action an agent must not call
+  with `[NoAgent]`. See "Agents" in `src/Apilane.Portal.Ui/README.md`.
+- `/api/internal` (`Api/Internal`) is what the API servers call (`PortalInfoService` in `Apilane.Api.Core`): it
+  is guarded by the `x-installation-key` header, answers the stored records with PascalCase names and numeric
+  enums, and is not in the contract. Change both sides together; `tests/Apilane.Portal.Tests/InternalApiTests.cs`
+  and `tests/Apilane.UnitTests/PortalInfoServiceTests.cs` pin them.
+- `openapi/portal-v1.json` is written by the Portal tests, never by hand. After any API change follow
+  "When the API changes" in `src/Apilane.Portal.Ui/README.md` (test run with `UPDATE_OPENAPI=1`,
+  `npm run api:types`, `npm run build`) and commit the JSON and the regenerated
+  `src/Apilane.Portal.Ui/src/lib/api-types.ts` together.
+- `dotnet build` does not build the UI. Node is needed only in `src/Apilane.Portal.Ui` (`npm run build`); the
+  Docker image builds the UI in its own stage.
 
 ---
 
@@ -278,3 +318,5 @@ public class DataTests : AppicationTestsBase
 - **No file-scoped namespaces** — keep block-scoped to match existing files
 - **Async all the way** — do not use `.Result` or `.Wait()` on tasks; propagate `async/await`
 - **Do not commit** secrets or connection strings — use `appsettings.*.json` (gitignored) or environment variables
+- **License every dependency** — a new NuGet or npm package, or third-party code copied into the repository, gets its upstream license text in `licenses/` (named `<Name>-<SPDX id>`, no extension) and a line in the `licenses` folder of `Apilane.sln`
+- **`sdk/` is MIT, everything else is AGPL-3.0** (`sdk/LICENSE`) — the SDKs never reference a project under `src/` and take only permissively licensed dependencies

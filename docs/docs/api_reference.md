@@ -431,7 +431,7 @@ x-application-token: {appToken}
 
 ### Forgot Password Email
 
-Send a password reset email to the user.
+Send a password reset email to the user. The link in the email works for 24 hours.
 
 ```
 GET /api/Email/ForgotPassword?email={email}

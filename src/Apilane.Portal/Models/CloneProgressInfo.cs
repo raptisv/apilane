@@ -29,6 +29,11 @@ namespace Apilane.Portal.Models
         // Result
         public string? ClonedApplicationToken { get; set; }
 
+        // Who may read the operation through the management API: only the user who started it, and
+        // only under the application it clones.
+        public string? SourceApplicationToken { get; set; }
+        public string? StartedByUserId { get; set; }
+
         public int OverallPercentage
         {
             get

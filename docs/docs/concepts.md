@@ -6,7 +6,7 @@ An Apilane deployment consists of two services that work together:
 
 | Service | Purpose |
 |---|---|
-| **Apilane Portal** | Web-based management UI for creating applications, defining entities, configuring security, and viewing reports. |
+| **Apilane Portal** | Web-based management UI for creating applications, defining entities, configuring security, and viewing reports. Everything it does goes through its management API (`/api/v1`), which scripts and AI agents can call too. |
 | **Apilane API** | HTTP API server that your client applications (web/mobile) call for data, authentication, and file operations. |
 
 Both services share an **Installation Key** to authorize their internal communication.
@@ -15,7 +15,7 @@ Both services share an **Installation Key** to authorize their internal communic
 
 - **Apilane Installation** — A deployment of one `Apilane Portal` and one or more `Apilane API` services, all sharing the same `InstallationKey`.
 - **Server** — Represents a reference to an `Apilane API` deployment. An Installation supports multiple Servers[^1] for scenarios like separate testing and production environments.
-- **Storage Provider** — The database system where application data is stored: SQLite, SQL Server, or MySQL.
+- **Storage Provider** — The database system where application data is stored: SQLite, SQL Server, MySQL, or PostgreSQL.
 
 ## Applications
 

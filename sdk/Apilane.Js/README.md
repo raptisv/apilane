@@ -421,4 +421,6 @@ Full SDK documentation: [https://docs.apilane.com/developer_guide/sdk/](https://
 
 ## License
 
-See the [Apilane repository](https://github.com/raptisv/apilane) for license information.
+Apilane.Js is released under the [MIT License](../LICENSE). The full notice is in the header of `apilane.js`: keep it when you copy the file into your project.
+
+The Apilane server (API and Portal) is a separate program under AGPL-3.0.

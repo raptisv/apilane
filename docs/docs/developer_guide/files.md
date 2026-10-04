@@ -85,7 +85,7 @@ x-application-token: {appToken}
 
 ## File Security
 
-File access is controlled by the same role-based security rules as entities. Navigate to the **Security** section of your application in the Portal to configure:
+File access is controlled by the same role-based security rules as entities. Open the **Security** tab of your application in the Portal to configure:
 
 - Which roles can upload files (POST)
 - Which roles can list/view file metadata (GET)

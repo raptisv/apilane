@@ -1,7 +1,4 @@
 using Apilane.Common.Attributes;
-using Apilane.Common.Enums;
-using System.Collections.Generic;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Apilane.Common.Models
@@ -36,35 +33,5 @@ namespace Apilane.Common.Models
         public string? Filter { get; set; }
 
         public int Order { get; set; }
-
-        /// <summary>
-        /// Builds the Stats/Aggregate URL for this series, using its own entity / group-by and the
-        /// panel's shared page size. Series are aligned on the x-axis by their group value.
-        /// <paramref name="filterOverride"/>, when provided, replaces this series' own filter
-        /// (used to inject a time-range window for date group-bys).
-        /// </summary>
-        public string GetApiUrl(DBWS_ReportPanel panel, string? filterOverride = null)
-        {
-            var filter = filterOverride ?? Filter;
-            return $"Stats/Aggregate?Entity={Entity}&Properties={Property}&Filter={filter}&Sort=Desc&GroupBy={GroupBy}&PageIndex=1&PageSize={panel.MaxRecords}".Replace(" ", "");
-        }
-
-        /// <summary>
-        /// Returns this series' filter AND-combined with a [start, end] window on the given date
-        /// property (values are unix-ms; the server resolves the property type from the schema).
-        /// </summary>
-        public string BuildWindowedFilter(string dateProperty, long startMs, long endMs)
-        {
-            var gte = new FilterData(dateProperty, FilterData.FilterOperators.greaterorequal, startMs, PropertyType.Date);
-            var lte = new FilterData(dateProperty, FilterData.FilterOperators.lessorequal, endMs, PropertyType.Date);
-
-            var existing = FilterData.Parse(Filter);
-
-            var combined = existing is null
-                ? new FilterData(FilterData.FilterLogic.AND, new List<FilterData> { gte, lte })
-                : new FilterData(FilterData.FilterLogic.AND, new List<FilterData> { existing, gte, lte });
-
-            return JsonSerializer.Serialize(combined);
-        }
     }
 }

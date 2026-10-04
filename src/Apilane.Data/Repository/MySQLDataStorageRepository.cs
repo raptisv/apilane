@@ -204,30 +204,31 @@ namespace Apilane.Data.Repository
 
         public async Task<bool> ExistsTableAsync(string tableName)
         {
-            try
-            {
-                await ExecNQAsync($"SELECT * FROM `{tableName}` LIMIT 1;");
-            }
-            catch
-            {
-                return false;
-            }
+            var result = await ExecScalarAsync(
+                $@"SELECT COUNT(*) FROM information_schema.tables
+                   WHERE table_schema = DATABASE()
+                   AND table_name = '{EscapeLiteral(tableName)}';");
 
-            return true;
+            return Utils.GetLong(result, 0) > 0;
         }
 
         public async Task<bool> ExistsColumnAsync(string tableName, string columnName)
         {
-            try
-            {
-                await ExecNQAsync($"SELECT `{columnName}` FROM `{tableName}` LIMIT 1;");
-            }
-            catch
-            {
-                return false;
-            }
+            var result = await ExecScalarAsync(
+                $@"SELECT COUNT(*) FROM information_schema.columns
+                   WHERE table_schema = DATABASE()
+                   AND table_name = '{EscapeLiteral(tableName)}'
+                   AND column_name = '{EscapeLiteral(columnName)}';");
 
-            return true;
+            return Utils.GetLong(result, 0) > 0;
+        }
+
+        /// <summary>
+        /// A name as the content of a MySQL string literal: the backslash escapes there too.
+        /// </summary>
+        private static string EscapeLiteral(string value)
+        {
+            return value.Replace("\\", "\\\\").Replace("'", "''");
         }
 
         public Task CreateColumnAsync(

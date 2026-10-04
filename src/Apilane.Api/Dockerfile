@@ -1,6 +1,4 @@
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
-
-# This stage is used when running from VS in fast mode (Default for Debug configuration)
+# The runtime image the final stage is built on
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 EXPOSE 5001
@@ -23,13 +21,18 @@ RUN echo "Building version: $VERSION"
 
 RUN dotnet build "./Apilane.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build /p:Version=$VERSION
 
-# This stage is used to publish the service project to be copied to the final stage
+# This stage publishes the project for Linux and the architecture of the image only (TARGETARCH is set by
+# Docker: amd64 or arm64), so no native files of other systems end up in the image
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./Apilane.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:Version=$VERSION
+ARG TARGETARCH
+RUN dotnet publish "./Apilane.Api.csproj" -c $BUILD_CONFIGURATION -a ${TARGETARCH:-amd64} --self-contained false -o /app/publish /p:Version=$VERSION
 
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
+# The image that is shipped
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+# The license of Apilane and the notices of the third-party code it ships
+COPY LICENSE ./LICENSE
+COPY licenses ./licenses
 ENTRYPOINT ["dotnet", "Apilane.Api.dll"]

@@ -13,16 +13,23 @@ An Apilane Instance consists of 2 deployments, the `Apilane Portal` and the `Api
 
 ## Apilane Portal
 
-Access to the Portal should ideally be restricted to a private network. If that is not possible, you should disable new user registration from the instance settings (image below) to prevent unwanted users from registering to your Apilane Instance.
+Access to the Portal should ideally be restricted to a private network. If that is not possible, you should disable new user registration under **Instance > Settings** (the switch 'Allow new users to register on this instance', image below) to prevent unwanted users from registering to your Apilane Instance.
 
 ![Apilane](assets/allow_register.png)
 
 !!!info "Note"
     You may temporarily enable user registration, to allow a valid user registration and disable again right after.
 
+If the Portal is not reachable by your end users, set a **Redirect URL** on the application's **Email** tab: without one, a user who confirms their email is sent to a page of the Portal (see [Email Templates](developer_guide/email_templates.md#confirmation-landing-page)).
+
 ### Portal authentication
 
 The Portal uses ASP.NET Identity with cookie-based authentication (`Apilane.Portal.Identity`). Portal passwords require a minimum of 8 characters. Data protection keys are persisted to the `FilesPath` directory.
+
+- A Portal user has one session at a time: signing in elsewhere ends the earlier session.
+- Sign in, sign up and the password-reset request together allow 30 calls per minute per client address. Behind a reverse proxy see [Production considerations](deployment.md#production-considerations).
+- Secrets (connection strings, mail passwords, the installation key) are never shown again once they are saved; an empty box keeps the stored value.
+- An application's owner can share it with other Portal users. A collaborator can do everything the owner can, except sharing.
 
 ### File storage credentials
 
@@ -61,12 +68,12 @@ Any client application, web or mobile, should have access to the Apilane API, th
 
 ![Apilane](assets/allow_ip.png)
 
-Two modes are available:
+Two modes are available (the choice 'Addresses in the list are' on the **Security** tab of the application):
 
 | Mode | Behavior |
 |---|---|
-| **Block only the following IPs** | All traffic is allowed except from listed IPs |
-| **Allow only the following IPs** | All traffic is blocked except from listed IPs |
+| **Blocked: every other address is accepted** | All traffic is allowed except from listed IPs |
+| **Allowed: every other address is blocked** | All traffic is blocked except from listed IPs |
 
 !!!warning "Important"
     These settings are not a replacement for network security tools. Use them as an additional security layer, not as the primary application security mechanism.
@@ -89,7 +96,7 @@ Each application has an `EncryptionKey` that is generated at creation time. This
 The `InstallationKey` is a shared secret between the Portal and the API. It is used to validate that Portal-to-API communications are legitimate. Both services **must** use the same `InstallationKey` value.
 
 !!!warning "Use a unique key"
-    The key has no default: the docker-compose example reads it from `APILANE_INSTALLATION_KEY`. Use a long random value, never one published in documentation or a public repository; both services log a `SECURITY` warning at startup when they detect such a value. The Portal uses the key stored in its database (**Admin > Settings**), so to change it on an existing installation, update it there and in both services' `InstallationKey` setting, then restart them.
+    The key has no default: the docker-compose example reads it from `APILANE_INSTALLATION_KEY`. Use a long random value, never one published in documentation or a public repository; both services log a `SECURITY` warning at startup when they detect such a value. The Portal uses the key stored in its database (**Instance > Settings**), so to change it on an existing installation, update it there and in both services' `InstallationKey` setting, then restart them.
 
 ---
 

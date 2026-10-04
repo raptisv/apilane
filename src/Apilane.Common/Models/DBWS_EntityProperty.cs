@@ -2,7 +2,6 @@
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
@@ -65,48 +64,6 @@ namespace Apilane.Common.Models
         [Display(Name = "Max")]
         [Range(long.MinValue, long.MaxValue)]
         public long? Maximum { get; set; }
-
-        public List<string> Descr()
-        {
-            var result = new List<string>();
-
-            if (IsPrimaryKey)
-            {
-                return result;
-            }
-
-            if (Required)
-            {
-                result.Add($"Required");
-            }
-
-            if (AllowDecimalPlaces() && DecimalPlaces.HasValue)
-            {
-                result.Add($"Decimal places: {DecimalPlaces.Value}");
-            }
-
-            if (AllowEncrypted() && Encrypted)
-            {
-                result.Add($"Encrypted");
-            }
-
-            if (AllowValidationRegex() && !string.IsNullOrWhiteSpace(ValidationRegex))
-            {
-                result.Add($"Regex: {ValidationRegex}");
-            }
-
-            if (AllowMin() && Minimum.HasValue)
-            {
-                result.Add($"Min: {Minimum.Value}");
-            }
-
-            if (AllowMax() && Maximum.HasValue)
-            {
-                result.Add($"Max: {Maximum.Value}");
-            }
-
-            return result;
-        }
 
         public bool IsOnUTC()
         {

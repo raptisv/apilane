@@ -209,30 +209,23 @@ namespace Apilane.Data.Repository
 
         public async Task<bool> ExistsTableAsync(string tableName)
         {
-            try
-            {
-                await ExecNQAsync($"SELECT TOP 1 * FROM [{tableName}];");
-            }
-            catch
-            {
-                return false;
-            }
+            var result = await ExecScalarAsync(
+                $@"SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                   WHERE TABLE_SCHEMA = SCHEMA_NAME()
+                   AND TABLE_NAME = N'{tableName.Replace("'", "''")}';");
 
-            return true;
+            return Utils.GetLong(result, 0) > 0;
         }
 
         public async Task<bool> ExistsColumnAsync(string tableName, string columnName)
         {
-            try
-            {
-                await ExecNQAsync($"SELECT TOP 1 [{columnName}] FROM [{tableName}];");
-            }
-            catch
-            {
-                return false;
-            }
+            var result = await ExecScalarAsync(
+                $@"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                   WHERE TABLE_SCHEMA = SCHEMA_NAME()
+                   AND TABLE_NAME = N'{tableName.Replace("'", "''")}'
+                   AND COLUMN_NAME = N'{columnName.Replace("'", "''")}';");
 
-            return true;
+            return Utils.GetLong(result, 0) > 0;
         }
 
         public Task CreateColumnAsync(

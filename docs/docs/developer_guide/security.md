@@ -4,15 +4,19 @@ Apilane provides all the tools required for granular access control to the appli
 
 ---
 
+The settings on this page are on the **Security** tab of the application in the Portal. The access settings (the cards Sign-in, Register, Files and IP access) are saved together with **Save settings**; the rules per entity and custom endpoint are edited further down the same screen and saved on their own.
+
+---
+
 ## Sign in
 
-#### Force only one login at a time
+#### Allow only one sign-in at a time
 If this option is enabled, each new user login forces logout from any previous logged-in sessions. This setting essentially deletes/deprecates any previous authentication tokens, which will prevent further access using those tokens.
 
-#### Allow users with unconfirmed email to login
+#### Allow users with an unconfirmed email to sign in
 If this option is enabled, all users can login regardless of whether their email is confirmed or not. Disabling this requires that users have confirmed their email before being able to login and retrieve an authentication token.
 
-#### Auth token expiration
+#### Auth token lifetime (minutes)
 Each application defines how long authentication tokens remain valid after the last authenticated request (in minutes). The expiration timer resets on every authenticated API call, so tokens only expire after a period of **inactivity**. Once expired, the user must log in again or renew the token beforehand via the `RenewAuthToken` endpoint.
 
 ![Apilane](../assets/security_signin.png)
@@ -60,12 +64,12 @@ Allow or prevent new users from registering. This option may be useful for inter
 
 ## IP allow/block
 
-Two modes are available for IP-based access control:
+Two modes are available for IP-based access control (card **IP access**, choice 'Addresses in the list are'). Addresses are plain dotted IPv4, one per box, compared exactly with the caller's address. An empty list accepts every address.
 
-#### Block only the following IP addresses
+#### Blocked: every other address is accepted
 Use this setting to block specific IP addresses from accessing your application. This configuration may be useful if you wish to isolate applications, e.g. prevent access to a production application from a development/staging server.
 
-#### Allow only the following IP addresses
+#### Allowed: every other address is blocked
 Use this setting to allow only specific IP addresses to access your application. This configuration may be useful if you wish to isolate applications, e.g. allow access to a production application only from a production server.
 
 !!!warning "Warning"
@@ -121,7 +125,7 @@ For each entity, you can configure permissions per role for these actions:
 For `get`, `put`, and `delete` actions, you can further restrict access based on record ownership:
 
 - **All records** — The role can access any record in the entity
-- **Own records only** — The role can only access records where the `Owner` property matches the current user's ID
+- **Owned records only** — The role can only access records where the `Owner` property matches the current user's ID
 
 ### Property-level access
 
@@ -130,6 +134,10 @@ For each role and action, you can specify which properties are accessible. This 
 - Hide sensitive properties from certain roles
 - Allow a role to read all properties but only write to specific ones
 - Create different views of the same entity for different user groups
+
+A rule with no property selected is not full access: a `get` then returns only the record ID, and a `post` or `put` is refused.
+
+The **Tree** and **Matrix** buttons above the rules show the saved rules read-only, as the API enforces them: per item, role and action, with inherited access included.
 
 !!!info "Note"
     Apilane implements a robust role-based access control (RBAC) system that allows for granular access to endpoints based on user roles. This system is designed to accommodate overlapping roles to ensure flexibility and precision in permission management.

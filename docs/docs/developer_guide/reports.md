@@ -1,30 +1,39 @@
 # Reports
 
-Reports provide a quick and easy way to get insights on your application data. You can visualize data from your entities using grids, pie charts, or line charts. Select which properties to visualize, group data by their properties, and apply filters — all from the Portal.
+Reports provide a quick and easy way to get insights on your application data. A report is a panel on the application's dashboard that shows one or more series of aggregated data as a grid or a chart. Select what to aggregate, group the data by its properties, and apply filters — all from the Portal.
 
 ---
 
 ## Creating a report
 
-To create a report, navigate to the **Reports** section of your application in the Portal.
+To create a report, open the **Reports** tab of your application in the Portal and click **New report**.
 
 | Setting | Required | Description |
 |---|---|---|
 | **Title** | Yes | A descriptive name for the report |
+| **Visualization** | Yes | How to visualize the data: Grid, Pie chart, Line chart, Bar chart, Radar chart or Stacked bar chart |
+| **Time range** | No | The last hours, days, months or years to show (e.g. *Last 7 days*, or a custom number and unit). It applies to series that are grouped by a date first |
+| **Max points per series** | Yes | Top N: the most groups a series shows (1–1,000) |
+
+A report has one or more **series**. Each series has:
+
+| Setting | Required | Description |
+|---|---|---|
+| **Label** | Yes | The name of the series in the legend |
 | **Entity** | Yes | The entity to query data from |
-| **Properties** | Yes | Which properties to include in the report (aggregation targets) |
-| **Group By** | Yes | The property to group results by |
-| **Report type** | Yes | How to visualize the data: Grid, Pie chart, or Line chart |
-| **Max records** | Yes | Maximum number of rows to return (1–1,000) |
+| **Group by** | Yes | The property or properties to group results by |
+| **Property** | Yes | The value to show: a property with its aggregate (e.g. `ID.Count`) |
 | **Filter** | No | Optional [filter](filtering_sorting.md) to narrow down the data |
-| **Panel width** | No | Controls the display width of the report panel |
-| **Order** | No | Controls the display order of reports |
+
+On the dashboard, drag a panel by its title to move it and by its edges to resize it; the layout is saved automatically. On a narrow screen the panels are shown in one column. The menu of a panel has **Edit**, **View API endpoint** and **Delete**.
 
 ![Apilane](../assets/report_create.png)
 
 ---
 
 ## Report types
+
+The three types below are shown as examples. Bar, Radar and Stacked bar charts take the same settings.
 
 ### Grid
 
@@ -48,11 +57,13 @@ Displays aggregated data as a line graph. Best for showing trends over time or o
 
 ## How reports work
 
-Reports are powered by the [Stats/Aggregate](../api_reference.md#aggregate) API endpoint under the hood. When you view a report in the Portal, it makes a request like:
+Reports are powered by the [Stats/Aggregate](../api_reference.md#aggregate) API endpoint under the hood. When you view a report in the Portal, your browser makes one request per series to the API, like:
 
 ```
-GET /Stats/Aggregate?Entity={entity}&Properties={properties}&Filter={filter}&Sort=Desc&GroupBy={groupBy}&PageIndex=1&PageSize={maxRecords}
+GET /api/Stats/Aggregate?Entity={entity}&Properties={property}&Filter={filter}&GroupBy={groupBy}&PageIndex=1&PageSize={maxPoints}
 ```
+
+**View API endpoint** in the menu of a panel shows the exact address of each series.
 
 This means reports have the same capabilities and respect the same security rules as direct API calls to the Stats endpoints.
 
