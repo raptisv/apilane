@@ -460,15 +460,25 @@ namespace Apilane.Api.Core.Services
             // (Existing history is also retained on deletion; it can only be purged manually by an admin.)
             if (entity.RequireChangeTracking)
             {
-                using var scope = _transactionScopeService.OpenTransactionScope();
+                // The snapshots are read before the scope opens, as the update does with the previous
+                // record: on SQLite a transaction that reads first and writes later cannot upgrade its
+                // lock while another writer is active, and both would stall until one fails.
+                var snapshots = new List<(long ID, Dictionary<string, object?> Data)>();
 
                 foreach (var idToDelete in listIDsToDelete)
                 {
                     var recordData = await _dataStore.GetDataByIdAsync(entity.Name, idToDelete, null);
                     if (recordData != null)
                     {
-                        await _applicationHelperService.CreateHistoryAsync(entity.Name, idToDelete, userSecurity.User?.ID, recordData);
+                        snapshots.Add((idToDelete, recordData));
                     }
+                }
+
+                using var scope = _transactionScopeService.OpenTransactionScope();
+
+                foreach (var snapshot in snapshots)
+                {
+                    await _applicationHelperService.CreateHistoryAsync(entity.Name, snapshot.ID, userSecurity.User?.ID, snapshot.Data);
                 }
 
                 await _dataStore.DeleteDataAsync(entity.Name, deleteFilter);

@@ -161,6 +161,8 @@ sequenceDiagram
 5. The email is sent to the user
 6. The user follows the link to set a new password
 
+The link works for 24 hours. After that the user has to request a new one.
+
 !!!info "Security note"
     Both `RequestConfirmation` and `ForgotPassword` endpoints return success even if the email does not exist in the system. This prevents email enumeration attacks.
 

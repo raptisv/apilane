@@ -43,10 +43,27 @@ namespace Apilane.Data.Repository
                 catch
                 {
                     // A connection that is open but not confined must never be used: a caller that swallows
-                    // this error (ExistsTableAsync does) would otherwise carry on with it.
+                    // this error would otherwise carry on with it.
                     _databaseConnection.Close();
                     throw;
                 }
+            }
+
+            // A connection joins a transaction scope by itself only when it is opened inside that scope.
+            // This one may have been opened earlier in the request (a read that came before the scope), and
+            // the scope would then not cover its commands: nothing would be rolled back. So join the
+            // current transaction on every command; joining the same one again does nothing.
+            var currentTransaction = System.Transactions.Transaction.Current;
+            if (currentTransaction is not null)
+            {
+                // A transaction that already ended (a scope that timed out) must be refused before the
+                // provider starts a transaction of its own on the connection, which nobody would finish.
+                if (currentTransaction.TransactionInformation.Status != System.Transactions.TransactionStatus.Active)
+                {
+                    throw new System.Transactions.TransactionAbortedException();
+                }
+
+                _databaseConnection.EnlistTransaction(currentTransaction);
             }
         }
 
@@ -365,30 +382,25 @@ namespace Apilane.Data.Repository
 
         public async Task<bool> ExistsTableAsync(string tableName)
         {
-            try
-            {
-                await ExecNQAsync($"SELECT * FROM [{tableName}] LIMIT 1;");
-            }
-            catch
-            {
-                return false;
-            }
-
-            return true;
+            return (await GetColumnNamesAsync(tableName)).Count > 0;
         }
 
         public async Task<bool> ExistsColumnAsync(string tableName, string columnName)
         {
-            try
-            {
-                await ExecNQAsync($"SELECT [{columnName}] FROM [{tableName}] LIMIT 1;");
-            }
-            catch
-            {
-                return false;
-            }
+            return (await GetColumnNamesAsync(tableName)).Contains(columnName, StringComparer.OrdinalIgnoreCase);
+        }
 
-            return true;
+        /// <summary>
+        /// The columns of a table, read from the schema; none when the table does not exist. An error (a
+        /// locked database, a connection that cannot be set up) is thrown, never answered as "missing".
+        /// </summary>
+        private async Task<List<string>> GetColumnNamesAsync(string tableName)
+        {
+            var columns = await ExecTableAsync($"PRAGMA table_info('{tableName.Replace("'", "''")}');");
+
+            return columns.Rows.Cast<DataRow>()
+                .Select(row => Convert.ToString(row["name"]) ?? string.Empty)
+                .ToList();
         }
 
         public Task CreateColumnAsync(
