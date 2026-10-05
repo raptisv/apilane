@@ -7,6 +7,7 @@ import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import DataHelp from '@/components/help/DataHelp.vue'
 import { Button } from '@/components/ui/button'
 import { useApplication } from '@/composables/useApplication'
 import { useAsync } from '@/composables/useAsync'
@@ -46,7 +47,9 @@ function entityRoute(entity: string) {
     :title="shown ? `Data: ${shown}` : 'Data'"
     description="Browse, filter and change the records of each entity."
     class="wrap-anywhere"
-  />
+  >
+    <DataHelp />
+  </PageHeader>
 
   <LoadingState v-if="loading" label="Loading entities" />
 

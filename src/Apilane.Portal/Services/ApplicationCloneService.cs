@@ -19,17 +19,20 @@ namespace Apilane.Portal.Services
         private readonly ApplicationDbContext _dbContext;
         private readonly IPortalAccessService _portalAccessService;
         private readonly IApplicationAccessService _applicationAccessService;
+        private readonly IPortalSettingsService _portalSettingsService;
         private readonly ICloneService _cloneService;
 
         public ApplicationCloneService(
             ApplicationDbContext dbContext,
             IPortalAccessService portalAccessService,
             IApplicationAccessService applicationAccessService,
+            IPortalSettingsService portalSettingsService,
             ICloneService cloneService)
         {
             _dbContext = dbContext;
             _portalAccessService = portalAccessService;
             _applicationAccessService = applicationAccessService;
+            _portalSettingsService = portalSettingsService;
             _cloneService = cloneService;
         }
 
@@ -71,6 +74,12 @@ namespace Apilane.Portal.Services
 
             // The encryption key stays the one of the source: copied records encrypted with it could not be read with another.
 
+            // The installation key is the stored one (Instance > Settings), read here because the routine
+            // runs after this request: it can not read the Portal database. It is read before the clone
+            // is saved, so that a failure leaves no clone behind. Only the first call of the routine,
+            // Generate, carries the key.
+            var installationKey = _portalSettingsService.Get().InstallationKey;
+
             // Saved before anything exists on the API server: the clone is
             // listed at once, and stays listed when the operation fails.
             _dbContext.Applications.Add(clone);
@@ -82,6 +91,7 @@ namespace Apilane.Portal.Services
                 clone,
                 server,
                 user.AdminAuthToken ?? string.Empty,
+                installationKey,
                 cloneData,
                 request.Entities);
 

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import SecurityHelp from '@/components/help/SecurityHelp.vue'
 import { useApplication } from '@/composables/useApplication'
 import { useAsync } from '@/composables/useAsync'
 import { api, unwrap } from '@/lib/api'
@@ -43,7 +44,9 @@ function rulesSaved(rules: Schemas['SecurityRuleResponse'][]): void {
   <PageHeader
     title="Security"
     description="How the users of this application sign in, which addresses may call its API, and which roles may call what."
-  />
+  >
+    <SecurityHelp />
+  </PageHeader>
 
   <LoadingState v-if="loading" label="Loading the security settings" :rows="6" />
 

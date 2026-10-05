@@ -27,7 +27,7 @@ namespace Apilane.Data.Repository
             _connectionString = connectionString;
         }
 
-        private void TryOpenConnection()
+        private void OpenConnection()
         {
             _databaseConnection ??= new SqlConnection(_connectionString);
 
@@ -37,9 +37,13 @@ namespace Apilane.Data.Repository
             }
         }
 
-        public SqlConnection GetConnection()
+        private void TryOpenConnection()
         {
-            return _databaseConnection;
+            OpenConnection();
+
+            // Every command goes through here, so every command runs in the current transaction scope, also
+            // when the connection was opened before the scope began.
+            TransactionEnlistment.JoinAmbientTransaction(_databaseConnection);
         }
 
         public ValueTask DisposeAsync()
@@ -183,9 +187,11 @@ namespace Apilane.Data.Repository
         public static void ConfirmDatabaseExists(string connString)
         {
             // Just test if database exists. Dispose, otherwise the connection never returns to the pool.
+            // Call it outside a TransactionScope: a connection opened inside one joins it, and a second
+            // connection in the same transaction is not supported.
             using (var repository = new SQLServerDataStorageRepository(connString))
             {
-                repository.TryOpenConnection();
+                repository.OpenConnection();
             }
         }
 

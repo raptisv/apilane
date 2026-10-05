@@ -10,6 +10,7 @@ import LoadingState from '@/components/LoadingState.vue'
 import NoServersState from '@/components/NoServersState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import ServerSelect from '@/components/ServerSelect.vue'
+import ImportApplicationHelp from '@/components/help/ImportApplicationHelp.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useApplications } from '@/composables/useApplications'
@@ -107,7 +108,9 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <PageHeader title="Import application" description="Creates an application from the export of another one." />
+  <PageHeader title="Import application" description="Creates an application from the export of another one.">
+    <ImportApplicationHelp />
+  </PageHeader>
 
   <LoadingState v-if="loading" label="Loading servers" :rows="4" />
 

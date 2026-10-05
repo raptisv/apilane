@@ -32,7 +32,7 @@ namespace Apilane.Data.Repository
         {
             _databaseConnection ??= new SQLiteConnection(_connectionString);
 
-            if (_databaseConnection != null && _databaseConnection.State != ConnectionState.Open)
+            if (_databaseConnection.State != ConnectionState.Open)
             {
                 _databaseConnection.Open();
 
@@ -49,22 +49,9 @@ namespace Apilane.Data.Repository
                 }
             }
 
-            // A connection joins a transaction scope by itself only when it is opened inside that scope.
-            // This one may have been opened earlier in the request (a read that came before the scope), and
-            // the scope would then not cover its commands: nothing would be rolled back. So join the
-            // current transaction on every command; joining the same one again does nothing.
-            var currentTransaction = System.Transactions.Transaction.Current;
-            if (currentTransaction is not null)
-            {
-                // A transaction that already ended (a scope that timed out) must be refused before the
-                // provider starts a transaction of its own on the connection, which nobody would finish.
-                if (currentTransaction.TransactionInformation.Status != System.Transactions.TransactionStatus.Active)
-                {
-                    throw new System.Transactions.TransactionAbortedException();
-                }
-
-                _databaseConnection.EnlistTransaction(currentTransaction);
-            }
+            // Every command goes through here, so every command runs in the current transaction scope, also
+            // when the connection was opened before the scope began.
+            TransactionEnlistment.JoinAmbientTransaction(_databaseConnection);
         }
 
         private void ConfigureOpenConnection(SQLiteConnection connection)
@@ -251,7 +238,7 @@ namespace Apilane.Data.Repository
             return 0;
         }
 
-        public SQLiteDataAdapter GetLiteAdapter()
+        private SQLiteDataAdapter GetLiteAdapter()
         {
             return new SQLiteDataAdapter(string.Empty, _databaseConnection);
         }

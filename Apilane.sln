@@ -38,7 +38,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apilane.UnitTests", "tests\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{90423DC3-EC36-40C0-82C4-9620F34DD6B2}"
 	ProjectSection(SolutionItems) = preProject
-		docs\diagram.excalidraw = docs\diagram.excalidraw
 		docs\zensical.toml = docs\zensical.toml
 	EndProjectSection
 EndProject

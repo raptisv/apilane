@@ -97,10 +97,10 @@ Each application has an `EncryptionKey` that is generated at creation time. This
 
 ## Secure communication
 
-The `InstallationKey` is a shared secret between the Portal and the API. It is used to validate that Portal-to-API communications are legitimate. Both services **must** use the same `InstallationKey` value.
+The `InstallationKey` is a shared secret between the Portal and the API. It authenticates the calls in both directions: the API to the Portal, and the Portal to the API when it creates, imports or clones an application. The API servers **must** use the key the Portal holds (on a new installation, the same `InstallationKey` value as the Portal).
 
 !!!warning "Use a unique key"
-    The key has no default: the docker-compose example reads it from `APILANE_INSTALLATION_KEY`. Use a long random value, never one published in documentation or a public repository; both services log a `SECURITY` warning at startup when they detect such a value. The Portal uses the key stored in its database (**Instance > Settings**), so to change it on an existing installation, update it there and in both services' `InstallationKey` setting, then restart them.
+    The key has no default: the docker-compose example reads it from `APILANE_INSTALLATION_KEY`. Use a long random value, never one published in documentation or a public repository; both services log a `SECURITY` warning at startup when they detect such a value. The Portal uses the key stored in its database (**Instance > Settings**); its own `InstallationKey` setting only seeds it on first start. To change it on an existing installation, update it there, set the same value as the API servers' `InstallationKey` and restart the API servers. The Portal does not need a restart. Until the API servers run with the new key, the Portal and the API servers refuse each other's calls.
 
 ---
 

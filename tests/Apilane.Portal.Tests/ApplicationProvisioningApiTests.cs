@@ -8,7 +8,6 @@ using Apilane.Portal.Models;
 using Apilane.Portal.Services;
 using Apilane.Portal.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -363,7 +362,7 @@ namespace Apilane.Portal.Tests
             var created = await response.ReadJsonAsync<ApplicationResponse>();
             var stored = await LoadAsync(created.Token);
             var bearer = $"Bearer {await StoredTokenAsync(user.Email)}";
-            var installationKey = _portal.Services.GetRequiredService<PortalConfiguration>().InstallationKey;
+            var installationKey = await _portal.StoredInstallationKeyAsync();
 
             var requests = _portal.ApiServer.Requests;
             Assert.Equal(3, requests.Count);
@@ -690,7 +689,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal(export.Token, request.Headers["x-application-token"]);
             Assert.Equal("portal", request.Headers["x-client-id"]);
             Assert.Equal($"Bearer {await StoredTokenAsync(user.Email)}", request.Headers["Authorization"]);
-            Assert.Equal(_portal.Services.GetRequiredService<PortalConfiguration>().InstallationKey, request.Headers["x-installation-key"]);
+            Assert.Equal(await _portal.StoredInstallationKeyAsync(), request.Headers["x-installation-key"]);
 
             var sent = JsonSerializer.Deserialize<DBWS_Application>(request.Body) ?? throw new InvalidOperationException("No Generate body.");
             Assert.Equal(0, sent.ID);

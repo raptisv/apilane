@@ -85,7 +85,7 @@ const label = computed(() => `Filter ${props.property.Name}`)
       :model-value="filter.value"
       class="h-7"
       spellcheck="false"
-      :title="property.Encrypted ? 'Encrypted: finds the whole value only' : undefined"
+      :title="property.Encrypted ? 'Encrypted: compared with the stored, encrypted text' : undefined"
       :aria-label="`${label} (${filter.operator === 'contains' ? 'contains' : 'equal to'})`"
       @update:model-value="setValue"
     />

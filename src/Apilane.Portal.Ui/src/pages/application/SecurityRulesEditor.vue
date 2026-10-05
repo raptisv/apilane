@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ChevronRightIcon, CircleAlertIcon, Grid3x3Icon, NetworkIcon, TriangleAlertIcon } from '@lucide/vue'
+import { CircleAlertIcon, Grid3x3Icon, NetworkIcon, TriangleAlertIcon } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import UnsavedChangesBar from '@/components/UnsavedChangesBar.vue'
+import AccessRulesHelp from '@/components/help/AccessRulesHelp.vue'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -209,6 +210,7 @@ const typeNames: Record<string, string> = { Schema: 'The application schema', En
         <p class="mt-1 text-xs text-muted-foreground">Set which roles may call what, for each entity and custom endpoint.</p>
       </div>
       <div class="flex shrink-0 gap-2">
+        <AccessRulesHelp />
         <Button as-child variant="outline" size="sm">
           <RouterLink :to="{ query: { ...route.query, view: 'tree' } }" replace><NetworkIcon />Tree</RouterLink>
         </Button>
@@ -226,30 +228,6 @@ const typeNames: Record<string, string> = { Schema: 'The application schema', En
         the page once the API server answers to see the roles of the application's users.
       </AlertDescription>
     </Alert>
-
-    <details class="group rounded-lg border bg-card px-4 py-3 text-sm">
-      <summary class="flex cursor-pointer items-center gap-1.5 font-medium select-none">
-        <ChevronRightIcon class="size-4 transition-transform group-open:rotate-90" aria-hidden="true" />
-        How rules add up
-      </summary>
-      <ul class="mt-3 grid list-disc gap-1.5 pl-5 text-muted-foreground">
-        <li>Without a rule there is no access.</li>
-        <li>
-          A call without a valid auth token gets what Anonymous has. A signed-in user gets what Anonymous, Authenticated
-          and each of their roles have, together: a role inherits what Authenticated has.
-        </li>
-        <li>
-          The properties of those rules add up. The ID is always included. A rule with no properties returns only the ID
-          on a get and refuses a post or put.
-        </li>
-        <li>If any of those rules allows only the owner's records, the user gets only their own records.</li>
-        <li>
-          A rate limit counts per signed-in user; calls without a valid auth token all share one count. It covers the
-          item and action as a whole, whatever the role: the most generous limit of its rules applies, and none at all if
-          one of its rules has no limit.
-        </li>
-      </ul>
-    </details>
 
     <Alert v-if="errors.message || failedRule" variant="destructive" role="alert">
       <CircleAlertIcon />

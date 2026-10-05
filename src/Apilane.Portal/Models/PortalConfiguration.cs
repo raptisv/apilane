@@ -8,6 +8,11 @@ namespace Apilane.Portal.Models
         public string Url { get; }
         public string FilesPath { get; }
         public string InstanceTitle { get; }
+        /// <summary>
+        /// Seeds the installation key stored in the Portal database on the first start, and is checked
+        /// for the startup warning. It is not used at runtime: the key in force, in both directions, is
+        /// the stored one an administrator changes under Instance > Settings.
+        /// </summary>
         public string InstallationKey { get; }
         public string AdminEmail { get; }
         public string ApiUrl { get; }

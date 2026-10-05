@@ -18,16 +18,13 @@ namespace Apilane.Portal.Services
         private readonly ConcurrentDictionary<string, CloneProgressInfo> _operations = new();
         private readonly IApiHttpService _apiHttpService;
         private readonly ILogger<CloneService> _logger;
-        private readonly PortalConfiguration _portalConfiguration;
 
         public CloneService(
             IApiHttpService apiHttpService,
-            ILogger<CloneService> logger,
-            PortalConfiguration portalConfiguration)
+            ILogger<CloneService> logger)
         {
             _apiHttpService = apiHttpService;
             _logger = logger;
-            _portalConfiguration = portalConfiguration;
         }
 
         public string StartCloneAsync(
@@ -35,6 +32,7 @@ namespace Apilane.Portal.Services
             DBWS_Application applicationToClone,
             DBWS_Server targetServer,
             string portalUserAuthToken,
+            string installationKey,
             bool cloneData,
             List<string>? entitiesToClone)
         {
@@ -63,6 +61,7 @@ namespace Apilane.Portal.Services
                         applicationToClone,
                         targetServer,
                         portalUserAuthToken,
+                        installationKey,
                         cloneData,
                         entitiesToClone,
                         progress);
@@ -90,6 +89,7 @@ namespace Apilane.Portal.Services
             DBWS_Application applicationToClone,
             DBWS_Server targetServer,
             string portalUserAuthToken,
+            string installationKey,
             bool cloneData,
             List<string>? entitiesToClone,
             CloneProgressInfo progress)
@@ -116,7 +116,7 @@ namespace Apilane.Portal.Services
                 applicationToClone.Token,
                 portalUserAuthToken,
                 skeletonApp,
-                new Dictionary<string, string> { [Globals.InstallationKeyHeaderName] = _portalConfiguration.InstallationKey });
+                new Dictionary<string, string> { [Globals.InstallationKeyHeaderName] = installationKey });
 
             if (apiResponseGenerate.IsError(out var generateError))
             {

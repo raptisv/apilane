@@ -9,6 +9,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import SqlEditor from '@/components/SqlEditor.vue'
 import StateMessage from '@/components/StateMessage.vue'
 import UnsavedChangesBar from '@/components/UnsavedChangesBar.vue'
+import CustomEndpointEditorHelp from '@/components/help/CustomEndpointEditorHelp.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -134,10 +135,6 @@ function discard(): void {
 const renaming = computed(() => endpointId.value !== undefined && renameLosesRules(saved.value.Name, form.Name))
 
 const linkClass = 'font-medium underline underline-offset-4'
-const faqClass = 'rounded-lg border bg-card'
-const faqSummaryClass =
-  'cursor-pointer rounded-lg px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'
-const faqBodyClass = 'space-y-2 px-4 pb-4 text-sm text-muted-foreground'
 </script>
 
 <template>
@@ -170,11 +167,13 @@ const faqBodyClass = 'space-y-2 px-4 pb-4 text-sm text-muted-foreground'
       :title="endpointId === undefined ? 'New custom endpoint' : `Edit ${saved.Name}`"
       description="A SQL query that the API server runs when its address is called."
       class="wrap-anywhere"
-    />
+    >
+      <CustomEndpointEditorHelp :database-type="application.DatabaseType" />
+    </PageHeader>
 
     <!--
-      On a wide screen the result panel sits on the right of the form and the questions; on a narrow
-      one it comes right after the form, before the questions.
+      On a wide screen the result panel sits on the right of the form; on a narrow one it comes right
+      after the form.
     -->
     <div class="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
       <form ref="formEl" class="grid min-w-0 gap-4 rounded-lg border bg-card p-4 lg:col-start-1" aria-label="Custom endpoint" novalidate @submit.prevent="submit">
@@ -258,76 +257,12 @@ const faqBodyClass = 'space-y-2 px-4 pb-4 text-sm text-muted-foreground'
       </form>
 
       <CustomEndpointTestPanel
-        class="min-w-0 lg:sticky lg:top-4 lg:col-start-2 lg:row-span-2 lg:row-start-1"
+        class="min-w-0 lg:sticky lg:top-4 lg:col-start-2 lg:row-start-1"
         :server-url="application.Server.ServerUrl"
         :app-token="appToken"
         :name="form.Name"
         :query="form.Query"
       />
-
-      <section aria-labelledby="faq-title" class="grid min-w-0 gap-2 lg:col-start-1">
-        <h2 id="faq-title" class="text-sm font-semibold">Questions</h2>
-
-        <details :class="faqClass">
-          <summary :class="faqSummaryClass">What is a custom endpoint?</summary>
-          <div :class="faqBodyClass">
-            <p>Custom endpoints let you get, create, update or delete records, your way.</p>
-            <p>Custom endpoints accept only numeric parameters.</p>
-            <p>Use custom endpoints to join tables (entities) and get the results exactly the way you like.</p>
-            <p class="font-medium text-foreground">
-              Custom endpoint queries run inside a transaction. If the query fails, the transaction is not committed.
-            </p>
-          </div>
-        </details>
-
-        <details :class="faqClass">
-          <summary :class="faqSummaryClass">How not to use custom endpoints</summary>
-          <div :class="faqBodyClass">
-            <ul class="list-disc space-y-1.5 pl-5">
-              <li>
-                Do not use custom endpoints to create or drop tables or properties. If that happens, you will have to
-                <RouterLink :to="{ name: 'app-settings', params: { appToken } }" :class="linkClass">rebuild</RouterLink>
-                your application. Rebuilding the application leads to data loss.
-              </li>
-              <li>
-                Do not use custom endpoints to create, update or delete records that need specific validation. Do it only
-                if you know exactly what you are doing.
-              </li>
-            </ul>
-          </div>
-        </details>
-
-        <details :class="faqClass">
-          <summary :class="faqSummaryClass">How do I create a custom endpoint?</summary>
-          <div :class="faqBodyClass">
-            <ul class="list-disc space-y-1 pl-5">
-              <li>Pick the name you like.</li>
-              <li>Write a description to help you remember why you created this endpoint.</li>
-              <li>Write the SQL query you want to run every time the endpoint is called.</li>
-              <li>Save.</li>
-              <li>Give access to the user roles you like, in the security section.</li>
-              <li>You are all set.</li>
-            </ul>
-          </div>
-        </details>
-
-        <details :class="faqClass">
-          <summary :class="faqSummaryClass">Can I change the name of a custom endpoint later?</summary>
-          <div :class="faqBodyClass">
-            <p>
-              Yes, at any time. Security access is given by name, so after a rename the endpoint has no access until you
-              give it again.
-            </p>
-          </div>
-        </details>
-
-        <details v-if="application.DatabaseType === 'SQLServer'" :class="faqClass">
-          <summary :class="faqSummaryClass">How can I raise a custom SQL error?</summary>
-          <div :class="faqBodyClass">
-            <p>Use <code class="font-mono text-foreground">RAISERROR('Your error message', 16, 1);</code></p>
-          </div>
-        </details>
-      </section>
     </div>
 
     <UnsavedChangesBar

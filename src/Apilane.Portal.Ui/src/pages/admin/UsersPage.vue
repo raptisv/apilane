@@ -10,6 +10,7 @@ import FormField from '@/components/FormField.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import UsersHelp from '@/components/help/UsersHelp.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -145,8 +146,9 @@ async function submitDelete(): Promise<boolean> {
 <template>
   <PageHeader
     title="Users"
-    description="Everyone who can sign in to this instance, and its agents: accounts for scripts and AI agents. An agent sends its key as 'Authorization: Bearer <key>' and manages the applications shared with its address. A role change takes effect within 30 minutes, or at once when the user signs in again."
+    description="Everyone who can sign in to this instance, and its agents: accounts for scripts and AI agents."
   >
+    <UsersHelp />
     <Button @click="openAgent">
       <PlusIcon />
       Add agent

@@ -9,6 +9,7 @@ import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import ServerStatusDot from '@/components/ServerStatusDot.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import ServersHelp from '@/components/help/ServersHelp.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -80,6 +81,7 @@ async function submitDelete(): Promise<boolean> {
 
 <template>
   <PageHeader title="Servers" description="The Apilane API servers that host this instance's applications.">
+    <ServersHelp />
     <Button @click="openForm()">
       <PlusIcon />
       Add server

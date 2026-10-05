@@ -124,7 +124,7 @@ namespace Apilane.Portal.Tests
             await WaitForEndAsync(started.OperationId);
 
             var bearer = $"Bearer {await StoredTokenAsync(scene.OwnerEmail)}";
-            var installationKey = _portal.Services.GetRequiredService<PortalConfiguration>().InstallationKey;
+            var installationKey = await _portal.StoredInstallationKeyAsync();
             var requests = _portal.ApiServer.Requests;
 
             // The application with its system entities first, then one call per other entity.

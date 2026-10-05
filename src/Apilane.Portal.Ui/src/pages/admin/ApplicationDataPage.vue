@@ -7,6 +7,7 @@ import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import DataHelp from '@/components/help/DataHelp.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useApplications } from '@/composables/useApplications'
@@ -83,7 +84,9 @@ const crumbLinkClass =
       :title="shown ? `Data: ${shown}` : 'Data'"
       description="Browse, filter and change the records of each entity. An administrator can do this in any application of the instance."
       class="wrap-anywhere"
-    />
+    >
+      <DataHelp admin />
+    </PageHeader>
 
     <StateMessage
       v-if="data.Entities.length === 0"

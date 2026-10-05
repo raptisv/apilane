@@ -61,14 +61,15 @@ namespace Apilane.Portal
 
             var appConfig = new PortalConfiguration(configuration);
 
-            // The installation key authenticates the API to the portal. A missing, default or short
-            // value leaves every application's configuration readable by anyone who can reach the
-            // portal, so complain loudly at startup. (On an existing installation the value actually
-            // used is the one stored in the database, checked further below.)
+            // The installation key authenticates the API and the portal to each other. The setting only seeds
+            // the key stored in the database on the first start; the key in force, in both directions, is the
+            // stored one (checked further below). A missing, default or short value would seed a weak key, which
+            // leaves every application's configuration readable by anyone who can reach the portal, so
+            // complain loudly at startup.
             var configuredKeyProblem = InstallationKeyPolicy.Validate(appConfig.InstallationKey);
             if (configuredKeyProblem is not null)
             {
-                Log.Logger.Warning("SECURITY: {Problem}. Set a long random 'InstallationKey' (identical on the API) via appsettings.{Environment}.json or an environment variable.", configuredKeyProblem, environment);
+                Log.Logger.Warning("SECURITY: {Problem}. The setting only seeds the installation key stored in the portal database on the first start: set a long random 'InstallationKey' (identical on the API) via appsettings.{Environment}.json or an environment variable, and check the stored key under Instance > Settings.", configuredKeyProblem, environment);
             }
 
             builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
@@ -165,10 +166,18 @@ namespace Apilane.Portal
 
                 // The key used at runtime is the one stored in the portal database (Instance > Settings);
                 // configuration only seeds it on first start.
-                var storedKeyProblem = InstallationKeyPolicy.Validate(context.GlobalSettings.SingleOrDefault()?.InstallationKey);
+                var storedKey = context.GlobalSettings.SingleOrDefault()?.InstallationKey;
+                var storedKeyProblem = InstallationKeyPolicy.Validate(storedKey);
                 if (storedKeyProblem is not null)
                 {
                     Log.Logger.Warning("SECURITY: {Problem} (value stored in the portal database). Change it under Instance > Settings and set the same value on the API.", storedKeyProblem);
+                }
+
+                // An installation whose setting and stored key differ (the key was rotated, or the setting was changed
+                // after the first start) works with the stored one, which the API servers must use. No value is logged.
+                if (storedKey is not null && !SecureCompare.AreEqual(appConfig.InstallationKey, storedKey))
+                {
+                    Log.Logger.Information("The InstallationKey setting differs from the key stored in the portal database. The stored key is the one in force, in both directions: the API servers must use it as their InstallationKey.");
                 }
             }
 

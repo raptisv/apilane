@@ -213,6 +213,16 @@ namespace Apilane.Portal.Tests.Infrastructure
             });
         }
 
+        /// <summary>
+        /// The installation key stored in the Portal database (Instance > Settings): the one the
+        /// Portal expects from the API servers and sends to them. Read when it is needed, because
+        /// a test can change it; the key the Portal was started with only seeds it.
+        /// </summary>
+        public Task<string> StoredInstallationKeyAsync()
+        {
+            return WithDbContextAsync(async dbContext => (await dbContext.GlobalSettings.AsNoTracking().SingleAsync()).InstallationKey);
+        }
+
         public async Task<HttpClient> CreateSignedInClientAsync(string email, string password)
         {
             return (await SignInAsync(email, password)).Client;

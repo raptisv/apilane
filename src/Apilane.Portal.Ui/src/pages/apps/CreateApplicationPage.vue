@@ -9,6 +9,7 @@ import LoadingState from '@/components/LoadingState.vue'
 import NoServersState from '@/components/NoServersState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import ServerSelect from '@/components/ServerSelect.vue'
+import CreateApplicationHelp from '@/components/help/CreateApplicationHelp.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -88,34 +89,12 @@ async function submit(): Promise<void> {
   void reloadApplications()
   await router.push({ name: 'app-entities', params: { appToken: created.Token } })
 }
-
-// The questions and answers shown next to the form.
-const questions: { question: string; answer: string[] }[] = [
-  { question: 'What is an application?', answer: ['An application is the backend of your client application.'] },
-  { question: 'Can I change the application name later?', answer: ['Yes you can change the application name at any time.'] },
-  {
-    question: 'Why do I have to select a server?',
-    answer: ['Depending on your clients location, you may need to deploy your application to the server which is closest to them.'],
-  },
-  { question: 'Can I change the server after I create the application?', answer: ['No, you cannot change the server later.'] },
-  {
-    question: 'What is the differentiation entity?',
-    answer: [
-      'A differentiation entity allows you to "split" database data on the application entities, depending on a system property on the base entity Users.',
-      'The differentiation entity allows access to a record, only to users that share the same value on that property.',
-      "For example, if you are building an application that is shared between multiple companies, you can set a differentiation entity named 'Company'. Then, each user will have access only on records of the company they are assigned to.",
-      "It is the application's concern to decide how to assign values to that differentiation entity for each user. As a use case, in the example above, some administrator will have to assign the 'Company_ID' for each new user.",
-    ],
-  },
-  {
-    question: 'Can I change or remove the differentiation entity later?',
-    answer: ['No, you cannot change or remove the differentiation entity later.'],
-  },
-]
 </script>
 
 <template>
-  <PageHeader title="New application" description="An application is the backend of your client application." />
+  <PageHeader title="New application" description="An application is the backend of your client application.">
+    <CreateApplicationHelp />
+  </PageHeader>
 
   <LoadingState v-if="loading" label="Loading servers" :rows="4" />
 
@@ -164,21 +143,5 @@ const questions: { question: string; answer: string[] }[] = [
         </Button>
       </div>
     </form>
-
-    <section aria-labelledby="questions-title">
-      <h2 id="questions-title" class="mb-2 text-sm font-semibold">Questions</h2>
-      <div class="divide-y rounded-lg border">
-        <details v-for="item in questions" :key="item.question" class="group">
-          <summary
-            class="cursor-pointer px-4 py-2.5 text-sm font-medium hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-          >
-            {{ item.question }}
-          </summary>
-          <div class="grid gap-2 px-4 pb-3 text-sm text-muted-foreground">
-            <p v-for="paragraph in item.answer" :key="paragraph">{{ paragraph }}</p>
-          </div>
-        </details>
-      </div>
-    </section>
   </div>
 </template>

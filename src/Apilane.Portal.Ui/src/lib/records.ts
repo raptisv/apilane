@@ -151,8 +151,8 @@ export interface ColumnFilter {
 
 /**
  * The operators a column's filter offers, the default first: a String
- * 'contains' or 'equal', an encrypted String 'equal' only (its stored value is encrypted, so only a
- * whole value can be found), a Number, Date or Boolean 'equal'.
+ * 'contains' or 'equal', an encrypted String 'equal' only (its stored value is encrypted and the
+ * filter is compared with that stored text), a Number, Date or Boolean 'equal'.
  */
 export function filterOperators(property: Property): FilterOperator[] {
   return property.Type === 'String' && !property.Encrypted ? ['contains', 'equal'] : ['equal']

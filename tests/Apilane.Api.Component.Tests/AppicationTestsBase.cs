@@ -102,6 +102,20 @@ namespace Apilane.Api.Component.Tests
             IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
         }
 
+        /// <summary>The four database types, one test case each.</summary>
+        protected class AllDatabasesTestData : IEnumerable<object[]>
+        {
+            public IEnumerator<object[]> GetEnumerator()
+            {
+                yield return new object[] { DatabaseType.SQLLite };
+                yield return new object[] { DatabaseType.SQLServer };
+                yield return new object[] { DatabaseType.MySQL };
+                yield return new object[] { DatabaseType.PostgreSQL };
+            }
+
+            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        }
+
         protected class StorageConfigurationTestData : IEnumerable<object[]>
         {
             public IEnumerator<object[]> GetEnumerator()

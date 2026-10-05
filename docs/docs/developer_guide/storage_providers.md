@@ -49,8 +49,11 @@ Same setup as SQL Server — provide a connection string to an existing empty da
 **Example connection string:**
 
 ```
-Server=myserver;Database=myapp_db;User=myuser;Password=mypassword;
+Server=myserver;Database=myapp_db;User=myuser;Password=mypassword;UseXaTransactions=false;
 ```
+
+!!!warning "Keep `UseXaTransactions=false;`"
+    Apilane runs schema changes, custom endpoints, batches and other requests inside a transaction. With the MySQL driver's default (XA transactions) MySQL refuses a schema change made inside a transaction, so changing an entity, importing or rebuilding an application fails. MySQL also commits a schema change (create, alter, drop, rename) at once, so a schema change that fails halfway is not rolled back.
 
 !!!info "Character set"
     Create the database with the `utf8mb4` character set (the MySQL 8 default), for example `CREATE DATABASE myapp_db CHARACTER SET utf8mb4;`. Apilane's tables inherit the database default, and `utf8mb3`/`latin1` databases cannot store or filter characters such as emoji.

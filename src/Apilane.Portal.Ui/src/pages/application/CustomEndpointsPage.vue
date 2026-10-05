@@ -6,6 +6,7 @@ import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import CustomEndpointsHelp from '@/components/help/CustomEndpointsHelp.vue'
 import { Button } from '@/components/ui/button'
 import { useApplication } from '@/composables/useApplication'
 import { useAsync } from '@/composables/useAsync'
@@ -59,6 +60,7 @@ async function submitDelete(): Promise<boolean> {
 
 <template>
   <PageHeader title="Custom endpoints" description="SQL queries that the API server runs when their address is called.">
+    <CustomEndpointsHelp />
     <Button v-if="data && data.Data.length > 0" variant="outline" size="icon" title="Search" @click="searchOpen = true">
       <SearchIcon />
       <span class="sr-only">Search custom endpoints</span>

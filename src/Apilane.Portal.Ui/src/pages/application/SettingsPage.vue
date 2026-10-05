@@ -9,6 +9,7 @@ import DeleteApplicationDialog from '@/components/DeleteApplicationDialog.vue'
 import FormField from '@/components/FormField.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import RebuildApplicationDialog from '@/components/RebuildApplicationDialog.vue'
+import AppSettingsHelp from '@/components/help/AppSettingsHelp.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -78,7 +79,9 @@ const noteClass = 'text-sm text-muted-foreground'
 </script>
 
 <template>
-  <PageHeader title="Settings" description="The name, connection string and status of this application." />
+  <PageHeader title="Settings" description="The name, connection string and status of this application.">
+    <AppSettingsHelp />
+  </PageHeader>
 
   <div class="grid max-w-2xl gap-6">
     <form ref="formEl" :class="sectionClass" aria-labelledby="general-title" novalidate @submit.prevent="submit">
@@ -123,7 +126,7 @@ const noteClass = 'text-sm text-muted-foreground'
       <p :class="noteClass">
         <template v-if="application.Online">
           The application is available to the users. Taken offline, it will not be available to the users until the
-          status is set back online: the API server refuses every call for it.
+          status is set back online: the API server refuses their calls. The Portal keeps working for those who manage it.
         </template>
         <template v-else>{{ offlineWarning }}</template>
       </p>

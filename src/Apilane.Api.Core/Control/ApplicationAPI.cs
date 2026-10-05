@@ -77,7 +77,9 @@ namespace Apilane.Api.Core
                     throw new NotImplementedException();
             }
 
-            using (var scope = _transactionScopeService.OpenTransactionScope())
+            // The same time as creating an application (ApplicationNewAPI): it builds the same schema, and a
+            // scope that ends in the middle of it leaves the application half built.
+            using (var scope = _transactionScopeService.OpenTransactionScope(timeout: TimeSpan.FromMinutes(10)))
             {
                 // Then rebuild the application
                 await _applicationBuilder.BuildApplicationAsync(application);

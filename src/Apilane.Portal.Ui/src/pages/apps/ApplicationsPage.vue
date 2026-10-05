@@ -10,6 +10,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import RebuildApplicationDialog from '@/components/RebuildApplicationDialog.vue'
 import ServerStatusDot from '@/components/ServerStatusDot.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import ApplicationsHelp from '@/components/help/ApplicationsHelp.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -159,6 +160,7 @@ watch(
 
 <template>
   <PageHeader title="Applications" description="Your applications and the ones shared with you.">
+    <ApplicationsHelp />
     <Button as-child variant="outline">
       <RouterLink :to="{ name: 'app-import' }">
         <UploadIcon />

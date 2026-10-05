@@ -7,6 +7,7 @@ import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SecretInput from '@/components/SecretInput.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import EmailHelp from '@/components/help/EmailHelp.vue'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -138,7 +139,9 @@ const linkClass = 'font-medium text-link underline underline-offset-4'
   <PageHeader
     title="Email"
     description="How this application sends its emails to its users: the mail server, the email templates and where a user lands after confirming their address."
-  />
+  >
+    <EmailHelp />
+  </PageHeader>
 
   <div class="grid gap-8">
     <LoadingState v-if="loading" label="Loading the email settings" :rows="6" />

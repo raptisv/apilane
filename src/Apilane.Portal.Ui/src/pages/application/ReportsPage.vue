@@ -8,6 +8,7 @@ import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import ReportsHelp from '@/components/help/ReportsHelp.vue'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useApplication } from '@/composables/useApplication'
@@ -250,6 +251,7 @@ function stackedHeight(report: Report): string {
 
 <template>
   <PageHeader title="Reports" description="Tables and charts of the application's data. Each series is a live query to the API server.">
+    <ReportsHelp />
     <Button as-child>
       <RouterLink :to="{ name: 'app-report-create', params: { appToken } }">
         <PlusIcon />

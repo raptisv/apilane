@@ -3,7 +3,6 @@ using Apilane.Common.Models;
 using Apilane.Common.Models.Dto;
 using Apilane.Portal.Abstractions;
 using Apilane.Portal.Api;
-using Apilane.Portal.Models;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -33,18 +32,18 @@ namespace Apilane.Portal.Services
 
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IPortalAccessService _portalAccessService;
-        private readonly PortalConfiguration _portalConfiguration;
+        private readonly IPortalSettingsService _portalSettingsService;
         private readonly ILogger<ApiServerClient> _logger;
 
         public ApiServerClient(
             IHttpClientFactory httpClientFactory,
             IPortalAccessService portalAccessService,
-            PortalConfiguration portalConfiguration,
+            IPortalSettingsService portalSettingsService,
             ILogger<ApiServerClient> logger)
         {
             _httpClientFactory = httpClientFactory;
             _portalAccessService = portalAccessService;
-            _portalConfiguration = portalConfiguration;
+            _portalSettingsService = portalSettingsService;
             _logger = logger;
         }
 
@@ -88,7 +87,9 @@ namespace Apilane.Portal.Services
                 Content = new StringContent(JsonSerializer.Serialize(application), Encoding.UTF8, "application/json")
             };
 
-            request.Headers.Add(Globals.InstallationKeyHeaderName, _portalConfiguration.InstallationKey);
+            // The key stored in the Portal database (Instance > Settings), read for this call: the
+            // InstallationKey setting the Portal started with only seeds it on the first start.
+            request.Headers.Add(Globals.InstallationKeyHeaderName, _portalSettingsService.Get().InstallationKey);
 
             await SendAsync(request, application.Token);
         }

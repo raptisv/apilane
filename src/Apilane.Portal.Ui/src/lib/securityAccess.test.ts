@@ -151,24 +151,42 @@ describe('rate limit labels', () => {
 })
 
 describe('endpointRateLimit', () => {
-  it('is none when any rule of the item and action has no limit', () => {
-    const rules = [rule(ANONYMOUS, 'get', { RateLimit: { MaxRequests: 5, TimeWindow: 'Per_Minute' } }), rule('Admin', 'get')]
+  const perMinute = (n: number) => ({ MaxRequests: n, TimeWindow: 'Per_Minute' })
 
-    expect(endpointRateLimit(rules, customers, 'get')).toBeNull()
+  it('is none when a rule that applies has no limit', () => {
+    const rules = [rule(ANONYMOUS, 'get', { RateLimit: perMinute(5) }), rule(AUTHENTICATED, 'get')]
+
+    expect(endpointRateLimit(rules, customers, 'Admin', 'get')).toBeNull()
   })
 
-  it('takes the most generous limit, whatever the role', () => {
+  it('takes the most generous limit of the rules that apply', () => {
     const rules = [
       rule(ANONYMOUS, 'get', { RateLimit: { MaxRequests: 100, TimeWindow: 'Per_Hour' } }),
-      rule('Admin', 'get', { RateLimit: { MaxRequests: 2, TimeWindow: 'Per_Minute' } }),
+      rule('Admin', 'get', { RateLimit: perMinute(2) }),
       rule('Admin', 'post', { RateLimit: { MaxRequests: 50, TimeWindow: 'Per_Second' } }),
     ]
 
-    expect(endpointRateLimit(rules, customers, 'get')).toEqual({ MaxRequests: 2, TimeWindow: 'Per_Minute' })
+    expect(endpointRateLimit(rules, customers, 'Admin', 'get')).toEqual(perMinute(2))
+  })
+
+  it('does not let the rule of another role change the limit of a caller', () => {
+    const rules = [rule(ANONYMOUS, 'get', { RateLimit: { MaxRequests: 100, TimeWindow: 'Per_Hour' } }), rule('Admin', 'get')]
+
+    expect(endpointRateLimit(rules, customers, ANONYMOUS, 'get')).toEqual({ MaxRequests: 100, TimeWindow: 'Per_Hour' })
+    expect(endpointRateLimit(rules, customers, 'Editor', 'get')).toEqual({ MaxRequests: 100, TimeWindow: 'Per_Hour' })
+    expect(endpointRateLimit(rules, customers, 'Admin', 'get')).toBeNull()
+  })
+
+  it('does not mix an entity with a custom endpoint of the same name', () => {
+    const endpoint: SecurityItem = { ...customers, Type: 'CustomEndpoint' }
+    const rules = [rule(ANONYMOUS, 'get', { RateLimit: perMinute(5) }), rule(ANONYMOUS, 'get', { Type: 'CustomEndpoint' })]
+
+    expect(endpointRateLimit(rules, customers, ANONYMOUS, 'get')).toEqual(perMinute(5))
+    expect(endpointRateLimit(rules, endpoint, ANONYMOUS, 'get')).toBeNull()
   })
 
   it('is none without rules', () => {
-    expect(endpointRateLimit([], customers, 'get')).toBeNull()
+    expect(endpointRateLimit([], customers, ANONYMOUS, 'get')).toBeNull()
   })
 })
 
@@ -215,7 +233,7 @@ describe('effectiveAccess', () => {
     expect(effectiveAccess([rule(ANONYMOUS, 'get', { Record: 'Owned' })], customers, ANONYMOUS, 'get').owned).toBe(false)
   })
 
-  it('carries the rate limit of the item and action', () => {
+  it('carries the rate limit of the rules that apply', () => {
     const rules = [rule(ANONYMOUS, 'get', { RateLimit: { MaxRequests: 3, TimeWindow: 'Per_Second' } })]
     const access = effectiveAccess(rules, customers, 'Admin', 'get')
 

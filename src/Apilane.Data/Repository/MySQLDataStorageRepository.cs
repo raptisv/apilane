@@ -26,7 +26,7 @@ namespace Apilane.Data.Repository
             _connectionString = connectionString;
         }
 
-        private void TryOpenConnection()
+        private void OpenConnection()
         {
             _databaseConnection ??= new MySqlConnection(_connectionString);
 
@@ -35,6 +35,15 @@ namespace Apilane.Data.Repository
             {
                 _databaseConnection.Open();
             }
+        }
+
+        private void TryOpenConnection()
+        {
+            OpenConnection();
+
+            // Every command goes through here, so every command runs in the current transaction scope, also
+            // when the connection was opened before the scope began.
+            TransactionEnlistment.JoinAmbientTransaction(_databaseConnection);
         }
 
         public ValueTask DisposeAsync()
@@ -77,7 +86,7 @@ namespace Apilane.Data.Repository
             using (var command = _databaseConnection.CreateCommand())
             {
                 // Total
-                command.CommandTimeout = 0;
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(0);
                 command.CommandType = CommandType.Text;
                 command.CommandText = cmdTotal;
                 using (var reader = command.ExecuteReader())
@@ -98,7 +107,7 @@ namespace Apilane.Data.Repository
 
             using (DbCommand command = _databaseConnection.CreateCommand())
             {
-                command.CommandTimeout = 0;
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(0);
                 command.CommandType = CommandType.Text;
                 command.CommandText = cmd;
                 return await command.ExecuteScalarAsync();
@@ -111,7 +120,7 @@ namespace Apilane.Data.Repository
 
             using (DbCommand command = _databaseConnection.CreateCommand())
             {
-                command.CommandTimeout = 0;
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(0);
                 command.CommandType = CommandType.Text;
                 command.CommandText = cmd;
                 return await command.ExecuteNonQueryAsync();
@@ -126,7 +135,7 @@ namespace Apilane.Data.Repository
             DataTable datatable = new DataTable();
             using (DbCommand command = _databaseConnection.CreateCommand())
             {
-                command.CommandTimeout = 0;
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(0);
                 command.CommandType = CommandType.Text;
                 command.CommandText = cmd;
                 adapter.SelectCommand = command;
@@ -144,6 +153,7 @@ namespace Apilane.Data.Repository
             DataSet dataSet = new DataSet();
             using (DbCommand command = _databaseConnection.CreateCommand())
             {
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(command.CommandTimeout);
                 command.CommandText = cmd;
                 adapter.SelectCommand = command;
                 adapter.Fill(dataSet);
@@ -178,9 +188,11 @@ namespace Apilane.Data.Repository
         public static void ConfirmDatabaseExists(string connString)
         {
             // Just test if database exists. Dispose, otherwise the connection never returns to the pool.
+            // Call it outside a TransactionScope: a connection opened inside one joins it, and a second
+            // connection in the same transaction is not supported.
             using (var repository = new MySQLDataStorageRepository(connString))
             {
-                repository.TryOpenConnection();
+                repository.OpenConnection();
             }
         }
 

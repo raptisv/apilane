@@ -8,6 +8,7 @@ import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SecretInput from '@/components/SecretInput.vue'
 import SwitchField from '@/components/SwitchField.vue'
+import InstanceSettingsHelp from '@/components/help/InstanceSettingsHelp.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -120,7 +121,9 @@ const noteClass = 'text-xs text-muted-foreground'
 </script>
 
 <template>
-  <PageHeader title="Settings" description="The settings of this Apilane instance." />
+  <PageHeader title="Settings" description="The settings of this Apilane instance.">
+    <InstanceSettingsHelp />
+  </PageHeader>
 
   <LoadingState v-if="loading" label="Loading settings" :rows="6" />
 
@@ -135,7 +138,7 @@ const noteClass = 'text-xs text-muted-foreground'
           <FormField
             v-slot="{ field }"
             label="Instance name"
-            help="3 to 16 characters. Internal use only: nobody outside this Portal sees the name."
+            help="3 to 16 characters. Shown in the Portal, on the sign-in page too."
             :error="errors.fields.InstanceTitle"
           >
             <Input v-model="form.InstanceTitle" v-bind="field" autocomplete="off" maxlength="16" />
@@ -156,8 +159,9 @@ const noteClass = 'text-xs text-muted-foreground'
             <TriangleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <p>
               Do not share this key. The Portal and the API instances use it to authenticate to each other. If you
-              change it, you also have to re-instantiate the API instances with the new key. A new key is 30 to 100
-              characters without spaces.
+              change it, set the same value on every API instance and restart them: until then the Portal and the API
+              instances refuse each other. The Portal itself needs no restart. A new key is 30 to 100 characters without
+              spaces.
             </p>
           </div>
         </section>

@@ -7,6 +7,7 @@ import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import AuditLogHelp from '@/components/help/AuditLogHelp.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAsync } from '@/composables/useAsync'
@@ -29,6 +30,7 @@ watch(page, () => void reload())
     title="Audit log"
     description="Who changed what on this instance: servers, settings, user roles, new applications and database backups."
   >
+    <AuditLogHelp scope="instance" />
     <Badge v-if="data" variant="secondary">
       {{ data.Total }}
       <span class="sr-only">entries</span>

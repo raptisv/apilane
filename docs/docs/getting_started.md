@@ -144,7 +144,7 @@ Regardless of deployment method (Docker, k8s, cloud), you can override default s
 | `Url` | `http://0.0.0.0:5000` | URL where the Portal is served |
 | `ApiUrl` | `http://127.0.0.1:5001` | URL to the initial API service |
 | `FilesPath` | `/etc/apilanewebportal` | Path for Portal database files (SQLite) |
-| `InstallationKey` | *(required, no default)* | Shared secret between Portal and API; the compose file reads it from `APILANE_INSTALLATION_KEY`. Generate a long random value (e.g. `openssl rand -hex 32`) and **never reuse a published example**. |
+| `InstallationKey` | *(required, no default)* | Shared secret between Portal and API; the compose file reads it from `APILANE_INSTALLATION_KEY`. Generate a long random value (e.g. `openssl rand -hex 32`) and **never reuse a published example**. It only seeds the key stored in the Portal database on first start; see "Changing the installation key" below. |
 | `AdminEmail` | `admin@admin.com` | Admin email, created on first deployment. Change before deploying. |
 
 ### API
@@ -154,10 +154,10 @@ Regardless of deployment method (Docker, k8s, cloud), you can override default s
 | `Url` | `http://0.0.0.0:5001` | URL where the API is served |
 | `PortalUrl` | `http://127.0.0.1:5000` | URL to the Portal |
 | `FilesPath` | `/etc/apilanewebapi/Files` | Path for API-generated files |
-| `InstallationKey` | *(required, no default)* | Must be identical to the Portal's key (`APILANE_INSTALLATION_KEY` in the compose file) |
+| `InstallationKey` | *(required, no default)* | Must be identical to the key stored in the Portal (**Instance > Settings**); on a new installation that is the value of `APILANE_INSTALLATION_KEY` in the compose file |
 
 !!!warning "Changing the installation key"
-    The Portal uses the key stored in its database (**Instance > Settings**); the `InstallationKey` setting only seeds it on first start. To change the key of an existing installation, update it under Instance > Settings, set the same value as `InstallationKey` for both services, and restart them.
+    The Portal uses the key stored in its database (**Instance > Settings**), both to check the API servers and to call them; its own `InstallationKey` setting only seeds it on first start. To change the key of an existing installation, update it under Instance > Settings, set the same value as `InstallationKey` for the API servers, and restart them. The Portal does not need a restart. Until the API servers run with the new key, the Portal and the API servers refuse each other's calls. With the docker-compose file, put the new value in `APILANE_INSTALLATION_KEY` in the `.env` file and run `docker-compose -p apilane up -d`; keep that file in step with the stored key, because an API container recreated with the old value refuses the Portal.
 
 !!!info "Next steps"
     - Configure [Security](developer_guide/security.md) rules for your entities

@@ -260,6 +260,10 @@ both: addresses, behaviour, known limits, open decisions, commands, layout and c
   is guarded by the `x-installation-key` header, answers the stored records with PascalCase names and numeric
   enums, and is not in the contract. Change both sides together; `tests/Apilane.Portal.Tests/InternalApiTests.cs`
   and `tests/Apilane.UnitTests/PortalInfoServiceTests.cs` pin them.
+  The installation key in force is the one stored in the Portal database (`GlobalSettings.InstallationKey`, changed
+  under Instance > Settings): `InstallationKeyFilter` checks it and the Portal sends it to the API servers
+  (`ApiServerClient.GenerateAsync`, and the clone through `ApplicationCloneService`). `PortalConfiguration.InstallationKey`
+  only seeds it on the first start and feeds the startup warning: never read it at runtime.
 - `openapi/portal-v1.json` is written by the Portal tests, never by hand. After any API change follow
   "When the API changes" in `src/Apilane.Portal.Ui/README.md` (test run with `UPDATE_OPENAPI=1`,
   `npm run api:types`, `npm run build`) and commit the JSON and the regenerated

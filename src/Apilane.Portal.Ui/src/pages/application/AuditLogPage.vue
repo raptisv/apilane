@@ -7,6 +7,7 @@ import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import AuditLogHelp from '@/components/help/AuditLogHelp.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useApplication } from '@/composables/useApplication'
@@ -36,6 +37,7 @@ watch(page, () => void reload())
 
 <template>
   <PageHeader title="Audit log" description="Who changed what in this application in the Portal.">
+    <AuditLogHelp scope="application" />
     <Badge v-if="data" variant="secondary">
       {{ data.Total }}
       <span class="sr-only">entries</span>

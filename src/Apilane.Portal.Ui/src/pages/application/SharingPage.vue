@@ -8,6 +8,7 @@ import FormField from '@/components/FormField.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import SharingHelp from '@/components/help/SharingHelp.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useApplication } from '@/composables/useApplication'
@@ -64,7 +65,7 @@ const shareErrors = computed(() => formErrors(share.error.value, ['Email']))
 // Agents are mentioned only when there is one to offer.
 const emailHelp = computed(
   () =>
-    'The address the user signs in with, written exactly as in their account. The user has to be a registered user of this instance.' +
+    'The address the user signs in with, written exactly as in their account, letter case included.' +
     (agents.value?.Data.length ? ' The agents you can still add are offered as you type.' : ''),
 )
 
@@ -126,6 +127,7 @@ async function submitRemove(): Promise<boolean> {
 
 <template>
   <PageHeader title="Sharing" description="The users who manage this application with you.">
+    <SharingHelp />
     <Button @click="openShare">
       <PlusIcon />
       Share
@@ -165,19 +167,6 @@ async function submitRemove(): Promise<boolean> {
             <span class="sr-only">Stop sharing with {{ collaborator.Email }}</span>
           </Button>
         </li>
-      </ul>
-    </section>
-
-    <section aria-labelledby="about-title" class="grid gap-2 rounded-lg border bg-card p-4 text-sm">
-      <h2 id="about-title" class="font-semibold">What is an application collaborator?</h2>
-      <p class="text-muted-foreground">
-        When you add a user as an application collaborator, you give that user administrator access to that application.
-      </p>
-      <ul class="grid list-disc gap-1 pl-5 text-muted-foreground">
-        <li class="font-semibold text-foreground">The user has full access to modify the application, even delete it.</li>
-        <li>The user has to be a registered user of this instance.</li>
-        <li>The collaborator will not be able to add other collaborators on that application.</li>
-        <li>You can remove any collaborator at any time.</li>
       </ul>
     </section>
   </div>

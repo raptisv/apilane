@@ -9,6 +9,7 @@ import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
 import SwitchField from '@/components/SwitchField.vue'
+import EntitiesHelp from '@/components/help/EntitiesHelp.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useApplication } from '@/composables/useApplication'
@@ -184,6 +185,7 @@ async function submitDelete(): Promise<boolean> {
 
 <template>
   <PageHeader title="Entities" description="The tables of this application. Each entity holds one kind of record.">
+    <EntitiesHelp />
     <Button @click="openCreate">
       <PlusIcon />
       New entity

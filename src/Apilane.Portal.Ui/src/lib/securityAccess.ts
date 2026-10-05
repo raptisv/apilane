@@ -178,23 +178,23 @@ export function rateLimitText(rateLimit: RateLimit): string {
 }
 
 /**
- * The rate limit the API server applies to an item and action. It looks at every rule of that name
- * and action, whatever the role (and whatever the type: an entity and a custom endpoint of the same
- * name share it): when one of them has no limit there is none, otherwise the most generous one
+ * The rate limit the API server applies to a caller of this role on one action of an item. It looks
+ * only at the rules that apply to that caller (Anonymous, Authenticated and the role itself, of the
+ * same type and name): when one of them has no limit there is none, otherwise the most generous one
  * applies, counted per signed-in user, with every call without a valid auth token sharing one count.
  */
-export function endpointRateLimit(rules: readonly SecurityRule[], item: SecurityItem, action: string): RateLimit | null {
-  const matching = rules.filter(
-    (rule) => rule.Name.toLowerCase() === item.Name.toLowerCase() && rule.Action.toLowerCase() === action.toLowerCase(),
-  )
+export function endpointRateLimit(rules: readonly SecurityRule[], item: SecurityItem, roleId: string, action: string): RateLimit | null {
+  const applying = rolesThatApply(roleId)
+    .map((id) => findRule(rules, item, id, action))
+    .filter((rule): rule is SecurityRule => rule !== undefined)
 
-  if (matching.length === 0 || matching.some((rule) => rule.RateLimit === null)) {
+  if (applying.length === 0 || applying.some((rule) => rule.RateLimit === null)) {
     return null
   }
 
   const perSecond = (limit: RateLimit) => Number(limit.MaxRequests) / (windowSeconds[limit.TimeWindow] ?? 1)
 
-  return matching
+  return applying
     .map((rule) => rule.RateLimit)
     .filter((limit): limit is RateLimit => limit !== null)
     .reduce((widest, limit) => (perSecond(limit) > perSecond(widest) ? limit : widest))
@@ -211,7 +211,7 @@ export interface Access {
   /** Only the records the user owns. */
   owned: boolean
   properties: PropertyAccess
-  /** The limit of the item and action as a whole (see endpointRateLimit). */
+  /** The limit for a caller of this role on this action (see endpointRateLimit). */
   rateLimit: RateLimit | null
   /** Allowed on every record with every property the action offers. */
   full: boolean
@@ -242,7 +242,7 @@ export function effectiveAccess(rules: readonly SecurityRule[], item: SecurityIt
     inherited: allowed && !applying.some((rule) => rule.RoleID === roleId),
     owned,
     properties,
-    rateLimit: allowed ? endpointRateLimit(rules, item, action) : null,
+    rateLimit: allowed ? endpointRateLimit(rules, item, roleId, action) : null,
     full: allowed && !owned && (properties.kind === 'all' || properties.kind === 'fixed'),
   }
 }

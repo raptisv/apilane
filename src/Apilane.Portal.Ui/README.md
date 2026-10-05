@@ -406,7 +406,11 @@ that hosts the application, and the browser calls that server directly:
 - The administrator's data browser works for every application. For someone else's application the
   links to its own screens are left out.
 - Backup: the file is made with SQLite's online backup into a uniquely named temporary file and streamed.
-- After the installation key was changed, the API servers must be restarted with the new key.
+- The key stored in the Portal database (Instance > Settings) is the one in force in both directions: the Portal
+  expects it from the API servers (`/api/internal`) and sends it to them when it creates, imports or clones an
+  application (`POST /api/ApplicationNew/Generate`). After a change, set the same value as `InstallationKey` of every
+  API server and restart the API servers; the Portal needs no restart. Until then the two refuse each other, and
+  create, import and clone fail with a 502.
 
 ## Mails the Portal sends
 
@@ -449,7 +453,7 @@ or environment variables (`__` for nesting).
 | `Url` | The address the Portal listens on. In Docker `http://0.0.0.0:5000`. |
 | `ApiUrl` | The first API server, as the Portal and browsers reach it. It seeds Instance > Servers on first start. |
 | `FilesPath` | The folder of the Portal's SQLite database (`Apilane.db`) and its data-protection keys. A mounted volume in Docker. |
-| `InstallationKey` | The secret shared with the API servers. It seeds the database on first start only; later it is changed under Instance > Settings. |
+| `InstallationKey` | The secret shared with the API servers. It seeds the key stored in the database on first start and is read again only for the startup warning. The key in force, in both directions, is the stored one, changed under Instance > Settings (no restart of the Portal). |
 | `AdminEmail` | The administrator created on first start, with the password `admin`. |
 | `InstanceTitle` | The name shown in the UI. It seeds the database on first start only; later it is changed under Instance > Settings. |
 | `AuthCookieDomain` | The domain of the login cookie; `null` for the current host. |
@@ -475,6 +479,11 @@ send end users to a UI address (`{PortalUrl}/account/email-confirmed`). Upgrade 
 **What must be reachable.** The API servers must reach the Portal (`PortalUrl`), and the Portal and
 every browser must reach each API server at its address under Instance > Servers. `/api/internal`
 is only for the API servers: when the Portal is public, a proxy may block that prefix from outside.
+
+**Changing the installation key.** The key stored in the database (Instance > Settings) is the one in force. Save
+the new key there, set the same value as `InstallationKey` of every API server and restart the API servers; the
+Portal needs no restart, and its own `InstallationKey` setting stays the first-start seed. Until the API servers run
+with the new key, the Portal and the API servers refuse each other.
 
 ## Known limits
 
@@ -783,7 +792,9 @@ not part of `/api/v1`, not in the contract and not for browsers.
 | `GET /api/internal/applications/{appToken}/access` | `true` or `false`: whether the Portal user whose token is in `Authorization: Bearer {token}` may manage the application (owner, collaborator, or an administrator for any application). |
 
 - The caller proves itself with the header `x-installation-key`, compared in constant time. A missing
-  or wrong key is 401 with no body.
+  or wrong key is 401 with no body. The key compared is the one stored in the Portal database (Instance >
+  Settings), read on every call; the Portal sends the same stored key in `POST /api/ApplicationNew/Generate`
+  (create, import, clone).
 - The bodies are the stored records with property names as in the models and enums as numbers,
   because that is how the API server reads them. Do not add a naming policy or an enum converter to
   the Portal's global JSON options (`Program.cs`).
@@ -824,7 +835,8 @@ Run them in this folder. `npm ci` once after cloning (and after pulling dependen
    `dotnet run --project src/Apilane.Portal` from the repository root. It listens on the `Url`
    setting, <http://localhost:5000> by default.
 2. Most screens also need an API server: `dotnet run --project src/Apilane.Api`
-   (<http://localhost:5001>), with the same `InstallationKey` as the Portal.
+   (<http://localhost:5001>), with the same installation key as the Portal: on a fresh database its
+   `InstallationKey` setting, otherwise the key under Instance > Settings.
 3. `npm run dev` here, and browse <http://localhost:5173/>. Sign in as `AdminEmail` (password `admin`
    on a fresh database).
 
@@ -905,6 +917,7 @@ changes the contract too.
 5. Add its navigation entry in `src/layouts/SidebarNav.vue` when it has one. For a section of an
    application, the entry is its line in `sections` of `src/layouts/AppLayout.vue`.
 6. Add its line to the [Screens](#screens) table above.
+7. Write its Help in `src/components/help/` and put it in the `PageHeader` (see Conventions).
 
 ### Screens of one application
 
@@ -969,7 +982,7 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 | File | Contents |
 |---|---|
 | `ApplicationsPage` | `/apps`, also the home page: the user's applications as cards grouped by server. A card's menu opens the status, rebuild and delete dialogs, which the page holds. |
-| `CreateApplicationPage`, `ImportApplicationPage` | `/apps/new` and `/apps/import`: the two pages that make an application. |
+| `CreateApplicationPage`, `ImportApplicationPage` | `/apps/new` and `/apps/import`: the two pages that make an application. Each has a Help; the questions that used to sit under the form are in `CreateApplicationHelp`. |
 | `CompareApplicationsDialog` | `/apps?compare=<application token>&with=<application token>`, opened by 'Compare with' of a card's menu: the other application is picked in the dialog, then Entities, Properties, Constraints, Custom endpoints and Security each list what was added, removed and changed, or 'Applications are identical'. `ComparedProperty` is its part. |
 
 **`pages/application`**: the screens of one application, inside `AppLayout`.
@@ -981,13 +994,13 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 | `ConstraintsPage` | `.../entities/:entity/constraints`: the unique and foreign key constraints of one entity, added (`AddConstraintDialog`, a two-step dialog: kind, then its fields) and removed in the list and saved together; read-only for a system entity unless the user is an administrator. |
 | `SortingPage` | `.../entities/:entity/sorting`: the default sorting of one entity as an ordered list. |
 | `DataPage` | `/apps/:appToken/data/:entity?page=&pageSize=&sort=`: the data browser of the application: the entities with properties loaded once, then `ApplicationDataBrowser`. |
-| `SecurityPage` | `/apps/:appToken/security`: `SecuritySettingsForm` (sign-in, register, files, IP access with its own Save, 'Not saved yet' next to it and its own question before leaving; the forgot-password links read-only) and `SecurityRulesEditor` (the rules of every item edited locally and saved together: `SecurityItemPicker` lists the items, a searchable list or a select on a phone, the selected one in `?item=Entity-<name>`, `CustomEndpoint-<name>` or `Schema-Schema`; a role x action grid of `SecurityRuleCell`; `SecurityTreeDialog` and `SecurityMatrixDialog`, the saved rules read-only at `?view=tree` and `?view=matrix`, with `SecurityAccessBadge`). |
+| `SecurityPage` | `/apps/:appToken/security`, with a Help for the screen (`SecurityHelp`) and one for the rules (`AccessRulesHelp`, in the header of `SecurityRulesEditor`): `SecuritySettingsForm` (sign-in, register, files, IP access with its own Save, 'Not saved yet' next to it and its own question before leaving; the forgot-password links read-only) and `SecurityRulesEditor` (the rules of every item edited locally and saved together: `SecurityItemPicker` lists the items, a searchable list or a select on a phone, the selected one in `?item=Entity-<name>`, `CustomEndpoint-<name>` or `Schema-Schema`; a role x action grid of `SecurityRuleCell`; `SecurityTreeDialog` and `SecurityMatrixDialog`, the saved rules read-only at `?view=tree` and `?view=matrix`, with `SecurityAccessBadge`). |
 | `CustomEndpointsPage` | `/apps/:appToken/endpoints`: the custom endpoints, one line each with the SQL cut to one line, the 'Call endpoint' link (opens `CallUrl` in a new tab), Edit and the delete confirm. `CustomEndpointSearchDialog` finds any text of the names, descriptions and whole SQL and marks it, with Edit opening the editor in a new tab. |
-| `CustomEndpointEditorPage` | `/apps/:appToken/endpoints/new` and `/apps/:appToken/endpoints/<ID>`: name, description and the SQL in `SqlEditor`, saved with `UnsavedChangesBar`, the rename warning, the help and the questions. `CustomEndpointTestPanel` is its right-hand part (the address and a box per parameter, worked out in the browser, and Test, which runs the SQL on the API server and shows the JSON or the database's error). |
+| `CustomEndpointEditorPage` | `/apps/:appToken/endpoints/new` and `/apps/:appToken/endpoints/<ID>`: name, description and the SQL in `SqlEditor`, saved with `UnsavedChangesBar`, the rename warning and its Help (`CustomEndpointEditorHelp`, which shows the SQL Server item only for a SQL Server application). `CustomEndpointTestPanel` is its right-hand part (the address and a box per parameter, worked out in the browser, and Test, which runs the SQL on the API server and shows the JSON or the database's error). |
 | `EmailPage` | `/apps/:appToken/email`: the SMTP settings and the confirmation landing page, one form saved to the Portal, and the e-mail templates read from and saved to the API server. `EmailTemplateDialog` edits one template (enabled, subject, HTML body with a live `HtmlPreview`, the placeholders). |
 | `ReportsPage`, `Report*.vue`, `TimeRangePicker` | `/apps/:appToken/reports`: the dashboard. On a wide screen (768px and up) the reports are panels on a 12-column grid (`ReportsGrid`, gridstack), dragged by their title and resized by their edges; the layout is saved 600 ms after the last change (`PUT reports/layout`, every panel), and a save that fails shows above the grid with 'Reload the dashboard'. On a phone the panels are one column in the same order and nothing moves. The page also holds the delete confirm, `ReportEndpointDialog` ('View API endpoint': the address of each series' call, with a copy button) and the editor. `ReportPanel`: one report: title, the time range or Top N badge, Refresh (which moves the time window to now), the menu, and the body: `ReportTable` for a Grid, `ReportChart` (Chart.js) for the other types. It loads each series itself from the API server (`/api/Stats/Aggregate`); a series that cannot run or whose call fails is named inside the panel and the others still show. `ReportEditorSheet` (`/apps/:appToken/reports/new` and `/apps/:appToken/reports/<ID>/edit`, a side sheet over the dashboard; the three routes share `ReportsPage`): title, visualization, time range (`TimeRangePicker`: the quick ranges or a custom number and unit), Top N and the series. `ReportSeriesEditor` is one series (label, entity, group-by, property, filter), with its choices from `GET entities/{entity}/report-fields?Type=` and the filter edited in a dialog with `FilterBuilder`. |
-| `SharingPage` | `/apps/:appToken/sharing`, owner only: the users the application is shared with, the share dialog (a free-text address box that also offers the available agents, through a `datalist`), the remove confirm and what a collaborator can do. |
-| `SchemaImportPage` | `/apps/:appToken/import`, the 'Import' tab (route `app-schema-import`): adds entities, properties, constraints, security rules and custom endpoints from a JSON payload. 'Load diff' asks the API what another application has that this one lacks, puts it into the payload box and shows its counts; the box stays editable. Import checks the text in the browser (`parsePayload`), asks first (not atomic, cannot be undone), then shows 'Imported' with the skipped items, or the failed step with its place in the payload. The notes and the example payload are collapsible. |
+| `SharingPage` | `/apps/:appToken/sharing`, owner only: the users the application is shared with, the share dialog (a free-text address box that also offers the available agents, through a `datalist`), the remove confirm. What a collaborator can do is in its Help. |
+| `SchemaImportPage` | `/apps/:appToken/import`, the 'Import' tab (route `app-schema-import`): adds entities, properties, constraints, security rules and custom endpoints from a JSON payload. 'Load diff' asks the API what another application has that this one lacks, puts it into the payload box and shows its counts; the box stays editable. Import checks the text in the browser (`parsePayload`), asks first (not atomic, cannot be undone), then shows 'Imported' with the skipped items, or the failed step with its place in the payload. Its Help (`SchemaImportHelp`) holds how the import works, the payload reference and the example payload (`examplePayload`). |
 | `AuditLogPage` | `/apps/:appToken/audit-log?page=1`: the application's audit log, with `AuditLogTable` and `AppPagination`. |
 | `SettingsPage` | `/apps/:appToken/settings`: General (name, connection string; server and database type read-only), Status (online / offline) and Danger zone (rebuild, delete). |
 | `CloneApplicationPage`, `CloneProgressPage` | Opened from the card menu of the applications page (no tab in `AppLayout`). `/apps/:appToken/clone`: the server (it starts on the application's own), `DatabaseTypeFields`, 'Clone data' and, when it is on, the entities whose records are copied (all ticked, 'Select all' / 'Deselect all', Files left out; an empty selection is refused). Starting answers at once and leads to `/apps/:appToken/clone/:operationId`: the phase, the bar (`components/ui/progress`), the counters of the phase, the entity being worked on and the time remaining, asked every 2 seconds with `usePolling`; then 'Clone completed' with the link to the new application, or 'Clone failed' with the message and 'Back to clone'; an operation the Portal no longer knows (404) shows 'This clone can no longer be tracked'. |
@@ -1018,6 +1031,8 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 | File | Contents |
 |---|---|
 | `PageHeader`, `StateMessage`, `LoadingState`, `ErrorState` | The heading and the loading, empty and error states of a screen. |
+| `HelpSheet`, `HelpItem` | The Help of a screen: a button for the header (`PageHeader` actions) that opens a side sheet with a lead, which says what the screen is for, and a list of `HelpItem` accordions. `size="sm"` for a smaller header than a screen's. |
+| `help/` | The words of each screen, one component per screen (`EntitiesHelp`, `SecurityHelp`, `AccessRulesHelp`, ...), each wrapping `HelpSheet`. A page only places it: `<EntitiesHelp />`. |
 | `ForbiddenState` | A screen the user may not open; `description` says who may. |
 | `FormDialog`, `FormField`, `SwitchField` | A form in a dialog (`wide` for a large field with something next to it); a labelled field with its error message; the same for an on/off choice. |
 | `AuthForm` | A form that is a whole public screen, the counterpart of `FormDialog` inside `AuthLayout`. |
@@ -1164,6 +1179,7 @@ Rules that need neither Vue nor the browser, as pure functions, each with a `*.t
 - A row menu item that is not available stays in the menu, disabled, with the reason as a second line under its label (`EntityRow`); a tooltip would not show on a disabled item. A row where no item is available gets no menu at all (system properties in `PropertyTable`).
 - A row that scrolls sideways (`overflow-x-auto`) is also `relative`: the `sr-only` texts inside it are absolutely positioned and would otherwise widen the page on a phone.
 - Logic that does not need Vue or the browser (ordering, formatting, parsing) goes into a module under `src/lib/` as pure functions, with a `*.test.ts` next to it.
+- Every screen explains itself in a Help (`components/help/<Screen>Help.vue`), placed first in the actions of its `PageHeader` so that the primary button stays last. The lead says what the screen is for, the first item (`What you can do here`, open) lists what it offers, and the other items answer what a person asks next. Write it in plain words, check every statement against the code, and put what must be seen without opening anything (a warning before something irreversible, a note that is the point of the field) on the screen itself, not in the Help.
 - Visible texts say 'email'; comments, this document and the API's summaries write 'e-mail'.
 - Validation messages are short and the same everywhere ('Required', 'Not a valid email address', 'Must be 8 to 100 characters'), one per field.
 

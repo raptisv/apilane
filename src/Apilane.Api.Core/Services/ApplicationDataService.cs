@@ -474,7 +474,8 @@ namespace Apilane.Api.Core.Services
                     }
                 }
 
-                using var scope = _transactionScopeService.OpenTransactionScope();
+                // One history insert per record, so the scope gets the time of a custom endpoint rather than the default
+                using var scope = _transactionScopeService.OpenTransactionScope(timeout: TimeSpan.FromSeconds(20));
 
                 foreach (var snapshot in snapshots)
                 {

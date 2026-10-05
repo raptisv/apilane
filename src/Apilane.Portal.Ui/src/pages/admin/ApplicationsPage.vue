@@ -15,6 +15,7 @@ import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import AdminApplicationsHelp from '@/components/help/AdminApplicationsHelp.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -90,7 +91,9 @@ async function clear(application: AdminApplication): Promise<void> {
 </script>
 
 <template>
-  <PageHeader title="Applications" description="Every application of this instance, whoever owns it." />
+  <PageHeader title="Applications" description="Every application of this instance, whoever owns it.">
+    <AdminApplicationsHelp />
+  </PageHeader>
 
   <LoadingState v-if="loading" label="Loading applications" />
 

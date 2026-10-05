@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CircleAlertIcon, CopyIcon, InfoIcon, Loader2Icon, TriangleAlertIcon } from '@lucide/vue'
+import { CircleAlertIcon, CopyIcon, Loader2Icon, TriangleAlertIcon } from '@lucide/vue'
 import { computed, nextTick, reactive, ref, useId, useTemplateRef, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import DatabaseTypeFields from '@/components/DatabaseTypeFields.vue'
@@ -10,6 +10,7 @@ import NoServersState from '@/components/NoServersState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import ServerSelect from '@/components/ServerSelect.vue'
 import SwitchField from '@/components/SwitchField.vue'
+import CloneApplicationHelp from '@/components/help/CloneApplicationHelp.vue'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -130,18 +131,6 @@ async function submit(): Promise<void> {
   void reloadApplications()
   await router.push({ name: 'app-clone-progress', params: { appToken, operationId: started.OperationId } })
 }
-
-// What a clone is.
-const notes = [
-  'The cloned application is going to be identical to the original.',
-  'Entities, properties, custom endpoints and security will be identical.',
-  'If "Clone data" is selected, data will also be copied. Otherwise the new database will be empty.',
-  'You can select which entities to clone data for. By default, all entities are selected.',
-  'A new application token will be automatically generated.',
-  'The applications (source and clone) will not be connected to each other.',
-  'Any change to the schema or data of one application will not be mirrored to the other.',
-  'Data cloning runs in the background. You will see a progress bar with the estimated time remaining.',
-]
 </script>
 
 <template>
@@ -149,7 +138,9 @@ const notes = [
     title="Clone application"
     :description="`A copy of ${application.Name} on the server and database you choose.`"
     class="wrap-anywhere"
-  />
+  >
+    <CloneApplicationHelp />
+  </PageHeader>
 
   <LoadingState v-if="serversLoading || entitiesLoading" label="Loading servers and entities" :rows="4" />
 
@@ -160,13 +151,6 @@ const notes = [
   <NoServersState v-else-if="servers.length === 0" />
 
   <div v-else class="grid max-w-2xl gap-6">
-    <div class="flex gap-2.5 rounded-lg border bg-muted/40 p-3 text-sm">
-      <InfoIcon class="mt-0.5 size-4 shrink-0 text-link" aria-hidden="true" />
-      <ul class="grid list-disc gap-1 pl-4">
-        <li v-for="note in notes" :key="note">{{ note }}</li>
-      </ul>
-    </div>
-
     <div class="flex gap-2.5 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
       <TriangleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <p>
