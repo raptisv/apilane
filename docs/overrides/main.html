@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{#
+  What shows when a page of these docs is shared in a chat or a social network. The description of a page is
+  the "description" in its front matter, the site description otherwise; the picture is assets/social-card.png
+  (1200 x 630). The standard description, canonical address and favicon tags come from the base template.
+  The homepage is recognised by its address: its page is called "Overview", which makes a poor title.
+#}
+{% block htmltitle %}
+  {% set home = page.canonical_url and (page.canonical_url | trim("/")) == (config.site_url | trim("/")) %}
+  {% if home %}
+    <title>{{ config.site_name }} documentation</title>
+  {% elif page.title %}
+    <title>{{ page.title | striptags }} - {{ config.site_name }}</title>
+  {% else %}
+    <title>{{ config.site_name }}</title>
+  {% endif %}
+{% endblock %}
+
+{% block extrahead %}
+  {% set home = page.canonical_url and (page.canonical_url | trim("/")) == (config.site_url | trim("/")) %}
+  {% set description = page.meta.description if (page.meta and page.meta.description) else config.site_description %}
+  {% set title = config.site_name ~ " documentation" if home else (page.title | striptags) ~ " - " ~ config.site_name %}
+  {% set image = (config.site_url | trim("/")) ~ "/assets/social-card.png" %}
+  <meta property="og:type" content="{{ 'website' if home else 'article' }}">
+  <meta property="og:site_name" content="{{ config.site_name }}">
+  <meta property="og:title" content="{{ title }}">
+  <meta property="og:description" content="{{ description }}">
+  {% if page.canonical_url %}
+    <meta property="og:url" content="{{ page.canonical_url }}">
+  {% endif %}
+  <meta property="og:image" content="{{ image }}">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Apilane: your API in the fast lane">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ title }}">
+  <meta name="twitter:description" content="{{ description }}">
+  <meta name="twitter:image" content="{{ image }}">
+  <link rel="icon" type="image/png" sizes="96x96" href="{{ 'assets/favicon.png' | url }}">
+  <link rel="apple-touch-icon" href="{{ 'assets/apple-touch-icon.png' | url }}">
+{% endblock %}

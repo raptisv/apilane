@@ -15,7 +15,7 @@ const session = useSession()
 const route = useRoute()
 const router = useRouter()
 
-const logo = '/favicon.ico'
+const logo = '/favicon.svg'
 
 // The instance name with its logo: a link to the applications page.
 const brandClass = 'flex min-w-0 items-center gap-2.5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring'

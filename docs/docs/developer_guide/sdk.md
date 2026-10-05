@@ -1,3 +1,7 @@
+---
+description: "Use Apilane from .NET with the Apilane.Net NuGet package: setup, accounts, data operations, filtering, transactions and files."
+---
+
 # SDK (.NET)
 
 Apilane offers a .NET SDK that simplifies integration with the Apilane API. It provides a type-safe, builder-pattern interface for all API operations.

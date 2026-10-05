@@ -1,3 +1,7 @@
+---
+description: "Build reports on the data of an Apilane application: aggregate and group data and show it as grids or charts on the dashboard."
+---
+
 # Reports
 
 Reports provide a quick and easy way to get insights on your application data. A report is a panel on the application's dashboard that shows one or more series of aggregated data as a grid or a chart. Select what to aggregate, group the data by its properties, and apply filters — all from the Portal.

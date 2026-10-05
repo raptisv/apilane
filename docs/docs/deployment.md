@@ -1,3 +1,7 @@
+---
+description: "Deploy Apilane with Docker or Kubernetes: images, volumes, multi-server setups, health checks, observability and production considerations."
+---
+
 # Deployment
 
 An `Apilane Instance` consists of 2 services that can be deployed in any environment:

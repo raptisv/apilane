@@ -1,3 +1,7 @@
+---
+description: "Apilane is a backend platform with tools to develop and manage APIs for mobile and web apps, including database management, user authentication and file storage."
+---
+
 # Overview
 
 ## What Is Apilane?

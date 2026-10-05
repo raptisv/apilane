@@ -1,3 +1,7 @@
+---
+description: "Filter and sort data in Apilane with JSON filters and sorting parameters, available on the Data, Files and Stats endpoints."
+---
+
 # Filtering & Sorting
 
 Apilane provides a powerful JSON-based filtering and sorting system for querying data. These parameters are available on all `Get` endpoints for Data, Files, and Stats.

@@ -1,3 +1,7 @@
+---
+description: "Security considerations for an Apilane instance: what to expose, how the Portal and the API differ, and what Apilane leaves to you."
+---
+
 # Security considerations
 
 An Apilane Instance consists of 2 deployments, the `Apilane Portal` and the `Apilane API`. The Portal is a developer management tool — client applications do **not** need access to it. The API is the application server and should be accessible from client applications.

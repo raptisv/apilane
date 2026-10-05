@@ -9,7 +9,7 @@ import { setTitle } from '@/router'
 const route = useRoute()
 const { data } = useInstance()
 
-const logo = '/favicon.ico'
+const logo = '/favicon.svg'
 
 // The tab title carries the instance name, which is known only once GET /instance has answered.
 watch(data, () => setTitle(route.meta.title))

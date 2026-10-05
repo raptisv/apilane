@@ -1,3 +1,7 @@
+---
+description: "Where Apilane stores uploaded files: the local file system, Google Cloud Storage, AWS S3 or Azure Blob Storage."
+---
+
 # File Storage Providers
 
 Apilane supports four file storage providers for uploaded files. Files can be stored on the local server file system or in cloud object storage.

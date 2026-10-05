@@ -1,3 +1,7 @@
+---
+description: "The core concepts of Apilane: the Portal and the API, applications, entities and properties, users and roles, authentication and how clients call the API."
+---
+
 # Concepts
 
 ## Architecture

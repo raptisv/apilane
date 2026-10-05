@@ -1,3 +1,7 @@
+---
+description: "Expose your own SQL queries as API endpoints with Apilane custom endpoints."
+---
+
 # Custom Endpoints
 
 Custom endpoints offer an easy and direct way to expose complex functionality for your application by running SQL queries as API endpoints.

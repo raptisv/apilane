@@ -1,3 +1,7 @@
+---
+description: "Bulk-import entities, properties, constraints, security rules and custom endpoints into an Apilane application from one JSON document, written for AI agents."
+---
+
 # Schema Import (for AI agents)
 
 Apilane can bulk-import **entities, properties, constraints, security rules and custom endpoints** into an existing application from a single JSON document. This page is a precise specification of that JSON so an AI agent (or any automation) can generate a valid payload from scratch.

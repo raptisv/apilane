@@ -1,3 +1,7 @@
+---
+description: "Create and manage an Apilane application: settings, differentiation entity, lifecycle and collaboration."
+---
+
 # Application
 
 An application is the backend of your client application. It encapsulates your data model (entities), security rules, file storage, email configuration, custom endpoints, and reports.

@@ -1,3 +1,7 @@
+---
+description: "What an Apilane server is: a registered API deployment with a connection URL, and how applications are assigned to it."
+---
+
 # Server
 
 A `Server` is an Apilane concept that groups an `Apilane API` deployment. Each server represents a single running instance of the Apilane API service.

@@ -1,3 +1,7 @@
+---
+description: "Control access to an Apilane application: sign-in and registration, IP rules, roles, rules per entity and property, custom endpoint access and rate limiting."
+---
+
 # Security
 
 Apilane provides all the tools required for granular access control to the application on entity and property level.

@@ -1,3 +1,7 @@
+---
+description: "Configure SMTP and customize the emails Apilane sends for registration confirmation and password recovery."
+---
+
 # Email templates
 
 Apilane supports sending emails to users for account-related events such as registration confirmation and password recovery. Each application can be configured with its own SMTP settings and customizable email templates.

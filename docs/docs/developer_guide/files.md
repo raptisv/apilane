@@ -1,3 +1,7 @@
+---
+description: "Upload, download and manage files in Apilane, with metadata tracked in the Files entity and the binaries on disk or in cloud storage."
+---
+
 # Files
 
 Apilane provides built-in file storage for your applications. Files can be stored on the local server file system or in cloud object storage (Google Cloud Storage, AWS S3, Azure Blob Storage). File metadata is tracked in the `Files` system entity.

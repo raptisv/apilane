@@ -402,6 +402,8 @@ namespace Apilane.Portal.Extensions
             {
                 options.SwaggerEndpoint($"{SwaggerPath}/v1/swagger.json", "Apilane Portal API v1");
                 options.DocumentTitle = "Apilane Portal API";
+                options.HeadContent = "<link rel=\"icon\" type=\"image/svg+xml\" sizes=\"any\" href=\"/favicon.svg\">" +
+                    "<script>document.querySelectorAll('link[rel=icon][href^=\"./favicon-\"]').forEach(function (l) { l.remove(); });</script>";
             });
 
             return app;

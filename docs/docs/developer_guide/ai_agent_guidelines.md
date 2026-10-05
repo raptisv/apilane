@@ -1,3 +1,7 @@
+---
+description: "What to add to your AGENTS.md so AI coding assistants use the Apilane SDK correctly, and how an AI agent can manage an instance."
+---
+
 # AI Agent Guidelines
 
 If you use AI coding assistants (Cursor, GitHub Copilot, Claude Code, etc.), append the following to your project's `AGENTS.md` file to help them use the Apilane SDK correctly.

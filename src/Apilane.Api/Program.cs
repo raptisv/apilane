@@ -173,6 +173,10 @@ namespace Apilane.Api
                 {
                     c.DefaultModelsExpandDepth(-1); // Disable swagger schemas at bottom
 
+                    // The product icon instead of the default one.
+                    c.HeadContent = "<link rel=\"icon\" type=\"image/svg+xml\" sizes=\"any\" href=\"/favicon.svg\">" +
+                        "<script>document.querySelectorAll('link[rel=icon][href^=\"./favicon-\"]').forEach(function (l) { l.remove(); });</script>";
+
                     // Shows the application name (passed as ?appName= when opening Swagger from
                     // the portal) as a banner on the UI.
                     c.InjectJavascript("/swagger-custom.js");

@@ -1,3 +1,7 @@
+---
+description: "Run several data operations as one atomic transaction in Apilane: if one of them fails, all changes are rolled back."
+---
+
 # Transactions
 
 Apilane supports executing multiple data operations (create, update, delete) within a single atomic transaction. If any operation fails, all changes are rolled back.

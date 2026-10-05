@@ -74,6 +74,8 @@ namespace Apilane.Portal.Tests
         // Vite puts a content hash in the names under /assets.
         [InlineData("/assets/app-abc123.js", "public, max-age=31536000, immutable")]
         [InlineData("/favicon.ico", "no-cache")]
+        [InlineData("/favicon.svg", "no-cache")]
+        [InlineData("/apple-touch-icon.png", "no-cache")]
         [InlineData("/index.html", "no-cache")]
         public async Task Ui_File_Should_Be_Served_At_The_Site_Root_With_Its_Cache_Policy(string url, string cacheControl)
         {

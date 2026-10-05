@@ -1,3 +1,7 @@
+---
+description: "Define the data model of an Apilane application: entities map to tables and properties to columns, with types and constraints."
+---
+
 # Entities & Properties
 
 Entities and properties are the building blocks of your application's data model. An entity maps to a database table, and properties map to columns.

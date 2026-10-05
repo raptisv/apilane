@@ -2,7 +2,7 @@
 site_name = "Apilane"
 site_url = "https://docs.apilane.com"
 repo_url = "https://github.com/raptisv/apilane"
-site_description = "Apilane — Backend-as-a-Service platform for web and mobile applications"
+site_description = "Apilane is a Backend-as-a-Service platform for web and mobile applications: database management, user authentication, file storage and a REST API, managed from a Portal."
 site_author = "Apilane"
 extra_javascript = ["javascripts/extra.js"]
 
@@ -48,8 +48,9 @@ custom_fences = [
 alternate_style = true
 
 [project.theme]
-favicon = "assets/favicon.png"
-logo = "assets/favicon.png"
+favicon = "assets/favicon.svg"
+logo = "assets/favicon.svg"
+custom_dir = "overrides"
 features = [
     "content.code.copy",
     "navigation.top",

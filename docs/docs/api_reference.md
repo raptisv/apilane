@@ -1,3 +1,7 @@
+---
+description: "Reference for the Apilane REST API: authentication, data, files, stats, custom endpoints and email, with parameters and examples."
+---
+
 # REST API Reference
 
 All API endpoints follow the pattern:

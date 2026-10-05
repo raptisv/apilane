@@ -1,3 +1,7 @@
+---
+description: "Start an Apilane instance with Docker Compose, log in to the Portal, create your first application and entity, and make your first API call."
+---
+
 # Getting Started
 
 An Apilane Instance consists of two services (Portal + API) and can be deployed in any environment.

@@ -143,6 +143,8 @@ namespace Apilane.Portal.Tests.Infrastructure
             {
                 File.WriteAllText(Path.Combine(ui, "index.html"), indexHtml);
                 File.WriteAllText(Path.Combine(ui, "favicon.ico"), "icon");
+                File.WriteAllText(Path.Combine(ui, "favicon.svg"), "<svg xmlns=\"http://www.w3.org/2000/svg\"/>");
+                File.WriteAllText(Path.Combine(ui, "apple-touch-icon.png"), "icon");
                 File.WriteAllText(Path.Combine(ui, "assets", "app-abc123.js"), "console.log('ui')");
             }
 
