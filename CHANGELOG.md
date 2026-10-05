@@ -1,5 +1,10 @@
 # Changelog
 
+## 10.3.0 (2026-10-05)
+- fix: transactions on every server database, one installation key, Portal help sheets
+- docs: redraw all images from the new Portal UI
+- feat(branding): new favicon and app icons, redrawn overview, docs share tags
+
 ## 10.2.0 (2026-10-05)
 - feat(portal)!: replace the Razor portal with a Vue UI and management API
 - fix(security): apply rate limits wherever access is decided
