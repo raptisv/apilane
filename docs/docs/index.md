@@ -17,7 +17,7 @@ It offers features such as database management, user authentication, file storag
 |---|---|
 | **Data Management** | Create entities and properties via the Portal. Full CRUD with [filtering, sorting, and paging](developer_guide/filtering_sorting.md). |
 | **User Authentication** | Built-in registration, login, token management, password reset, and email confirmation. |
-| **File Storage** | [Upload, download, and manage files](developer_guide/files.md) with access control and public file support. |
+| **File Storage** | [Upload, download, and manage files](developer_guide/files.md) with role-based access control. |
 | **Role-Based Security** | Granular [access control](developer_guide/security.md) on entity, property, and custom endpoint level. |
 | **Transactions** | [Atomic multi-operation transactions](developer_guide/transactions.md) with cross-referencing between operations. |
 | **Custom Endpoints** | Run [custom SQL queries](developer_guide/custom_endpoints.md) as API endpoints with parameterized inputs. |
@@ -26,7 +26,8 @@ It offers features such as database management, user authentication, file storag
 | **Email Templates** | Configurable [email templates](developer_guide/email_templates.md) for registration confirmation and password reset. |
 | **Change Tracking** | Optional [entity history](developer_guide/entities_properties.md#change-tracking) to audit record changes over time. |
 | **Schema API** | Retrieve your [application schema](api_reference.md#get-application-schema) programmatically at runtime. |
-| **.NET SDK** | Type-safe [.NET SDK](developer_guide/sdk.md) with builder pattern for all API operations. |
+| **.NET SDK** | Type-safe [.NET SDK](developer_guide/sdk.md) with builder pattern for the account, data, transaction, file, stats, custom endpoint and schema calls. |
+| **JavaScript SDK** | A single-file [JavaScript SDK](https://github.com/raptisv/apilane/tree/main/sdk/Apilane.Js) for browsers and Node.js 18+. |
 
 ## Why Apilane?
 
@@ -42,9 +43,10 @@ It offers features such as database management, user authentication, file storag
 
 ## Quick Start
 
-Execute the provided [docker-compose.yaml](assets/docker-compose.yaml) to spin up the Portal and API:
+Execute the provided [docker-compose.yaml](assets/docker-compose.yaml) to spin up the Portal and API. The two share an **installation key**: the first command stores a random one in a `.env` file next to the compose file, only if it is not there yet. Keep that file for every later run.
 
 ```bash
+grep -qs "^APILANE_INSTALLATION_KEY=." .env || echo "APILANE_INSTALLATION_KEY=$(openssl rand -hex 32)" >> .env
 docker-compose -p apilane up -d
 ```
 
@@ -53,4 +55,4 @@ Access the Portal at [http://localhost:5000](http://localhost:5000) with the def
 - **Email:** `admin@admin.com`
 - **Password:** `admin`
 
-For a complete walkthrough, follow the [Getting Started](getting_started.md) guide.
+For a complete walkthrough, including the addresses the two services use to reach each other, follow the [Getting Started](getting_started.md) guide.

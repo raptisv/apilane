@@ -34,6 +34,8 @@ The Portal uses ASP.NET Identity with cookie-based authentication (`Apilane.Port
 - Sign in, sign up and the password-reset request together allow 30 calls per minute per client address. Behind a reverse proxy see [Production considerations](deployment.md#production-considerations).
 - Secrets (connection strings, mail passwords, the installation key) are never shown again once they are saved; an empty box keeps the stored value.
 - An application's owner can share it with other Portal users. A collaborator can do everything the owner can, except sharing.
+- Scripts and AI agents use an **agent key** (`Authorization: Bearer apl_...`) instead of a session. An administrator adds the agent under **Instance > Users**; its key is shown once and the Portal stores only a hash of it. A key has no expiry date, and wrong keys are not counted or slowed down, so keep it secret and delete the agent to revoke it. An agent is refused every delete, everything under **Instance** and the encryption key of an application. See [AI Agent Guidelines for the Portal](developer_guide/ai_agent_portal.md).
+- The database backup (**Instance > Settings**) holds every secret of the instance, so store it like one. Every download is written to the audit log.
 
 ### File storage credentials
 
@@ -43,7 +45,7 @@ When using cloud file storage providers (Google Cloud Storage, AWS S3, Azure Blo
 - **Use secrets management**: Docker secrets, Kubernetes secrets, or cloud-native secret managers (AWS Secrets Manager, Azure Key Vault, GCP Secret Manager)
 - **Rotate credentials regularly**: Establish a credential rotation policy and update secrets without service downtime
 - **Least privilege**: Grant only the minimum required permissions (`s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` for S3; Storage Object Admin for GCS; Blob Data Contributor for Azure)
-- **Use managed identities** when available: Workload Identity (GKE), IAM Roles (EKS), Managed Identity (AKS) eliminate the need for static credentials
+- **Static credentials only**: the providers take an access key pair, a service account JSON file or a connection string. Managed identities (IAM roles, Workload Identity, Azure Managed Identity) are not supported, so scope each credential to the one bucket or container
 
 See [File Storage Providers](developer_guide/file_storage_providers.md) for provider-specific credential configuration examples.
 
@@ -53,7 +55,7 @@ See [File Storage Providers](developer_guide/file_storage_providers.md) for prov
 
 ### Application token
 
-Every API request requires an **application token** — a GUID that identifies which application the request targets. This token is passed as a query parameter (`apptoken`) or in the request headers. While the token identifies the application, it does **not** authenticate the user.
+Every API request requires an **application token** — a GUID that identifies which application the request targets. This token is passed as the query parameter `appToken` or in the `x-application-token` header. While the token identifies the application, it does **not** authenticate the user.
 
 !!!info "Token vs authentication"
     The application token is public and can be embedded in client code. User authentication is handled separately via auth tokens obtained through the login endpoint.
@@ -62,7 +64,7 @@ Every API request requires an **application token** — a GUID that identifies w
 
 When a user logs in, they receive an authentication token. This token:
 
-- Expires after a configurable period of **inactivity** (`AuthTokenExpireMinutes`, set per application) — every authenticated request resets the expiration timer
+- Expires after a configurable period of **inactivity** (`AuthTokenExpireMinutes`, set per application) — a request made after more than a tenth of that time has passed since the token was last extended extends it again, so a token expires after about this time of inactivity (at least 90% of it)
 - Can be renewed via the `RenewAuthToken` endpoint before expiration
 - Can optionally enforce single-session login (`ForceSingleLogin`) — each new login invalidates all previous tokens
 
@@ -82,6 +84,8 @@ Two modes are available (the choice 'Addresses in the list are' on the **Securit
 !!!warning "Important"
     These settings are not a replacement for network security tools. Use them as an additional security layer, not as the primary application security mechanism.
 
+    The address is read from the first entry of the `X-Forwarded-For` header when the request carries one, otherwise from the connection. Apilane cannot tell whether a proxy set that header, so the list only means something when the API can be reached **only** through a proxy or load balancer that overwrites `X-Forwarded-For` with the address it saw. If the API is reachable directly, any caller can send the header and pick an address.
+
 ### Rate limiting
 
 Navigate to the [rate limiting section](developer_guide/security.md#rate-limiting) for more information on how rate limiting may increase application security.
@@ -91,7 +95,14 @@ Navigate to the [rate limiting section](developer_guide/security.md#rate-limitin
 
 ### Data encryption
 
-Each application has an `EncryptionKey` that is generated at creation time. This key is used for encrypting sensitive data stored in the application database.
+Each application has an `EncryptionKey` (8 characters, generated at creation) that encrypts the `Password` of application users and every property marked **Encrypted**. This is reversible encryption (DES in ECB mode), not a password hash: whoever has both the application database and the key can read those values. Treat the Portal database, its backup (**Instance > Settings**) and the **Info** dialog of an application, which can show the key to its owner and collaborators, as secrets.
+
+---
+
+## What to expose
+
+- **API**: client applications need only the API calls, but `/swagger`, `/metrics`, `/Version` and `/health/*` also answer without authentication on the same port. If the API is public, consider blocking `/metrics` (and `/swagger`) at the reverse proxy.
+- **Portal**: keep it on a private network. `/api/internal` is for the API servers only (it needs the installation key) and `/metrics` answers without authentication, so when the Portal is public a proxy may block both from outside.
 
 ---
 
@@ -100,20 +111,28 @@ Each application has an `EncryptionKey` that is generated at creation time. This
 The `InstallationKey` is a shared secret between the Portal and the API. It authenticates the calls in both directions: the API to the Portal, and the Portal to the API when it creates, imports or clones an application. The API servers **must** use the key the Portal holds (on a new installation, the same `InstallationKey` value as the Portal).
 
 !!!warning "Use a unique key"
-    The key has no default: the docker-compose example reads it from `APILANE_INSTALLATION_KEY`. Use a long random value, never one published in documentation or a public repository; both services log a `SECURITY` warning at startup when they detect such a value. The Portal uses the key stored in its database (**Instance > Settings**); its own `InstallationKey` setting only seeds it on first start. To change it on an existing installation, update it there, set the same value as the API servers' `InstallationKey` and restart the API servers. The Portal does not need a restart. Until the API servers run with the new key, the Portal and the API servers refuse each other's calls.
+    The docker-compose example reads the key from `APILANE_INSTALLATION_KEY` and does not start without it, but the committed `appsettings.json` holds a placeholder: a service started without its own value still starts and only logs a `SECURITY` warning, and a Portal that was first started with the placeholder stores that publicly known key. Use a long random value, never one published in documentation or a public repository, and check the log of both services after the first start; they log a `SECURITY` warning at startup when they detect such a value. The Portal uses the key stored in its database (**Instance > Settings**); its own `InstallationKey` setting only seeds it on first start. To change it on an existing installation, update it there, set the same value as the API servers' `InstallationKey` and restart the API servers. The Portal does not need a restart. Until the API servers run with the new key, the Portal and the API servers refuse each other's calls.
 
 ---
 
 ## Sample setups
 
+The API servers must reach the Portal (`PortalUrl`), and the browsers of Portal users must reach every API server (the address under **Instance > Servers**); the diagrams leave these two connections out.
+
 ### Sample setup 1
 
 ![Apilane](assets/sample_setup_1.png)
+
+The Portal is private. The API is public: the client app's frontend and backend both call it.
 
 ### Sample setup 2
 
 ![Apilane](assets/sample_setup_2.png)
 
+Both services are private. The client app's backend reaches the API through network rules.
+
 ### Sample setup 3
 
 ![Apilane](assets/sample_setup_3.png)
+
+The API is public, but only the client app's backend may call it, by IP address (see [IP allow/block](#ip-allowblock) and the warning about `X-Forwarded-For` there).

@@ -10,7 +10,7 @@ An Apilane deployment consists of two services that work together:
 
 | Service | Purpose |
 |---|---|
-| **Apilane Portal** | Web-based management UI for creating applications, defining entities, configuring security, and viewing reports. Everything it does goes through its management API (`/api/v1`), which scripts and AI agents can call too. |
+| **Apilane Portal** | Web-based management UI for creating applications, defining entities, configuring security, and viewing reports. It manages applications through its management API (`/api/v1`), which scripts and AI agents can call too with an agent key. The records, files and report data it shows are read by your browser straight from the API server. |
 | **Apilane API** | HTTP API server that your client applications (web/mobile) call for data, authentication, and file operations. |
 
 Both services share an **Installation Key** to authorize their internal communication.
@@ -29,9 +29,9 @@ Both services share an **Installation Key** to authorize their internal communic
 ## Entities & Properties
 
 - **Entity** — A data object in your application (e.g., `Products`, `Orders`). Maps to a database table. See [Entities & Properties](developer_guide/entities_properties.md).
-- **System Entity** — A built-in entity for platform features. `Users` stores application users; `Files` stores file metadata.
+- **System Entity** — A built-in entity for platform features: `Users` stores application users, `AuthTokens` their sign-in tokens and `Files` file metadata, plus the differentiation entity if the application has one.
 - **Property** — A field within an entity (e.g., `Name`, `Price`). Maps to a database column.
-- **System Property** — A built-in property managed by Apilane. Every entity has `ID`, `Owner`, and `Created`.
+- **System Property** — A built-in property managed by Apilane. Every entity you create has `ID`, `Owner`, and `Created`.
 
 ### Property Types
 
@@ -52,7 +52,9 @@ Both services share an **Installation Key** to authorize their internal communic
 ## Users & Roles
 
 - **Apilane User** — A user with access to the Portal who can create and manage applications.
-- **Apilane Admin** — An Apilane User with admin rights and access to all applications and instance settings.
+- **Apilane Admin** — An Apilane User with the Admin role. Besides their own applications, an admin has the **Instance** screens: servers, users and agents, settings, backup, the instance audit log, the list of all applications and the data browser of any of them. An admin cannot change the entities or security of an application that is not their own or shared with them.
+- **Collaborator** — An Apilane User an application was shared with. A collaborator can do everything the owner can, except sharing.
+- **Apilane Agent** — An account for a script or an AI agent: a Portal user at `name@agent.local` that has no password and calls the management API with a key (`Authorization: Bearer apl_...`). An administrator adds it under **Instance > Users**, and the owner of an application shares the application with it. An agent works with the applications shared with it, but cannot delete anything, create, clone or rebuild an application, or read its encryption key. See [AI Agent Guidelines for the Portal](developer_guide/ai_agent_portal.md).
 - **Application User** — A user registered to an Application through the client app's registration flow.
 
 ### Built-in Roles
@@ -73,7 +75,7 @@ Apilane uses token-based authentication:
 1. A user registers or logs in via the [Account endpoints](api_reference.md#authentication)
 2. On successful login, an **AuthToken** (GUID) is returned
 3. The client includes this token in subsequent requests via the `Authorization` header
-4. Tokens expire after a configurable period of **inactivity** (default: 60 minutes) — each authenticated request resets the timer
+4. Tokens expire after a configurable period of **inactivity** (default: 60 minutes) — a request made after more than a tenth of that time has passed since the token was last extended extends it again, so a token expires after about this time of inactivity (at least 90% of it)
 5. Tokens can be renewed without re-authenticating
 
 ## API Access Pattern

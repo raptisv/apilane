@@ -6,9 +6,11 @@ description: "Bulk-import entities, properties, constraints, security rules and 
 
 Apilane can bulk-import **entities, properties, constraints, security rules and custom endpoints** into an existing application from a single JSON document. This page is a precise specification of that JSON so an AI agent (or any automation) can generate a valid payload from scratch.
 
-Open the **Import** tab of the application in the Portal, paste the JSON into the *JSON payload* box, and click **Import**. (The same screen can also pre-fill the payload by diffing another application — pick it under *Load from another application* and click **Load diff** — which is a good way to see a real payload.)
+Open the **Import** tab of the application in the Portal, paste the JSON into the *JSON payload* box, and click **Import**. (The same screen can also pre-fill the payload by diffing another application — pick it under *Load from another application* and click **Load diff** — which is a good way to see a real payload.) The **Help** button in the header of the tab holds a reference of the payload and an example.
 
-The same payload can be sent to the Portal's management API: `POST /api/v1/applications/{appToken}/schema-import`, and `GET /api/v1/applications/{appToken}/schema-import/diff?Source={otherAppToken}` returns the diff in this shape.
+**Load diff** computes what the other application has and this one lacks: the custom entities that are missing, the properties and constraints missing from entities this application already has, the security rules for entities and custom endpoints that this application has no rule for (rules that exist with other values are left out, and Schema rules are never listed), and the custom endpoints that are missing. Entities in it carry `"IsNew"`, which the import ignores. Nothing is listed when nothing is missing.
+
+The same payload can be sent to the Portal's management API (see [Calling the management API](#calling-the-management-api)): `POST /api/v1/applications/{appToken}/schema-import`, and `GET /api/v1/applications/{appToken}/schema-import/diff?Source={otherAppToken}` returns the diff in this shape.
 
 ---
 
@@ -16,9 +18,10 @@ The same payload can be sent to the Portal's management API: `POST /api/v1/appli
 
 - **Additive and idempotent.** The import only ever *creates* what is missing. Existing entities, properties, constraints, security rules and custom endpoints are never modified or deleted.
 - **Existing items are validated, not overwritten.** If an entity/property/security rule already exists, its metadata is compared against the payload. If it is identical, it is skipped (a warning is returned). If it differs, **the import stops with an error** at that item.
-- **Not atomic.** The items are applied one by one. When one fails, the import stops there, everything applied before it stays applied, and the error names the place in the payload (e.g. `Entities[0].Properties[2].TypeID`). Sending the same payload again is safe: what was already applied is skipped.
+- **Not atomic.** The items are applied one by one, each as its own transaction on the API server, which has **5 seconds**: a step that takes longer fails, for example adding a property to an entity with very many records. When one fails, the import stops there, everything applied before it stays applied, and the error names the place in the payload (e.g. `Entities[0].Properties[2].TypeID`). Sending the same payload again is safe: what was already applied is skipped.
 - **List referenced entities first.** Entities without a foreign key are created first, then the ones whose foreign keys lead to `Users`; the others are created in the order they are listed. So list an entity before the entities whose foreign keys point to it (or make sure it already exists in the application).
-- **System columns are added for you.** When a new entity is created, Apilane automatically adds its system properties (`ID`, `Owner`, `Created`, …). **Never** include them in `Properties`.
+- **System columns are added for you.** When a new entity is created, Apilane automatically adds its system properties (`ID`, `Owner`, `Created`, and `{DifferentiationEntity}_ID` when `HasDifferentiationProperty` is `true`). **Never** include them in `Properties`: a listed one is compared with the real one and the import stops if it differs.
+- **Names of new items follow the rules of the Portal.** An entity name has 4 to 30 letters and underscores. A property name has 4 to 120 letters and underscores and must not end in `_Data`. A custom endpoint name has letters a-z and A-Z only, at most 80. A name that is refused stops the import before anything is applied. Names are matched ignoring case against what the application has already, so `product` finds `Product`.
 
 ---
 
@@ -88,8 +91,8 @@ All three arrays are optional — include only what you want to import.
 | `Name` | string | Property (column) name. |
 | `TypeID` | int | Data type — see the enum below. |
 | `Required` | bool | `true` = `NOT NULL`. |
-| `Minimum` | long \| null | **String:** minimum length. **Number:** minimum value. **Date:** minimum (unix ms). **Boolean:** `null`. |
-| `Maximum` | long \| null | **String:** maximum length. **Number:** maximum value. **Date:** maximum (unix ms). **Boolean:** `null`. |
+| `Minimum` | long \| null | **String:** minimum length. **Number:** minimum value. Other types: `null` (the limits of a Date are stored but not checked when records are written). |
+| `Maximum` | long \| null | **String:** maximum length. **Number:** maximum value. Other types: `null`. |
 | `DecimalPlaces` | int \| null | **Number only.** `0` = integer, `2` = two decimals, etc. `null` for non-numeric types. |
 | `Encrypted` | bool | **String only.** Stores the value encrypted at rest. |
 | `ValidationRegex` | string \| null | **String only.** Server-side validation pattern. |
@@ -111,20 +114,22 @@ A constraint is `{ "TypeID": <int>, "Properties": "<string>" }`. The `Properties
 | `TypeID` | Constraint | `Properties` format | Example |
 |---|---|---|---|
 | `1` | Unique | Comma-separated column name(s). One column, or several for a composite unique key. | `"Email"` · `"FirstName,LastName"` |
-| `2` | Foreign key | `"LocalColumn,ReferencedEntity"` or `"LocalColumn,ReferencedEntity,OnDeleteLogic"` | `"Product_ID,Product"` · `"Product_ID,Product,2"` |
+| `2` | Foreign key | `"LocalColumn,ReferencedEntity"` or `"LocalColumn,ReferencedEntity,OnDelete"` | `"Product_ID,Product"` · `"Product_ID,Product,ON_DELETE_CASCADE"` |
 
 For a foreign key, first add a `Number` property to hold the reference (e.g. `Product_ID`), then add the FK constraint pointing at the **referenced entity's** name. The FK targets that entity's `ID` primary key.
 
-**On-delete logic** (`ForeignKeyLogic`, the optional 3rd element; defaults to `0`):
+**On delete** (the optional 3rd element; without it, no action) is written with its name, as the Portal stores it and **Load diff** returns it:
 
 | Value | Behaviour |
 |---|---|
-| `0` | On delete no action |
-| `1` | On delete set null |
-| `2` | On delete cascade |
+| `ON_DELETE_NO_ACTION` | A record cannot be deleted while other records point to it |
+| `ON_DELETE_SET_NULL` | The property of the records that point to it is set to null |
+| `ON_DELETE_CASCADE` | The records that point to it are deleted too |
 
-!!!info "Include `IsSystem` if you copy constraints verbatim"
-    `EntityConstraint` also has an `IsSystem` flag. For hand-written imports leave it out (defaults to `false`) — you only ever create non-system constraints.
+A foreign key of the same property that exists with another target or on-delete action stops the import, and the text is compared as written: copy it from **Load diff** to be safe.
+
+!!!info "IsSystem"
+    A constraint may carry `"IsSystem": false`, which is what **Load diff** returns, or leave it out. `true` is refused: the system constraints come with a new entity and cannot be imported.
 
 ---
 
@@ -146,7 +151,7 @@ Each entry is a `DBWS_Security` rule granting a **role** permission to perform a
 
 | Field | Type | Description |
 |---|---|---|
-| `Name` | string | The target: the **entity name** (for `TypeID` 0) or **custom endpoint name** (for `TypeID` 1). Empty for schema rules. |
+| `Name` | string | The target: the **entity name** (for `TypeID` 0), the **custom endpoint name** (for `TypeID` 1) or `Schema` (for `TypeID` 2). Required. |
 | `TypeID` | int | What the rule targets — `SecurityTypes` below. |
 | `RoleID` | string | The role this rule grants. `ANONYMOUS`, `AUTHENTICATED`, or a custom role name. |
 | `Action` | string | `get`, `post`, `put`, or `delete` (lower-case). |
@@ -160,7 +165,7 @@ Each entry is a `DBWS_Security` rule granting a **role** permission to perform a
 |---|---|---|---|
 | `0` | Entity | Entity name | `get` / `post` / `put` / `delete` |
 | `1` | Custom endpoint | Endpoint name | `get` |
-| `2` | Schema | *(empty)* | `get` |
+| `2` | Schema | `Schema` | `get` |
 
 **`Record` values** (`EndpointRecordAuthorization`):
 
@@ -173,7 +178,7 @@ Each entry is a `DBWS_Security` rule granting a **role** permission to perform a
 
 | `RoleID` | Applies to |
 |---|---|
-| `ANONYMOUS` | Any request with no auth token |
+| `ANONYMOUS` | Any request without a valid auth token |
 | `AUTHENTICATED` | Any request with a valid auth token |
 | *(custom)* | Users whose `Roles` property contains that role |
 
@@ -190,9 +195,15 @@ Each entry is a `DBWS_Security` rule granting a **role** permission to perform a
 
 | `TimeWindowType` | Window |
 |---|---|
+| `0` | No limit |
 | `1` | Per second |
 | `2` | Per minute |
 | `3` | Per hour |
+
+Security rules are stored exactly as you send them: the import does not check that the entity, the endpoint or the role exists, so a mistake gives a rule that never applies. Write `ANONYMOUS` and `AUTHENTICATED` in capitals, custom roles in lower-case letters as they are in the `Roles` property of the users, and the action in lower case (`get`, `post`, `put`, `delete`). `MaxRequests` is 1 or more.
+
+!!!warning "Record"
+    `Record: 1` (owned records only) has no effect on `ANONYMOUS`, on `post` or on `Users`: an anonymous caller has no owner and sees every record. See [Security](security.md#how-several-rules-combine).
 
 !!!info "Property-level access"
     To let a role read some columns but write only others, add two rules with different `Action` and `Properties` — e.g. a `get` rule listing all readable columns and a `put` rule listing only the writable ones.
@@ -246,10 +257,10 @@ Creates a `Product` and `OrderItem` (with a foreign key to `Product`), makes `Pr
       "HasDifferentiationProperty": false,
       "Properties": [
         { "Name": "Product_ID", "TypeID": 2, "Required": true, "Minimum": null, "Maximum": null, "DecimalPlaces": 0, "Encrypted": false, "ValidationRegex": null, "Description": null },
-        { "Name": "Qty",        "TypeID": 2, "Required": true, "Minimum": 1,    "Maximum": null, "DecimalPlaces": 0, "Encrypted": false, "ValidationRegex": null, "Description": null }
+        { "Name": "Quantity",   "TypeID": 2, "Required": true, "Minimum": 1,    "Maximum": null, "DecimalPlaces": 0, "Encrypted": false, "ValidationRegex": null, "Description": null }
       ],
       "Constraints": [
-        { "TypeID": 2, "Properties": "Product_ID,Product,2" }
+        { "TypeID": 2, "Properties": "Product_ID,Product,ON_DELETE_CASCADE" }
       ]
     }
   ],
@@ -264,15 +275,33 @@ Creates a `Product` and `OrderItem` (with a foreign key to `Product`), makes `Pr
 
 ---
 
+## Calling the management API
+
+Send the payload with `POST {Portal}/api/v1/applications/{appToken}/schema-import`. An AI agent authenticates with its key, `Authorization: Bearer apl_...`, and the application must be shared with it (see [Managing an instance with an agent key](ai_agent_guidelines.md#managing-an-instance-with-an-agent-key)). A script that signs in as a person sends the session cookie and the header `X-Apilane-Portal: 1` on the write. `GET .../schema-import/diff?Source={otherAppToken}` answers in the same shape; `Source` is the token of another application that the caller can open.
+
+A success answers `{ "Warnings": [ ... ] }`, one text for each item that was already there and skipped. A failure answers the error body of the management API: `Code`, `Message` and, for a validation error, `Errors`, each naming the place in the payload (`Entities[0].Properties[2].TypeID`).
+
+| Status | When |
+|---|---|
+| 400 `VALIDATION` | The payload is not valid, an existing item differs, or the API server refused a step |
+| 403 `FORBIDDEN` | A caller who is not an administrator lists constraints for `Users` or `Files` |
+| 404 `NOT_FOUND` | The application, or the `Source` of a diff, is not one the caller can see |
+| 409 `CONFLICT` | The stored security rules cannot be read |
+| 502 `UPSTREAM_ERROR` | The API server failed or could not be reached |
+
+A `Warning` response header means the import went through but the API server could not be refreshed afterwards.
+
+---
+
 ## Checklist for generating a payload
 
 - [ ] Use the correct integer enums: property `TypeID` (String=1, Number=2, Boolean=3, Date=4); constraint `TypeID` (Unique=1, FK=2); security `TypeID` (Entity=0, CustomEndpoint=1, Schema=2).
 - [ ] **Do not** include system properties (`ID`, `Owner`, `Created`) — they are added automatically.
-- [ ] Foreign keys: add a `Number` property to hold the reference, then a constraint `"LocalColumn,ReferencedEntity[,OnDeleteLogic]"`.
-- [ ] `DecimalPlaces` only for `Number`; `Encrypted`/`ValidationRegex` only for `String`; `Minimum`/`Maximum` mean *length* for strings and *value* for numbers/dates.
+- [ ] Foreign keys: add a `Number` property to hold the reference, then a constraint `"LocalColumn,ReferencedEntity[,OnDelete]"` with `OnDelete` written as `ON_DELETE_NO_ACTION`, `ON_DELETE_SET_NULL` or `ON_DELETE_CASCADE`.
+- [ ] `DecimalPlaces` only for `Number`; `Encrypted`/`ValidationRegex` only for `String`; `Minimum`/`Maximum` mean *length* for strings and *value* for numbers, and stay `null` for Boolean and Date.
 - [ ] Every entity referenced by an FK must already exist in the target app, or be in the payload before the entities that reference it.
 - [ ] To expose a custom endpoint, add a `Security` rule with `TypeID: 1` and `Action: "get"`.
 - [ ] Grant columns explicitly in each security rule's `Properties` — a `null` grants no non-PK columns.
+- [ ] Spell `ANONYMOUS`, `AUTHENTICATED` and custom role names exactly: rules are stored as sent, and a misspelled role never applies.
 - [ ] For existing items, keep metadata identical to what is already in the app, or the import aborts.
-```
 

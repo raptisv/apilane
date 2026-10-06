@@ -17,9 +17,11 @@ It uses Microsoft Orleans for distributed actor state and targets SQLite, SQL Se
 | `Apilane.Portal` | `src/Apilane.Portal/` | Portal host: the management API (`/api/v1`), and the built UI served at the site root |
 | `Apilane.Portal.Ui` | `src/Apilane.Portal.Ui/` | The Portal UI: a Vue 3 single-page app (not in the `.sln`; its `README.md` documents the UI and the management API) |
 | `Apilane.Net` | `sdk/Apilane.Net/` | .NET client SDK (NuGet package; MIT, see `sdk/LICENSE`) |
+| `Apilane.Js` | `sdk/Apilane.Js/` | JavaScript client SDK (the one file `apilane.js`; MIT, see `sdk/LICENSE`) |
 | `Apilane.UnitTests` | `tests/Apilane.UnitTests/` | MSTest unit tests |
 | `Apilane.Api.Component.Tests` | `tests/Apilane.Api.Component.Tests/` | xUnit component/integration tests |
 | `Apilane.Portal.Tests` | `tests/Apilane.Portal.Tests/` | xUnit + `WebApplicationFactory` tests of the Portal: `/api/v1`, `/api/internal` and how the UI is served (throw-away SQLite, no Docker) |
+| docs | `docs/` | The documentation site (Zensical): pages in `docs/docs`, navigation in `docs/zensical.toml` (not a project) |
 
 ---
 
@@ -32,14 +34,16 @@ dotnet build Apilane.sln
 # Build a single project
 dotnet build src/Apilane.Api/Apilane.Api.csproj
 
-# Run the API locally (requires appsettings.Development.json)
+# Run the API locally (appsettings.json holds sample values: override them, at least FilesPath and
+# InstallationKey, in the git-ignored appsettings.Development.json or with environment variables)
 dotnet run --project src/Apilane.Api
 
 # Run the Portal locally (its UI is built separately: see src/Apilane.Portal.Ui/README.md)
 dotnet run --project src/Apilane.Portal
 
-# Docker Compose (full stack)
-docker-compose -p apilane up -d
+# Docker Compose (full stack, from the published images, not from this checkout). Run it next to the
+# compose file, after APILANE_INSTALLATION_KEY is set in the .env there (README.md, Quick Start)
+cd docs/docs/assets && docker-compose -p apilane up -d
 ```
 
 ---
@@ -62,13 +66,13 @@ dotnet test tests/Apilane.Api.Component.Tests/
 dotnet test tests/Apilane.Portal.Tests/
 
 # Run a single MSTest method by name
-dotnet test tests/Apilane.UnitTests/ --filter "TestMethod=IsRateLimited_Empty_Should_Work"
+dotnet test tests/Apilane.UnitTests/ --filter "Name=IsRateLimited_Empty_Should_Work"
 
 # Run a single xUnit test by fully-qualified name (partial match)
-dotnet test tests/Apilane.Api.Component.Tests/ --filter "FullyQualifiedName~DataTests.GetByID"
+dotnet test tests/Apilane.Api.Component.Tests/ --filter "FullyQualifiedName~DataTests.GetHistoryById"
 
-# Run all tests in a class (both frameworks)
-dotnet test --filter "ClassName=RateLimitTests"
+# Run all tests of a class (FullyQualifiedName works for both frameworks)
+dotnet test tests/Apilane.UnitTests/ --filter "FullyQualifiedName~RateLimitTests"
 
 # Run with verbose output
 dotnet test --logger "console;verbosity=detailed"
@@ -183,7 +187,7 @@ Never use empty `catch` blocks.
 
 ### Dependency Injection
 All services use constructor injection. Register services in `Program.cs` or extension
-methods under `src/Apilane.Api/Extensions/`.
+methods under `src/Apilane.Api/Extensions/` (the Portal: `src/Apilane.Portal/Extensions/`).
 
 ```csharp
 public class ApplicationService : IApplicationService
@@ -251,11 +255,14 @@ both: addresses, behaviour, known limits, open decisions, commands, layout and c
   one application, `PortalAdminApiControllerBase` for administrators). Request and response shapes live only in
   `Api/V1/Contracts` (never EF models, never secrets; the one response that carries a secret of an application is
   `connection-info`, the encryption key shown on demand). Service interfaces go in `src/Apilane.Portal/Abstractions/`.
-- Writes (POST, PUT, DELETE) are rejected without the header `X-Apilane-Portal: 1`.
+- Writes (POST, PUT, PATCH, DELETE) are rejected without the header `X-Apilane-Portal: 1`.
 - Agents: a portal user whose address ends with `@agent.local` (`PortalAgent.IsAgent`) calls `/api/v1` with `Authorization: Bearer apl_...` and needs no
   `X-Apilane-Portal` header. The key check and the one list of what an agent is refused (every DELETE, `/api/v1/admin`, actions marked
   `[NoAgent]`) are in `UsePortalAgentKeys` (`Extensions/PortalApiDependencyInjection.cs`); mark a new action an agent must not call
-  with `[NoAgent]`. See "Agents" in `src/Apilane.Portal.Ui/README.md`.
+  with `[NoAgent]`. Decide it for every new POST, PUT or PATCH: an unmarked one is open to every agent. Add a marked
+  action to the refused calls of `Key_Should_Be_Refused_On_Deletes_Admin_Routes_And_The_Marked_Actions` in
+  `tests/Apilane.Portal.Tests/AgentsApiTests.cs`. See "Agents" in `src/Apilane.Portal.Ui/README.md`; the page for people who
+  use an agent key, with the block for their own `AGENTS.md`, is `docs/docs/developer_guide/ai_agent_portal.md`: change it with the behaviour.
 - `/api/internal` (`Api/Internal`) is what the API servers call (`PortalInfoService` in `Apilane.Api.Core`): it
   is guarded by the `x-installation-key` header, answers the stored records with PascalCase names and numeric
   enums, and is not in the contract. Change both sides together; `tests/Apilane.Portal.Tests/InternalApiTests.cs`

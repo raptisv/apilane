@@ -44,6 +44,8 @@ You may then access the portal on [http://localhost:5000](http://localhost:5000)
 - **Email**: `admin@admin.com`
 - **Password**: `admin`
 
+Before you create an application, set `ApiUrl` and `PortalUrl` in the compose file to addresses the two containers can reach (`127.0.0.1` inside a container is the container itself): see [Getting Started](https://docs.apilane.com/getting_started/).
+
 # .NET SDK
 
 Install the [Apilane.Net](https://www.nuget.org/packages/Apilane.Net) NuGet package to integrate with Apilane from any .NET application:
@@ -53,6 +55,10 @@ dotnet add package Apilane.Net
 ```
 
 See the [SDK documentation](https://docs.apilane.com/developer_guide/sdk/) for usage examples.
+
+# JavaScript SDK
+
+[Apilane.Js](sdk/Apilane.Js) is a single file, `apilane.js`, that works in browsers and Node.js 18+: copy it into your project. See its [README](sdk/Apilane.Js/README.md) for usage.
 
 # Documentation
 

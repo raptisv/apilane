@@ -4,7 +4,7 @@ description: "Filter and sort data in Apilane with JSON filters and sorting para
 
 # Filtering & Sorting
 
-Apilane provides a powerful JSON-based filtering and sorting system for querying data. These parameters are available on all `Get` endpoints for Data, Files, and Stats.
+Apilane provides a powerful JSON-based filtering and sorting system for querying data. The `filter` parameter is accepted by `Data/Get`, `Files/Get`, `Stats/Aggregate` and `Stats/Distinct`. The `sort`, `properties` and `getTotal` parameters are accepted by `Data/Get` and `Files/Get`; the `GetByID` endpoints take `properties` only. `Stats/Aggregate` has its own `pageIndex`, `pageSize` and `orderDirection` (`ASC` or `DESC`, default `DESC`), which orders the groups by their aggregated value.
 
 ## Filtering
 
@@ -60,20 +60,41 @@ This translates to: `Country = 'US' AND (Role = 'admin' OR Role = 'manager')`
 
 ### Filter Operators
 
-| Operator | Aliases | Description | Applicable types |
-|---|---|---|---|
-| `equal` | `eq`, `==`, `=` | Exact match | All |
-| `notequal` | `neq`, `!=`, `<>` | Not equal | All |
-| `greater` | `g`, `>` | Greater than | Number, Date |
-| `greaterorequal` | `ge`, `>=` | Greater than or equal | Number, Date |
-| `less` | `l`, `<` | Less than | Number, Date |
-| `lessorequal` | `le`, `<=` | Less than or equal | Number, Date |
-| `startswith` | `sw` | Starts with string | String |
-| `endswith` | `ew` | Ends with string | String |
-| `contains` | `like` | Contains substring | String |
-| `notcontains` | `nc` | Does not contain substring | String |
+| Operator | Description | Applicable types |
+|---|---|---|
+| `equal` | Equal (text ignores case, see below) | All |
+| `notequal` | Not equal | All |
+| `greater` | Greater than | Number, Date, String |
+| `greaterorequal` | Greater than or equal | Number, Date, String |
+| `less` | Less than | Number, Date, String |
+| `lessorequal` | Less than or equal | Number, Date, String |
+| `startswith` | Starts with | String |
+| `endswith` | Ends with | String |
+| `contains` | Contains the text. On a number: is one of the listed numbers (see below) | String, Number |
+| `notcontains` | Does not contain the text. On a number: is none of the listed numbers | String, Number |
 
-String values are matched literally: `%`, `_`, `[` and `\` are ordinary characters, not wildcards or escapes, so send values unescaped. For example, `equal` `cust_1` does not match `custA1`, and `contains` `%` matches only values that contain a percent sign. String matching ignores case (on SQLite only for A–Z). On SQL Server and MySQL, case, accent and similar rules follow the database collation, which is case-insensitive by default.
+Write the operator in full, as in the table. Letter case does not matter (`Equal` works), but short forms such as `eq`, `=` or `>=` are refused with `INVALID_FILTER_PARAMETER`. A Boolean property accepts only `equal` and `notequal`.
+
+String values are matched literally: `%`, `_`, `[` and `\` are ordinary characters, not wildcards or escapes, so send values unescaped. For example, `equal` `cust_1` does not match `custA1`, and `contains` `%` matches only values that contain a percent sign. Spaces at the start and end of a value are removed before it is compared.
+
+`equal`, `notequal`, `startswith`, `endswith`, `contains` and `notcontains` ignore case (on SQLite only for A–Z). On SQL Server and MySQL, case, accent and similar rules follow the database collation, which is case-insensitive by default. `greater`, `greaterorequal`, `less` and `lessorequal` on text use the ordering of the database, which on SQLite is binary: capitals sort before lower-case letters.
+
+### Values
+
+How a value is written depends on the type of the property:
+
+| Property type | Value |
+|---|---|
+| String | Text. Spaces at the start and end are removed. |
+| Number | A number such as `3` or `3.5`. With `contains` and `notcontains`, a comma-separated list of numbers (see below). |
+| Boolean | `true` or `false` (`1`, `0`, `on` and `off` also work). Only `equal` and `notequal`. |
+| Date | Unix time in seconds (10 digits) or milliseconds (13 digits), or `yyyy-MM-dd`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd HH:mm:ss` or `yyyy-MM-dd HH:mm:ss.fff`, all in UTC. Text with a `T` or a `Z` (ISO 8601) is refused. |
+| any | `null`: `equal` finds the records where the property is empty, `notequal` the ones where it is not. No other operator accepts `null`. |
+
+A filter on a property that does not exist, and a filter or sort on a property the caller has no read access to, is refused (`INVALID_FILTER_PARAMETER`, `INVALID_SORT_PARAMETER`). A group inside another group must not have an empty `Filters` list: the query fails.
+
+!!!warning "Encrypted properties"
+    The value of an encrypted property is stored encrypted and a filter compares it as stored, so a filter with the plain value finds nothing, and sorting orders the encrypted text. Do not filter or sort by an encrypted property.
 
 ### Matching a set of values (`IN`)
 
@@ -136,6 +157,21 @@ The `sort` query parameter accepts a JSON object that specifies the property and
 | `ASC` | Ascending (smallest first) |
 | `DESC` | Descending (largest first) |
 
+The direction is not case sensitive, and anything other than `DESC` sorts ascending.
+
+### Several properties
+
+Send an array to sort by several properties; the next one decides between records that are equal in the ones before it:
+
+```json
+[
+  { "Property": "Created", "Direction": "DESC" },
+  { "Property": "Title", "Direction": "ASC" }
+]
+```
+
+A property that does not exist is ignored; one the caller cannot read is refused (`INVALID_SORT_PARAMETER`). Without `sort`, `Data/Get` returns the records in the default sorting of the entity (the **Sorting** tab of the entity in the Portal), and without that by `ID`, ascending. The .NET SDK `WithSort` takes one property.
+
 ### Sorting Example
 
 Get products sorted by price ascending:
@@ -147,12 +183,15 @@ x-application-token: {appToken}
 
 ## Paging
 
-All list endpoints support paging with two parameters:
+`Data/Get`, `Files/Get` and `Stats/Aggregate` support paging with two parameters (`Data/GetHistoryByID` has them too, with a default page size of 10):
 
 | Parameter | Default | Range | Description |
 |---|---|---|---|
-| `pageIndex` | `1` | 1+ | The page number to retrieve |
-| `pageSize` | `20` | 0-1000 | Number of records per page |
+| `pageIndex` | `1` | 1+ | The page number to retrieve. A smaller value is read as 1 |
+| `pageSize` | `20` | 1-1000 | Number of records per page. A value above 1000 or below 0 is read as 1000 |
+
+!!!warning "pageSize 0"
+    `pageSize=0` does not return an empty page: `Data/Get` and `Files/Get` then return every matching record, without the 1000 limit. Always send a page size from 1 to 1000.
 
 ### Getting Total Count
 

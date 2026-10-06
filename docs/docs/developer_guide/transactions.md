@@ -14,6 +14,7 @@ Transactions are useful when you need to:
 - Update multiple entities in a single atomic operation
 - Ensure data consistency across related changes
 - Create a record and immediately pass its ID to a [custom endpoint](custom_endpoints.md) for additional processing
+- Post or update several records of one entity that must all succeed together: a `Data/Post` or `Data/Put` with an array of records is **not** atomic (the records before a failing one stay), so send them as operations of a transaction instead
 
 ## Transaction Types
 
@@ -125,11 +126,12 @@ In the example above:
 
 | Syntax | Description |
 |---|---|
-| `$ref:{OperationId}` | Resolves to the **first ID** returned by the referenced operation |
+| `$ref:{OperationId}` | Resolves to the **first ID created** by the referenced `Post` operation |
 
 - The `Id` field on an operation is optional — only needed if other operations will reference it
-- `$ref` values are resolved server-side before the operation executes
-- References can only point to operations declared **earlier** in the list
+- Only a `Post` operation can be referenced: a `Put`, `Delete` or `Custom` operation returns no created ID. A reference to one of them, to an operation that does not exist or to one declared later fails the transaction
+- `$ref` values are resolved server-side before the operation executes, in the values of `Data` (also inside nested objects and arrays) when the whole value is `$ref:...`. They are not resolved in the `Ids` of a `Delete`
+- When a `Post` creates several records (its `Data` is an array), a `$ref` is the first of them
 
 ### Supported Actions
 
@@ -138,7 +140,7 @@ In the example above:
 | `Post` | Entity name | Record data | — |
 | `Put` | Entity name | Record data (must include ID) | — |
 | `Delete` | Entity name | — | Comma-separated IDs |
-| `Custom` | Custom endpoint name | Key-value parameters for the endpoint | — |
+| `Custom` | Custom endpoint name | Key-value parameters for the endpoint (required: send `{}` when the endpoint has none) | — |
 
 ### Response
 
@@ -162,6 +164,24 @@ Each result includes:
 | `Affected` | Put | Count of updated records |
 | `Deleted` | Delete | Array of deleted IDs |
 | `CustomResult` | Custom | Nested array of result sets from the custom endpoint (same format as [custom endpoint responses](custom_endpoints.md#multiple-result-sets)) |
+
+Each result has `Action` and `Entity` and the one field that goes with its action; the other three are `null`.
+
+## Limits and failure
+
+!!!info "Atomicity"
+    Both transaction types are all or nothing: if an operation fails validation or raises an error, the earlier operations are rolled back and nothing is persisted. Operations that were already counted for the rate limit stay counted.
+
+Every operation is checked like the matching single call: the caller needs the `post`, `put` or `delete` rule of its entity, or the `get` rule of a custom endpoint, and each operation counts as one request against its [rate limit](security.md#what-counts-as-a-request). The `Files` entity cannot be used in a transaction: use the [Files](files.md) endpoints.
+
+A transaction must finish within **20 seconds**, the custom endpoint operations in it included. After that it is cancelled, nothing is kept and the call fails with the error `ERROR`. The same 20 seconds apply to a call of a [custom endpoint](custom_endpoints.md). Where Apilane opens a transaction of its own and gives no other time, it is 5 seconds, for example for a single `Data/Put` of a record of an entity with change tracking, where the update and its history snapshot are saved together.
+
+When an operation fails, the call answers 400 (401 for `UNAUTHORIZED`) with the usual error body: `Code`, `Message` and the `Entity` and `Property` it is about. It does not say which operation of the list it was.
+
+Two things can leave something behind or break the all-or-nothing behaviour:
+
+- **MySQL** commits a statement that changes tables or columns (CREATE, ALTER, DROP, TRUNCATE, RENAME) at once, so a custom endpoint that runs one is not rolled back. The connection string needs `UseXaTransactions=false`, see [Storage Providers](storage_providers.md#mysql).
+- A custom endpoint that runs its own `BEGIN`, `COMMIT` or `ROLLBACK` can break the all-or-nothing behaviour. Do not use them.
 
 ## SDK Usage
 
@@ -225,6 +245,4 @@ The `.Custom(endpointName, data)` method calls a [custom endpoint](custom_endpoi
 - The `data` object provides parameter values — use `orderRef.Id()` to pass IDs from prior operations via `$ref` resolution
 - The custom endpoint's security rules still apply — the calling user must have `get` access to the endpoint
 - Custom endpoint parameters follow the same [type restriction](custom_endpoints.md#parameters) (big integer / long values only)
-
-!!!info "Atomicity"
-    Both transaction types are fully atomic. If any individual operation fails validation or encounters an error, the entire transaction is rolled back and no changes are persisted.
+- What the custom endpoint changes is committed with the transaction. Only the **Test** button of the endpoint editor in the Portal never commits, see [Writes, transactions and limits](custom_endpoints.md#writes-transactions-and-limits)

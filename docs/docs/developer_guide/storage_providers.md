@@ -9,11 +9,16 @@ Apilane supports four storage providers out of the box. Each application can use
 !!!info "What Apilane manages"
     On the storage provider level, Apilane handles creating, renaming, and deleting entities (tables) and properties (columns). It also manages unique and foreign key constraints. It does not provide tools beyond that, such as index management or manual query optimization.
 
+    When you save a new application, Apilane creates its tables: those of the system entities (`Users`, `AuthTokens`, `Files` and the differentiation entity, if any) and four helper tables prefixed `H_` (`H_Entity_Change_Tracking`, `H_Auth_Email_Confirmation_Tokens`, `H_Auth_Password_Reset_Tokens` and `H_Email_Templates`).
+
+!!!warning "Give the application its own database"
+    On SQL Server, MySQL and PostgreSQL, **Rebuild** and **Delete** drop **every** table of the connected database (of the current schema on PostgreSQL), not only the ones Apilane created. Delete leaves the empty database in place.
+
 ## SQLite
 
 **Best for:** Getting started, prototyping, small-to-medium applications.
 
-No additional configuration is required. Apilane creates a SQLite database file automatically in the API's configured `FilesPath`.
+No additional configuration is required. Apilane creates the database file `{FilesPath}/{applicationToken}/{applicationToken}.db` automatically in the API's configured `FilesPath`. Back up that folder: it also holds the uploaded files when `LocalFileSystem` [file storage](file_storage_providers.md) is used.
 
 | Pros | Cons |
 |---|---|
@@ -23,19 +28,22 @@ No additional configuration is required. Apilane creates a SQLite database file 
 | Can support production for moderate workloads | |
 
 !!!info "Migration path"
-    You can start with SQLite and migrate to SQL Server, MySQL, or PostgreSQL later as your application grows.
+    The database type cannot be changed once an application exists. To move an application from SQLite to SQL Server, MySQL or PostgreSQL, **clone** it (menu of its card on the Applications page), choose the new database type and connection string, and switch on **Clone data** to copy the records. The copy has a new application token, and the databases differ, so review it before you switch your client over. Uploaded files are never cloned.
 
 ## SQL Server
 
 **Best for:** Enterprise applications, high-concurrency workloads.
 
-You need to provide a connection string to an **existing empty database**. The Apilane API service must be able to reach the SQL Server instance. On first use, Apilane creates all required system tables and columns.
+You need to provide a connection string to an **existing empty database**. The Apilane API service must be able to reach the SQL Server instance. When you save the new application, Apilane connects with the connection string (a wrong one is refused there) and creates all required system tables and columns.
 
 **Example connection string:**
 
 ```
 Server=myserver.database.windows.net;Database=myapp_db;User Id=myuser;Password=mypassword;
 ```
+
+!!!tip "Certificate"
+    Add `TrustServerCertificate=true;` to the connection string when the server has no certificate that the API's host trusts (a self-signed one, for example): the SQL Server driver encrypts the connection and checks the certificate by default.
 
 !!!warning "Your responsibility"
     Database management (backups, scaling, availability, index optimization) is a developer concern. Apilane handles schema management only.
@@ -44,7 +52,7 @@ Server=myserver.database.windows.net;Database=myapp_db;User Id=myuser;Password=m
 
 **Best for:** Open-source stacks, Linux-based deployments, cost-sensitive projects.
 
-Same setup as SQL Server — provide a connection string to an existing empty database. Apilane creates all system tables on first use.
+Same setup as SQL Server — provide a connection string to an existing empty database. Apilane creates all system tables when you save the new application.
 
 **Example connection string:**
 
@@ -65,7 +73,7 @@ Server=myserver;Database=myapp_db;User=myuser;Password=mypassword;UseXaTransacti
 
 **Best for:** Open-source stacks, cloud-native deployments, applications requiring advanced SQL features.
 
-Same setup as SQL Server and MySQL — provide a connection string to an existing empty database. Apilane creates all system tables on first use.
+Same setup as SQL Server and MySQL — provide a connection string to an existing empty database. Apilane creates all system tables when you save the new application. The database user needs the `CREATE TABLE` privilege there, and Apilane works in the user's current schema (usually `public`).
 
 **Example connection string:**
 

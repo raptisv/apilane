@@ -6,6 +6,11 @@ description: "Where Apilane stores uploaded files: the local file system, Google
 
 Apilane supports four file storage providers for uploaded files. Files can be stored on the local server file system or in cloud object storage.
 
+The provider is a setting of the API server (`FileStorage`): it applies to every application on that server, and the files of an application are kept apart by its token (`{applicationToken}/files/{fileUID}`). Changing the provider does not move existing files (see [Migration](#migration)).
+
+!!!warning "Delete and Rebuild"
+    Deleting or rebuilding an application removes only the files in the API server's own `FilesPath` folder. Objects in a cloud bucket or container stay: delete the `{applicationToken}/` prefix yourself.
+
 !!!info "What Apilane manages"
     Apilane handles file upload, download, deletion, and metadata tracking through the `Files` system entity. The choice of storage provider determines where file binaries are physically stored.
 
@@ -13,7 +18,7 @@ Apilane supports four file storage providers for uploaded files. Files can be st
 
 **Best for:** Getting started, prototyping, single-server deployments.
 
-No additional configuration required beyond the `FilesPath` environment variable. Apilane stores uploaded files directly on the API server's file system.
+No additional configuration is required beyond the `FilesPath` setting, which every API server needs. Apilane stores uploaded files directly on the API server's file system, in `{FilesPath}/{applicationToken}/files/`.
 
 **Configuration:**
 
@@ -30,7 +35,7 @@ No additional configuration required beyond the `FilesPath` environment variable
 | Simple deployment | Limited scalability |
 
 !!!warning "Docker/Kubernetes deployments"
-    You must mount a persistent volume to the `FilesPath` directory (`/etc/apilanewebapi` by default) to prevent file loss when containers restart. See [Deployment](../deployment.md) for volume mapping guidance.
+    You must mount a persistent volume that contains the `FilesPath` directory to prevent file loss when containers restart. The compose file in [Deployment](../deployment.md) sets `FilesPath=/etc/apilanewebapi/Files` and mounts the volume at `/etc/apilanewebapi`; see it for volume mapping guidance.
 
 ---
 
@@ -89,8 +94,8 @@ volumeMounts:
     readOnly: true
 ```
 
-!!!tip "Workload Identity"
-    For GKE deployments, use [Workload Identity](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity) to avoid managing service account JSON files.
+!!!info "Service account file required"
+    The provider reads the service account JSON file named in `ConnectionString`: Workload Identity and application default credentials are not supported. Mount the key as a secret, as above.
 
 ---
 
@@ -105,40 +110,40 @@ Stores files in an Amazon S3 bucket or S3-compatible storage.
 ```json
 "FileStorage": {
   "Provider": "AwsS3",
-  "ConnectionString": "AccessKey=AKIA...;SecretKey=...;Region=us-east-1",
+  "ConnectionString": "accessKeyId=AKIA...;secretAccessKey=...;region=us-east-1",
   "BucketName": "my-app-files-bucket"
 }
 ```
 
 | Parameter | Description |
 |---|---|
-| `ConnectionString` | Format: `AccessKey={key};SecretKey={secret};Region={region}` or `AccessKey={key};SecretKey={secret};ServiceUrl={url}` for S3-compatible endpoints |
+| `ConnectionString` | Format: `accessKeyId={key};secretAccessKey={secret};region={region}`, or `accessKeyId={key};secretAccessKey={secret};endpoint={host}` for S3-compatible storage. The names are not case-sensitive and both keys are required |
 | `BucketName` | S3 bucket name (must already exist) |
 
 ### Setup Steps
 
 1. **Create an S3 bucket** in your AWS account
-2. **Create an IAM user or role** with `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` permissions on the bucket
-3. **Generate access keys** (or use IAM roles for EC2/EKS)
+2. **Create an IAM user** with `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` permissions on the bucket
+3. **Generate access keys** for that user
 4. **Set connection string** via environment variables or appsettings
 
 ```bash
-# Docker environment variable example
-docker run -e "FileStorage__ConnectionString=AccessKey=AKIA...;SecretKey=...;Region=us-east-1" \
+# Docker environment variable example (the other settings every API server needs, Url, PortalUrl, FilesPath and InstallationKey, are left out)
+docker run -e "FileStorage__ConnectionString=accessKeyId=AKIA...;secretAccessKey=...;region=us-east-1" \
            -e "FileStorage__BucketName=my-app-files-bucket" \
            -e "FileStorage__Provider=AwsS3" \
-           raptis/apilane:api-8.4.9
+           raptis/apilane:api-{version}
 ```
 
-!!!tip "IAM Roles"
-    For EC2/EKS deployments, use IAM roles instead of access keys. Omit `AccessKey` and `SecretKey` from the connection string and assign the role to the instance/pod.
+!!!info "Access keys required"
+    Both keys are required: IAM roles of EC2/EKS are not supported. Create an IAM user limited to the bucket and keep its keys in a secret.
 
 ### S3-Compatible Storage (Backblaze B2, MinIO)
 
-For S3-compatible providers, use the `ServiceUrl` parameter:
+For S3-compatible providers, use the `endpoint` parameter with the host name only (no `https://`). The connection always uses HTTPS and path-style addresses, so a MinIO server needs TLS:
 
 ```json
-"ConnectionString": "AccessKey=...;SecretKey=...;ServiceUrl=https://s3.us-west-004.backblazeb2.com"
+"ConnectionString": "accessKeyId=...;secretAccessKey=...;endpoint=s3.us-west-004.backblazeb2.com"
 ```
 
 ---
@@ -172,15 +177,15 @@ Stores files in an Azure Blob Storage container.
 4. **Set connection string** via environment variables or appsettings
 
 ```bash
-# Docker environment variable example
+# Docker environment variable example (the other settings every API server needs, Url, PortalUrl, FilesPath and InstallationKey, are left out)
 docker run -e "FileStorage__ConnectionString=DefaultEndpointsProtocol=https;AccountName=...;AccountKey=..." \
            -e "FileStorage__BucketName=my-container-name" \
            -e "FileStorage__Provider=AzureBlobStorage" \
-           raptis/apilane:api-8.4.9
+           raptis/apilane:api-{version}
 ```
 
-!!!tip "Managed Identity"
-    For AKS deployments, use [Managed Identity](https://learn.microsoft.com/en-us/azure/aks/use-managed-identity) instead of connection strings for better security.
+!!!info "Connection string required"
+    The storage account connection string is required: Managed Identity is not supported. Keep the connection string in a secret.
 
 ---
 
@@ -199,7 +204,7 @@ docker run -e "FileStorage__ConnectionString=DefaultEndpointsProtocol=https;Acco
 ## Security Considerations
 
 - **Never commit credentials** to source control. Use environment variables, Docker secrets, or Kubernetes secrets.
-- **Use managed identities** when available (Workload Identity for GKE, IAM Roles for EKS, Managed Identity for AKS).
+- **Static credentials only**: the providers take an access key pair, a service account JSON file or a connection string. Managed identities (IAM roles, Workload Identity, Azure Managed Identity) are not supported, so scope each credential to the one bucket or container.
 - **Bucket/container permissions**: Restrict access to only the API service account. Do not make buckets public unless required.
 - **Rotate credentials regularly** and use least-privilege IAM policies.
 
@@ -211,7 +216,7 @@ See [Security Considerations](../security_considerations.md) for more details on
 
 To migrate from `LocalFileSystem` to a cloud provider:
 
-1. **Upload existing files** from `FilesPath` to your cloud bucket using the provider's CLI or SDK
+1. **Upload existing files**: copy the content of `{FilesPath}/{applicationToken}/files/` of each application to the key prefix `{applicationToken}/files/` in your bucket or container, using the provider's CLI or SDK. Leave out the SQLite database file (`{applicationToken}.db`) that sits next to that folder
 2. **Preserve the file structure**: `{applicationToken}/files/{fileUID}`
 3. **Update `FileStorage` configuration** to point to the cloud provider
 4. **Restart the API service**

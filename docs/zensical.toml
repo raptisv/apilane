@@ -30,6 +30,7 @@ nav = [
     { "REST API Reference" = "api_reference.md" },
     { "SDK (.NET)" = "developer_guide/sdk.md" },
     { "AI Agent Guidelines" = "developer_guide/ai_agent_guidelines.md" },
+    { "AI Agent Guidelines (Portal)" = "developer_guide/ai_agent_portal.md" },
 ]
 
 [project.markdown_extensions.footnotes]

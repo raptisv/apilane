@@ -6,9 +6,11 @@ The Portal is one ASP.NET Core process (`src/Apilane.Portal`) that serves two th
 - the **UI**: this folder, a Vue 3 single-page app, built into static files that the Portal serves at
   the site root (`/apps`, `/apps/{token}/entities`, `/account/login`, `/admin/servers`, ...).
 
-The UI does everything through the API, so a script or an AI agent can do the same work with the
-same calls, using an agent key (see [Agents](#agents); a few calls are for people only). The Portal
-renders no pages on the server.
+The UI manages applications through this API, so a script or an AI agent can do the same management
+work with the same calls, using an agent key (see [Agents](#agents); a few calls are for people
+only). Records, files, statistics, e-mail templates and the SQL test of a custom endpoint are served
+by the API servers and need a person's token: an agent cannot reach them. The Portal renders no
+pages on the server.
 
 This is the one document for both. It has three parts:
 
@@ -163,13 +165,14 @@ The user menu also has 'API reference', a link to `/swagger`.
 | Owner of an application | Everything about it, sharing included. |
 | Collaborator | Everything the owner can do (delete, rebuild, clone, import schema, edit security, read the encryption key), except sharing. |
 | Administrator (role Admin) | The 'Instance' screens and `/api/v1/admin/...`: servers, users and agents, instance settings, backup, the instance audit log, the list of all applications and the data browser of any of them. |
-| Agent (calling with its key) | The applications shared with its address, as a collaborator, minus what agents are refused: no delete of anything, no rebuild, no clone, no new application, no encryption key, no API-server token, nothing under `/api/v1/admin`. See [Agents](#agents). |
+| Agent (calling with its key) | The applications shared with its address, as a collaborator, minus what agents are refused: no delete of anything, no rebuild, no new application (create, import, clone), no encryption key, no API-server token, nothing under `/api/v1/admin`. See [Agents](#agents). |
 
 - Under `/api/v1/applications/{appToken}` the Admin role opens nothing: an application the caller
   neither owns nor collaborates on is 404, administrator or not. The one exception is
   `POST {app}/cache-reset`, which works for an administrator on any application.
-- In an application of their own, only an administrator may change the constraints of a system
-  entity (Users, Files).
+- Only an administrator may change the constraints of a system entity (Users, Files, the
+  differentiation entity), in an application the administrator owns or collaborates on. For anyone
+  else, an agent always, it is 403.
 - An unknown or inaccessible application, entity, property or id is 404. An owner-only or
   administrator-only call is 403. The UI shows a 'not found' or 'no access' state for them.
 - The API never answers with a redirect: no session is 401 with a JSON error, and an ended session is
@@ -197,7 +200,9 @@ statistics, e-mail templates, storage size and the export of an application live
 that hosts the application, and the browser calls that server directly:
 
 - The UI asks the Portal for the user's token (`GET /api/v1/session/api-token`) and sends it to the
-  API server as `Authorization: Bearer {token}` together with `x-application-token: {appToken}`.
+  API server as `Authorization: Bearer {token}` together with `x-application-token: {appToken}` and
+  `x-client-id: portal`. Without the last header the API server does not take the token for a
+  Portal user's.
 - The token is kept in memory only: never in an address, never in storage. It changes at every
   sign-in; on a 401 from an API server the UI fetches it once more, and a second 401 is shown as an error.
 - The API server asks the Portal whether that user may manage the application
@@ -218,7 +223,7 @@ that hosts the application, and the browser calls that server directly:
   of the API server is a 502 with a fixed text.
 - Dialogs that can be linked to keep their state in the address: `?info=`, `?compare=`, `?item=`, `?view=`.
 - Create, edit, rename and delete are dialogs on the list screen. Deleting a server, entity,
-  property, custom endpoint or application asks you to type its name.
+  property, custom endpoint, application or agent asks you to type its name (an agent's address).
 - A screen that collects several edits before one Save (constraints, default sorting, security
   rules, the custom endpoint editor) asks before you leave with unsaved changes.
 - Every screen works from 360px wide. Dark is the only theme.
@@ -510,8 +515,10 @@ Sign-in and mail:
 
 Applications and schema:
 
-- Renaming an entity or property does not update security rules, reports, custom endpoint SQL, the
-  default sorting or the differentiation entity. Deleting does not remove them.
+- Renaming an entity or property does not update security rules, reports, custom endpoint SQL or the
+  default sorting. Deleting does not remove them. Security rules for the old name are not listed any
+  more, nor are property names that are gone from a rule, and the next save of the rules drops
+  them: write the rules again under the new name.
 - A case-only rename of a property changes the name in the Portal but not the column, which breaks
   PostgreSQL applications. The cause is in the API server.
 - When the API server accepted a create, import or clone and the Portal step then failed, the
@@ -525,8 +532,8 @@ Applications and schema:
   and a schema import answer 500 until the Security screen is saved once.
 - If the stored security rules are not readable JSON, the Security screen shows an empty grid and the
   next save overwrites them. This needs a hand-edited database to happen.
-- Saves that replace a whole list (security rules, constraints, report layout) do not check whether
-  someone else changed it in the meantime.
+- Saves that replace a whole list (security rules, constraints, default sorting, the series of a
+  report) and the layout save do not check whether someone else changed it in the meantime.
 - After a rules save the role rows are not read again from the API server; a reload shows new or vanished roles.
 
 Reports:
@@ -579,7 +586,7 @@ For the owner. The default is what the code does today; say nothing and it stays
 | Security screen | Separate saves for settings and rules. | One atomic save of both. |
 | Server address | http or https only. | Any scheme (`ServerService.ValidateUrl`). |
 | Rebuild and delete confirmation | Guards of the browser only. | Require the application name in the request. |
-| Collaborator rights | A collaborator can delete, rebuild, clone, import schema, edit security and read the encryption key; only Sharing is owner-only. An agent is refused delete, rebuild, clone and the encryption key. | Narrow them for people too. |
+| Collaborator rights | A collaborator can delete, rebuild, clone, import schema, edit security and read the encryption key; only Sharing is owner-only. An agent is refused every delete, the rebuild, clone, import and creation of an application, the encryption key and the API-server token. | Narrow them for people too. |
 | Collaborator e-mail letter case | Saved as typed; access needs an exact match. | Save the exact address of the matching account when sharing (`CollaboratorService.AddAsync`), or match without case everywhere. |
 | Rate limit | 30 calls per 60 seconds per IP address. | Other numbers. |
 | Agents | One key per agent, and an agent may do what a collaborator may, minus the refused calls. Left out on purpose: read-only keys, an expiry date, several keys per agent, re-issuing a key without deleting the agent, a rate limit on wrong keys, an MCP server. | Add the ones that turn out to be needed. |
@@ -599,7 +606,10 @@ For the owner. The default is what the code does today; say nothing and it stays
 For a person with `curl`, a script or an AI agent. The contract is the file `openapi/portal-v1.json`
 in the repository. A running Portal serves the same document at `/swagger/v1/swagger.json` and a
 browser for it at `/swagger`, both for users signed in with the cookie: an agent key does not open
-them, so an agent reads the file. The summaries in the contract say what each call checks and answers.
+them, so an agent reads the file, of its own version: `Version` in the answer of `GET /api/v1/session`
+is the release tag (`openapi/portal-v1.json` at that tag; `main` for a build of your own). The
+summaries in the contract say what each call checks and answers. The contract does not describe the
+Bearer header as a security scheme: send it yourself.
 
 ## Basics
 
@@ -629,7 +639,8 @@ them, so an agent reads the file. The summaries in the contract say what each ca
 - **Answers are never cached**: every answer under `/api` carries `Cache-Control: no-store`.
 - **Never a redirect**: no session is 401, not a redirect to the sign-in page.
 - **A `Warning` response header** on a successful write means: saved, but the API server could not
-  be refreshed. Its value is a text for the user.
+  be refreshed. Its value is a text for the user. `POST {app}/cache-reset` tries the refresh again
+  (204).
 - **202** means the work goes on after the answer: a clone answers with an `OperationId` and a
   `Location` header to poll.
 - **Who may call what**: [Signing in, sessions and roles](#signing-in-sessions-and-roles).
@@ -637,7 +648,8 @@ them, so an agent reads the file. The summaries in the contract say what each ca
 ## Agents
 
 An agent is an account for a script or an AI agent: a normal user at `@agent.local` with no
-password, and one key.
+password, and one key. The documentation page `docs/docs/developer_guide/ai_agent_portal.md` has a
+block to append to the `AGENTS.md` of the project that holds the agent.
 
 1. **Create it.** An administrator opens Instance > Users, chooses 'Add agent' and types a name:
    3 to 40 characters, lower-case letters, digits and dashes. (The call is `POST /api/v1/admin/agents`
@@ -646,8 +658,9 @@ password, and one key.
    hash of the secret.
 2. **Give it access.** The owner of an application shares it with the agent's address on the
    Sharing screen, as with a person: the address box offers the agents the application is not
-   shared with yet (`GET {app}/collaborators/available-agents` lists them). The agent is then a
-   collaborator of that application. No mail is sent to an agent.
+   shared with yet (`GET {app}/collaborators/available-agents` lists them). Pick the offered
+   address or type it exactly, in lower case: an access is matched on the exact letter case. The
+   agent is then a collaborator of that application. No mail is sent to an agent.
 3. **Call the API.** Send `Authorization: Bearer {key}` on every call. No sign-in, no cookie, no
    `X-Apilane-Portal` header.
 
@@ -682,6 +695,22 @@ sorting, security, custom endpoints, reports, e-mail settings, schema import, co
 the application, its connection string, online and offline. An application that is not shared
 with the agent is 404, as for any user.
 
+Two things are not open to an agent although the list above does not name them, and answer an
+ordinary 403 FORBIDDEN: everything under `{app}/collaborators` (sharing is for the owner, and an
+agent is a collaborator), and `PUT .../constraints` or a schema import with constraints for a system
+entity (only an administrator may, and an agent is never one).
+
+An agent cannot get a token for the API servers (`GET /session/api-token` is refused; the Portal
+keeps one for its own calls on the agent's behalf), so it cannot read or write
+records, files, record history or statistics, edit e-mail templates, or run the Test of a custom
+endpoint (`POST {ServerUrl}/api/Custom/TestQuery`). The Portal does not check the query of a custom endpoint:
+it is stored as it is sent.
+
+The refusals guard against slips; they are not a security boundary. A custom endpoint is SQL that
+the API server runs and commits against the application's database when it is called, and an agent
+may create one and write the security rule that lets it run. Share an application only with an
+agent you would trust as a collaborator.
+
 **Revoking.** Delete the agent on Instance > Users (`DELETE /api/v1/admin/agents/{userId}`). Its
 key stops working at once and the agent is removed from every application shared with it. A key
 cannot be replaced: delete the agent, add it again and share again.
@@ -712,9 +741,10 @@ an item of a list is named by its place (`Rules[3].Action`). `TraceId` finds the
 | 403 | `FORBIDDEN` | The write header is missing; or the call is for the owner or an administrator only; or registration is switched off; or an agent called something agents are refused. |
 | 404 | `NOT_FOUND` | Unknown, or not the caller's. Also an unknown API address or a wrong method. |
 | 409 | `CONFLICT` | The state does not allow it: a duplicate name, a system entity, a property that is part of a constraint, mail not set up. |
+| 415 | `ERROR` | The request body is not sent as `application/json`. |
 | 429 | `TOO_MANY_REQUESTS` | The rate limit of the anonymous account calls. |
 | 502 | `UPSTREAM_ERROR` | The API server could not be reached or failed. |
-| 500 | `ERROR` | Anything else. The detail is in the Portal's logs. |
+| 500 | `ERROR` | Anything else. The detail is in the Portal's logs. 'The change was made on the API server but could not be saved in the Portal' means the API server has the change and the Portal does not: look at the state before you try again. |
 
 ## Endpoints
 
@@ -739,8 +769,15 @@ Things an agent should know before it writes:
 
 - Deletes and rebuild have no confirmation step in the API and cannot be undone. An agent key is
   refused on both.
-- `PUT {app}/security/rules`, `PUT .../constraints`, `PUT .../default-order` and `PUT {app}/reports/layout`
-  replace the whole list: read it first, change it, send all of it.
+- `PUT {app}/security/rules`, `PUT .../constraints` and `PUT .../default-order` replace the whole
+  list: read it first, change it, send all of it. `PUT {app}/reports/layout` moves only the panels
+  it lists (reports left out stay where they are), and `PUT {app}/reports/{reportId}` replaces the
+  series of that report.
+- Every PUT under `{app}` writes all the values it carries: an optional value that is left out or
+  null is cleared (a `PUT .../properties/{property}` with only a Description clears the Minimum and
+  the ValidationRegex). The exception is a secret (`ConnectionString`, `MailPassword`): null keeps
+  the stored one. A property that the request does not know is ignored, so a misspelled name counts
+  as left out. GET the resource, change it, send it back whole.
 - `POST {app}/schema-import` is not atomic. `GET {app}/schema-import/diff?Source=` answers in the
   shape the import accepts.
 - Entity and property names are case-sensitive in addresses.
@@ -753,7 +790,7 @@ application are served by the API server that hosts the application, not by the 
 
 1. `GET /api/v1/session/api-token` gives `{ "Token": "..." }`. It changes at every sign-in.
 2. `GET /api/v1/applications/{appToken}` gives `Server.ServerUrl`.
-3. Call `{ServerUrl}/api/...` with the headers `Authorization: Bearer {Token}` and `x-application-token: {appToken}`.
+3. Call `{ServerUrl}/api/...` with the headers `Authorization: Bearer {Token}`, `x-application-token: {appToken}` and `x-client-id: portal`. Without the last one the API server reads the Bearer value as an application user's token.
 
 An agent cannot do this: step 1 is refused for an agent key.
 

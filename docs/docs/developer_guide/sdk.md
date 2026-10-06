@@ -4,9 +4,12 @@ description: "Use Apilane from .NET with the Apilane.Net NuGet package: setup, a
 
 # SDK (.NET)
 
-Apilane offers a .NET SDK that simplifies integration with the Apilane API. It provides a type-safe, builder-pattern interface for all API operations.
+Apilane offers a .NET SDK that simplifies integration with the Apilane API. It provides a type-safe, builder-pattern interface for the account, data, transaction, file, stats, custom endpoint and schema calls. Changing a password and downloading a file are not wrapped: call [Change Password](../api_reference.md#change-password) and [Download File](../api_reference.md#download-file) over HTTP. The two email calls are available as URL builders, see [URL Helpers](#url-helpers).
 
 [![NuGet](https://img.shields.io/nuget/v/Apilane.Net.svg?style=flat&label=Apilane.Net)](https://www.nuget.org/packages/Apilane.Net)
+
+!!!info "JavaScript"
+    The JavaScript SDK is a single file, `apilane.js`, with its own [README](https://github.com/raptisv/apilane/blob/main/sdk/Apilane.Js/README.md). The [AI agent guidelines](ai_agent_guidelines.md) show the calls in .NET and in JavaScript.
 
 ## Installation
 
@@ -15,6 +18,8 @@ Add the latest [Apilane.Net NuGet package](https://www.nuget.org/packages/Apilan
 ```bash
 dotnet add package Apilane.Net
 ```
+
+The package targets .NET Standard 2.0 and depends on `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Http` and `System.Text.Json`, which NuGet adds for you.
 
 ## Setup
 
@@ -60,8 +65,7 @@ var data = await _apilaneService.GetDataAsync<Product>(
     DataGetListRequest.New("Products").WithAuthToken(token));
 ```
 
-Or sign requests with `.WithSigning(keyId, token)` so the token is never sent at all
-(see [Security » Authenticating requests](security.md)).
+Or sign requests with `.WithSigning(keyId, token)`, where `keyId` is the `AuthTokenID` and `token` the `AuthToken` returned at login, so the token is never sent at all (see [Security » Authenticating requests](security.md#authenticating-requests)). A request uses one of the two: calling both on the same request throws `InvalidOperationException`. Two calls cannot be signed: `PostFileAsync` (it throws) and `GetAllDataAsync`, whose `DataGetAllRequest` only has `WithAuthToken`.
 
 ### Keyed Services (Multi-App)
 
@@ -108,26 +112,41 @@ var response = await _apilaneService.GetDataAsync<Product>(
 ### Login
 
 ```csharp
+// Your own user class: it must implement IApiUser, the easiest way is to extend ApiUser
+public class AppUser : ApiUser
+{
+    public string? Firstname { get; set; }
+    public string? Lastname { get; set; }
+}
+
 var loginResponse = await _apilaneService.AccountLoginAsync<AppUser>(
-    AccountLoginRequest.New()
-        .WithEmail("user@example.com")
-        .WithPassword("secret"));
+    AccountLoginRequest.New(new LoginItem { Email = "user@example.com", Password = "secret" }));
 
 if (!loginResponse.HasError(out var error))
 {
     string authToken = loginResponse.Value.AuthToken;
+    long authTokenId = loginResponse.Value.AuthTokenID; // needed only if you sign requests
     AppUser user = loginResponse.Value.User;
 }
 ```
+
+Set `Email` or `Username` on the `LoginItem`; when both are set, the email is used.
 
 ### Register
 
 ```csharp
 var registerResponse = await _apilaneService.AccountRegisterAsync(
-    AccountRegisterRequest.New()
-        .WithAuthToken(authToken),
-    new { Email = "new@example.com", Username = "newuser", Password = "Pass123!" });
+    AccountRegisterRequest.New(new RegisterItem
+    {
+        Email = "new@example.com",
+        Username = "newuser",
+        Password = "Pass123!"
+    }));
+
+long newUserId = registerResponse.Value;
 ```
+
+Registering needs no auth token. To send custom properties of the `Users` entity, pass your own class that implements `IRegisterItem` (every public property of it is sent).
 
 ### Get User Data
 
@@ -161,9 +180,12 @@ long newTokenId = renewResponse.Value.AuthTokenID; // needed only if you sign re
 ### Logout
 
 ```csharp
+// false: only this token. true: every token of the user, on every client
 var logoutResponse = await _apilaneService.AccountLogoutAsync(
-    AccountLogoutRequest.New()
+    AccountLogoutRequest.New(logOutFromEverywhere: false)
         .WithAuthToken(authToken));
+
+int tokensDeleted = logoutResponse.Value;
 ```
 
 ## Data Operations
@@ -179,7 +201,7 @@ public class Product : Apilane.Net.Models.Data.DataItem
 }
 ```
 
-`DataItem` provides the system properties: `ID`, `Owner`, `Created`, and `Created_Date`.
+`DataItem` provides the system properties `ID`, `Owner` (the id of the user who created the record, nullable) and `Created` (Unix time in milliseconds).
 
 ### Get Records (Paginated)
 
@@ -217,7 +239,7 @@ var allProducts = await _apilaneService.GetAllDataAsync<Product>(
 
 ```csharp
 var product = await _apilaneService.GetDataByIdAsync<Product>(
-    DataGetByIdRequest.New("Products", recordId: 1)
+    DataGetByIdRequest.New("Products", id: 1)
         .WithAuthToken(authToken));
 ```
 
@@ -280,17 +302,17 @@ using Apilane.Net.Models.Data;
 using Apilane.Net.Models.Enums;
 
 // Simple filter
-var filter = new FilterItem("Price", FilterOperator.less, 100);
+var simpleFilter = new FilterItem("Price", FilterOperator.less, 100);
 
 // Compound filter (AND/OR)
-var filter = new FilterItem(FilterLogic.AND, new List<FilterItem>
+var compoundFilter = new FilterItem(FilterLogic.AND, new List<FilterItem>
 {
     new FilterItem("Price", FilterOperator.greaterorequal, 10),
     new FilterItem("InStock", FilterOperator.equal, true)
 });
 
 // Nested filter
-var filter = new FilterItem(FilterLogic.AND, new List<FilterItem>
+var nestedFilter = new FilterItem(FilterLogic.AND, new List<FilterItem>
 {
     new FilterItem("Category", FilterOperator.equal, "Electronics"),
     new FilterItem(FilterLogic.OR, new List<FilterItem>
@@ -365,23 +387,25 @@ var result = await _apilaneService.TransactionOperationsAsync(
 ## Files
 
 ```csharp
-// Upload
+using Apilane.Net.Models.Files;
+
+// Upload (an upload cannot be signed: use WithAuthToken)
 byte[] fileBytes = File.ReadAllBytes("photo.jpg");
 var uploadResult = await _apilaneService.PostFileAsync(
     FilePostRequest.New()
         .WithAuthToken(authToken)
-        .WithFileName("photo.jpg")
-        .WithPublicFlag(false)
-        .WithFileUID("user-avatar-123"),
+        .WithFileName("photo.jpg"),
     fileBytes);
 
-// List files
-var files = await _apilaneService.GetFilesAsync<MyFile>(
+long? fileId = uploadResult.Value;
+
+// List file records (FileItem: ID, Owner, Created, Name, Size in MB, UID)
+var files = await _apilaneService.GetFilesAsync<FileItem>(
     FileGetListRequest.New().WithAuthToken(authToken));
 
-// Get file by ID
-var file = await _apilaneService.GetFileByIdAsync<MyFile>(
-    FileGetByIdRequest.New(fileId: 1).WithAuthToken(authToken));
+// Get file record by ID
+var file = await _apilaneService.GetFileByIdAsync<FileItem>(
+    FileGetByIdRequest.New(id: 1).WithAuthToken(authToken));
 
 // Delete files
 var deleted = await _apilaneService.DeleteFileAsync(
@@ -390,6 +414,8 @@ var deleted = await _apilaneService.DeleteFileAsync(
         .AddIdToDelete(1));
 ```
 
+The `UID` of a file is generated by the server: read it from the file record. The SDK has no call to download the file itself, see [Download File](../api_reference.md#download-file).
+
 ## Stats & Aggregation
 
 ### Aggregate
@@ -397,7 +423,16 @@ var deleted = await _apilaneService.DeleteFileAsync(
 ```csharp
 using static Apilane.Net.Request.StatsAggregateRequest;
 
-var result = await _apilaneService.GetStatsAggregateAsync<MyAggResult>(
+// One object per group; the columns are named {Property}_{function}
+public class OrderTotals
+{
+    public string? Status { get; set; }
+    public decimal Total_sum { get; set; }
+    public decimal Total_avg { get; set; }
+    public long ID_count { get; set; }
+}
+
+var result = await _apilaneService.GetStatsAggregateAsync<List<OrderTotals>>(
     StatsAggregateRequest.New("Orders")
         .WithAuthToken(authToken)
         .WithProperty("Total", DataAggregates.Sum)
@@ -410,10 +445,15 @@ var result = await _apilaneService.GetStatsAggregateAsync<MyAggResult>(
 ### Distinct
 
 ```csharp
-var result = await _apilaneService.GetStatsDistinctAsync<string[]>(
-    StatsDistinctRequest.New("Products")
-        .WithAuthToken(authToken)
-        .WithProperty("Category"));
+// One object per distinct value, keyed by the property name
+public class CategoryValue
+{
+    public string? Category { get; set; }
+}
+
+var result = await _apilaneService.GetStatsDistinctAsync<List<CategoryValue>>(
+    StatsDistinctRequest.New("Products", "Category")
+        .WithAuthToken(authToken));
 ```
 
 ## Schema
@@ -446,12 +486,16 @@ var result = await _apilaneService.GetCustomEndpointAsync<List<UserSummary>>(
         .WithAuthToken(authToken)
         .WithParameter("UserID", 42));
 
-// Multi-result set (multiple SELECT statements)
-var (orders, items) = await _apilaneService.GetCustomEndpointAsync<List<Order>, List<OrderItem>>(
+// Multi-result set (multiple SELECT statements): one type per result set, up to five
+var response = await _apilaneService.GetCustomEndpointAsync<List<Order>, List<OrderItem>>(
     CustomEndpointRequest.New("GetOrderDetails")
         .WithAuthToken(authToken)
         .WithParameter("OrderID", 100));
+
+var (orders, items) = response.Value;
 ```
+
+A `List<>` type receives the whole result set. Any other type receives the first row of that result set (or its default when the set is empty). Parameters are whole numbers (`long?`); a parameter name can be given only once per request.
 
 ## URL Helpers
 
@@ -478,4 +522,4 @@ var health = await _apilaneService.HealthCheckAsync();
 
 ## License
 
-The Apilane SDKs are released under the [MIT License](https://github.com/raptisv/apilane/blob/main/sdk/LICENSE). The Apilane server (API and Portal) is licensed under [AGPL-3.0](https://github.com/raptisv/apilane/blob/main/LICENSE).
+The Apilane SDKs are released under the [MIT License](https://github.com/raptisv/apilane/blob/main/sdk/LICENSE): Apilane.Js, and Apilane.Net after version 10.1.1 (versions up to 10.1.1 were published under AGPL-3.0-only and stay under it). The Apilane server (API and Portal) is licensed under [AGPL-3.0](https://github.com/raptisv/apilane/blob/main/LICENSE).
