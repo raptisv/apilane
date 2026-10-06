@@ -71,7 +71,7 @@ This endpoint supports the same [filtering, sorting, and paging](filtering_sorti
 | Parameter | Default | Description |
 |---|---|---|
 | `pageIndex` | `1` | Page number |
-| `pageSize` | `20` | Records per page (max 1000) |
+| `pageSize` | `20` | Records per page, 1 to 1000 (a value outside it becomes 1000) |
 | `filter` | `null` | JSON filter expression |
 | `sort` | `null` | JSON sort expression |
 | `properties` | all | Comma-separated list of properties to return |

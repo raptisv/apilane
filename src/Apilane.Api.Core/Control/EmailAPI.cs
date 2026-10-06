@@ -47,12 +47,14 @@ namespace Apilane.Api.Core
             DBWS_Application application,
             string email)
         {
+            var emailSettings = GetEmailSettingsOrThrow(application);
+
             if (string.IsNullOrWhiteSpace(email))
             {
                 throw new ApilaneException(AppErrors.ERROR, "No email provided");
             }
 
-            if (!Utils.IsValidEmail(email))
+            if (!IsValidEmail(email))
             {
                 throw new ApilaneException(AppErrors.VALIDATION, "Invalid Email", "Email");
             }
@@ -81,7 +83,7 @@ namespace Apilane.Api.Core
                     await _appEmailService.SendEmailFromApplicationAsync(
                         application.Token,
                         application.Server.ServerUrl,
-                        application.GetEmailSettings(),
+                        emailSettings,
                         EmailEventsCodes.UserRegisterConfirmation,
                         userThatAcceptsTheEmail,
                         userThatAcceptsTheEmail);
@@ -93,12 +95,14 @@ namespace Apilane.Api.Core
             DBWS_Application application,
             string email)
         {
+            var emailSettings = GetEmailSettingsOrThrow(application);
+
             if (string.IsNullOrWhiteSpace(email))
             {
                 throw new ApilaneException(AppErrors.ERROR, $"No email provided");
             }
 
-            if (!Utils.IsValidEmail(email))
+            if (!IsValidEmail(email))
             {
                 throw new ApilaneException(AppErrors.VALIDATION, "Invalid Email", "Email");
             }
@@ -119,11 +123,31 @@ namespace Apilane.Api.Core
                 await _appEmailService.SendEmailFromApplicationAsync(
                     application.Token,
                     application.Server.ServerUrl,
-                    application.GetEmailSettings(),
+                    emailSettings,
                     EmailEventsCodes.UserForgotPassword,
                     userThatAcceptsTheEmail,
                     userThatAcceptsTheEmail);
             }
+        }
+
+        /// <summary>
+        /// Asked before anything else, and the same for every address: the mail is tried only for an address with
+        /// an account, so with incomplete settings a known address would fail while an unknown one is answered
+        /// 'OK', and the failed request would use up the allowance of the address.
+        /// </summary>
+        private static EmailSettings GetEmailSettingsOrThrow(DBWS_Application application)
+        {
+            return application.GetEmailSettings()
+                ?? throw new ApilaneException(AppErrors.ERROR, "Missing application email settings. Please navigate to the portal to the application's Email section.");
+        }
+
+        /// <summary>
+        /// The rate limiter keeps the address it is asked about for good, and the address comes from whoever asks,
+        /// so one that is longer than an address can be is refused before it gets there.
+        /// </summary>
+        private static bool IsValidEmail(string email)
+        {
+            return email.Length <= Globals.MaxEmailLength && Utils.IsValidEmail(email);
         }
 
         public Task<List<EmailTemplateDto>> GetEmailsAsync(string appToken, long? templateId = null)

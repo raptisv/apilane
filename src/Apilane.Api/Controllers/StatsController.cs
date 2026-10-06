@@ -29,7 +29,7 @@ namespace Apilane.Api.Controllers
         /// <param name="entity">The entity name</param>
         /// <param name="properties">Accepts any property that the user has access to</param>
         /// <param name="pageIndex">Default value 1. Used for data paging</param>
-        /// <param name="pageSize">Default value 20. Range 0-1000. Used for data paging</param>
+        /// <param name="pageSize">Default value 20. Range 1-1000, a value outside it is replaced by 1000. Used for data paging</param>
         /// <param name="filter">Default value NULL. Used for data fitlering</param>
         /// <param name="orderDirection">Default value DESC. Used for data sort direction. Accepted values "ASC", "DESC"</param>
         /// <param name="groupBy">Default value NULL. Used for data grouping</param>

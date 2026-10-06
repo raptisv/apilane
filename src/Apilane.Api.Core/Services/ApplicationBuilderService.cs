@@ -421,6 +421,13 @@ namespace Apilane.Api.Core.Services
                 }
             }
 
+            // The records came with their IDs: once per batch, let the table's ID generator move past them,
+            // or the first record the application creates itself would collide with an imported one.
+            if (data.Count > 0)
+            {
+                await _applicationDataStoreFactory.SyncIdSequenceAsync(entity.Name);
+            }
+
             return result;
         }
 

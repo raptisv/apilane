@@ -50,10 +50,7 @@ namespace Apilane.Api.Core
                 pageIndex = 1;
             }
 
-            if (pageSize < 0 || pageSize > 1000)
-            {
-                pageSize = 1000;
-            }
+            pageSize = Utils.GetPageSize(pageSize);
 
             var userSecurity = userHasFullAccess
                 ? EntityAccess.GetFull(entity.Name, entity.Properties, SecurityActionType.get)

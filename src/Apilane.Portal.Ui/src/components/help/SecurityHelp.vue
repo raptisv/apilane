@@ -72,7 +72,7 @@ import HelpSheet from '@/components/HelpSheet.vue'
       <p>
         Two ways to start a reset, both of which send the user an e-mail with a link. The page is ready-made: send users to
         it from your sign-in screen. The endpoint is for your own screen: call it with the user's address. Both need the
-        mail server on the Email tab.
+        mail server on the Email tab, and both share one e-mail per address every 5 minutes.
       </p>
     </HelpItem>
 

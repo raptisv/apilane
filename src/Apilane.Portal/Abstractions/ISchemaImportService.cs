@@ -9,8 +9,9 @@ namespace Apilane.Portal.Abstractions
     /// applications the caller owns or collaborates on.
     /// The import keeps the rules of the older Import schema page and not those of the entity,
     /// property, constraint, security and custom endpoint services: what the application already
-    /// has is skipped with a warning or, when it differs, stops the import; nothing else is
-    /// checked besides the names and types of what is new. That is why it writes through the
+    /// has is skipped with a warning or, when it differs, stops the import; besides the names
+    /// and types of what is new, only the security rules are checked, as the security service
+    /// checks them (SecurityRuleChecks). That is why it writes through the
     /// API server client and the database itself instead of calling those services, which would
     /// also reset the API server's cache after every single item.
     /// </summary>

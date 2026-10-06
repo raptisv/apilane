@@ -1,6 +1,7 @@
 ﻿using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
 using Apilane.Common.Utilities;
+using Apilane.Api.Extensions;
 using Apilane.Api.Services;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Data.SqlClient;
@@ -79,7 +80,7 @@ namespace Apilane.Api.Filters
                 ["apptoken"] = queryService.AppToken,
                 ["controller"] = queryService.RouteController,
                 ["action"] = queryService.RouteAction,
-                ["parameters"] = string.Join(Environment.NewLine, queryService.UriParams),
+                ["parameters"] = string.Join(Environment.NewLine, queryService.GetUriParamsForLog()),
                 ["entity"] = entityOrEndpoint,
                 ["ip"] = queryService.IPAddress,
                 ["status_code"] = (int)statusCode,

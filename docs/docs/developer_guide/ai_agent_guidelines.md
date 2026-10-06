@@ -15,8 +15,8 @@ This project uses the Apilane SDK for backend operations. Apilane is a backend-a
 
 - Check every result before you use its value (`HasError` / `isError`).
 - Update with only `ID` and the properties that change, never with a whole typed object.
-- Property names are case-sensitive when you write: copy them exactly from the schema (`ID`, not `Id`).
-- A list call returns 20 records unless you set a page size (maximum 1000): page through the rest.
+- Property names are matched without regard to case when you write, but copy them exactly from the schema (`ID`, `Price`) and send each property once: the same property under two spellings (`Price` and `price`) is refused with `VALIDATION`.
+- A list call returns 20 records unless you set a page size (1 to 1000, anything else becomes 1000): page through the rest.
 - Roles decide what a caller may do. `UNAUTHORIZED`, or less data than you expected, usually means the role has no rule for it, not that the call is wrong.
 - Use the Files calls for files, `AccountRegisterAsync` / `accountRegister` to create users, and a transaction for work that must succeed or fail as one.
 - Never hardcode an auth token. The application token is not a secret (every client sends it), so the role rules are what protect the data.
@@ -150,7 +150,7 @@ Every error has `Code`, `Message`, `Property` and `Entity` (`Property` names the
 
 When updating records, send ONLY the `ID` and the properties being changed. NEVER send a full typed object — unset properties will overwrite existing values with their type defaults (`null`, `0`, `false`, empty string).
 
-What the server does with an update: only the properties present in the body are written, and a property sent as `null` is cleared. Names must have exactly the case of the schema: `id` instead of `ID` gives `NO_ID_PROVIDED`, and `price` instead of `Price` does not fail but clears the `Price` column. System properties (`ID`, `Owner`, `Created`) and properties the caller's role may not write are dropped without an error; if none is left the answer is `NO_PROPERTIES_PROVIDED`, and a body without `ID` gives `NO_ID_PROVIDED`. The answer is the number of rows changed (`0` when nothing matched or the record is not visible to the caller). The body can also be an array of such objects to update several records; that is not atomic, use a transaction when it must be.
+What the server does with an update: only the properties present in the body are written, and a property sent as `null` is cleared. Names are matched without regard to case (`id` selects the record, `price` writes `Price`), but a property sent twice with different capitals (`Price` and `price`) is refused with `VALIDATION`, naming it, and that object is not changed. System properties (`ID`, `Owner`, `Created`) and properties the caller's role may not write are dropped without an error; if none is left the answer is `NO_PROPERTIES_PROVIDED`, and a body without `ID` gives `NO_ID_PROVIDED`. The answer is the number of rows changed (`0` when nothing matched or the record is not visible to the caller). The body can also be an array of such objects to update several records; that is not atomic, use a transaction when it must be.
 
 **.NET:**
 ```csharp
@@ -210,7 +210,7 @@ await apilane.AccountUpdateAsync<AppUser>(
 
 - Use anonymous objects (.NET) or plain objects (JS) for POST operations
 - System properties (`ID`, `Owner`, `Created`) are set by the server — do NOT include them. If they are sent they are ignored without an error. `Created` is a Unix timestamp in milliseconds (UTC); `Owner` is the ID of the caller (empty for an anonymous caller)
-- Property names must match the schema exactly, including case: a name that does not match is not stored
+- Property names are matched without regard to case, and a name that is not a property of the entity is ignored (not stored, no error): copy the names from the schema, and send each property once (`Title` and `title` together are refused with `VALIDATION`)
 - Date properties take a Unix timestamp (seconds or milliseconds) or `yyyy-MM-dd`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd HH:mm:ss.fff`, and are returned as Unix milliseconds (`ToUnixTimestampMilliseconds()` / `UnixTimestampToDatetime()` in .NET, `dateToUnixTimestampMilliseconds()` / `unixTimestampToDate()` in JS)
 - The response returns an array of created IDs
 - The body can be an array of objects to create several records; the answer lists all new IDs. The records are created one by one and NOT atomically (those created before a failing one stay): use a transaction when it must be all or nothing
@@ -236,7 +236,7 @@ const newId = result.value[0];
 
 ### Data Retrieval
 
-- ALWAYS set `.WithPageSize()` / `.withPageSize()` — a list call returns one page: `pageIndex` starts at 1, the default `pageSize` is 20 and the maximum is 1000 (a larger or negative size silently becomes 1000). Without a page size you get only the first 20 records, not all of them: page with `.WithPageIndex(n)` until a page comes back shorter than the size
+- ALWAYS set `.WithPageSize()` / `.withPageSize()` — a list call returns one page: `pageIndex` starts at 1, the default `pageSize` is 20 and the maximum is 1000 (a size below 1, `0` included, or above 1000 silently becomes 1000, and `0` does not mean "all"). Without a page size you get only the first 20 records, not all of them: page with `.WithPageIndex(n)` until a page comes back shorter than the size
 - Use `.WithProperties()` / `.withProperties()` to select only needed columns — reduces bandwidth. `ID` is always returned; a property the caller may not read is left out without an error, but filtering or sorting on it fails with `INVALID_FILTER_PARAMETER` / `INVALID_SORT_PARAMETER`
 - Use `.WithFilter()` / `.withFilter()` to filter server-side — never fetch all and filter in memory
 - Without `.WithSort()` / `.withSort()` the entity's default sorting (set in the Portal) applies
@@ -324,7 +324,7 @@ const entries = history.value.Data;
 ```
 
 - Requires `get` access to the entity — only properties granted by that security are included in each snapshot
-- Default page size is 10 and the maximum 1000; always set `.WithPageSize()` / `.withPageSize()` explicitly for predictable paging
+- Default page size is 10 and the maximum 1000 (a size below 1 or above 1000 becomes 1000); always set `.WithPageSize()` / `.withPageSize()` explicitly for predictable paging
 - **Deleting a record captures a final snapshot.** When change tracking is enabled, deleting a record stores one last snapshot of its values before removal (in addition to retaining prior history)
 - **History is resolved through the live record.** Once the record is deleted, this endpoint returns a `NOT_FOUND` error — the underlying history rows (including the final pre-deletion snapshot) are retained in the database but are no longer readable here (an admin can purge them from the Portal). The same `NOT_FOUND` is returned when the record exists but the caller's rule does not cover it (for example 'own records only'). An entity that never had change tracking returns an empty list (`Total` 0)
 
@@ -425,7 +425,7 @@ const login = await apilane.accountLogin(
 - Register works only while the application setting 'Allow new users to register' is on, otherwise it answers `ERROR`. The body needs `Email`, `Username` and `Password` and may carry the other properties of `Users` (in .NET pass your own class that implements `IRegisterItem`: its extra properties are sent too). `Roles` cannot be set at registration
 - Registration sends the confirmation email when that email template is active, which needs the application's SMTP settings. Sign-in with an unconfirmed email fails with `UNCONFIRMED_EMAIL` unless 'Allow users with an unconfirmed email to sign in' is on. A new confirmation email is requested with `GET /api/Email/RequestConfirmation?email=...`: one request per address per 5 minutes, and it answers OK even for an unknown address. The SDKs only build that address: `UrlFor_Email_RequestConfirmation(email)` / `urlForEmailRequestConfirmation(email)`
 - Sign-in takes `Email` or `Username` plus `Password` (`Email` wins when both are sent). A wrong password and an unknown user both answer `ERROR`, 'Invalid login attempt'
-- Forgot password: send the user to the page the application hosts (`UrlFor_Account_Manage_ForgotPassword()` / `urlForAccountManageForgotPassword()`) or call `GET /api/Email/ForgotPassword?email=...` (`UrlFor_Email_ForgotPassword(email)` / `urlForEmailForgotPassword(email)`, same limit of one request per address per 5 minutes). Both need the SMTP settings
+- Forgot password: send the user to the page the application hosts (`UrlFor_Account_Manage_ForgotPassword()` / `urlForAccountManageForgotPassword()`) or call `GET /api/Email/ForgotPassword?email=...` (`UrlFor_Email_ForgotPassword(email)` / `urlForEmailForgotPassword(email)`, the page and the call share one limit of one request per address per 5 minutes). Both need the SMTP settings
 - Sign out with `AccountLogoutAsync(AccountLogoutRequest.New(false).WithAuthToken(token))` / `accountLogout(AccountLogoutRequest.new().withAuthToken(token))`; pass `true` (`AccountLogoutRequest.New(true)` / `AccountLogoutRequest.new(true)`) to sign the user out of every client
 
 ---
@@ -772,7 +772,7 @@ For another language, or for what the SDKs do not wrap (`PUT /api/Account/Change
 | Selecting all properties | Excess bandwidth | Use `.WithProperties()` with only needed columns |
 | Filtering in memory | Fetches too much data from DB | Use `.WithFilter()` for server-side filtering |
 | Including system props in POST body | Silently ignored, the server sets them | Never send `ID`, `Owner`, `Created` on create |
-| Property names with the wrong case in POST/PUT | The value is not stored (POST) or the column is set to NULL (PUT) | Copy names exactly from the schema (`ID`, not `Id`) |
+| The same property twice in a POST/PUT body with different case (`Price` and `price`) | The body is refused with `VALIDATION` naming the property (a single wrong-case name still works) | Copy names exactly from the schema (`ID`, `Price`) and send each property once |
 | Hardcoding auth tokens | Security risk, breaks on expiry | Resolve from session/context/storage at runtime |
 | Treating `UNAUTHORIZED` as 'wrong password' | It means the role has no rule, or the token is unknown or expired | Check the role rules, then sign in again |
 | Branching on HTTP 404 / 429 | Never happens: every error except `UNAUTHORIZED` is HTTP 400 | Branch on `Code` |

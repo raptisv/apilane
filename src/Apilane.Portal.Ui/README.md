@@ -590,13 +590,12 @@ For the owner. The default is what the code does today; say nothing and it stays
 | Collaborator e-mail letter case | Saved as typed; access needs an exact match. | Save the exact address of the matching account when sharing (`CollaboratorService.AddAsync`), or match without case everywhere. |
 | Rate limit | 30 calls per 60 seconds per IP address. | Other numbers. |
 | Agents | One key per agent, and an agent may do what a collaborator may, minus the refused calls. Left out on purpose: read-only keys, an expiry date, several keys per agent, re-issuing a key without deleting the agent, a rate limit on wrong keys, an MCP server. | Add the ones that turn out to be needed. |
-| Schema import: order of steps | Security rules before custom endpoints. | Swap them (`SchemaImportService.ImportAsync`), which would also allow checking imported rules with the rules service. |
 | Schema import: numbers in the payload | TypeID, Record and TimeWindowType are the stored numbers. | Names, like the rest of the API. |
 | Schema import: foreign-key order | A referenced entity must be listed before the entities that point to it. | Order them in `InForeignKeyOrder`. |
 | Stored sort direction that is neither asc nor desc | Shown as descending, although the API server sorts it ascending. | Show it as ascending. |
 | Dates of a new record | Pre-filled with the browser's local time, read as UTC by the API server. | Pre-fill in UTC. |
 | `{appToken}` as a parameter name of a custom endpoint | Accepted and works. | Refuse it with a 400. |
-| Security rules the API still accepts | 'Owned records only' where it has no effect, and a property listed twice in one rule. | Refuse both in `SecurityRulesService`. |
+| Security rules the API still accepts | 'Owned records only' where it has no effect, and a property listed twice in one rule; the schema import accepts them too. | Refuse both in `SecurityRuleChecks`, which the rules editor and the import share. |
 | Differentiation entity of a new application | Checked for length only; a bad name comes back as an API server error under the connection string. | Add the letters-only rule. |
 
 ---

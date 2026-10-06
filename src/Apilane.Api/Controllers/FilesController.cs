@@ -108,7 +108,7 @@ namespace Apilane.Api.Controllers
         ///  Use this endpoint to retrieve file records, not the files
         /// </summary>
         /// <param name="pageIndex">Default value 1. Used for data paging</param>
-        /// <param name="pageSize">Default value 20. Range 0-1000. Used for data paging</param>
+        /// <param name="pageSize">Default value 20. Range 1-1000, a value outside it is replaced by 1000. Used for data paging</param>
         /// <param name="properties">The entity properties to fetch, comma separated. Leave empty to fetch all properties. Use it to limit consumed bandwidth.</param>
         /// <param name="filter">Default value NULL. Used for data fitlering</param>
         /// <param name="sort">Default value NULL. Used for data sorting</param>

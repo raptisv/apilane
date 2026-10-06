@@ -484,14 +484,29 @@ namespace Apilane.Data.Repository
                 await ExecNQAsync($"SET IDENTITY_INSERT [{entityName}] ON;");
             }
 
-            var result = await ExecScalarAsync(insertCmd);
+            object? result;
 
-            if (allowInsertIdentity)
+            try
             {
-                await ExecNQAsync($"SET IDENTITY_INSERT [{entityName}] OFF;");
+                result = await ExecScalarAsync(insertCmd);
+            }
+            finally
+            {
+                // The setting belongs to the connection, which the repository keeps: a failed insert (e.g. a
+                // duplicate ID) must not leave it ON, or the next insert without an ID would fail.
+                if (allowInsertIdentity)
+                {
+                    await ExecNQAsync($"SET IDENTITY_INSERT [{entityName}] OFF;");
+                }
             }
 
             return Utils.GetNullLong(result);
+        }
+
+        public Task SyncIdSequenceAsync(string entityName)
+        {
+            // Nothing to do: the identity moves past an ID that was inserted with its value (IDENTITY_INSERT).
+            return Task.CompletedTask;
         }
 
         public async Task<long> DeleteDataAsync(string entityName, FilterData? filter)

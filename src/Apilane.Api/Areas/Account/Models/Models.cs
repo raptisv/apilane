@@ -1,4 +1,5 @@
-﻿using Apilane.Common.Attributes;
+﻿using Apilane.Common;
+using Apilane.Common.Attributes;
 using System.ComponentModel.DataAnnotations;
 
 namespace Apilane.Api.Areas.Account.Models
@@ -7,6 +8,7 @@ namespace Apilane.Api.Areas.Account.Models
     {
         [AttrRequired]
         [EmailAddress]
+        [StringLength(Globals.MaxEmailLength)]
         [Display(Name = "Email")]
         public string Email { get; set; } = null!;
     }

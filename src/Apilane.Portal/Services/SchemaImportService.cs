@@ -58,11 +58,15 @@ namespace Apilane.Portal.Services
 
             var source = await _applicationAccessService.GetApplicationWithEntitiesAsync(sourceAppToken);
 
+            var entities = MissingEntities(source, application);
+            var customEndpoints = MissingCustomEndpoints(source, application);
+
             return new SchemaImportRequest
             {
-                Entities = MissingEntities(source, application),
-                Security = MissingSecurityRules(source, application),
-                CustomEndpoints = MissingCustomEndpoints(source, application)
+                Entities = entities,
+                // The rules are checked against the application as importing this diff leaves it.
+                Security = MissingSecurityRules(source, application, ApplicationAfterImport(application, entities, customEndpoints)),
+                CustomEndpoints = customEndpoints
             };
         }
 
@@ -74,8 +78,12 @@ namespace Apilane.Portal.Services
             var security = request.Security ?? new List<SchemaImportSecurityRule>();
             var customEndpoints = request.CustomEndpoints ?? new List<SchemaImportCustomEndpoint>();
 
+            // What the application is once the entities and custom endpoints of the payload are in it:
+            // the security rules are checked against it and stored under the names it gives their items.
+            var imported = ApplicationAfterImport(application, entities, customEndpoints);
+
             // Before anything is applied.
-            ThrowIfNotValid(application, entities, security, customEndpoints);
+            ThrowIfNotValid(application, imported, entities, security, customEndpoints);
             ThrowIfSystemEntityConstraints(application, entities);
 
             // Also before anything is applied: 409 when rules are sent and the stored ones cannot be read.
@@ -88,7 +96,7 @@ namespace Apilane.Portal.Services
                 await ImportEntityAsync(application, entities[index], $"{nameof(SchemaImportRequest.Entities)}[{index}]", warnings);
             }
 
-            await ImportSecurityAsync(application, storedRules, security, warnings);
+            await ImportSecurityAsync(application, imported, storedRules, security, warnings);
             await ImportCustomEndpointsAsync(application, customEndpoints, warnings);
 
             // Once, and only when every step went through.
@@ -141,29 +149,67 @@ namespace Apilane.Portal.Services
             return result;
         }
 
-        // A rule the target has with other values is left out: importing it would stop the import.
-        private static List<SchemaImportSecurityRule> MissingSecurityRules(DBWS_Application source, DBWS_Application target)
+        /// <summary>
+        /// The rules of the source the target lacks, as the import accepts them: it checks every rule
+        /// against the target as the import leaves it (<paramref name="afterImport"/>), so a diff can be
+        /// posted back as it is. A rule whose item or action the target would not have is left out; so is
+        /// a property it would not have (the diff lists no custom property of Users or Files, and none
+        /// the target has in another letter case) from the list of the rule, as the Security tab leaves
+        /// it out of the rule it shows; and of two rules for the same cell the first wins, as there. A
+        /// rule the target has with other values is left out too: importing it would stop the import.
+        /// </summary>
+        private static List<SchemaImportSecurityRule> MissingSecurityRules(DBWS_Application source, DBWS_Application target, DBWS_Application afterImport)
         {
             var targetKeys = SchemaDiff.SecurityRules(target)
                 .Select(x => x.ToUniqueStringShort())
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            return SchemaDiff.SecurityRules(source)
-                .Where(x => SchemaDiff.SecurityItemExists(source, x, StringComparison.OrdinalIgnoreCase))
-                .Where(x => !targetKeys.Contains(x.ToUniqueStringShort()))
-                .Select(x => new SchemaImportSecurityRule
+            var offered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var result = new List<SchemaImportSecurityRule>();
+
+            foreach (var rule in SchemaDiff.SecurityRules(source))
+            {
+                if (!SchemaDiff.SecurityItemExists(source, rule, StringComparison.OrdinalIgnoreCase)
+                    || string.IsNullOrWhiteSpace(rule.RoleID)
+                    || string.IsNullOrWhiteSpace(rule.Action)
+                    || targetKeys.Contains(rule.ToUniqueStringShort()))
                 {
-                    Name = x.Name,
-                    TypeID = x.TypeID,
-                    RoleID = x.RoleID,
-                    Action = x.Action,
-                    Record = x.Record,
-                    Properties = x.Properties,
-                    RateLimit = x.RateLimit is null
+                    continue;
+                }
+
+                var item = new SchemaImportSecurityRule
+                {
+                    Name = rule.Name,
+                    TypeID = rule.TypeID,
+                    RoleID = rule.RoleID,
+                    Action = rule.Action,
+                    // The API server treats anything but Owned as all records.
+                    Record = rule.Record == (int)EndpointRecordAuthorization.Owned ? rule.Record : (int)EndpointRecordAuthorization.All,
+                    Properties = rule.Properties,
+                    RateLimit = rule.RateLimit is null
                         ? null
-                        : new SchemaImportRateLimit { MaxRequests = x.RateLimit.MaxRequests, TimeWindowType = x.RateLimit.TimeWindowType }
-                })
-                .ToList();
+                        : new SchemaImportRateLimit { MaxRequests = rule.RateLimit.MaxRequests, TimeWindowType = rule.RateLimit.TimeWindowType }
+                };
+
+                if (SecurityRuleItemError(afterImport, item, nameof(SchemaImportRequest.Security), out var entity) is not null
+                    || !offered.Add(rule.ToUniqueStringShort()))
+                {
+                    continue;
+                }
+
+                var allowed = entity is null ? new List<string>() : SecurityRuleChecks.AllowedProperties(afterImport, entity, item.Action.ToLowerInvariant());
+                var listed = rule.GetProperties();
+                var kept = listed.Where(x => allowed.Contains(x, StringComparer.Ordinal)).ToList();
+
+                if (kept.Count < listed.Count)
+                {
+                    item.Properties = string.Join(",", kept);
+                }
+
+                result.Add(item);
+            }
+
+            return result;
         }
 
         private static List<SchemaImportCustomEndpoint> MissingCustomEndpoints(DBWS_Application source, DBWS_Application target)
@@ -199,9 +245,14 @@ namespace Apilane.Portal.Services
         /// read (the foreign-key order of the entities is computed from it), and a name or type
         /// its own create endpoint would refuse for an entity, property or custom endpoint the
         /// application does not have yet. What it has is matched and skipped whatever its name.
+        /// A security rule is checked as PUT security/rules checks it, against the application
+        /// as the import leaves it (<paramref name="imported"/>, see <see cref="ApplicationAfterImport"/>):
+        /// the rules are applied after the entities, so an entity or a property of this same payload
+        /// can be named, and one that is neither in the payload nor in the application cannot.
         /// </summary>
         private static void ThrowIfNotValid(
             DBWS_Application application,
+            DBWS_Application imported,
             List<SchemaImportEntity> entities,
             List<SchemaImportSecurityRule> security,
             List<SchemaImportCustomEndpoint> customEndpoints)
@@ -281,13 +332,7 @@ namespace Apilane.Portal.Services
                 }
             }
 
-            for (var i = 0; i < security.Count; i++)
-            {
-                if (security[i] is null)
-                {
-                    errors.Add(Error($"{nameof(SchemaImportRequest.Security)}[{i}]", "Required"));
-                }
-            }
+            AddSecurityRuleErrors(errors, imported, security);
 
             for (var i = 0; i < customEndpoints.Count; i++)
             {
@@ -311,6 +356,85 @@ namespace Apilane.Portal.Services
             {
                 throw PortalException.Validation(errors);
             }
+        }
+
+        /// <summary>
+        /// The errors of the rules, in the order of the payload: for each rule the first problem that
+        /// PUT security/rules finds in it (<see cref="SecurityRuleChecks"/>); unlike PUT, the import
+        /// goes on to the next rule, as it lists every error of the payload. A second rule for the
+        /// same type, name, role and action is refused only when it has other values than the first:
+        /// PUT refuses any, while the import skips an identical one with a warning, as it does a rule
+        /// the application has.
+        /// </summary>
+        private static void AddSecurityRuleErrors(List<ErrorDetail> errors, DBWS_Application imported, List<SchemaImportSecurityRule> security)
+        {
+            var root = nameof(SchemaImportRequest.Security);
+
+            // Where the import would stop at the step of the second rule, with the entities already applied.
+            var firstOfEach = new Dictionary<string, (int Index, string Values)>(StringComparer.OrdinalIgnoreCase);
+
+            for (var i = 0; i < security.Count; i++)
+            {
+                var path = $"{root}[{i}]";
+
+                if (security[i] is null)
+                {
+                    errors.Add(Error(path, "Required"));
+                    continue;
+                }
+
+                var error = SecurityRuleError(imported, security[i], path);
+
+                if (error is not null)
+                {
+                    errors.Add(error);
+                    continue;
+                }
+
+                var stored = ToStored(imported, security[i]);
+
+                if (!firstOfEach.TryGetValue(stored.ToUniqueStringShort(), out var first))
+                {
+                    firstOfEach.Add(stored.ToUniqueStringShort(), (i, stored.ToUniqueStringLong()));
+                }
+                else if (!first.Values.Equals(stored.ToUniqueStringLong(), StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add(Error(path, $"Same type, name, role and action as {root}[{first.Index}], with other values"));
+                }
+            }
+        }
+
+        // The first problem of a rule, in the order PUT security/rules finds them.
+        private static ErrorDetail? SecurityRuleError(DBWS_Application imported, SchemaImportSecurityRule rule, string path)
+        {
+            return SecurityRuleItemError(imported, rule, path, out var entity)
+                ?? SecurityRuleChecks.CheckProperties(imported, entity, rule.Action.ToLowerInvariant(), ToStored(imported, rule).GetProperties(), path);
+        }
+
+        // What comes before the properties: the type, the item, the role, the action and the record. The
+        // type and the record are numbers here and names in the rules editor: their messages say so. The
+        // name of an item is matched whatever its letter case, as the API server matches it, as the diff
+        // offers a rule and as the import matches an entity everywhere else; the rule is stored under the
+        // spelling the item has (see ToStored).
+        private static ErrorDetail? SecurityRuleItemError(DBWS_Application imported, SchemaImportSecurityRule rule, string path, out DBWS_Entity? entity)
+        {
+            entity = null;
+
+            if (!Enum.IsDefined(typeof(SecurityTypes), rule.TypeID))
+            {
+                return Error($"{path}.{nameof(SchemaImportSecurityRule.TypeID)}", "Must be 0 (Entity), 1 (CustomEndpoint) or 2 (Schema)");
+            }
+
+            var error = SecurityRuleChecks.CheckItem(imported, (SecurityTypes)rule.TypeID, rule.Name, rule.RoleID, rule.Action.ToLowerInvariant(), path, StringComparison.OrdinalIgnoreCase, out entity);
+
+            if (error is not null)
+            {
+                return error;
+            }
+
+            return Enum.IsDefined(typeof(EndpointRecordAuthorization), rule.Record)
+                ? null
+                : Error($"{path}.{nameof(SchemaImportSecurityRule.Record)}", "Must be 0 (All) or 1 (Owned)");
         }
 
         // The rule of PUT constraints: without it the import would be a way around its 403.
@@ -567,11 +691,12 @@ namespace Apilane.Portal.Services
 
         /// <summary>
         /// Appends the rules the application does not have to <paramref name="rules"/>, the stored
-        /// ones. Unlike PUT security/rules, only the rate limit of a rule is checked (by the
-        /// request contract): its entity or custom endpoint may be part of this same import, or
-        /// may not exist at all, and the stored rules are kept exactly as they are.
+        /// ones. The rules were checked before the first step (<see cref="ThrowIfNotValid"/>) and
+        /// are stored as sent but for the name of their item (see ToStored), not
+        /// cleaned up as PUT security/rules does (the action is not turned to lower case, for one);
+        /// the stored rules are kept exactly as they are.
         /// </summary>
-        private async Task ImportSecurityAsync(DBWS_Application application, List<DBWS_Security> rules, List<SchemaImportSecurityRule> items, List<string> warnings)
+        private async Task ImportSecurityAsync(DBWS_Application application, DBWS_Application imported, List<DBWS_Security> rules, List<SchemaImportSecurityRule> items, List<string> warnings)
         {
             if (items.Count == 0)
             {
@@ -582,7 +707,7 @@ namespace Apilane.Portal.Services
 
             for (var i = 0; i < items.Count; i++)
             {
-                var item = ToStored(items[i]);
+                var item = ToStored(imported, items[i]);
 
                 var existing = rules.FirstOrDefault(x => x.ToUniqueStringShort().Equals(item.ToUniqueStringShort(), StringComparison.OrdinalIgnoreCase));
 
@@ -670,6 +795,12 @@ namespace Apilane.Portal.Services
         /// </summary>
         private static bool ComesWithNewEntity(DBWS_Application application, SchemaImportEntity entity, string propertyName)
         {
+            return SystemPropertyNames(application, entity).Contains(propertyName, StringComparer.OrdinalIgnoreCase);
+        }
+
+        // The properties the API server gives a new entity by itself.
+        private static List<string> SystemPropertyNames(DBWS_Application application, SchemaImportEntity entity)
+        {
             var names = new List<string> { Globals.PrimaryKeyColumn, Globals.OwnerColumn, Globals.CreatedColumn };
 
             if (entity.HasDifferentiationProperty && !string.IsNullOrWhiteSpace(application.DifferentiationEntity))
@@ -677,7 +808,79 @@ namespace Apilane.Portal.Services
                 names.Add(application.DifferentiationEntity.GetDifferentiationPropertyName());
             }
 
-            return names.Contains(propertyName, StringComparer.OrdinalIgnoreCase);
+            return names;
+        }
+
+        /// <summary>
+        /// A copy of the application as the import leaves it, for the checks of the security rules
+        /// to read: its entities, properties and custom endpoints, and the ones of the payload it
+        /// does not have yet, matched as the steps match them. A copy, because the context tracks
+        /// the application and must not see an entity that no step has created.
+        /// </summary>
+        private static DBWS_Application ApplicationAfterImport(
+            DBWS_Application application,
+            List<SchemaImportEntity> entities,
+            List<SchemaImportCustomEndpoint> customEndpoints)
+        {
+            var imported = new DBWS_Application
+            {
+                DifferentiationEntity = application.DifferentiationEntity,
+                Entities = application.Entities
+                    .Select(x => new DBWS_Entity
+                    {
+                        Name = x.Name,
+                        IsReadOnly = x.IsReadOnly,
+                        IsSystem = x.IsSystem,
+                        HasDifferentiationProperty = x.HasDifferentiationProperty,
+                        Properties = x.Properties
+                            .Select(p => new DBWS_EntityProperty { ID = p.ID, Name = p.Name, IsSystem = p.IsSystem, IsPrimaryKey = p.IsPrimaryKey })
+                            .ToList()
+                    })
+                    .ToList(),
+                CustomEndpoints = application.CustomEndpoints
+                    .Select(x => new DBWS_CustomEndpoint { Name = Utils.GetString(x.Name) })
+                    .ToList()
+            };
+
+            // A null item is reported by its own check.
+            foreach (var item in entities.Where(x => x is not null))
+            {
+                var entity = FindEntity(imported, item.Name);
+
+                if (entity is null)
+                {
+                    entity = new DBWS_Entity
+                    {
+                        Name = item.Name,
+                        HasDifferentiationProperty = item.HasDifferentiationProperty,
+                        Properties = SystemPropertyNames(imported, item)
+                            .Select(x => new DBWS_EntityProperty { Name = x, IsSystem = true, IsPrimaryKey = x == Globals.PrimaryKeyColumn })
+                            .ToList()
+                    };
+
+                    imported.Entities.Add(entity);
+                }
+
+                foreach (var property in (item.Properties ?? new List<SchemaImportProperty>()).Where(x => x is not null))
+                {
+                    if (FindProperty(entity, property.Name) is null)
+                    {
+                        entity.Properties.Add(new DBWS_EntityProperty { Name = property.Name });
+                    }
+                }
+            }
+
+            foreach (var item in customEndpoints.Where(x => x is not null))
+            {
+                var name = Utils.GetString(item.Name);
+
+                if (!HasCustomEndpoint(imported, name))
+                {
+                    imported.CustomEndpoints.Add(new DBWS_CustomEndpoint { Name = name });
+                }
+            }
+
+            return imported;
         }
 
         // What POST entities says about the name of a new entity; null when it is fine.
@@ -730,11 +933,24 @@ namespace Apilane.Portal.Services
             return new EntityConstraint { IsSystem = item.IsSystem, TypeID = item.TypeID, Properties = item.Properties };
         }
 
-        private static DBWS_Security ToStored(SchemaImportSecurityRule item)
+        /// <summary>
+        /// The rule as it is stored, for a rule that passed its checks: under the spelling its item
+        /// has in <paramref name="imported"/>. The API server matches the name of a rule whatever its
+        /// letter case, but the Security tab shows only the rules that spell it as the item does, and
+        /// its next save deletes the others: a rule it does not show is a grant nobody sees.
+        /// </summary>
+        private static DBWS_Security ToStored(DBWS_Application imported, SchemaImportSecurityRule item)
         {
+            var name = (SecurityTypes)item.TypeID switch
+            {
+                SecurityTypes.Entity => SecurityRuleChecks.FindEntity(imported, item.Name, StringComparison.OrdinalIgnoreCase)?.Name,
+                SecurityTypes.CustomEndpoint => SecurityRuleChecks.FindCustomEndpoint(imported, item.Name, StringComparison.OrdinalIgnoreCase)?.Name,
+                _ => Globals.SCHEMA
+            };
+
             return new DBWS_Security
             {
-                Name = item.Name,
+                Name = name ?? item.Name,
                 TypeID = item.TypeID,
                 RoleID = item.RoleID,
                 Action = item.Action,

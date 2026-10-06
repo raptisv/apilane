@@ -40,6 +40,12 @@ const codeClass = 'rounded-sm bg-muted px-1 font-mono text-xs text-foreground'
           Security rules are identified by <code :class="codeClass">TypeID + Name + RoleID + Action</code>. Identical entries
           are skipped; differing ones cause an error.
         </li>
+        <li>
+          Before anything is imported, each security rule is checked as on the Security tab: it must name an entity or custom
+          endpoint of this application or of the payload, an action that item offers, and properties it has (written
+          exactly). A rule that fails stops the import with its place, for example
+          <code :class="codeClass">Security[2].Action</code>, and nothing is applied.
+        </li>
       </ul>
     </HelpItem>
 

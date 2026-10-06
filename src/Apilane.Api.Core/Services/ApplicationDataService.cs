@@ -333,8 +333,9 @@ namespace Apilane.Api.Core.Services
                 // Update all properties except ID
                 List<DBWS_EntityProperty> properties = entity.Properties.Where(x => x.AllowEdit(differentiationEntity, entity.HasDifferentiationProperty)).ToList();
 
-                // If the user decided not to update all properties
-                properties = properties.Where(x => propertiesToUpdate.Select(y => y.ToLower().Trim()).Contains(x.Name.ToLower())).ToList();
+                // If the user decided not to update all properties. Names are matched the way GetPropertyValue reads
+                // the values (without regard to case): a name that selects a property but finds no value would write NULL.
+                properties = properties.Where(x => propertiesToUpdate.Contains(x.Name, StringComparer.OrdinalIgnoreCase)).ToList();
 
                 // Then get the properties that the user has access to
                 properties = GetAllowedProperties(properties, entity, Data_UserSecurity.Security);
@@ -343,6 +344,9 @@ namespace Apilane.Api.Core.Services
                 {
                     throw new ApilaneException(AppErrors.NO_PROPERTIES_PROVIDED, entity: entity.Name);
                 }
+
+                // Which record to update must be clear too: {"ID":5,"id":6} is not a guess to make
+                EnsureOneSpelling(entity, Globals.PrimaryKeyColumn, newObject);
 
                 long ID = Utils.GetLong(newObject.GetObjectProperty(Globals.PrimaryKeyColumn));
 
@@ -545,10 +549,13 @@ namespace Apilane.Api.Core.Services
                 return user.DifferentiationPropertyValue;
             }
 
-            // All other properties
+            // All other properties. The name is matched without regard to case, like every other name of the API:
+            // a value that is not found would be written as NULL, silently clearing the column.
+            EnsureOneSpelling(entity, property.Name, Object);
+
             foreach (KeyValuePair<string, JsonNode?> item in Object)
             {
-                if (item.Key.Equals(property.Name))
+                if (item.Key.Equals(property.Name, StringComparison.OrdinalIgnoreCase))
                 {
                     if (item.Value is null)
                     {
@@ -639,6 +646,20 @@ namespace Apilane.Api.Core.Services
             }
 
             return null;
+        }
+
+        // A body with a property under two spellings ({"Price":1,"price":2}) has no single value to write: one of the
+        // two would be dropped silently, so the body is refused before anything is written.
+        private static void EnsureOneSpelling(DBWS_Entity entity, string propertyName, JsonObject body)
+        {
+            if (body.Count(x => x.Key.Equals(propertyName, StringComparison.OrdinalIgnoreCase)) > 1)
+            {
+                throw new ApilaneException(
+                    AppErrors.VALIDATION,
+                    "The property is in the body more than once, spelled with different case. Send it once.",
+                    property: propertyName,
+                    entity: entity.Name);
+            }
         }
 
         public List<DBWS_EntityProperty> GetEntityNotAllowedProperties(DBWS_Entity entity, List<DBWS_Security> data_UserSecurity)

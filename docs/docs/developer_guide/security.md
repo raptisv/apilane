@@ -57,7 +57,7 @@ The server resolves the secret from `x-auth-keyid`, recomputes the signature ove
 
 Because the secret is never sent, a logged or intercepted request cannot expose the token, and an intercepted request is only usable inside that short window. Requests are not numbered, so an intercepted request can be sent again until that window has passed. Both the .NET and JavaScript SDKs implement this via `.WithSigning(keyId, secret)` / `.withSigning(keyId, secret)` on any request. (File uploads cannot be signed and must use the bearer token.)
 
-A link that cannot set headers (for example a file in an `<img>`) may carry the token as the `authToken` query parameter instead. A URL is kept in logs, proxies and browser history, so use this only for such links and never for calls you make from code.
+A link that cannot set headers (for example a file in an `<img>`) may carry the token as the `authToken` query parameter instead. A URL is kept in logs, proxies and browser history, so use this only for such links and never for calls you make from code. The API server masks the value in its own log, but the access log of a reverse proxy in front of it keeps the whole address.
 
 ---
 
@@ -96,7 +96,7 @@ Use this setting to allow only specific IP addresses to access your application.
 
 ## Forgot password
 
-The **Forgot password** card shows two addresses that start a password reset: a ready-made page for your users (`{ServerUrl}/App/{appToken}/Account/Manage/ForgotPassword`) and the `Email/ForgotPassword` endpoint. Both send the Reset password [email](email_templates.md) and need the SMTP settings. The card has nothing to save.
+The **Forgot password** card shows two addresses that start a password reset: a ready-made page for your users (`{ServerUrl}/App/{appToken}/Account/Manage/ForgotPassword`) and the `Email/ForgotPassword` endpoint. Both send the Reset password [email](email_templates.md) and need the SMTP settings, and both share one limit of one email per address every 5 minutes. The card has nothing to save.
 
 ---
 

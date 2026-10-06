@@ -29,12 +29,15 @@ namespace Apilane.Portal.Api.V1
         /// property or constraint (IsNew false, with only what is missing). Security: the rules of
         /// entities and custom endpoints the source still has, when this application has no rule
         /// with the same type, name, role and action; a rule it has with other values is left
-        /// out, and Schema rules are never listed. CustomEndpoints: the ones this application has
-        /// no endpoint of that name for. All three lists are empty when nothing is missing. For
-        /// the owner and collaborators of both applications: answers 404 NOT_FOUND when the caller
-        /// cannot see the source, 400 VALIDATION on Source when it is this application, and 409
-        /// CONFLICT when the stored security rules of either application cannot be read. Nothing
-        /// is changed and the API server is not called.
+        /// out, and Schema rules are never listed. Each rule is what the import accepts for this
+        /// application as the import leaves it: a rule whose action its item does not offer is
+        /// left out, and so is a property the application would lack (a custom property of Users,
+        /// which Entities does not list) from the Properties of a rule. CustomEndpoints: the ones
+        /// this application has no endpoint of that name for. All three lists are empty when
+        /// nothing is missing. For the owner and collaborators of both applications: answers 404
+        /// NOT_FOUND when the caller cannot see the source, 400 VALIDATION on Source when it is
+        /// this application, and 409 CONFLICT when the stored security rules of either
+        /// application cannot be read. Nothing is changed and the API server is not called.
         /// </summary>
         [HttpGet("diff")]
         [ProducesResponseType(typeof(SchemaImportRequest), StatusCodes.Status200OK)]
@@ -68,15 +71,21 @@ namespace Apilane.Portal.Api.V1
         /// list item, a foreign key that is not 'Property,Entity[,ON_DELETE_x]', a rate limit
         /// with MaxRequests below 1 or a TimeWindowType other than 0 to 3, the name of a new
         /// entity, property or custom endpoint that its own create endpoint would refuse, a new
-        /// property with an unknown TypeID. Nothing else is checked: the values of a new property
-        /// go to the API server as sent, and security rules are stored as sent, for entities,
-        /// endpoints or roles that may not exist. Before anything is applied too: 403 FORBIDDEN
-        /// when a caller who is not an administrator lists a constraint for a system entity
-        /// (Users, Files), and 409 CONFLICT when the body has security rules and the stored ones
-        /// cannot be read. A refusal of the API server is 400 VALIDATION with its message and the
-        /// item it was for, any other failure of it 502 UPSTREAM_ERROR. For the owner and
-        /// collaborators. A 'Warning' response header means the import went through and the API
-        /// server could not be refreshed afterwards.
+        /// property with an unknown TypeID, and every security rule that PUT security/rules would
+        /// refuse, one error for each rule with its place (Security[2].Action): a TypeID other than
+        /// 0 to 2, a Record other than 0 or 1, a Name that is neither an entity nor a custom
+        /// endpoint that the application or the body has (whatever its letter case; Schema for
+        /// TypeID 2), an Action the item does not offer, a property the item does not have for that
+        /// action (property names are matched exactly), a second rule for the same type, name,
+        /// role and action that has other values than the first. Nothing else is checked: the
+        /// values of a new property go to the API server as sent, and a security rule is stored as
+        /// sent, with any role, but under the name its entity or custom endpoint has. Before
+        /// anything is applied too: 403 FORBIDDEN when a caller who is not an administrator lists
+        /// a constraint for a system entity (Users, Files), and 409 CONFLICT when the body has
+        /// security rules and the stored ones cannot be read. A refusal of the API server is 400
+        /// VALIDATION with its message and the item it was for, any other failure of it 502
+        /// UPSTREAM_ERROR. For the owner and collaborators. A 'Warning' response header means the
+        /// import went through and the API server could not be refreshed afterwards.
         /// </summary>
         [HttpPost]
         [ProducesCacheResetWarning]

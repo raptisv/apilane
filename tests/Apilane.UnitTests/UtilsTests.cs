@@ -312,5 +312,34 @@ namespace Apilane.UnitTests
             var date = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc);
             Assert.AreEqual(1609459200000L, Utils.GetUnixTimestampMilliseconds(date));
         }
+
+        // ─── GetPageSize ───────────────────────────────────────────────────────
+
+        [TestMethod]
+        [DataRow(1, 1)]
+        [DataRow(20, 20)]
+        [DataRow(1000, 1000)]
+        public void GetPageSize_InRange_ReturnsTheSize(int pageSize, int expected)
+        {
+            Assert.AreEqual(expected, Utils.GetPageSize(pageSize));
+        }
+
+        [TestMethod]
+        [DataRow(0)]
+        [DataRow(-1)]
+        [DataRow(int.MinValue)]
+        [DataRow(1001)]
+        [DataRow(int.MaxValue)]
+        public void GetPageSize_OutOfRange_ReturnsTheMaximum(int pageSize)
+        {
+            // 0 is the one that matters: the data layer reads it as "no LIMIT"
+            Assert.AreEqual(Globals.MaxPageSize, Utils.GetPageSize(pageSize));
+        }
+
+        [TestMethod]
+        public void GetPageSize_Null_ReturnsTheMaximum()
+        {
+            Assert.AreEqual(Globals.MaxPageSize, Utils.GetPageSize(null));
+        }
     }
 }

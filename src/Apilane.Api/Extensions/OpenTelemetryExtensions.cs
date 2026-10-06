@@ -1,4 +1,5 @@
 ﻿using Apilane.Api.Core.Services.Metrics;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
@@ -112,6 +113,23 @@ namespace Apilane.Api.Extensions
             }
 
             return services;
+        }
+
+        /// <summary>
+        /// Serves the Prometheus scrape endpoint (/metrics), when metrics are enabled. Without metrics
+        /// <see cref="AddOpenTelemetry"/> registers no meter provider, the endpoint cannot be set up (asking
+        /// for the provider throws and the process does not start), and /metrics answers 404.
+        /// </summary>
+        public static IApplicationBuilder UseMetricsEndpoint(
+            this IApplicationBuilder app,
+            OpenTelemetryConfiguration config)
+        {
+            if (config.Metrics.Enabled)
+            {
+                app.UseOpenTelemetryPrometheusScrapingEndpoint(context => context.Request.Path == "/metrics");
+            }
+
+            return app;
         }
     }
 }

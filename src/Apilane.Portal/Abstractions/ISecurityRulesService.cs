@@ -7,7 +7,7 @@ namespace Apilane.Portal.Abstractions
     /// The security page of an application the caller owns or collaborates on, and the one place
     /// that reads, checks and writes DBWS_Application.Security. The stored JSON keeps the shape
     /// the API server reads. The one other writer is the schema import (ISchemaImportService),
-    /// which appends rules unchecked.
+    /// which appends rules after checking them with the same SecurityRuleChecks.
     /// </summary>
     public interface ISecurityRulesService
     {

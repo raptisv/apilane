@@ -356,11 +356,20 @@ namespace Apilane.Api.Core
                 }
             }
 
-            nonSystemProperties = nonSystemProperties.Where(x => propertiesRequestedToUpdate.Select(y => y.ToLower().Trim()).Contains(x.Name.ToLower())).ToList();
+            // Names are matched the way GetPropertyValue reads the values (without regard to case): a name that
+            // selects a property but finds no value would write NULL.
+            nonSystemProperties = nonSystemProperties.Where(x => propertiesRequestedToUpdate.Contains(x.Name, StringComparer.OrdinalIgnoreCase)).ToList();
 
             if (nonSystemProperties.Count == 0)
             {
                 throw new ApilaneException(AppErrors.NO_PROPERTIES_PROVIDED, entity: nameof(Users));
+            }
+
+            // The values are read (and refused if invalid) before the history snapshot, so a refused body leaves nothing behind
+            var columnsAndValuesToUpdate = new Dictionary<string, object?>();
+            foreach (var nonSystemProperty in nonSystemProperties)
+            {
+                columnsAndValuesToUpdate[nonSystemProperty.Name] = _appDataService.GetPropertyValue(differentiationEntity, appEncryptionKey, usersEntity, nonSystemProperty, userJObject, currentUser);
             }
 
             if (usersEntity.RequireChangeTracking)
@@ -371,12 +380,6 @@ namespace Apilane.Api.Core
                 {
                     await _applicationHelperService.CreateHistoryAsync(usersEntity.Name, currentUser.ID, currentUser.ID, userData);
                 }
-            }
-
-            var columnsAndValuesToUpdate = new Dictionary<string, object?>();
-            foreach (var nonSystemProperty in nonSystemProperties)
-            {
-                columnsAndValuesToUpdate[nonSystemProperty.Name] = _appDataService.GetPropertyValue(differentiationEntity, appEncryptionKey, usersEntity, nonSystemProperty, userJObject, currentUser);
             }
 
             await _dataStore.UpdateDataAsync(
@@ -399,7 +402,8 @@ namespace Apilane.Api.Core
 
             if (userIdForToken is null)
             {
-                _logger.LogWarning($"Token not found | '{confirmationToken}'");
+                // Not the token: it is a one-time secret, and a near miss of a live token is still a lead
+                _logger.LogWarning("Email confirmation token not found or expired");
                 return null;
             }
 

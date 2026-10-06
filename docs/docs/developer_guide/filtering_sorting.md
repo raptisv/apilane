@@ -188,10 +188,9 @@ x-application-token: {appToken}
 | Parameter | Default | Range | Description |
 |---|---|---|---|
 | `pageIndex` | `1` | 1+ | The page number to retrieve. A smaller value is read as 1 |
-| `pageSize` | `20` | 1-1000 | Number of records per page. A value above 1000 or below 0 is read as 1000 |
+| `pageSize` | `20` | 1-1000 | Number of records per page. A value below 1 (`0` included) or above 1000 is read as 1000 |
 
-!!!warning "pageSize 0"
-    `pageSize=0` does not return an empty page: `Data/Get` and `Files/Get` then return every matching record, without the 1000 limit. Always send a page size from 1 to 1000.
+A single call never returns more than 1000 records. To read more, request the next `pageIndex` until a page comes back with fewer records than `pageSize`.
 
 ### Getting Total Count
 

@@ -101,7 +101,7 @@ Authorization: Bearer {authToken}
 
 ### Update User
 
-Update the authenticated user's custom properties. System properties (Email, Username, Password, Roles) cannot be updated from this endpoint. At least one custom property is required (`NO_PROPERTIES_PROVIDED`). Write the property names exactly as in the `Users` entity, capitals included: a name with other capitals is not read, so its column is set to `NULL`.
+Update the authenticated user's custom properties. System properties (Email, Username, Password, Roles) cannot be updated from this endpoint. At least one custom property is required (`NO_PROPERTIES_PROVIDED`). Property names are matched without regard to case (`nickname` writes `Nickname`), and a property that is in the body twice with different capitals (`Nickname` and `nickname`) is refused with `VALIDATION`, naming the property, before anything is written.
 
 ```
 PUT /api/Account/Update
@@ -184,7 +184,7 @@ x-application-token: {appToken}
 |---|---|---|---|
 | `entity` | Yes | — | Entity name |
 | `pageIndex` | No | `1` | Page number, from 1 (a lower value is replaced by 1) |
-| `pageSize` | No | `20` | Records per page, at most 1000 (a larger or negative value is replaced by 1000). `0` switches paging off and returns every record |
+| `pageSize` | No | `20` | Records per page, 1 to 1000 (a value below 1, `0` included, or above 1000 is replaced by 1000) |
 | `filter` | No | `null` | JSON [filter expression](developer_guide/filtering_sorting.md#filtering) |
 | `sort` | No | `null` | JSON [sort expression](developer_guide/filtering_sorting.md#sorting) |
 | `properties` | No | all | Comma-separated property names to return |
@@ -229,7 +229,7 @@ x-application-token: {appToken}
 | `entity` | Yes | — | Entity name |
 | `id` | Yes | — | Record ID |
 | `pageIndex` | No | `1` | Page number |
-| `pageSize` | No | `10` | Records per page, at most 1000 |
+| `pageSize` | No | `10` | Records per page, 1 to 1000 (a value below 1 or above 1000 is replaced by 1000) |
 
 **Response:**
 ```json
@@ -249,7 +249,7 @@ x-application-token: {appToken}
 Content-Type: application/json
 ```
 
-**Body** — a single object or array of objects. Property names are case-sensitive, and `ID`, `Owner` and `Created` are set by the server. An array is not atomic: when one object fails, the ones before it stay created. Use [Transaction](#transaction-grouped) when all must succeed or none.
+**Body** — a single object or array of objects. Property names are matched without regard to case (`title` writes `Title`), a property that is in an object twice with different capitals (`Title` and `title`) is refused with `VALIDATION` (that object is not created), and `ID`, `Owner` and `Created` are set by the server. An array is not atomic: when one object fails, the ones before it stay created. Use [Transaction](#transaction-grouped) when all must succeed or none.
 
 ```json
 { "Name": "Widget", "Price": 9.99 }
@@ -271,7 +271,7 @@ Content-Type: application/json
 { "ID": 1, "Price": 12.99 }
 ```
 
-Only the properties present are updated. Write property names, `ID` included, exactly as the entity does: they are case-sensitive, and a name with other capitals is not read, so its column is set to `NULL`. `ID` is required (`NO_ID_PROVIDED`).
+Only the properties present are updated. Property names, `ID` included, are matched without regard to case (`price` writes `Price`, `id` selects the record). A property or `ID` that is in the object twice with different capitals (`Price` and `price`) is refused with `VALIDATION`, naming it (that object is not changed). `ID` is required (`NO_ID_PROVIDED`).
 
 **Response:** Count of affected records.
 
@@ -455,7 +455,7 @@ x-application-token: {appToken}
 | `entity` | Yes | — | Entity name |
 | `properties` | Yes | — | Comma-separated `Property.Function` pairs (e.g., `Price.Sum,Price.Avg,ID.Count`) |
 | `pageIndex` | No | `1` | Page number |
-| `pageSize` | No | `20` | Records per page |
+| `pageSize` | No | `20` | Records per page, 1 to 1000 (a value below 1 or above 1000 is replaced by 1000) |
 | `filter` | No | `null` | JSON filter expression |
 | `groupBy` | No | `null` | Comma-separated properties to group by. A date property may take a `.year`, `.month`, `.day`, `.hour`, `.minute` or `.second` suffix (e.g., `Created.year`), returned as `Created_year`. Any other suffix returns `INVALID_GROUPBY_PARAMETER` |
 | `orderDirection` | No | `DESC` | Sort direction: `ASC` or `DESC` |

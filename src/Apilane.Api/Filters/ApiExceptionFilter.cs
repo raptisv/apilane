@@ -6,6 +6,7 @@ using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Utilities;
+using Apilane.Api.Extensions;
 using Apilane.Api.Models.ViewModels;
 using Apilane.Api.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -105,7 +106,7 @@ namespace Apilane.Api.Filters
                 {
                     ["controller"] = queryDataService.RouteController,
                     ["action"] = queryDataService.RouteAction,
-                    ["parameters"] = string.Join(Environment.NewLine, queryDataService.UriParams),
+                    ["parameters"] = string.Join(Environment.NewLine, queryDataService.GetUriParamsForLog()),
                     ["ip"] = queryDataService.IPAddress,
                 }))
                 {

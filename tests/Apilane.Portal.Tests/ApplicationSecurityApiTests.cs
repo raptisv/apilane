@@ -570,6 +570,35 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
+        public async Task Replace_Rules_With_Owned_Where_It_Has_No_Effect_Should_Store_Them()
+        {
+            var scene = await CreateSceneAsync();
+            ScriptApiServer();
+
+            // Owned has no effect for ANONYMOUS, for an entity without an owner (Users) and for a
+            // custom endpoint (Security in the developer guide). The grid shows such a rule and warns,
+            // the API keeps it: the schema import accepts the same rules.
+            var rules = new[]
+            {
+                Rule("Entity", "Orders", "ANONYMOUS", "get", "Owned"),
+                Rule("Entity", "Users", "AUTHENTICATED", "get", "Owned"),
+                Rule("CustomEndpoint", "Alpha", "ANONYMOUS", "get", "Owned")
+            };
+
+            var response = await scene.Owner.PutAsync(RulesUrl(scene), new { Rules = rules }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                new[]
+                {
+                    "Entity Orders ANONYMOUS get Owned [] -",
+                    "Entity Users AUTHENTICATED get Owned [] -",
+                    "CustomEndpoint Alpha ANONYMOUS get Owned [] -"
+                },
+                (await response.ReadJsonAsync<SecurityRulesResponse>()).Rules.Select(Describe));
+        }
+
+        [Fact]
         public async Task Replace_Rules_With_An_Empty_List_Should_Remove_Them_All()
         {
             var scene = await CreateSceneAsync();

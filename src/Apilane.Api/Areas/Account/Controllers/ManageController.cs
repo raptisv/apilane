@@ -1,4 +1,6 @@
 ﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Enums;
+using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Common;
 using Apilane.Common.Enums;
@@ -8,6 +10,7 @@ using Apilane.Data.Abstractions;
 using Apilane.Api.Areas.Account.Models;
 using Apilane.Api.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,19 +27,19 @@ namespace Apilane.Api.Areas.Account.Controllers
     public class ManageController : Controller
     {
         private readonly ILogger<ManageController> _logger;
-        private readonly IApplicationEmailService _appEmailService;
+        private readonly IEmailAPI _emailAPI;
         private readonly IApplicationHelperService _applicationHelperService;
         private readonly IApplicationDataStoreFactory _applicationDataStoreFactory;
         protected DBWS_Application Application = null!;
 
         public ManageController(
             ILogger<ManageController> logger,
-            IApplicationEmailService appEmailService,
+            IEmailAPI emailAPI,
             IApplicationHelperService applicationHelperService,
             IApplicationDataStoreFactory aplicationDataStoreFactory)
         {
             _logger = logger;
-            _appEmailService = appEmailService;
+            _emailAPI = emailAPI;
             _applicationHelperService = applicationHelperService;
             _applicationDataStoreFactory = aplicationDataStoreFactory;
         }
@@ -74,28 +77,26 @@ namespace Apilane.Api.Areas.Account.Controllers
             {
                 if (ModelState.IsValid)
                 {
-                    var userId = await GetUserIdByEmailAsync(model.Email);
-
-                    if (userId is not null)
-                    {
-                        var drUserThatAcceptsTheEmail = await GetUserByIdAsync(userId.Value);
-
-                        if (drUserThatAcceptsTheEmail is not null)
-                        {
-                            await _appEmailService.SendEmailFromApplicationAsync(
-                                    Application.Token,
-                                    Application.Server.ServerUrl,
-                                    Application.GetEmailSettings(),
-                                    EmailEventsCodes.UserForgotPassword,
-                                    drUserThatAcceptsTheEmail,
-                                    drUserThatAcceptsTheEmail);
-                        }
-                    }
+                    // The call of Email/ForgotPassword, so the page has its limit: one mail per address every
+                    // 5 minutes, shared with the API and taken before the user is looked up. Without it the
+                    // page could flood an address with mails.
+                    await _emailAPI.ForgotPasswordAsync(Application, model.Email);
 
                     // Don't reveal that the user does not exist or is not confirmed
 
                     return RedirectToAction("ForgotPasswordConfirmation", "Manage");
                 }
+            }
+            catch (ApilaneException ex) when (ex.Error == AppErrors.RATE_LIMIT_EXCEEDED)
+            {
+                // Said of any address, with or without an account, as the limit is taken before the lookup
+                Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                ModelState.AddModelError(string.Empty, "Too many requests. Please wait a few minutes before asking for another email.");
+            }
+            catch (ApilaneException ex) when (ex.Error == AppErrors.VALIDATION)
+            {
+                // What the checks of the view model let through and the API's own check refuses
+                ModelState.AddModelError(nameof(model.Email), ex.CustomMessage ?? "Invalid Email");
             }
             catch (Exception ex)
             {
@@ -204,7 +205,9 @@ namespace Apilane.Api.Areas.Account.Controllers
 			}
 		}
 
-		public async Task<long?> GetUserIdByEmailAsync(string userEmail)
+		// Private: a public method of a controller is an anonymous action (/App/{token}/Account/Manage/GetUserIdByEmail),
+		// and this one answers with the ID of the user of an address, and with nothing for an unknown one
+		private async Task<long?> GetUserIdByEmailAsync(string userEmail)
         {
             var result = await _applicationDataStoreFactory.GetPagedDataAsync(
                 nameof(Users),
@@ -213,17 +216,6 @@ namespace Apilane.Api.Areas.Account.Controllers
                 null, 1, 1);
 
             return result?.Count == 1 ? Utils.GetNullLong(result.Single()[nameof(Users.ID)]) : null;
-        }
-
-        private async Task<Dictionary<string, object?>?> GetUserByIdAsync(long userID)
-        {
-            var result = await _applicationDataStoreFactory.GetPagedDataAsync(
-                nameof(Users),
-                new List<string>() { nameof(Users.ID), nameof(Users.Username), nameof(Users.Email), nameof(Users.EmailConfirmed), nameof(Users.Roles), nameof(Users.Created), nameof(Users.LastLogin), nameof(Users.Password) },
-                new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, userID, PropertyType.Number),
-                null, 1, 1);
-
-            return result?.Count == 1 ? result.Single() : null;
         }
     }
 }

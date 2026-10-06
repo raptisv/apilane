@@ -139,6 +139,64 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
+        public async Task Diff_Should_Offer_The_Rules_As_The_Import_Accepts_Them_And_Be_Accepted_Posted_Back()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+
+            // Stale or hidden things the source keeps in its rules: a custom property of Users (the
+            // diff lists custom entities only, so the target would lack it), a property in another
+            // letter case, an action Users does not offer, two rules for one cell, a record scope
+            // that is no number the import knows.
+            var source = await scene.AddApplicationAsync("source", x =>
+            {
+                FillTarget(x);
+
+                x.Entities.Single(e => e.Name == "Users").Properties.Add(Stored("Nickname", PropertyType.String, p => p.Maximum = 50));
+                x.Security = SchemaScene.Security(
+                    SchemaScene.Rule(SecurityTypes.Entity, "Users", "AUTHENTICATED", "get", properties: "Email,Nickname"),
+                    SchemaScene.Rule(SecurityTypes.Entity, "Users", "ANONYMOUS", "get", properties: "Nickname"),
+                    SchemaScene.Rule(SecurityTypes.Entity, "Users", "admin", "post"),
+                    SchemaScene.Rule(SecurityTypes.Entity, "Customers", "AUTHENTICATED", "get", properties: "name,Name"),
+                    SchemaScene.Rule(SecurityTypes.Entity, "Customers", "editors", "get", properties: "Name"),
+                    SchemaScene.Rule(SecurityTypes.Entity, "Customers", "editors", "get"),
+                    SchemaScene.Rule(SecurityTypes.Entity, "Customers", "viewers", "get", (EndpointRecordAuthorization)5));
+            });
+            scene.ScriptApiServer();
+
+            var payload = await (await scene.Owner.GetAsync(DiffUrl(target, source))).Content.ReadAsStringAsync();
+            var diff = JsonSerializer.Deserialize<SchemaImportRequest>(payload) ?? throw new InvalidOperationException("No diff.");
+
+            // What the target would have after the import: no Nickname, no post on Users, the first of two
+            // rules for a cell, the property and the record scope as the Security tab shows them.
+            Assert.Empty(diff.Entities ?? new List<SchemaImportEntity>());
+            Assert.Equal(
+                new[]
+                {
+                    "0 Users AUTHENTICATED get 0 Email",
+                    "0 Users ANONYMOUS get 0 ",
+                    "0 Customers AUTHENTICATED get 0 Name",
+                    "0 Customers editors get 0 Name",
+                    "0 Customers viewers get 0 "
+                },
+                (diff.Security ?? new List<SchemaImportSecurityRule>()).Select(x => $"{x.TypeID} {x.Name} {x.RoleID} {x.Action} {x.Record} {x.Properties}"));
+
+            var response = await scene.Owner.PostAsync(ImportUrl(target), Json(payload));
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Empty((await response.ReadJsonAsync<SchemaImportResponse>()).Warnings);
+
+            var schema = await scene.StoredSchemaAsync(target);
+            Assert.Contains("{\"Name\":\"Users\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Email\",\"RateLimit\":null}", schema);
+            Assert.DoesNotContain("Nickname", schema);
+
+            // Nothing is left to offer.
+            Assert.Equal(
+                "{\"Entities\":[],\"Security\":[],\"CustomEndpoints\":[]}",
+                await (await scene.Owner.GetAsync(DiffUrl(target, source))).Content.ReadAsStringAsync());
+        }
+
+        [Fact]
         public async Task Diff_Should_List_Entities_And_Custom_Endpoints_In_The_Order_The_Source_Created_Them()
         {
             var scene = await SchemaScene.CreateAsync(_portal);
@@ -311,11 +369,12 @@ namespace Apilane.Portal.Tests
             Assert.Contains("endpoint GetCustomers |  | SELECT * FROM [Customers]", schema);
             Assert.Contains("endpoint TopOrders | The biggest orders | SELECT TOP {Top} * FROM [Orders]", schema);
 
-            // The rules it had stay first and as they were; the new ones follow.
+            // The rules it had stay first and as they were; the new ones follow. The source has the rule
+            // of Orders for 'orders': it is stored under the name the entity has.
             Assert.Contains(
                 "security [{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Name\",\"RateLimit\":null}," +
                 "{\"Name\":\"Orders\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"get\",\"Record\":1,\"Properties\":\"Code,Amount\",\"RateLimit\":{\"MaxRequests\":10,\"TimeWindowType\":2,\"TimeWindow\":\"00:01:00\"}}," +
-                "{\"Name\":\"orders\",\"TypeID\":0,\"RoleID\":\"admin\",\"Action\":\"post\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}," +
+                "{\"Name\":\"Orders\",\"TypeID\":0,\"RoleID\":\"admin\",\"Action\":\"post\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}," +
                 "{\"Name\":\"TopOrders\",\"TypeID\":1,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}]",
                 schema);
 
@@ -408,7 +467,7 @@ namespace Apilane.Portal.Tests
                     "Property 'OrderLines.Order_ID' already exists — skipped creation.",
                     "Constraint on entity 'OrderLines' (TypeID=2, Properties='Order_ID,Orders') already exists — skipped.",
                     "Security item 'Entity Orders - AUTHENTICATED get' already exists — skipped.",
-                    "Security item 'Entity orders - admin post' already exists — skipped.",
+                    "Security item 'Entity Orders - admin post' already exists — skipped.",
                     "Security item 'CustomEndpoint TopOrders - ANONYMOUS get' already exists — skipped.",
                     "Custom endpoint 'TopOrders' already exists — skipped creation."
                 },
@@ -974,7 +1033,7 @@ namespace Apilane.Portal.Tests
                 Security = new[]
                 {
                     new { Name = "Suppliers", TypeID = 0, RoleID = "ANONYMOUS", Action = "get", Record = 0, Properties = (string?)null },
-                    new { Name = "customers", TypeID = 0, RoleID = "anonymous", Action = "GET", Record = 0, Properties = (string?)"Name,Phone" }
+                    new { Name = "customers", TypeID = 0, RoleID = "anonymous", Action = "GET", Record = 0, Properties = (string?)"Name,Owner" }
                 },
                 CustomEndpoints = new[] { new { Name = "Never", Query = "SELECT 1" } }
             }.ToJsonContent());
@@ -982,8 +1041,8 @@ namespace Apilane.Portal.Tests
             await AssertStoppedAsync(
                 response,
                 "Security[1]",
-                "Security item 'Entity customers - anonymous GET' already exists with different configuration " +
-                "(existing: '0_Customers_ANONYMOUS_get_0_Name_', import: '0_customers_anonymous_GET_0_Name,Phone_').");
+                "Security item 'Entity Customers - anonymous GET' already exists with different configuration " +
+                "(existing: '0_Customers_ANONYMOUS_get_0_Name_', import: '0_Customers_anonymous_GET_0_Name,Owner_').");
 
             // The entity before it stays; no rule was stored, the custom endpoint after it was not reached, no cache reset.
             var schema = await scene.StoredSchemaAsync(target);
@@ -1282,6 +1341,453 @@ namespace Apilane.Portal.Tests
             await AssertNothingAppliedAsync(scene, target);
         }
 
+        // ---------- Import: security rules ----------
+
+        // What PUT security/rules refuses (ApplicationSecurityApiTests), the import refuses too: each
+        // rule in the payload of a new entity, a new custom endpoint and the rule, and nothing of it
+        // is applied. Its place is the field of the import (TypeID, Record), its message the editor's.
+        [Theory]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":3,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0}", "Security[0].TypeID: Must be 0 (Entity), 1 (CustomEndpoint) or 2 (Schema)")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":-1,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0}", "Security[0].TypeID: Must be 0 (Entity), 1 (CustomEndpoint) or 2 (Schema)")]
+        [InlineData("{\"Name\":\"Nothing\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0}", "Security[0].Name: The application has no entity 'Nothing'")]
+        [InlineData("{\"Name\":\"GetCustomers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0}", "Security[0].Name: The application has no entity 'GetCustomers'")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":1,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0}", "Security[0].Name: The application has no custom endpoint 'Customers'")]
+        [InlineData("{\"Name\":\"Everything\",\"TypeID\":2,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0}", "Security[0].Name: Must be Schema")]
+        [InlineData("{\"Name\":\"Schema\",\"TypeID\":2,\"RoleID\":\"X\",\"Action\":\"post\",\"Record\":0}", "Security[0].Action: Schema rules allow only get")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"patch\",\"Record\":0}", "Security[0].Action: Must be get, post, put or delete")]
+        [InlineData("{\"Name\":\"Users\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"post\",\"Record\":0}", "Security[0].Action: Users does not allow post")]
+        [InlineData("{\"Name\":\"GetCustomers\",\"TypeID\":1,\"RoleID\":\"X\",\"Action\":\"put\",\"Record\":0}", "Security[0].Action: GetCustomers does not allow put")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":5}", "Security[0].Record: Must be 0 (All) or 1 (Owned)")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":-1}", "Security[0].Record: Must be 0 (All) or 1 (Owned)")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Name,Nope\"}", "Security[0].Properties: 'Nope' is not a property a get rule of Customers can list")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"ID\"}", "Security[0].Properties: 'ID' is not a property a get rule of Customers can list")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"name\"}", "Security[0].Properties: 'name' is not a property a get rule of Customers can list")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Name, Created\"}", "Security[0].Properties: ' Created' is not a property a get rule of Customers can list")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"put\",\"Record\":0,\"Properties\":\"Owner\"}", "Security[0].Properties: 'Owner' is not a property a put rule of Customers can list")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"delete\",\"Record\":0,\"Properties\":\"Name\"}", "Security[0].Properties: 'Name' is not a property a delete rule of Customers can list")]
+        [InlineData("{\"Name\":\"Users\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Nope\"}", "Security[0].Properties: 'Nope' is not a property a get rule of Users can list")]
+        [InlineData("{\"Name\":\"GetCustomers\",\"TypeID\":1,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Name\"}", "Security[0].Properties: Only entity rules have properties")]
+        [InlineData("{\"Name\":\"Schema\",\"TypeID\":2,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Name\"}", "Security[0].Properties: Only entity rules have properties")]
+        // A new entity of the payload: its properties are the system ones and the ones the payload lists.
+        [InlineData("{\"Name\":\"Suppliers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Phone,Nope\"}", "Security[0].Properties: 'Nope' is not a property a get rule of Suppliers can list")]
+        [InlineData("{\"Name\":\"Suppliers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Name\"}", "Security[0].Properties: 'Name' is not a property a get rule of Suppliers can list")]
+        [InlineData("{\"Name\":\"Suppliers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"ID\"}", "Security[0].Properties: 'ID' is not a property a get rule of Suppliers can list")]
+        [InlineData("{\"Name\":\"Suppliers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"put\",\"Record\":0,\"Properties\":\"Created\"}", "Security[0].Properties: 'Created' is not a property a put rule of Suppliers can list")]
+        // One error for a rule, the first one in the order PUT security/rules checks them: type, name, role, action, record, properties.
+        [InlineData("{\"Name\":\"Nothing\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"patch\",\"Record\":5,\"Properties\":\"Nope\"}", "Security[0].Name: The application has no entity 'Nothing'")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"patch\",\"Record\":5,\"Properties\":\"Nope\"}", "Security[0].Action: Must be get, post, put or delete")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":5,\"Properties\":\"Nope\"}", "Security[0].Record: Must be 0 (All) or 1 (Owned)")]
+        public async Task Import_Security_Rule_The_Rules_Editor_Refuses_Should_Return_400_On_It_And_Apply_Nothing(string rule, string expected)
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            // The entity and the custom endpoint before and after the rule are fine: still not applied.
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[] { Entity("Suppliers", properties: new[] { Property("Phone", PropertyType.String) }) },
+                Security = new[] { JsonNode.Parse(rule) },
+                CustomEndpoints = new[] { new { Name = "Totals", Query = "SELECT 1" } }
+            }.ToJsonContent());
+
+            await SchemaScene.AssertValidationAsync(response, expected);
+            await AssertNothingAppliedAsync(scene, target);
+        }
+
+        [Fact]
+        public async Task Import_Several_Bad_Security_Rules_Should_Return_400_For_Each_With_The_Other_Errors_In_Order()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            // The first problem of each bad rule; the good rule between them is not mentioned.
+            var response = await scene.Owner.PostAsync(ImportUrl(target), Json(
+                "{\"Entities\":[{\"Name\":\"Suppliers\"},{\"Name\":\"Abc\"}]," +
+                "\"Security\":[{\"Name\":\"Nothing\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"patch\",\"Record\":5,\"Properties\":\"Nope\"}," +
+                "{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Name\"}," +
+                "{\"Name\":\"Schema\",\"TypeID\":2,\"RoleID\":\"X\",\"Action\":\"post\",\"Record\":0}]," +
+                "\"CustomEndpoints\":[{\"Name\":\"Get_Orders\",\"Query\":\"SELECT 1\"}]}"));
+
+            var error = await SchemaScene.AssertValidationAsync(
+                response,
+                "Entities[1].Name: Must be 4 to 30 characters",
+                "Security[0].Name: The application has no entity 'Nothing'",
+                "Security[2].Action: Schema rules allow only get",
+                "CustomEndpoints[0].Name: Letters a-z and A-Z only, at most 80 characters");
+
+            Assert.Equal(PortalApiErrors.ValidationMessage, error.Message);
+            await AssertNothingAppliedAsync(scene, target);
+        }
+
+        // The contract ([Required]) answers this before the checks of the rules are reached.
+        [Theory]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\" \",\"Action\":\"get\",\"Record\":0}")]
+        [InlineData("{\"Name\":\"Customers\",\"TypeID\":0,\"Action\":\"get\",\"Record\":0}")]
+        public async Task Import_Security_Rule_Without_A_Role_Should_Return_400_On_It_And_Apply_Nothing(string rule)
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[] { Entity("Suppliers") },
+                Security = new[] { JsonNode.Parse(rule) }
+            }.ToJsonContent());
+
+            await SchemaScene.AssertValidationAsync(response, "Security[0].RoleID: Required");
+            await AssertNothingAppliedAsync(scene, target);
+        }
+
+        [Fact]
+        public async Task Import_Security_Rules_For_What_The_Payload_Creates_And_What_The_Application_Has_Should_Be_Accepted()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            // Suppliers and Totals are new, Customers gets a Phone: the rules can name all of them.
+            var totals = SecurityRule("Totals", 1, "ANONYMOUS", "get");
+            totals["RateLimit"] = new { MaxRequests = 10, TimeWindowType = 2 };
+
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[]
+                {
+                    Entity("Suppliers", properties: new[] { Property("Phone", PropertyType.String) }),
+                    Entity("Customers", properties: new[] { Property("Phone", PropertyType.String) })
+                },
+                Security = new[]
+                {
+                    SecurityRule("Suppliers", 0, "ANONYMOUS", "get", properties: "Phone,Owner,Created"),
+                    SecurityRule("Suppliers", 0, "AUTHENTICATED", "put", properties: "Phone"),
+                    SecurityRule("Suppliers", 0, "AUTHENTICATED", "delete"),
+                    SecurityRule("Customers", 0, "AUTHENTICATED", "get", properties: "Name,Phone"),
+                    SecurityRule("Users", 0, "AUTHENTICATED", "get", properties: "Email"),
+                    SecurityRule("Schema", 2, "AUTHENTICATED", "get"),
+                    totals
+                },
+                CustomEndpoints = new[] { new { Name = "Totals", Query = "SELECT 1" } }
+            }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(new[] { "Entity 'Customers' already exists — skipped creation." }, (await response.ReadJsonAsync<SchemaImportResponse>()).Warnings);
+
+            var schema = await scene.StoredSchemaAsync(target);
+
+            foreach (var stored in new[]
+            {
+                "{\"Name\":\"Suppliers\",\"TypeID\":0,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Phone,Owner,Created\",\"RateLimit\":null}",
+                "{\"Name\":\"Suppliers\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"put\",\"Record\":0,\"Properties\":\"Phone\",\"RateLimit\":null}",
+                "{\"Name\":\"Suppliers\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"delete\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}",
+                "{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Name,Phone\",\"RateLimit\":null}",
+                "{\"Name\":\"Users\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Email\",\"RateLimit\":null}",
+                "{\"Name\":\"Schema\",\"TypeID\":2,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}",
+                "{\"Name\":\"Totals\",\"TypeID\":1,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":{\"MaxRequests\":10,\"TimeWindowType\":2,\"TimeWindow\":\"00:01:00\"}}"
+            })
+            {
+                Assert.Contains(stored, schema);
+            }
+        }
+
+        [Fact]
+        public async Task Import_Of_The_Same_Payload_With_Security_Rules_Again_Should_Be_Accepted_And_Skip_Them_With_A_Warning()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            var payload = new
+            {
+                Entities = new[] { Entity("Suppliers", properties: new[] { Property("Phone", PropertyType.String) }) },
+                Security = new[]
+                {
+                    SecurityRule("Suppliers", 0, "ANONYMOUS", "get", properties: "Phone,Owner,Created"),
+                    SecurityRule("Suppliers", 0, "AUTHENTICATED", "put", properties: "Phone")
+                }
+            };
+
+            Assert.Equal(HttpStatusCode.OK, (await scene.Owner.PostAsync(ImportUrl(target), payload.ToJsonContent())).StatusCode);
+
+            // The second time the entity and its property are the application's own, not the payload's.
+            var response = await scene.Owner.PostAsync(ImportUrl(target), payload.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(
+                new[]
+                {
+                    "Entity 'Suppliers' already exists — skipped creation.",
+                    "Property 'Suppliers.Phone' already exists — skipped creation.",
+                    "Security item 'Entity Suppliers - ANONYMOUS get' already exists — skipped.",
+                    "Security item 'Entity Suppliers - AUTHENTICATED put' already exists — skipped."
+                },
+                (await response.ReadJsonAsync<SchemaImportResponse>()).Warnings);
+        }
+
+        [Fact]
+        public async Task Import_Security_Rules_Naming_Their_Item_In_Another_Letter_Case_Should_Store_Them_Under_The_Name_The_Item_Has()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            // The API server matches the name of a rule whatever its letter case, and so does the
+            // import everywhere else (the diff offers such a rule too). The Security tab does not: a
+            // rule stored as sent would be live but missing from it, and the next save of the tab
+            // would delete it. So the rules are stored under the names the items have.
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[] { Entity("Suppliers") },
+                Security = new[]
+                {
+                    SecurityRule("customers", 0, "X", "get", properties: "Name"),
+                    SecurityRule("suppliers", 0, "X", "get"),
+                    SecurityRule("getcustomers", 1, "X", "get"),
+                    SecurityRule("SCHEMA", 2, "X", "get")
+                }
+            }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var schema = await scene.StoredSchemaAsync(target);
+
+            foreach (var stored in new[]
+            {
+                "{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":\"Name\",\"RateLimit\":null}",
+                "{\"Name\":\"Suppliers\",\"TypeID\":0,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}",
+                "{\"Name\":\"GetCustomers\",\"TypeID\":1,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}",
+                "{\"Name\":\"Schema\",\"TypeID\":2,\"RoleID\":\"X\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}"
+            })
+            {
+                Assert.Contains(stored, schema);
+            }
+
+            // The Security tab lists all four.
+            _portal.ApiServer.Respond(FakeApiServer.StatsDistinctPath, HttpStatusCode.OK, "[]");
+
+            var security = await (await scene.Owner.GetAsync($"{SchemaScene.AppUrl(target)}/security")).ReadJsonAsync<SecurityResponse>();
+
+            Assert.Equal(
+                new[] { "Entity Customers ANONYMOUS", "Entity Customers X", "Entity Suppliers X", "CustomEndpoint GetCustomers X", "Schema Schema X" }
+                    .OrderBy(x => x),
+                security.Rules.Select(x => $"{x.Type} {x.Name} {x.RoleID}").OrderBy(x => x));
+        }
+
+        [Fact]
+        public async Task Import_Security_Rule_Naming_Its_Item_In_Another_Letter_Case_Than_An_Existing_Rule_Should_Skip_It_With_A_Warning()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", x =>
+            {
+                FillTarget(x);
+
+                // What an older import stored as sent.
+                x.Security = SchemaScene.Security(SchemaScene.Rule(SecurityTypes.Entity, "customers", "editors", "get"));
+            });
+            scene.ScriptApiServer();
+
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Security = new[] { SecurityRule("Customers", 0, "editors", "get") }
+            }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(new[] { "Security item 'Entity Customers - editors get' already exists — skipped." }, (await response.ReadJsonAsync<SchemaImportResponse>()).Warnings);
+        }
+
+        [Fact]
+        public async Task Import_Security_Rules_With_A_Role_No_User_Holds_Should_Be_Accepted_As_Sent()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            // As in PUT security/rules, which only flags such a role as Orphaned: any non-blank text
+            // is a role. 'anonymous' is not ANONYMOUS to the API server, but a user may hold it.
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Security = new[]
+                {
+                    SecurityRule("Customers", 0, "editors", "delete"),
+                    SecurityRule("Customers", 0, "anonymous", "post", properties: "Name"),
+                    SecurityRule("Customers", 0, "Authenticated", "put", properties: "Name")
+                }
+            }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var schema = await scene.StoredSchemaAsync(target);
+
+            foreach (var role in new[] { "editors", "anonymous", "Authenticated" })
+            {
+                Assert.Contains($"\"RoleID\":\"{role}\",", schema);
+            }
+        }
+
+        [Fact]
+        public async Task Import_Security_Rules_With_Owned_Where_It_Has_No_Effect_Should_Be_Accepted_As_PUT_Rules_Does()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            // Owned has no effect for ANONYMOUS, for an entity without an owner (Users) and for an
+            // endpoint (see Security in the developer guide). The rules editor keeps such a rule and
+            // warns in the grid, so it is no reason to refuse one.
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Security = new[]
+                {
+                    SecurityRule("Customers", 0, "ANONYMOUS", "delete", record: 1),
+                    SecurityRule("Users", 0, "AUTHENTICATED", "get", record: 1),
+                    SecurityRule("GetCustomers", 1, "ANONYMOUS", "get", record: 1)
+                }
+            }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var schema = await scene.StoredSchemaAsync(target);
+
+            foreach (var stored in new[]
+            {
+                "{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"ANONYMOUS\",\"Action\":\"delete\",\"Record\":1,\"Properties\":null,\"RateLimit\":null}",
+                "{\"Name\":\"Users\",\"TypeID\":0,\"RoleID\":\"AUTHENTICATED\",\"Action\":\"get\",\"Record\":1,\"Properties\":null,\"RateLimit\":null}",
+                "{\"Name\":\"GetCustomers\",\"TypeID\":1,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":1,\"Properties\":null,\"RateLimit\":null}"
+            })
+            {
+                Assert.Contains(stored, schema);
+            }
+        }
+
+        [Fact]
+        public async Task Import_Security_Rule_For_A_Property_The_Payload_Lists_In_Another_Letter_Case_Should_Return_400_On_It()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            // 'NAME' is the property Customers has, so it is skipped, not added: a rule lists the
+            // property the application has, spelled as it is, as the Security tab compares them.
+            var name = Property("NAME", PropertyType.String);
+            name["Maximum"] = 100;
+
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[] { Entity("customers", properties: new[] { name }) },
+                Security = new[] { SecurityRule("Customers", 0, "X", "get", properties: "NAME") }
+            }.ToJsonContent());
+
+            await SchemaScene.AssertValidationAsync(response, "Security[0].Properties: 'NAME' is not a property a get rule of Customers can list");
+            await AssertNothingAppliedAsync(scene, target);
+        }
+
+        [Fact]
+        public async Task Import_Two_Security_Rules_For_The_Same_Cell_With_Other_Values_Should_Return_400_On_The_Second_And_Apply_Nothing()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            // Left to its step, the second rule would stop the import after Suppliers was created.
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[] { Entity("Suppliers") },
+                Security = new[]
+                {
+                    SecurityRule("Suppliers", 0, "ANONYMOUS", "get"),
+                    SecurityRule("suppliers", 0, "anonymous", "GET", record: 1)
+                }
+            }.ToJsonContent());
+
+            await SchemaScene.AssertValidationAsync(response, "Security[1]: Same type, name, role and action as Security[0], with other values");
+            await AssertNothingAppliedAsync(scene, target);
+        }
+
+        [Fact]
+        public async Task Import_Two_Identical_Security_Rules_Should_Store_One_And_Skip_The_Other_With_A_Warning()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Security = new[]
+                {
+                    SecurityRule("Customers", 0, "editors", "get", properties: "Name"),
+                    SecurityRule("Customers", 0, "editors", "get", properties: "Name")
+                }
+            }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(new[] { "Security item 'Entity Customers - editors get' already exists — skipped." }, (await response.ReadJsonAsync<SchemaImportResponse>()).Warnings);
+            Assert.Equal(1, (await scene.StoredSchemaAsync(target)).Split("\"RoleID\":\"editors\"").Length - 1);
+        }
+
+        [Theory]
+        [InlineData(true, "get", null)]
+        [InlineData(true, "put", "Security[0].Properties: 'Companies_ID' is not a property a put rule of Suppliers can list")]
+        [InlineData(false, "get", "Security[0].Properties: 'Companies_ID' is not a property a get rule of Suppliers can list")]
+        public async Task Import_Security_Rule_For_The_Differentiation_Property_Of_A_New_Entity_Should_Follow_Its_Flag(bool hasDifferentiationProperty, string action, string? expected)
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", x =>
+            {
+                FillTarget(x);
+                x.DifferentiationEntity = "Companies";
+            });
+            scene.ScriptApiServer();
+
+            // The API server gives the new entity the property Companies_ID when it has the flag;
+            // it can be read but not written.
+            var entity = Entity("Suppliers");
+            entity["HasDifferentiationProperty"] = hasDifferentiationProperty;
+
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[] { entity },
+                Security = new[] { SecurityRule("Suppliers", 0, "X", action, properties: "Companies_ID") }
+            }.ToJsonContent());
+
+            if (expected is null)
+            {
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                Assert.Contains("\"Properties\":\"Companies_ID\"", await scene.StoredSchemaAsync(target));
+            }
+            else
+            {
+                await SchemaScene.AssertValidationAsync(response, expected);
+                await AssertNothingAppliedAsync(scene, target);
+            }
+        }
+
+        [Fact]
+        public async Task Import_Of_The_Example_Payload_Of_The_Import_Screen_Should_Work()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            // examplePayload of src/Apilane.Portal.Ui/src/lib/schemaImport.ts, which that screen offers
+            // in its Help: it must stay valid whatever is checked.
+            var response = await scene.Owner.PostAsync(ImportUrl(target), Json(
+                "{\"Entities\":[" +
+                "{\"Name\":\"Product\",\"Description\":\"Product catalog\",\"RequireChangeTracking\":false,\"HasDifferentiationProperty\":false,\"Properties\":[" +
+                "{\"Name\":\"Title\",\"TypeID\":1,\"Required\":true,\"Minimum\":null,\"Maximum\":200,\"DecimalPlaces\":null,\"Encrypted\":false,\"ValidationRegex\":null,\"Description\":null}," +
+                "{\"Name\":\"Price\",\"TypeID\":2,\"Required\":true,\"Minimum\":0,\"Maximum\":null,\"DecimalPlaces\":2,\"Encrypted\":false,\"ValidationRegex\":null,\"Description\":null}],\"Constraints\":[]}," +
+                "{\"Name\":\"OrderItem\",\"Description\":\"Line item in an order\",\"RequireChangeTracking\":false,\"HasDifferentiationProperty\":false,\"Properties\":[" +
+                "{\"Name\":\"Product_ID\",\"TypeID\":2,\"Required\":true,\"Minimum\":null,\"Maximum\":null,\"DecimalPlaces\":0,\"Encrypted\":false,\"ValidationRegex\":null,\"Description\":null}]," +
+                "\"Constraints\":[{\"TypeID\":2,\"Properties\":\"Product_ID,Product\"}]}]," +
+                "\"Security\":[{\"Name\":\"Product\",\"TypeID\":0,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}]," +
+                "\"CustomEndpoints\":[{\"Name\":\"GetAllProduct\",\"Description\":\"Retrieves all products.\",\"Query\":\"SELECT * FROM [Product];\"}]}"));
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Empty((await response.ReadJsonAsync<SchemaImportResponse>()).Warnings);
+            Assert.Contains("{\"Name\":\"Product\",\"TypeID\":0,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}", await scene.StoredSchemaAsync(target));
+        }
+
         [Fact]
         public async Task Import_Should_Store_Security_Rules_And_Property_Values_As_Sent()
         {
@@ -1289,9 +1795,9 @@ namespace Apilane.Portal.Tests
             var target = await scene.AddApplicationAsync("target", FillTarget);
             scene.ScriptApiServer();
 
-            // What PUT security/rules and POST properties would refuse or clean up, the import
-            // passes on: a rule for an entity that does not exist, with an
-            // action in capitals; a Boolean with a maximum and decimal places.
+            // What PUT security/rules and POST properties would clean up, the import passes on: a
+            // rule with its action in another letter case (the API server matches it whatever its
+            // case); a Boolean with a maximum and decimal places.
             var property = Property("Active", PropertyType.Boolean);
             property["Maximum"] = 7;
             property["DecimalPlaces"] = 3;
@@ -1299,14 +1805,14 @@ namespace Apilane.Portal.Tests
             var response = await scene.Owner.PostAsync(ImportUrl(target), new
             {
                 Entities = new[] { Entity("Customers", properties: new[] { property }) },
-                Security = new[] { new { Name = "Nothing", TypeID = 0, RoleID = "editors", Action = "DELETE", Record = 1 } }
+                Security = new[] { new { Name = "Customers", TypeID = 0, RoleID = "editors", Action = "DELETE", Record = 1 } }
             }.ToJsonContent());
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var schema = await scene.StoredSchemaAsync(target);
             Assert.Contains("  property Active | type 3 | required False | min  | max 7 | decimals 3 |", schema);
-            Assert.Contains("{\"Name\":\"Nothing\",\"TypeID\":0,\"RoleID\":\"editors\",\"Action\":\"DELETE\",\"Record\":1,\"Properties\":null,\"RateLimit\":null}]", schema);
+            Assert.Contains("{\"Name\":\"Customers\",\"TypeID\":0,\"RoleID\":\"editors\",\"Action\":\"DELETE\",\"Record\":1,\"Properties\":null,\"RateLimit\":null}]", schema);
 
             var sent = JsonSerializer.Deserialize<DBWS_EntityProperty>(Assert.Single(_portal.ApiServer.RequestsTo(FakeApiServer.GeneratePropertyPath)).Body);
             Assert.Equal(7, sent?.Maximum);
@@ -1608,6 +2114,23 @@ namespace Apilane.Portal.Tests
                 ["HasDifferentiationProperty"] = false,
                 ["Properties"] = properties,
                 ["Constraints"] = constraints
+            };
+        }
+
+        /// <summary>
+        /// A security rule of a payload, with the values a rule without a rate limit has.
+        /// </summary>
+        private static Dictionary<string, object?> SecurityRule(string name, int typeId, string roleId, string action, int record = 0, string? properties = null)
+        {
+            return new Dictionary<string, object?>
+            {
+                ["Name"] = name,
+                ["TypeID"] = typeId,
+                ["RoleID"] = roleId,
+                ["Action"] = action,
+                ["Record"] = record,
+                ["Properties"] = properties,
+                ["RateLimit"] = null
             };
         }
 

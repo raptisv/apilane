@@ -55,5 +55,12 @@
         public const string SCHEMA = "Schema";
 
         public const string GeneralError = "Something went wrong";
+
+        // The most records a page of a list endpoint (Data/Get, Files/Get, record history, Stats/Aggregate) returns
+        public const int MaxPageSize = 1000;
+
+        // The longest an email address can be (RFC 5321). The endpoints that send a mail on request refuse
+        // anything longer before they keep it as the key of a rate limit.
+        public const int MaxEmailLength = 254;
     }
 }

@@ -18,10 +18,7 @@ namespace Apilane.Portal.Services
 {
     public class SecurityRulesService : ISecurityRulesService
     {
-        private const string FilesEntityName = "Files";
         private const string RulesPath = nameof(SecurityRulesRequest.Rules);
-
-        private static readonly string[] _actions = { "get", "post", "put", "delete" };
 
         private readonly IApplicationAccessService _applicationAccessService;
         private readonly IApiServerClient _apiServerClient;
@@ -194,60 +191,11 @@ namespace Apilane.Portal.Services
                 _ => throw PortalException.Validation($"{path}.{nameof(SecurityRuleRequest.Type)}", "Must be Entity, CustomEndpoint or Schema")
             };
 
-            var namePath = $"{path}.{nameof(SecurityRuleRequest.Name)}";
-            var name = rule.Name;
-
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                throw PortalException.Validation(namePath, "Required");
-            }
-
-            DBWS_Entity? entity = null;
-
-            switch (type)
-            {
-                case SecurityTypes.Entity:
-                    entity = FindEntity(application, name)
-                        ?? throw PortalException.Validation(namePath, $"The application has no entity '{name}'");
-                    break;
-                case SecurityTypes.CustomEndpoint:
-                    if (!HasCustomEndpoint(application, name))
-                    {
-                        throw PortalException.Validation(namePath, $"The application has no custom endpoint '{name}'");
-                    }
-                    break;
-                default:
-                    if (name != Globals.SCHEMA)
-                    {
-                        throw PortalException.Validation(namePath, $"Must be {Globals.SCHEMA}");
-                    }
-                    break;
-            }
-
-            var roleId = rule.RoleID;
-
-            if (string.IsNullOrWhiteSpace(roleId))
-            {
-                throw PortalException.Validation($"{path}.{nameof(SecurityRuleRequest.RoleID)}", "Required");
-            }
-
-            var actionPath = $"{path}.{nameof(SecurityRuleRequest.Action)}";
+            var name = rule.Name ?? string.Empty;
+            var roleId = rule.RoleID ?? string.Empty;
             var action = (rule.Action ?? string.Empty).ToLowerInvariant();
 
-            if (!_actions.Contains(action))
-            {
-                throw PortalException.Validation(actionPath, "Must be get, post, put or delete");
-            }
-
-            if (type == SecurityTypes.Schema && action != "get")
-            {
-                throw PortalException.Validation(actionPath, "Schema rules allow only get");
-            }
-
-            if (!ItemAllows(type, entity, action))
-            {
-                throw PortalException.Validation(actionPath, $"{name} does not allow {action}");
-            }
+            ThrowIfRefused(SecurityRuleChecks.CheckItem(application, type, name, roleId, action, path, StringComparison.Ordinal, out var entity));
 
             EndpointRecordAuthorization record = rule.Record switch
             {
@@ -257,19 +205,8 @@ namespace Apilane.Portal.Services
             };
 
             var properties = rule.Properties ?? new List<string?>();
-            var allowed = entity is null ? new List<string>() : AllowedProperties(application, entity, action);
 
-            foreach (var property in properties)
-            {
-                if (property is null || !allowed.Contains(property, StringComparer.Ordinal))
-                {
-                    throw PortalException.Validation(
-                        $"{path}.{nameof(SecurityRuleRequest.Properties)}",
-                        entity is null
-                            ? "Only entity rules have properties"
-                            : $"'{property}' is not a property a {action} rule of {entity.Name} can list");
-                }
-            }
+            ThrowIfRefused(SecurityRuleChecks.CheckProperties(application, entity, action, properties, path));
 
             DBWS_Security.RateLimitItem? rateLimit = null;
 
@@ -325,7 +262,7 @@ namespace Apilane.Portal.Services
 
                 var action = rule.Action.ToLowerInvariant();
 
-                if (!_actions.Contains(action) || !Enum.IsDefined(typeof(SecurityTypes), rule.TypeID))
+                if (!SecurityRuleChecks.Actions.Contains(action) || !Enum.IsDefined(typeof(SecurityTypes), rule.TypeID))
                 {
                     continue;
                 }
@@ -336,14 +273,14 @@ namespace Apilane.Portal.Services
                 // Rules of items that are gone are not shown.
                 if (type == SecurityTypes.Entity)
                 {
-                    entity = FindEntity(application, rule.Name);
+                    entity = SecurityRuleChecks.FindEntity(application, rule.Name, StringComparison.Ordinal);
 
                     if (entity is null)
                     {
                         continue;
                     }
                 }
-                else if (type == SecurityTypes.CustomEndpoint && !HasCustomEndpoint(application, rule.Name))
+                else if (type == SecurityTypes.CustomEndpoint && !SecurityRuleChecks.HasCustomEndpoint(application, rule.Name, StringComparison.Ordinal))
                 {
                     continue;
                 }
@@ -353,7 +290,7 @@ namespace Apilane.Portal.Services
                 }
 
                 // A rule for an action the item does not offer has no cell.
-                if (!ItemAllows(type, entity, action))
+                if (!SecurityRuleChecks.ItemAllows(type, entity, action))
                 {
                     continue;
                 }
@@ -364,7 +301,7 @@ namespace Apilane.Portal.Services
                     continue;
                 }
 
-                var allowed = entity is null ? new List<string>() : AllowedProperties(application, entity, action);
+                var allowed = entity is null ? new List<string>() : SecurityRuleChecks.AllowedProperties(application, entity, action);
 
                 var rateLimit = rule.RateLimit;
                 var window = (EndpointRateLimit)(rateLimit?.TimeWindowType ?? (int)EndpointRateLimit.None);
@@ -516,8 +453,8 @@ namespace Apilane.Portal.Services
                     AllowPut = x.AllowPut(),
                     AllowDelete = x.AllowDelete(),
                     HasOwner = x.HasOwnerColumn(),
-                    PropertiesGet = AllowedProperties(application, x, "get"),
-                    PropertiesPostPut = AllowedProperties(application, x, "post"),
+                    PropertiesGet = SecurityRuleChecks.AllowedProperties(application, x, "get"),
+                    PropertiesPostPut = SecurityRuleChecks.AllowedProperties(application, x, "post"),
                     DifferentiationProperty = !string.IsNullOrWhiteSpace(application.DifferentiationEntity) && x.HasDifferentiationProperty
                         ? application.DifferentiationEntity.GetDifferentiationPropertyName()
                         : null
@@ -530,60 +467,12 @@ namespace Apilane.Portal.Services
             return items;
         }
 
-        /// <summary>
-        /// The properties a rule may name for an action of an entity: never the primary key,
-        /// only editable ones for post and put, none for delete and none for a post to Files.
-        /// </summary>
-        private static List<string> AllowedProperties(DBWS_Application application, DBWS_Entity entity, string action)
+        private static void ThrowIfRefused(ErrorDetail? error)
         {
-            var properties = entity.Properties.OrderBy(x => x.ID).Where(x => !x.IsPrimaryKey);
-
-            return action switch
+            if (error is not null)
             {
-                "get" => properties.Select(x => x.Name).ToList(),
-                // Put is never allowed on Files, and its post takes a file, not properties.
-                "post" or "put" when entity.Name != FilesEntityName => properties
-                    .Where(x => x.AllowEdit(application.DifferentiationEntity, entity.HasDifferentiationProperty))
-                    .Select(x => x.Name)
-                    .ToList(),
-                _ => new List<string>()
-            };
-        }
-
-        /// <summary>
-        /// Whether the item has the action: every item has get;
-        /// only entities have post, put and delete, and only when the entity allows them.
-        /// </summary>
-        private static bool ItemAllows(SecurityTypes type, DBWS_Entity? entity, string action)
-        {
-            if (action == "get")
-            {
-                return true;
+                throw PortalException.Validation(error.Property, error.Message);
             }
-
-            if (type != SecurityTypes.Entity || entity is null)
-            {
-                return false;
-            }
-
-            return action switch
-            {
-                "post" => entity.AllowPost(),
-                "put" => entity.AllowPut(),
-                "delete" => entity.AllowDelete(),
-                _ => false
-            };
-        }
-
-        private static DBWS_Entity? FindEntity(DBWS_Application application, string name)
-        {
-            return application.Entities.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.Ordinal));
-        }
-
-        private static bool HasCustomEndpoint(DBWS_Application application, string name)
-        {
-            return (application.CustomEndpoints ?? new List<DBWS_CustomEndpoint>())
-                .Any(x => string.Equals(x.Name, name, StringComparison.Ordinal));
         }
 
         private static string Key(int typeId, string name, string roleId, string action)

@@ -154,6 +154,14 @@ namespace Apilane.Data.Repository.Factory
             return await(await CurrentDataStoreAsync()).CreateDataAsync(entityName, propertyValues, allowInsertIdentity);
         }
 
+        public async Task SyncIdSequenceAsync(string entityName)
+        {
+            using var trace = _tracer?.StartActiveSpan("SyncIdSequenceAsync");
+            trace?.SetAttribute("entity", entityName);
+
+            await (await CurrentDataStoreAsync()).SyncIdSequenceAsync(entityName);
+        }
+
         public async Task<List<Dictionary<string, object?>>> GetPagedDataAsync(string entityName, List<string>? entityProperties, FilterData? filter, List<SortData>? sort, int pageIndex, int pageSize)
         {
             using var trace = _tracer?.StartActiveSpan("GetPagedDataAsync");

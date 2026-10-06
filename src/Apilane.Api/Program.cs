@@ -245,7 +245,7 @@ namespace Apilane.Api
                 app.MapHealthChecks("/health/liveness", AspNetCoreExtensions.SetupHealthCheck("live"));
                 app.MapHealthChecks("/health/readiness", AspNetCoreExtensions.SetupHealthCheck("ready"));
 
-                app.UseOpenTelemetryPrometheusScrapingEndpoint(context => context.Request.Path == "/metrics");
+                app.UseMetricsEndpoint(appConfig.OpenTelemetry);
 
                 app.Map("/", (c) =>
                 {

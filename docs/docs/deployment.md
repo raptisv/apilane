@@ -126,7 +126,7 @@ The API service exposes utility endpoints:
 | `/` | ASCII art banner confirming the service is live |
 | `/Version` | Returns JSON with the current API version, e.g. `{"Version": "10.3.0"}` |
 | `/swagger` | Swagger UI for interactive API documentation |
-| `/metrics` | OpenTelemetry Prometheus scraping endpoint, without authentication |
+| `/metrics` | OpenTelemetry Prometheus scraping endpoint, without authentication; answers 404 when `OpenTelemetry:Metrics:Enabled` is false |
 
 The Portal serves its UI at the root of its host name and keeps these addresses for itself:
 
@@ -154,7 +154,7 @@ Both services support OpenTelemetry for metrics and distributed tracing:
 
 | Feature | Configuration |
 |---|---|
-| **Metrics** | Enabled via `OpenTelemetry:Metrics:Enabled` (on in the shipped `appsettings.json`). Keep it on for the API: the API sets up its `/metrics` endpoint whether or not metrics are enabled, and fails at start without them. The Portal handles `false` |
+| **Metrics** | Enabled via `OpenTelemetry:Metrics:Enabled` (on in the shipped `appsettings.json`). When it is `false`, `/metrics` answers 404 |
 | **Tracing** | Enabled via `OpenTelemetry:Tracing:Enabled` (off), with configurable endpoint (`Url`), sample ratio (`SampleRatio`, default `0.1`) and `LogSpans` (default `true`: every finished span is also written to the log) |
 | **Prometheus** | Metrics scraping at `/metrics`, without authentication |
 

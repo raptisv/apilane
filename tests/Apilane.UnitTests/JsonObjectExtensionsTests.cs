@@ -46,12 +46,12 @@ namespace Apilane.UnitTests
         }
 
         [TestMethod]
-        public void GetObjectProperty_IsCaseSensitive()
+        public void GetObjectProperty_OtherCase_ReturnsValue()
         {
             var obj = System.Text.Json.JsonSerializer.Deserialize<JsonObject>("{\"Name\":\"Bob\"}");
             Assert.IsNotNull(obj);
-            var result = obj!.GetObjectProperty("name");
-            Assert.IsNull(result);
+            Assert.AreEqual("Bob", obj!.GetObjectProperty("name"));
+            Assert.AreEqual("Bob", obj.GetObjectProperty("NAME"));
         }
 
         [TestMethod]

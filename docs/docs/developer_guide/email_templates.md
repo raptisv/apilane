@@ -26,7 +26,7 @@ Before emails can be sent, you must configure the SMTP settings for your applica
 !!!warning "Required for email features"
     All SMTP fields must be configured for email functionality to work. If one is missing, the `Email/RequestConfirmation` and `Email/ForgotPassword` endpoints fail with an error, and so does `Account/Register` when the Email confirmation template is enabled. In that case the user has already been created by then, so register only after the SMTP settings are complete.
 
-Mail is always sent over TLS. A send that fails is written to the API server's log and is not reported to the caller, so test with a real address.
+Mail is always sent over TLS. A send that fails is written to the API server's log and is not reported to the caller, so test with a real address. The log holds the recipient, the subject and the outcome of a send, never the content of the mail: a confirmation or a reset mail carries a live link, and anyone who reads the log could use it. A link in a subject is replaced by `[link]` there.
 
 ---
 
@@ -169,12 +169,15 @@ sequenceDiagram
 5. The email is sent to the user
 6. The user follows the link and fills in a form with their **email address**, the new password (8 to 100 characters) and its confirmation. The password is changed only when the address is the one the link was sent to
 
-There are two ways to start a reset: call the endpoint from your own screen, or send the user to the ready-made page `{ServerUrl}/App/{appToken}/Account/Manage/ForgotPassword` (shown on the **Security** tab, card **Forgot password**), where they type their address. Both send the Reset password email.
+There are two ways to start a reset: call the endpoint from your own screen, or send the user to the ready-made page `{ServerUrl}/App/{appToken}/Account/Manage/ForgotPassword` (shown on the **Security** tab, card **Forgot password**), where they type their address. Both send the Reset password email, and both ask for the same limit (see the note below).
 
 The link works for 24 hours, and stops working once a password has been set with it. After that the user has to request a new one.
 
 !!!info "Security note"
-    Both `RequestConfirmation` and `ForgotPassword` endpoints return success even if the email does not exist in the system. This prevents email enumeration attacks. They fail with an error when the application has no complete SMTP settings or the address is not a valid email address, and each allows **one call per 5 minutes for the same address** (`RATE_LIMIT_EXCEEDED`). Whether the mail was delivered is not reported.
+    Both `RequestConfirmation` and `ForgotPassword` endpoints return success even if the email does not exist in the system. This prevents email enumeration attacks. They fail with an error when the application has no complete SMTP settings or the address is not a valid email address (at most 254 characters), and each allows **one call per 5 minutes for the same address** (`RATE_LIMIT_EXCEEDED`). The ready-made forgot-password page uses the same allowance as `ForgotPassword`, so a request from the page and one from the endpoint for the same address count together. A page that is over the limit answers `429` and shows the form again with the message 'Too many requests', for an address without an account just as for one with an account. With incomplete SMTP settings the page shows its error page for every address, and such a request does not use up the allowance. Whether the mail was delivered is not reported.
+
+!!!info "Tokens in the logs"
+    The links in the emails carry their one-time token in the query string (`token=` in the confirmation link, `Token=` in the reset link). The API server does not write it to its log: the log of a send holds no content, and the log of a request shows the value of a parameter whose name contains `token`, `password`, `secret` or `signature` as `***`. A reverse proxy in front of the API writes the whole address into its own access log, and the browser keeps it in its history, so restrict access to those logs. Keep the log level of `Microsoft.AspNetCore.Hosting.Diagnostics` at `Warning`, as in the committed `appsettings.json`: at a lower level ASP.NET itself writes every request with its query string.
 
 ---
 

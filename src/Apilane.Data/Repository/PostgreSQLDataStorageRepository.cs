@@ -476,6 +476,23 @@ namespace Apilane.Data.Repository
             return Utils.GetNullLong(result);
         }
 
+        public async Task SyncIdSequenceAsync(string entityName)
+        {
+            // A BIGSERIAL does not move when a record is inserted with its ID, so the next record created
+            // without one (from the sequence) would collide with an imported ID. Set the sequence to the
+            // largest ID, but only when that is past it: never backwards (that would hand out the IDs of
+            // deleted records again), and not on an empty table (MAX is NULL, the comparison is false).
+            // pg_sequence_last_value is NULL while the sequence was never used (PostgreSQL 10 and later).
+            // setval is not transactional: after a rolled back import the sequence only keeps a gap.
+            var table = SqlUtilis.QuoteIdentifier(entityName, DatabaseType.PostgreSQL);
+            var tableLiteral = table.Replace("'", "''");
+
+            await ExecScalarAsync($@" SELECT setval(seq, max_id)
+                                      FROM (SELECT pg_get_serial_sequence('{tableLiteral}', '{Globals.PrimaryKeyColumn}')::regclass AS seq,
+                                                   (SELECT MAX(""{Globals.PrimaryKeyColumn}"") FROM {table}) AS max_id) s
+                                      WHERE max_id > COALESCE(pg_sequence_last_value(seq), 0);");
+        }
+
         public async Task<long> DeleteDataAsync(string entityName, FilterData? filter)
         {
             string? strFilter = filter?.ToSqlExpression(entityName, DatabaseType.PostgreSQL);

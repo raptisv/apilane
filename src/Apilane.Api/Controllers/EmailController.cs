@@ -38,9 +38,6 @@ namespace Apilane.Api.Controllers
         [ProducesResponseType(typeof(string), (int)HttpStatusCode.OK)]
         public async Task<JsonResult> RequestConfirmation([BindRequired] string email)
         {
-            var emailSettings = Application.GetEmailSettings()
-                ?? throw new ApilaneException(AppErrors.ERROR, $"Missing application email settings. Please navigate to the portal to the application's Email section.");
-
             await _emailAPI.RequestConfirmationAsync(
                 Application,
                 email);
@@ -60,9 +57,6 @@ namespace Apilane.Api.Controllers
         public async Task<JsonResult> ForgotPassword(
             [BindRequired] string email)
 		{
-			var emailSettings = Application.GetEmailSettings()
-				?? throw new ApilaneException(AppErrors.ERROR, $"Missing application email settings. Please navigate to the portal to the application's Email section.");
-
 			await _emailAPI.ForgotPasswordAsync(
                 Application,
                 email);

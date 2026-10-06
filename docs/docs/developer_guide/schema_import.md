@@ -8,7 +8,7 @@ Apilane can bulk-import **entities, properties, constraints, security rules and 
 
 Open the **Import** tab of the application in the Portal, paste the JSON into the *JSON payload* box, and click **Import**. (The same screen can also pre-fill the payload by diffing another application — pick it under *Load from another application* and click **Load diff** — which is a good way to see a real payload.) The **Help** button in the header of the tab holds a reference of the payload and an example.
 
-**Load diff** computes what the other application has and this one lacks: the custom entities that are missing, the properties and constraints missing from entities this application already has, the security rules for entities and custom endpoints that this application has no rule for (rules that exist with other values are left out, and Schema rules are never listed), and the custom endpoints that are missing. Entities in it carry `"IsNew"`, which the import ignores. Nothing is listed when nothing is missing.
+**Load diff** computes what the other application has and this one lacks: the custom entities that are missing, the properties and constraints missing from entities this application already has, the security rules for entities and custom endpoints that this application has no rule for (rules that exist with other values are left out, and Schema rules are never listed; a rule is offered as the import accepts it, so a property the application would lack, such as a custom property of `Users`, is left out of its `Properties`, and a rule whose item does not offer its action is left out), and the custom endpoints that are missing. Entities in it carry `"IsNew"`, which the import ignores. Nothing is listed when nothing is missing.
 
 The same payload can be sent to the Portal's management API (see [Calling the management API](#calling-the-management-api)): `POST /api/v1/applications/{appToken}/schema-import`, and `GET /api/v1/applications/{appToken}/schema-import/diff?Source={otherAppToken}` returns the diff in this shape.
 
@@ -21,7 +21,7 @@ The same payload can be sent to the Portal's management API (see [Calling the ma
 - **Not atomic.** The items are applied one by one, each as its own transaction on the API server, which has **5 seconds**: a step that takes longer fails, for example adding a property to an entity with very many records. When one fails, the import stops there, everything applied before it stays applied, and the error names the place in the payload (e.g. `Entities[0].Properties[2].TypeID`). Sending the same payload again is safe: what was already applied is skipped.
 - **List referenced entities first.** Entities without a foreign key are created first, then the ones whose foreign keys lead to `Users`; the others are created in the order they are listed. So list an entity before the entities whose foreign keys point to it (or make sure it already exists in the application).
 - **System columns are added for you.** When a new entity is created, Apilane automatically adds its system properties (`ID`, `Owner`, `Created`, and `{DifferentiationEntity}_ID` when `HasDifferentiationProperty` is `true`). **Never** include them in `Properties`: a listed one is compared with the real one and the import stops if it differs.
-- **Names of new items follow the rules of the Portal.** An entity name has 4 to 30 letters and underscores. A property name has 4 to 120 letters and underscores and must not end in `_Data`. A custom endpoint name has letters a-z and A-Z only, at most 80. A name that is refused stops the import before anything is applied. Names are matched ignoring case against what the application has already, so `product` finds `Product`.
+- **Names of new items follow the rules of the Portal.** An entity name has 4 to 30 letters and underscores. A property name has 4 to 120 letters and underscores and must not end in `_Data`. A custom endpoint name has letters a-z and A-Z only, at most 80. A name that is refused stops the import before anything is applied, and so does a security rule that the Security tab would refuse (see [Security rules](#security-rules)). Names are matched ignoring case against what the application has already, so `product` finds `Product`.
 
 ---
 
@@ -200,7 +200,16 @@ Each entry is a `DBWS_Security` rule granting a **role** permission to perform a
 | `2` | Per minute |
 | `3` | Per hour |
 
-Security rules are stored exactly as you send them: the import does not check that the entity, the endpoint or the role exists, so a mistake gives a rule that never applies. Write `ANONYMOUS` and `AUTHENTICATED` in capitals, custom roles in lower-case letters as they are in the `Roles` property of the users, and the action in lower case (`get`, `post`, `put`, `delete`). `MaxRequests` is 1 or more.
+Every rule is checked before anything is applied, with the checks of the Security tab (`PUT /api/v1/applications/{appToken}/security/rules`), against the entities, properties and custom endpoints the application has **and** the ones the payload creates (a rule for a new entity may list the properties the payload gives it, `Owner` and `Created` included). The import answers 400 `VALIDATION`, one error for each rule that is refused, naming its place (`Security[2].Action`), and applies nothing. A rule is refused when:
+
+- `TypeID` is not 0, 1 or 2.
+- `Name` is not an entity (`TypeID` 0) or a custom endpoint (`TypeID` 1) that the application or the payload has, or is not `Schema` (`TypeID` 2). The letter case of the name does not matter, and the rule is stored under the name the entity or custom endpoint has (`Schema` for a Schema rule): the Security tab lists only rules that spell it so, and its next save would delete the others.
+- `Action` is not `get`, `post`, `put` or `delete`, or the item does not offer it: a Schema rule and a custom endpoint have only `get`, `Users` has no `post`, `Files` has no `put`, and a read-only entity has only `get`.
+- `Record` is not 0 or 1.
+- `Properties` lists a name that is not a property of the entity for that action. Property names are compared exactly, upper and lower case included (`name` is not `Name`), as the Security tab does, and a space after a comma counts. The primary key can never be listed, `post` and `put` can list only the properties a record can write (not `Owner`, `Created` and the other system properties), a `post` to `Files` and a `delete` list none, and only an entity rule has properties.
+- The rule has the same `TypeID`, `Name`, `RoleID` and `Action` as an earlier rule of the payload but other values. An identical one is skipped with a warning, as a rule the application has already.
+
+A rule with several problems is reported for the first one, checked in this order: `TypeID`, `Name`, `Action`, `Record`, `Properties`. Apart from the name, the rule that is stored is the one you sent, not a cleaned-up copy. The role is not checked: any text is a role, as on the Security tab, so a role no user holds is accepted and a misspelled one gives a rule that never applies. Write `ANONYMOUS` and `AUTHENTICATED` in capitals and custom roles in lower-case letters as they are in the `Roles` property of the users. `MaxRequests` is 1 or more.
 
 !!!warning "Record"
     `Record: 1` (owned records only) has no effect on `ANONYMOUS`, on `post` or on `Users`: an anonymous caller has no owner and sees every record. See [Security](security.md#how-several-rules-combine).
@@ -302,6 +311,7 @@ A `Warning` response header means the import went through but the API server cou
 - [ ] Every entity referenced by an FK must already exist in the target app, or be in the payload before the entities that reference it.
 - [ ] To expose a custom endpoint, add a `Security` rule with `TypeID: 1` and `Action: "get"`.
 - [ ] Grant columns explicitly in each security rule's `Properties` — a `null` grants no non-PK columns.
-- [ ] Spell `ANONYMOUS`, `AUTHENTICATED` and custom role names exactly: rules are stored as sent, and a misspelled role never applies.
+- [ ] Make every security rule name an item the application or the payload has, an action that item offers, and properties that exist for that action: the import refuses the whole payload otherwise.
+- [ ] Spell `ANONYMOUS`, `AUTHENTICATED` and custom role names exactly: the role is not checked, and a misspelled role never applies.
 - [ ] For existing items, keep metadata identical to what is already in the app, or the import aborts.
 

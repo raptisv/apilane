@@ -34,6 +34,19 @@ namespace Apilane.Common
                 defval;
         }
 
+        /// <summary>
+        /// The page size of a list endpoint: 1 to <see cref="Globals.MaxPageSize"/>. Anything else (0, a negative
+        /// number, too big, or none) becomes the maximum. A page size of 0 or less is read by the data layer as
+        /// "no limit" (the API relies on that to load every record of a delete), so an endpoint must never
+        /// hand it on as it came in from the request.
+        /// </summary>
+        public static int GetPageSize(int? pageSize)
+        {
+            return pageSize is >= 1 and <= Globals.MaxPageSize
+                ? pageSize.Value
+                : Globals.MaxPageSize;
+        }
+
         public static int? GetNullInt(object val, int? defval = null)
         {
             var strVal = GetString(val);

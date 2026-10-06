@@ -488,6 +488,12 @@ namespace Apilane.Data.Repository
             return Utils.GetNullLong(result);
         }
 
+        public Task SyncIdSequenceAsync(string entityName)
+        {
+            // Nothing to do: AUTO_INCREMENT moves past an ID that was inserted with its value.
+            return Task.CompletedTask;
+        }
+
         public async Task<long> DeleteDataAsync(string entityName, FilterData? filter)
         {
             string? strFilter = filter?.ToSqlExpression(entityName, DatabaseType.MySQL);

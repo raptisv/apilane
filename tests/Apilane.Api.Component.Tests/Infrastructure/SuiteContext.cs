@@ -1,7 +1,9 @@
 using Apilane.Api.Component.Tests;
+using Apilane.Api.Component.Tests.Infrastructure;
 using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
 using Apilane.Common;
+using Apilane.Common.Abstractions;
 using FakeItEasy;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +28,12 @@ namespace CasinoService.ComponentTests.Infrastructure
 
         public WebApplicationFactory<Apilane.Api.Program> Factory { get; }
         public Fixture Fixture { get; }
+
+        /// <summary>
+        /// Takes the place of the API's mail service, so that no test sends a real mail and a test can read
+        /// the mails the API sent.
+        /// </summary>
+        public Mailbox Mailbox { get; } = new Mailbox();
 
         /// <summary>
         /// The database servers the tests run against, in Docker containers, with one database per test class.
@@ -64,6 +72,8 @@ namespace CasinoService.ComponentTests.Infrastructure
 
                     var _mockApplicationService = A.Fake<IApplicationService>();
                     services.AddSingleton<IApplicationService>((s) => _mockApplicationService);
+
+                    services.AddSingleton<IEmailService>(Mailbox);
                 });
             });
 

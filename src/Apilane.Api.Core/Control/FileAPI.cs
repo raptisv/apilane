@@ -161,10 +161,7 @@ namespace Apilane.Api.Core
                 pageIndex = 1;
             }
 
-            if (pageSize < 0 || pageSize > 1000)
-            {
-                pageSize = 1000;
-            }
+            pageSize = Utils.GetPageSize(pageSize);
 
             var systemFilters = _appDataService.GetSystemFilters(userHasFullAccess, differentiationEntity, entityFiles, (appUser, userSecurity));
             var filterData = _appDataService.GetFilterData(entityFiles, filter, userSecurity);

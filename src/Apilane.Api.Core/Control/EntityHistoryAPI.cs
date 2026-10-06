@@ -1,4 +1,5 @@
 ﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Common;
 using Apilane.Common.Models;
 using Apilane.Data.Abstractions;
 using System.Collections.Generic;
@@ -28,12 +29,7 @@ namespace Apilane.Api.Core
                 pageIndex = 1;
             }
 
-            if (pageSize is null || pageSize > 1000)
-            {
-                pageSize = 1000;
-            }
-
-            var historyRecords = await _applicationHelperService.GetHistoryForRecordPagedAsync(entity, recordId, pageIndex.Value, pageSize.Value);
+            var historyRecords = await _applicationHelperService.GetHistoryForRecordPagedAsync(entity, recordId, pageIndex.Value, Utils.GetPageSize(pageSize));
 
             return new DataTotalResponse()
             {

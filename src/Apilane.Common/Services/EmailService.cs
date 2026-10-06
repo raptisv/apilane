@@ -4,11 +4,17 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Net.Mail;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Apilane.Common.Services
 {
     public class EmailService : IEmailService
     {
+        private const string LinkPlaceholder = "[link]";
+
+        // The reset and confirmation placeholders are replaced in the subject as well as in the body
+        private static readonly Regex LinkPattern = new Regex(@"https?://\S+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         private readonly ILogger<EmailService> _logger;
 
         public EmailService(ILogger<EmailService> logger)
@@ -18,10 +24,14 @@ namespace Apilane.Common.Services
 
         public void SendMail(EmailInfo info)
         {
+            // The log gets who the mail went to, what it is about and what became of it, never what is in it:
+            // the body of a confirmation or a password reset mail holds a live token link, and the subject
+            // can hold one too. Worked out before the try, as the catch needs both.
+            var recipients = string.Join(",", info.Recipients ?? Array.Empty<string>());
+            var subject = LinkPattern.Replace(info.Subject ?? string.Empty, LinkPlaceholder);
+
             try
             {
-                _logger.LogInformation($"(SendMail) => {string.Join(",", info.Recipients)} | {info.Subject} | {info.Body}");
-
                 MailMessage mMessage = new MailMessage()
                 {
                     IsBodyHtml = true,
@@ -48,10 +58,12 @@ namespace Apilane.Common.Services
                 mailClient.Send(mMessage);
 
                 mMessage.Dispose();
+
+                _logger.LogInformation("(SendMail) => {Recipients} | {Subject} | sent", recipients, subject);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"(SendMail) => {ex.Message} {string.Join(",", info.Recipients)} {info.Subject} {info.Body}");
+                _logger.LogError(ex, "(SendMail) => {Recipients} | {Subject} | failed: {Reason}", recipients, subject, ex.Message);
             }
         }
     }
