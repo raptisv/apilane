@@ -10,6 +10,7 @@ namespace Apilane.Portal.Api.V1
     /// Sharing an application with other users. Owner only: a collaborator gets 403 FORBIDDEN.
     /// </summary>
     [Route(RoutePrefix + "/collaborators")]
+    [NoAgent]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
     public class CollaboratorsController : PortalApplicationApiControllerBase
     {
@@ -42,8 +43,9 @@ namespace Apilane.Portal.Api.V1
         }
 
         /// <summary>
-        /// Shares the application with an e-mail address, which gets administrator access to it:
-        /// everything except sharing it further. The address is trimmed and must be a valid e-mail
+        /// Shares the application with an e-mail address. A person gets everything except sharing
+        /// it further; an agent gets the supplied permissions, or read-only access when omitted.
+        /// The owner can edit an agent's permissions later. The address is trimmed and must be a valid e-mail
         /// address (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an
         /// address the application is already shared with, in any letter case. When the instance
         /// mail is configured the address gets a notification mail, unless it is an agent's
@@ -52,6 +54,7 @@ namespace Apilane.Portal.Api.V1
         /// typed. Owner only.
         /// </summary>
         [HttpPost]
+        [NoAgent]
         [ProducesResponseType(typeof(CollaboratorAddedResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
@@ -60,6 +63,20 @@ namespace Apilane.Portal.Api.V1
             var collaborator = await _collaboratorService.AddAsync(appToken, request);
 
             return StatusCode(StatusCodes.Status201Created, collaborator);
+        }
+
+        /// <summary>
+        /// Replaces the complete permissions of an agent collaborator. Omitted resources are
+        /// denied. Only the application owner may edit access. A human collaborator gives 400
+        /// VALIDATION; an id from another application gives 404 NOT_FOUND (Collaborator).
+        /// </summary>
+        [HttpPut("{id:long}/permissions")]
+        [NoAgent]
+        [ProducesResponseType(typeof(CollaboratorResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        public async Task<CollaboratorResponse> UpdatePermissions(string appToken, long id, UpdateAgentPermissionsRequest request)
+        {
+            return await _collaboratorService.UpdatePermissionsAsync(appToken, id, request);
         }
 
         /// <summary>

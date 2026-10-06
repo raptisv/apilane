@@ -11,6 +11,7 @@ namespace Apilane.Portal.Api.V1
     /// what on its API server. Settings and rules are saved separately.
     /// </summary>
     [Route(RoutePrefix + "/security")]
+    [AgentPermission("security")]
     public class ApplicationSecurityController : PortalApplicationApiControllerBase
     {
         private readonly ISecurityRulesService _securityRulesService;

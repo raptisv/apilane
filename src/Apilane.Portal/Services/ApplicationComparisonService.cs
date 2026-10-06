@@ -13,10 +13,14 @@ namespace Apilane.Portal.Services
     public class ApplicationComparisonService : IApplicationComparisonService
     {
         private readonly IApplicationAccessService _applicationAccessService;
+        private readonly IAgentPermissionService _agentPermissionService;
 
-        public ApplicationComparisonService(IApplicationAccessService applicationAccessService)
+        public ApplicationComparisonService(
+            IApplicationAccessService applicationAccessService,
+            IAgentPermissionService agentPermissionService)
         {
             _applicationAccessService = applicationAccessService;
+            _agentPermissionService = agentPermissionService;
         }
 
         public async Task<ApplicationComparisonResponse> CompareAsync(string appToken, string targetAppToken)
@@ -29,6 +33,15 @@ namespace Apilane.Portal.Services
             }
 
             var target = await _applicationAccessService.GetApplicationWithEntitiesAsync(targetAppToken);
+
+            foreach (var application in new[] { source, target })
+            {
+                foreach (var resource in new[] { AgentPermissionResources.Schema, AgentPermissionResources.Entities,
+                    AgentPermissionResources.Security, AgentPermissionResources.CustomEndpoints })
+                {
+                    await _agentPermissionService.DemandAsync(application, resource);
+                }
+            }
 
             return new ApplicationComparisonResponse
             {

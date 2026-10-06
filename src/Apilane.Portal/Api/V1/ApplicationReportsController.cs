@@ -15,6 +15,7 @@ namespace Apilane.Portal.Api.V1
     /// API server.
     /// </summary>
     [Route(RoutePrefix + "/reports")]
+    [AgentPermission("reports")]
     public class ApplicationReportsController : PortalApplicationApiControllerBase
     {
         private readonly IReportService _reportService;

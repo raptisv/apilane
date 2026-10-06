@@ -1,10 +1,11 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace Apilane.Portal.Api.V1.Contracts
 {
     /// <summary>
-    /// A user an application is shared with. A collaborator has full access to the application,
-    /// except sharing it with others.
+    /// A user an application is shared with. Human collaborators have full application access,
+    /// except sharing; agents have the permissions granted by the owner.
     /// </summary>
     public class CollaboratorResponse
     {
@@ -16,6 +17,11 @@ namespace Apilane.Portal.Api.V1.Contracts
         /// </summary>
         [Required]
         public string Email { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The resolved access for an agent, including denied resources; null for a person.
+        /// </summary>
+        public List<AgentPermissionGrant>? Permissions { get; set; }
     }
 
     /// <summary>
@@ -31,6 +37,11 @@ namespace Apilane.Portal.Api.V1.Contracts
         /// </summary>
         [Required]
         public string Email { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The resolved access for an agent, including denied resources; null for a person.
+        /// </summary>
+        public List<AgentPermissionGrant>? Permissions { get; set; }
 
         /// <summary>
         /// False when the instance has no mail settings, the mail could not be handed over for
@@ -69,5 +80,11 @@ namespace Apilane.Portal.Api.V1.Contracts
         /// </summary>
         [Required(ErrorMessage = "Required")]
         public string Email { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The complete access policy for an agent. Omit it to grant read-only access; an empty
+        /// list denies all resources. Only agents accept this field. The owner can edit it later.
+        /// </summary>
+        public List<AgentPermissionGrant>? Permissions { get; set; }
     }
 }

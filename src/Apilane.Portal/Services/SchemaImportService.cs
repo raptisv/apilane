@@ -27,6 +27,7 @@ namespace Apilane.Portal.Services
         private readonly ApplicationDbContext _dbContext;
         private readonly IApplicationAccessService _applicationAccessService;
         private readonly IPortalAccessService _portalAccessService;
+        private readonly IAgentPermissionService _agentPermissionService;
         private readonly IApiServerClient _apiServerClient;
         private readonly IApiServerCacheReset _apiServerCacheReset;
         private readonly ILogger<SchemaImportService> _logger;
@@ -35,6 +36,7 @@ namespace Apilane.Portal.Services
             ApplicationDbContext dbContext,
             IApplicationAccessService applicationAccessService,
             IPortalAccessService portalAccessService,
+            IAgentPermissionService agentPermissionService,
             IApiServerClient apiServerClient,
             IApiServerCacheReset apiServerCacheReset,
             ILogger<SchemaImportService> logger)
@@ -42,6 +44,7 @@ namespace Apilane.Portal.Services
             _dbContext = dbContext;
             _applicationAccessService = applicationAccessService;
             _portalAccessService = portalAccessService;
+            _agentPermissionService = agentPermissionService;
             _apiServerClient = apiServerClient;
             _apiServerCacheReset = apiServerCacheReset;
             _logger = logger;
@@ -57,6 +60,15 @@ namespace Apilane.Portal.Services
             }
 
             var source = await _applicationAccessService.GetApplicationWithEntitiesAsync(sourceAppToken);
+
+            foreach (var compared in new[] { application, source })
+            {
+                foreach (var resource in new[] { AgentPermissionResources.Schema, AgentPermissionResources.Entities,
+                    AgentPermissionResources.Security, AgentPermissionResources.CustomEndpoints })
+                {
+                    await _agentPermissionService.DemandAsync(compared, resource);
+                }
+            }
 
             var entities = MissingEntities(source, application);
             var customEndpoints = MissingCustomEndpoints(source, application);
@@ -77,6 +89,21 @@ namespace Apilane.Portal.Services
             var entities = request.Entities ?? new List<SchemaImportEntity>();
             var security = request.Security ?? new List<SchemaImportSecurityRule>();
             var customEndpoints = request.CustomEndpoints ?? new List<SchemaImportCustomEndpoint>();
+
+            // Check the entire payload before any part of this non-atomic import can be applied.
+            await _agentPermissionService.DemandAsync(application, AgentPermissionResources.Schema, AgentPermissionAccess.Write);
+            if (entities.Count > 0)
+            {
+                await _agentPermissionService.DemandAsync(application, AgentPermissionResources.Entities, AgentPermissionAccess.Write);
+            }
+            if (security.Count > 0)
+            {
+                await _agentPermissionService.DemandAsync(application, AgentPermissionResources.Security, AgentPermissionAccess.Write);
+            }
+            if (customEndpoints.Count > 0)
+            {
+                await _agentPermissionService.DemandAsync(application, AgentPermissionResources.CustomEndpoints, AgentPermissionAccess.Write);
+            }
 
             // What the application is once the entities and custom endpoints of the payload are in it:
             // the security rules are checked against it and stored under the names it gives their items.

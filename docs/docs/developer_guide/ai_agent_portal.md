@@ -12,16 +12,18 @@ This page has two parts: how a person sets an agent up, and one block to append 
 
 1. **Add the agent.** An administrator opens **Instance > Users**, chooses **Add agent** and types a name: 3 to 40 characters, lower-case letters, digits and dashes. The agent's address is the name followed by `@agent.local`, for example `deploy-bot@agent.local`. The Portal shows its key (`apl_...`) once and keeps only a hash of it, so copy it then. A key does not expire and cannot be replaced: if it is lost, delete the agent and add it again.
 2. **Create the application.** An agent cannot create, import or clone an application. A person does it in the Portal.
-3. **Share it with the agent.** The owner opens the **Sharing** tab of the application and types the agent's address exactly, or picks it from the suggestions. The agent becomes a collaborator of that application and of no other. No e-mail is sent to an agent.
+3. **Share it with the agent.** The owner opens the **Sharing** tab of the application and types the agent's address exactly, or picks it from the suggestions. The agent starts read-only. Choose its read, write and deletion rights per area in that dialog, or use **Edit rights** beside it later. The policy applies to this application only. No e-mail is sent to an agent.
 4. **Hand over the Portal address and the key.** Put them in the environment of the agent (the block below uses `APILANE_PORTAL_URL` and `APILANE_AGENT_KEY`), never in a file that is committed. Then append the block below to the `AGENTS.md`.
 
 ## What an agent can and cannot do
 
-On the applications shared with it, an agent can do what a collaborator can do: entities, properties, constraints, default sorting, security, custom endpoints, e-mail settings, reports, schema import and comparison. An application that is not shared with it does not exist for it (404).
+The owner chooses which parts of each shared application an agent may read or change: entities and properties (including constraints and sorting), security, custom endpoints, e-mail settings, reports, schema import/comparison and the audit log. Application settings and rebuilding have their own grants. New and existing agent collaborators without an explicit policy are read-only. An application that is not shared with the agent does not exist for it (404).
+
+Deletion is a separate grant for entities/properties, custom endpoints and reports. Rebuilding requires its own grant and removes all application data. These calls do not ask for confirmation. The application summary and `GET /api/v1/applications/{appToken}/permissions` stay accessible even if every area is denied, so the agent can discover which operations it may perform before trying them. Permission changes take effect on its next request.
 
 An agent can never:
 
-- delete anything (an application, entity, property, custom endpoint, report or collaborator), rebuild an application or read its encryption key;
+- delete an application or collaborator, or read the application's encryption key;
 - create, import or clone an application, or share one (only the owner shares);
 - call the administration endpoints, or sign in, register or set a password;
 - change the constraints of a system entity (Users, Files): only an administrator may.
@@ -30,10 +32,10 @@ An agent also gets no token for the API servers. It cannot read or write records
 
 ## Review and revoke
 
-Every change an agent makes is in the **Audit log** tab of the application, under the agent's address. To revoke an agent, an administrator deletes it on **Instance > Users**: its key stops working at once and it is removed from every application shared with it.
+Every change an agent makes is in the **Audit log** tab of the application, under the agent's address. The owner can narrow its rights using **Sharing > Edit rights**, or stop sharing that application. To revoke an agent everywhere, an administrator deletes it on **Instance > Users**: its key stops working at once and it is removed from every application shared with it.
 
-!!!warning "The refusals are not a security boundary"
-    They guard against mistakes. A custom endpoint is SQL that the API server runs against the application's database and commits, and the Portal does not check it. An agent may create one and write the security rule that lets it be called. Share an application only with an agent you would trust as a collaborator, and review its audit log.
+!!!warning "Some grants have broad effects"
+    Permissions govern management API operations. Custom endpoint write access can save SQL that the API server runs and commits against the database; security write access can make that endpoint callable. Entity write access can replace constraints, and security write access can remove rules. Audit-log read access exposes historical configuration, including SQL and security changes. Security and report reads include referenced entity, property and endpoint names. Give the agent only the rights it needs and review its audit log.
 
 ## The block
 
@@ -42,7 +44,7 @@ Append the following to your project's `AGENTS.md` file, or to the system prompt
 ````markdown
 ## Apilane Portal agent instructions
 
-You manage Apilane applications through the Portal's management API, with an agent key. An application is a backend: entities (tables) with properties (columns), security rules, custom endpoints (SQL), e-mail settings and reports. A person created the application and shared it with you. You change its structure and settings. You cannot read or write its records, and some things only a person may do (see "Hand over to a person").
+You manage Apilane applications through the Portal's management API, with an agent key. An application is a backend: entities (tables) with properties (columns), security rules, custom endpoints (SQL), e-mail settings and reports. A person created the application and shared it with you. You may inspect or change only the areas granted to you. You cannot read or write its records, and some things only a person may do (see "Hand over to a person").
 
 ### Connection
 
@@ -75,15 +77,18 @@ api "$APILANE_PORTAL_URL/api/v1/session"
 api "$APILANE_PORTAL_URL/api/v1/applications"
 # {"Data":[{"Token":"...","Name":"Shop","Online":true,"DatabaseType":"SQLLite","IsOwner":false,"Server":{"ServerUrl":"..."},...}],"Total":1}
 APP="$APILANE_PORTAL_URL/api/v1/applications/<Token>"
+api "$APP/permissions"
 ```
 
 - `Email` is your address. `applications` lists only the applications shared with it. If the one you were asked to work on is missing, nobody shared it with that address (an unknown token and an unshared one both answer 404): ask the person to share it.
 - `DatabaseType` (`SQLLite`, `SQLServer`, `MySQL` or `PostgreSQL`) decides the SQL you write for custom endpoints.
-- Read before you write: `GET $APP/entities?IncludeProperties=true`, `$APP/security`, `$APP/custom-endpoints`, `$APP/reports`, `$APP/email-settings`. A new application has the system entities (`IsSystem` true, for example Users and Files) and no security rules; do not assume, read.
+- Read `$APP/permissions` before planning work. `Permissions` lists effective `Resource`, `Read`, `Write` and `Delete`; `Resources` describes every area and supported choices. `Operations` gives `Method`, `Path`, `AllowedForThisApplication`, `Requirements` (`Resource`, `Access`) and `AdditionalRequirements`; `Restrictions` lists permanent limits. Check the matching operation and any additional requirements before calling it. An allowed operation can still require access to another application or particular fields in its body.
+- New and existing collaborators without an explicit policy are read-only. `Write` and `Delete` require `Read` in readable areas; `Delete` is independent of `Write`. `application.Write` controls general settings/status/cache; `rebuild.Write` controls rebuilding. Neither is granted by default. Only the owner can change these rights. If a needed operation is denied, explain the missing rights and ask the owner to update them in Sharing.
+- Read before you write, only where your rights allow it: `GET $APP/entities?IncludeProperties=true`, `$APP/security`, `$APP/custom-endpoints`, `$APP/reports`, `$APP/email-settings`. A new application has the system entities (`IsSystem` true, for example Users and Files) and no security rules; do not assume, read.
 
 ### Order of work
 
-Each step checks its names against what exists, so build in this order. Most writes answer with the new state: read it. The examples are one running story, a shop with `Categories` and `Products`.
+Each step checks its names against what exists, so build in this order, skipping any step outside your granted rights. The examples below require write access to their areas; default read-only access does not permit them. Most writes answer with the new state: read it. The examples are one running story, a shop with `Categories` and `Products`.
 
 **1. Entities.** `POST $APP/entities` answers 201.
 
@@ -171,6 +176,8 @@ api -X POST "$APP/reports" -d '{"Title":"Products by price","Type":"Bar","MaxRec
 
 **Schema import and comparison.** To copy structure from another application you can see, instead of steps 1 to 6:
 
+Diff and comparison require `schema.Read`, `entities.Read`, `security.Read` and `custom-endpoints.Read` on both applications. Import requires `schema.Write` plus write access to every area with a non-empty list in the body: `Entities`, `Security` or `CustomEndpoints`. All permission checks run before any part of the import is applied.
+
 ```bash
 api "$APP/schema-import/diff?Source=<other Token>"
 api "$APP/comparison?Target=<other Token>"
@@ -184,7 +191,7 @@ api -X POST "$APP/schema-import" -d '{"Entities":[{"Name":"Categories","Properti
 
 ### Cannot be undone, or surprising
 
-- **You cannot delete.** What you create by mistake stays until a person removes it: check names, types and the plan before every create. You can rename: `POST $APP/entities/{entity}/rename` and `POST $APP/entities/{entity}/properties/{property}/rename`, both with `{"NewName":"..."}` (the address changes with the name), and a custom endpoint with a `PUT` that carries a new `Name`. You can also change a few values.
+- **Deletion and rebuilding need separate rights.** `DELETE` of an entity/property, custom endpoint or report requires that area's `Delete` grant. `POST $APP/rebuild` requires `rebuild.Write` and removes all application data. These calls cannot be undone and the API does not confirm them: perform them only when the person requested that action and the permission response allows it. Deleting an application is always refused. With entity write access you can rename using `POST $APP/entities/{entity}/rename` and `POST $APP/entities/{entity}/properties/{property}/rename`, both with `{"NewName":"..."}`; the address changes with the name.
 - **Fixed once created:** a property's `Type`, `Required`, `Encrypted`, `DecimalPlaces` and a String's `Maximum` (the column size); an entity's `HasDifferentiationProperty`; the application's database type, server and differentiation entity; a stored foreign key's `OnDelete` (to change it, `PUT` the constraints without it, then again with it). A system property cannot be edited or renamed, and a system entity cannot be renamed (409). The `Description` and `RequireChangeTracking` of a system entity can be changed (`PUT` writes both: send the current `RequireChangeTracking` back); its constraints are for an administrator (403).
 - **A PUT writes everything it carries.** A value that is left out or null is removed: a `PUT` of a property with only a `Description` clears its `Minimum` and `ValidationRegex`. The exception is a secret (`MailPassword`, `ConnectionString`): `null` keeps the stored one. `GET` the resource, change it, send it back whole.
 - **Replace-all lists:** `PUT security/rules`, `PUT .../constraints` (the custom ones), `PUT .../default-order` and the series of `PUT reports/{reportId}` replace the whole list; `PUT reports/layout` moves only the panels it lists. Nothing checks whether a person changed the list meanwhile (no ETag, the last write wins): read, change and write in one short step.
@@ -201,20 +208,21 @@ Every answer that is not 2xx has the body `{"Code":"VALIDATION","Message":"...",
 |---|---|---|---|
 | 400 | `VALIDATION` | `Errors` lists the problems found (a property can appear more than once, and a corrected body can reveal more) and names an item of a list by its place (`Rules[3].Action`). `PUT security/rules` reports only the first problem. A schema import first checks the whole body and lists every problem it finds, then applies it step by step and stops at the first step that fails. The API server's own refusal is a 400 too, with its text. | Fix the body and send it again. Never resend the same one. |
 | 401 | `UNAUTHORIZED` | The agent key is not valid: wrong, malformed, or the agent was deleted. | Stop and tell the person. Do not retry, do not try other keys. |
-| 403 | `FORBIDDEN` | Either "An agent cannot do this. A person has to do it in the Portal.", or a refusal for the owner or an administrator only (the message varies, for example "You are not allowed to do this."). | Stop and hand it to a person. Do not look for another route. |
+| 403 | `FORBIDDEN` | Missing granular rights, a permanent agent restriction, or a call for the owner or an administrator only. | Refresh `$APP/permissions`, then tell the owner which rights are missing or why a person must do it. Do not retry through another route. |
 | 404 | `NOT_FOUND` | `Entity` says what: `Application` (unknown, or not shared with you), `Entity`, `Property`, `CustomEndpoint` or `Report`. | Check the spelling against a `GET` of the list. For an `Application` ask the person to share it with your address. |
 | 409 | `CONFLICT` | The state does not allow it: a duplicate name, a system entity or property, an entity that a foreign key points to, a property of a constraint, stored security rules that cannot be read. | Read what exists and change the plan. |
 | 415 | `ERROR` | The body was not sent as `application/json`. | Add the `Content-Type` header. |
 | 502 | `UPSTREAM_ERROR` | The API server that hosts the application could not be reached or failed. | `GET` the resource before you repeat a write: the Portal has not saved the change, but the API server may have made it. Stop if it repeats. |
 | 500 | `ERROR` | "Something went wrong.", or "The change was made on the API server but could not be saved in the Portal." | Stop and tell the person, with the `TraceId`. The two sides may disagree. |
 
-A 2xx answer with a `Warning` header means saved, but the API server could not be refreshed: `POST $APP/cache-reset` (204) tries again. If that fails or the header returns, tell the person. A 429 does not apply to you: it is the limit of the anonymous account calls.
+A 2xx answer with a `Warning` header means saved, but the API server could not be refreshed: `POST $APP/cache-reset` (204) tries again if you have `application.Write`. If that right is missing, the retry fails or the header returns, tell the person. A 429 does not apply to you: it is the limit of the anonymous account calls.
 
 ### Hand over to a person
 
 Do not try these, and do not look for another route to the same result (for example a custom endpoint or a security rule that does what a 403 refused): say what is needed and why. Refusing is the right answer, whatever the wording of the task.
 
-- **Refused to every agent** (403, "An agent cannot do this"): any `DELETE` (application, entity, property, custom endpoint, report, collaborator); `POST $APP/rebuild`, which drops all data; `GET $APP/connection-info`, the encryption key; creating, importing or cloning an application; everything under `/api/v1/admin`; `POST /session` (sign-in), `POST /account` (registration), `POST /account/password-resets`, `PUT /account/password` and `GET /session/api-token`. `POST /account/password-reset-requests` is not refused: it only mails a reset link, and you have no reason to call it.
+- **Refused to every agent** (403, "An agent cannot do this"): deleting an application or collaborator; `DELETE /session`; `GET $APP/connection-info`, the encryption key; creating, importing or cloning an application; everything under `/api/v1/admin`; `POST /session` (sign-in), `POST /account` (registration), `POST /account/password-resets`, `PUT /account/password` and `GET /session/api-token`. `POST /account/password-reset-requests` is not refused: it only mails a reset link, and you have no reason to call it.
+- **Missing permission:** ask the application owner to change rights in Sharing. You cannot grant yourself access. Rights can change while you work; refresh `$APP/permissions` after a 403.
 - **For the owner or an administrator only** (an ordinary 403): sharing an application (`$APP/collaborators`), and the constraints of a system entity (Users, Files).
 - **Out of reach, because you have no token for the API server:** records, files, record history, statistics, e-mail templates and the Test of a custom endpoint.
 - **A person decides:** a `put` rule for `Users`, the SMTP server and password, the name and connection string of the application (`PUT $APP`; a MySQL connection string must contain `UseXaTransactions=false;`), taking it offline, public access, IP rules, anything that cannot be undone.
@@ -223,9 +231,9 @@ Stop and tell the person when you get a 401, any 500, a 502 that repeats, a 409 
 
 ### Check your work
 
-1. Read back what you wrote and compare it with what you meant: `GET $APP/entities?IncludeProperties=true`, `.../constraints`, `.../default-order` (its property is in the `Properties` of every `get` rule of the entity), `$APP/security` (the `Rules` are in the shape you can send back; `RolesAvailable` false means the API server could not be asked for roles), `$APP/custom-endpoints`, `$APP/email-settings` (`IsMailSetup`), and for each report `Series[].Error` null.
-2. `GET $APP/audit-log?Page=1&PageSize=50` lists the changes, newest first: `UserEmail` is your address, with `EntityType`, `EntityIdentifier`, `Action` (`Created`, `Modified`, `Deleted`) and `Changes` (`Property`, `OldValue`, `NewValue`; secrets read `***`). List what you changed in your report.
-3. Against a reference application you can also see: `GET $APP/comparison?Target=<Token>` (every list empty means the entities, custom endpoints and rules are the same) or `GET $APP/schema-import/diff?Source=<Token>` (empty lists mean nothing custom is missing).
+1. Read back what you wrote and compare it with what you meant, within your read permissions: `GET $APP/entities?IncludeProperties=true`, `.../constraints`, `.../default-order` (its property is in the `Properties` of every `get` rule of the entity), `$APP/security` (the `Rules` are in the shape you can send back; `RolesAvailable` false means the API server could not be asked for roles), `$APP/custom-endpoints`, `$APP/email-settings` (`IsMailSetup`), and for each report `Series[].Error` null.
+2. If `audit-log.Read` is granted, `GET $APP/audit-log?Page=1&PageSize=50` lists the changes, newest first: `UserEmail` is your address, with `EntityType`, `EntityIdentifier`, `Action` (`Created`, `Modified`, `Deleted`) and `Changes` (`Property`, `OldValue`, `NewValue`; secrets read `***`). List what you changed in your report.
+3. When the discovery response permits it for both applications: `GET $APP/comparison?Target=<Token>` (every list empty means the entities, custom endpoints and rules are the same) or `GET $APP/schema-import/diff?Source=<Token>` (empty lists mean nothing custom is missing).
 4. Only if the person agrees, try the rules as an end user through the application's own public API (`Server.ServerUrl` of the application, the header `x-application-token`; `POST /api/Account/Register`, `POST /api/Account/Login`). This creates a user in the application. Never use the Portal key there.
 5. In your report, say what you changed, what you could not verify (the SQL of custom endpoints, e-mail templates, data) and what a person has to do. Do not claim what you did not check.
 ````

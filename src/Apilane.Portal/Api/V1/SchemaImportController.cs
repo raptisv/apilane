@@ -12,6 +12,7 @@ namespace Apilane.Portal.Api.V1
     /// to an application in one call.
     /// </summary>
     [Route(RoutePrefix + "/schema-import")]
+    [AgentPermission("schema")]
     public class SchemaImportController : PortalApplicationApiControllerBase
     {
         private readonly ISchemaImportService _schemaImportService;
@@ -40,6 +41,9 @@ namespace Apilane.Portal.Api.V1
         /// application cannot be read. Nothing is changed and the API server is not called.
         /// </summary>
         [HttpGet("diff")]
+        [AgentPermission("entities")]
+        [AgentPermission("security")]
+        [AgentPermission("custom-endpoints")]
         [ProducesResponseType(typeof(SchemaImportRequest), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]

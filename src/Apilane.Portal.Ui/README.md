@@ -86,7 +86,7 @@ marks calls the browser makes straight to the application's API server
 | Email | `/apps/{appToken}/email` | `GET` and `PUT {app}/email-settings`. API server: `Email/GetEmails`, `Email/Update` |
 | Reports dashboard | `/apps/{appToken}/reports` | `GET {app}/reports`, `PUT {app}/reports/layout`, `DELETE {app}/reports/{reportId}`. API server: `Stats/Aggregate` |
 | Report editor (a side sheet) | `/apps/{appToken}/reports/new`, `/apps/{appToken}/reports/{reportId}/edit` | `POST {app}/reports`, `PUT {app}/reports/{reportId}`, `GET {app}/entities?IncludeProperties=true`, `GET {app}/entities/{entity}/report-fields?Type=` |
-| Sharing (owner only) | `/apps/{appToken}/sharing` | `GET` and `POST {app}/collaborators`, `GET {app}/collaborators/available-agents`, `DELETE {app}/collaborators/{id}` |
+| Sharing (owner only) | `/apps/{appToken}/sharing` | `GET` and `POST {app}/collaborators`, `GET {app}/collaborators/available-agents`, `GET {app}/permissions`, `PUT {app}/collaborators/{id}/permissions`, `DELETE {app}/collaborators/{id}` |
 | Import schema | `/apps/{appToken}/import` | `GET {app}/schema-import/diff?Source=`, `POST {app}/schema-import` |
 | Audit log | `/apps/{appToken}/audit-log?page=` | `GET {app}/audit-log?Page=&PageSize=` |
 | Settings (general, status, rebuild, delete) | `/apps/{appToken}/settings` | `PUT {app}`, `PUT {app}/status`, `POST {app}/rebuild`, `DELETE {app}` |
@@ -150,7 +150,8 @@ The user menu also has 'API reference', a link to `/swagger`.
   lower-case letters, digits and dashes). The key is shown once; the Portal stores only a hash of it.
 - An agent gets access the way a person does: the owner of an application shares it with the
   agent's address on the Sharing screen. The address box there offers the agents the application
-  is not shared with yet. No mail is sent to an agent.
+  is not shared with yet. Agents start read-only. The owner chooses their rights when sharing,
+  or later with 'Edit rights'; each application has its own policy. No mail is sent to an agent.
 - Deleting the agent on the Users screen stops its key at once and removes the agent from every
   application shared with it. Only agents can be deleted there, not people. A lost key cannot be
   shown or replaced: delete the agent, add it again and share again.
@@ -163,9 +164,9 @@ The user menu also has 'API reference', a link to `/swagger`.
 |---|---|
 | Any signed-in user | The own account, the list of servers, creating applications, and every application the user owns or that is shared with the user. |
 | Owner of an application | Everything about it, sharing included. |
-| Collaborator | Everything the owner can do (delete, rebuild, clone, import schema, edit security, read the encryption key), except sharing. |
+| Human collaborator | Everything the owner can do (delete, rebuild, clone, import schema, edit security, read the encryption key), except sharing. |
 | Administrator (role Admin) | The 'Instance' screens and `/api/v1/admin/...`: servers, users and agents, instance settings, backup, the instance audit log, the list of all applications and the data browser of any of them. |
-| Agent (calling with its key) | The applications shared with its address, as a collaborator, minus what agents are refused: no delete of anything, no rebuild, no new application (create, import, clone), no encryption key, no API-server token, nothing under `/api/v1/admin`. See [Agents](#agents). |
+| Agent (calling with its key) | The shared applications, with the read/write/delete rights their owners grant per area. Defaults to read-only. Rebuild is a separate grant; deleting an application, sharing, creating/importing/cloning an application, encryption keys, API-server tokens and `/api/v1/admin` remain unavailable. See [Agents](#agents). |
 
 - Under `/api/v1/applications/{appToken}` the Admin role opens nothing: an application the caller
   neither owns nor collaborates on is 404, administrator or not. The one exception is
@@ -292,6 +293,11 @@ that hosts the application, and the browser calls that server directly:
   list (`datalist`).
 - The collaborator gets a mail when the instance can send one; the toast says whether it was sent.
   An agent is never mailed.
+- An agent starts read-only. For each area choose None, Read or Read and write; deletion is a
+  separate choice for entities/properties, custom endpoints and reports. Application settings and
+  rebuild are separate permissions with no read choice. The application summary stays visible.
+- 'Edit rights' beside an agent changes its policy for this application, effective on its next
+  request. Existing agent collaborators without a saved policy also start read-only.
 - A collaborator who opens the Sharing address gets the 'no access' state (403).
 
 **Email**
@@ -586,10 +592,10 @@ For the owner. The default is what the code does today; say nothing and it stays
 | Security screen | Separate saves for settings and rules. | One atomic save of both. |
 | Server address | http or https only. | Any scheme (`ServerService.ValidateUrl`). |
 | Rebuild and delete confirmation | Guards of the browser only. | Require the application name in the request. |
-| Collaborator rights | A collaborator can delete, rebuild, clone, import schema, edit security and read the encryption key; only Sharing is owner-only. An agent is refused every delete, the rebuild, clone, import and creation of an application, the encryption key and the API-server token. | Narrow them for people too. |
+| Collaborator rights | A human collaborator can delete, rebuild, clone, import schema, edit security and read the encryption key; only Sharing is owner-only. Agents have per-application read/write/delete policies and permanent restrictions described below. | Narrow them for people too. |
 | Collaborator e-mail letter case | Saved as typed; access needs an exact match. | Save the exact address of the matching account when sharing (`CollaboratorService.AddAsync`), or match without case everywhere. |
 | Rate limit | 30 calls per 60 seconds per IP address. | Other numbers. |
-| Agents | One key per agent, and an agent may do what a collaborator may, minus the refused calls. Left out on purpose: read-only keys, an expiry date, several keys per agent, re-issuing a key without deleting the agent, a rate limit on wrong keys, an MCP server. | Add the ones that turn out to be needed. |
+| Agents | One key per agent, with per-application permissions starting read-only. Left out on purpose: an expiry date, several keys per agent, re-issuing a key without deleting the agent, a rate limit on wrong keys, an MCP server. | Add the ones that turn out to be needed. |
 | Schema import: numbers in the payload | TypeID, Record and TimeWindowType are the stored numbers. | Names, like the rest of the API. |
 | Schema import: foreign-key order | A referenced entity must be listed before the entities that point to it. | Order them in `InForeignKeyOrder`. |
 | Stored sort direction that is neither asc nor desc | Shown as descending, although the API server sorts it ascending. | Show it as ascending. |
@@ -659,7 +665,8 @@ block to append to the `AGENTS.md` of the project that holds the agent.
    Sharing screen, as with a person: the address box offers the agents the application is not
    shared with yet (`GET {app}/collaborators/available-agents` lists them). Pick the offered
    address or type it exactly, in lower case: an access is matched on the exact letter case. The
-   agent is then a collaborator of that application. No mail is sent to an agent.
+   agent is then a collaborator of that application with read-only access by default. Set its
+   rights in the share dialog or choose 'Edit rights' beside it later. No mail is sent to an agent.
 3. **Call the API.** Send `Authorization: Bearer {key}` on every call. No sign-in, no cookie, no
    `X-Apilane-Portal` header.
 
@@ -670,7 +677,10 @@ KEY='apl_0123456789ab_...'
 curl -H "Authorization: Bearer $KEY" http://localhost:5000/api/v1/session
 curl -H "Authorization: Bearer $KEY" http://localhost:5000/api/v1/applications
 
-# Create an entity in it.
+# Discover the rights and operation requirements for this application first.
+curl -H "Authorization: Bearer $KEY" http://localhost:5000/api/v1/applications/{appToken}/permissions
+
+# Only when entities.Write is granted: create an entity in it.
 curl -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d '{"Name":"Products","Description":"The catalogue"}' \
   http://localhost:5000/api/v1/applications/{appToken}/entities
@@ -678,21 +688,65 @@ curl -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
 
 A key that is wrong, unknown or malformed answers 401 UNAUTHORIZED, with the same body in every case.
 
+**Per-application rights.** Both new and existing agent collaborators start read-only unless the
+owner saves a policy. The policy is stored separately from the application and collaborator
+records. A policy is checked on every request, so changing it takes effect on the next request.
+
+| Resource | Read | Write | Delete |
+|---|---|---|---|
+| `application` | The common summary is always visible | General settings, status and cache reset | Never |
+| `entities` | Entities, properties, constraints, sorting and report fields | Create, edit, rename, constraints and sorting | Entities and properties |
+| `security` | Settings, roles and rules | Settings and rules, including replacing or removing rules | — |
+| `custom-endpoints` | Definitions and preview | Create and edit SQL definitions | Custom endpoints |
+| `reports` | Definitions and layout | Create, edit and arrange reports | Reports |
+| `email-settings` | SMTP settings, excluding secrets | SMTP settings | — |
+| `audit-log` | The application's audit log | — | — |
+| `schema` | Schema import diff and comparison | Schema import | — |
+| `rebuild` | — | Rebuild, which removes all application data | — |
+
+Write and Delete require Read for areas that support reading; Delete does not require Write.
+Application settings and rebuild are write-only capabilities and default to denied. All areas
+that support Read default to readable. Write access can have wide effects even without Delete:
+security can replace rules, entities can replace constraints, and custom endpoints can save SQL.
+
+**Discovering rights.** `GET {app}/permissions` remains available even if all areas are denied.
+It answers `IsAgent`, effective `Permissions` (`Resource`, `Read`, `Write`, `Delete`), the resource
+catalogue in `Resources` (`Resource`, `Name`, `Description`, `CanRead`, `CanWrite`, `CanDelete`),
+and operation requirements and permanent restrictions. An agent should read it before planning
+work, call only allowed operations, and refresh it after a 403 instead of trying another route.
+`Operations` contains `Method`, `Path`, `AllowedForThisApplication`, `Requirements` (`Resource`,
+`Access`: Read, Write or Delete) and `AdditionalRequirements`. `Restrictions` lists permanent limits.
+The boolean covers the current application's fixed requirements; the additional text explains
+checks of another application, a selected entity or the request body.
+
+Comparison and schema diff need schema, entities, security and custom-endpoint Read on both
+applications. Schema import needs schema Write plus Write for each non-empty affected area
+(`Entities`, `Security`, `CustomEndpoints`); all permission checks finish before any changes begin.
+Audit-log Read exposes historical changes across every area, including SQL and security rules,
+even if current reads of those areas are denied. Security and report Read also reveal the names
+and types of referenced entities, properties and endpoints; these implications are described in
+the resource catalogue shown to the owner.
+
+**Saving rights.** The owner may supply `Permissions` with `POST {app}/collaborators` when the
+address is an agent. Omit it for the default read-only policy. `PUT {app}/collaborators/{id}/permissions`
+with `{"Permissions":[{"Resource":"security","Read":true,"Write":false,"Delete":false}]}`
+replaces the agent's policy; every area omitted from an explicit policy is denied. An empty array
+denies all areas, while the common application summary and permission discovery remain visible.
+Collaborator responses carry effective `Permissions` for agents and `null` for people. Only the
+owner can change rights, and people keep their existing collaborator access.
+
 **What an agent is refused.** These answer 403 FORBIDDEN with the message 'An agent cannot do this.
 A person has to do it in the Portal.':
 
-- every DELETE: an application, an entity, a property, a custom endpoint, a report, a collaborator;
-- `POST {app}/rebuild`;
+- deleting an application or collaborator, and signing out through `DELETE /session`;
 - `GET {app}/connection-info`, the encryption key;
 - `POST /applications`, `POST /applications/import` and `POST {app}/clones`: a new application;
 - everything under `/api/v1/admin`. An agent cannot be made an administrator either;
 - `GET /session/api-token`, so an agent cannot call the API servers (records, files);
 - `POST /session`, `POST /account`, `PUT /account/password` and `POST /account/password-resets`.
 
-Everything else a collaborator may do, an agent may do: entities, properties, constraints, default
-sorting, security, custom endpoints, reports, e-mail settings, schema import, comparison, renaming
-the application, its connection string, online and offline. An application that is not shared
-with the agent is 404, as for any user.
+Other operations require the corresponding grants above. Missing rights answer 403 FORBIDDEN.
+An application that is not shared with the agent is 404, as for any user.
 
 Two things are not open to an agent although the list above does not name them, and answer an
 ordinary 403 FORBIDDEN: everything under `{app}/collaborators` (sharing is for the owner, and an
@@ -705,10 +759,10 @@ records, files, record history or statistics, edit e-mail templates, or run the 
 endpoint (`POST {ServerUrl}/api/Custom/TestQuery`). The Portal does not check the query of a custom endpoint:
 it is stored as it is sent.
 
-The refusals guard against slips; they are not a security boundary. A custom endpoint is SQL that
-the API server runs and commits against the application's database when it is called, and an agent
-may create one and write the security rule that lets it run. Share an application only with an
-agent you would trust as a collaborator.
+These permissions govern management API operations. A custom endpoint is SQL that the API server
+runs and commits against the application's database when called. An agent with custom endpoint
+and security write access may create one and allow it to run, so those grants carry broad effects
+beyond the management endpoint itself. Give an agent only the rights needed for its work.
 
 **Revoking.** Delete the agent on Instance > Users (`DELETE /api/v1/admin/agents/{userId}`). Its
 key stops working at once and the agent is removed from every application shared with it. A key
@@ -737,7 +791,7 @@ an item of a list is named by its place (`Rules[3].Action`). `TraceId` finds the
 |---|---|---|
 | 400 | `VALIDATION` | The request is not valid, or the API server refused it with a message of its own. |
 | 401 | `UNAUTHORIZED` | No session, or the session was ended. Also a failed sign-in, and an agent key that is not valid. |
-| 403 | `FORBIDDEN` | The write header is missing; or the call is for the owner or an administrator only; or registration is switched off; or an agent called something agents are refused. |
+| 403 | `FORBIDDEN` | The write header is missing; or the call is for the owner or an administrator only; or registration is switched off; or an agent lacks a permission or called something agents are always refused. |
 | 404 | `NOT_FOUND` | Unknown, or not the caller's. Also an unknown API address or a wrong method. |
 | 409 | `CONFLICT` | The state does not allow it: a duplicate name, a system entity, a property that is part of a constraint, mail not set up. |
 | 415 | `ERROR` | The request body is not sent as `application/json`. |
@@ -759,15 +813,16 @@ The contract is the reference. In short, under `/api/v1`:
 | Custom endpoints | `{app}/custom-endpoints`, `{app}/custom-endpoints/{id}`, `{app}/custom-endpoints/preview` |
 | Reports | `{app}/reports`, `{app}/reports/{reportId}`, `{app}/reports/layout` |
 | Email settings | `{app}/email-settings` |
-| Sharing | `{app}/collaborators`, `{app}/collaborators/available-agents`, `{app}/collaborators/{id}` |
+| Sharing and agent rights | `{app}/collaborators`, `{app}/collaborators/available-agents`, `{app}/collaborators/{id}`, `{app}/collaborators/{id}/permissions`, `{app}/permissions` |
 | Schema import and comparison | `{app}/schema-import`, `{app}/schema-import/diff`, `{app}/comparison` |
 | Clones | `{app}/clones`, `{app}/clones/{operationId}` |
 | Administration | `/admin/servers`, `/admin/users`, `/admin/users/{userId}/role`, `/admin/agents`, `/admin/agents/{userId}`, `/admin/applications`, `/admin/applications/{appToken}`, `/admin/settings`, `/admin/backup`, `/admin/audit-log` |
 
 Things an agent should know before it writes:
 
-- Deletes and rebuild have no confirmation step in the API and cannot be undone. An agent key is
-  refused on both.
+- Deletes and rebuild have no confirmation step in the API and cannot be undone. Agents need a
+  separate Delete grant for entities/properties, custom endpoints or reports, or the rebuild Write
+  grant. Deleting an application remains unavailable to agents.
 - `PUT {app}/security/rules`, `PUT .../constraints` and `PUT .../default-order` replace the whole
   list: read it first, change it, send all of it. `PUT {app}/reports/layout` moves only the panels
   it lists (reports left out stay where they are), and `PUT {app}/reports/{reportId}` replaces the
@@ -1035,7 +1090,7 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 | `CustomEndpointEditorPage` | `/apps/:appToken/endpoints/new` and `/apps/:appToken/endpoints/<ID>`: name, description and the SQL in `SqlEditor`, saved with `UnsavedChangesBar`, the rename warning and its Help (`CustomEndpointEditorHelp`, which shows the SQL Server item only for a SQL Server application). `CustomEndpointTestPanel` is its right-hand part (the address and a box per parameter, worked out in the browser, and Test, which runs the SQL on the API server and shows the JSON or the database's error). |
 | `EmailPage` | `/apps/:appToken/email`: the SMTP settings and the confirmation landing page, one form saved to the Portal, and the e-mail templates read from and saved to the API server. `EmailTemplateDialog` edits one template (enabled, subject, HTML body with a live `HtmlPreview`, the placeholders). |
 | `ReportsPage`, `Report*.vue`, `TimeRangePicker` | `/apps/:appToken/reports`: the dashboard. On a wide screen (768px and up) the reports are panels on a 12-column grid (`ReportsGrid`, gridstack), dragged by their title and resized by their edges; the layout is saved 600 ms after the last change (`PUT reports/layout`, every panel), and a save that fails shows above the grid with 'Reload the dashboard'. On a phone the panels are one column in the same order and nothing moves. The page also holds the delete confirm, `ReportEndpointDialog` ('View API endpoint': the address of each series' call, with a copy button) and the editor. `ReportPanel`: one report: title, the time range or Top N badge, Refresh (which moves the time window to now), the menu, and the body: `ReportTable` for a Grid, `ReportChart` (Chart.js) for the other types. It loads each series itself from the API server (`/api/Stats/Aggregate`); a series that cannot run or whose call fails is named inside the panel and the others still show. `ReportEditorSheet` (`/apps/:appToken/reports/new` and `/apps/:appToken/reports/<ID>/edit`, a side sheet over the dashboard; the three routes share `ReportsPage`): title, visualization, time range (`TimeRangePicker`: the quick ranges or a custom number and unit), Top N and the series. `ReportSeriesEditor` is one series (label, entity, group-by, property, filter), with its choices from `GET entities/{entity}/report-fields?Type=` and the filter edited in a dialog with `FilterBuilder`. |
-| `SharingPage` | `/apps/:appToken/sharing`, owner only: the users the application is shared with, the share dialog (a free-text address box that also offers the available agents, through a `datalist`), the remove confirm. What a collaborator can do is in its Help. |
+| `SharingPage`, `AgentPermissionsEditor` | `/apps/:appToken/sharing`, owner only: collaborators and permission summaries, the share dialog (a free-text address box offering available agents through a `datalist`), per-area rights when adding or editing an agent, and the remove confirm. People keep full collaborator access. |
 | `SchemaImportPage` | `/apps/:appToken/import`, the 'Import' tab (route `app-schema-import`): adds entities, properties, constraints, security rules and custom endpoints from a JSON payload. 'Load diff' asks the API what another application has that this one lacks, puts it into the payload box and shows its counts; the box stays editable. Import checks the text in the browser (`parsePayload`), asks first (not atomic, cannot be undone), then shows 'Imported' with the skipped items, or the failed step with its place in the payload. Its Help (`SchemaImportHelp`) holds how the import works, the payload reference and the example payload (`examplePayload`). |
 | `AuditLogPage` | `/apps/:appToken/audit-log?page=1`: the application's audit log, with `AuditLogTable` and `AppPagination`. |
 | `SettingsPage` | `/apps/:appToken/settings`: General (name, connection string; server and database type read-only), Status (online / offline) and Danger zone (rebuild, delete). |
@@ -1125,6 +1180,7 @@ Rules that need neither Vue nor the browser, as pure functions, each with a `*.t
 | `api.ts` | The typed API client, `unwrap`, `unwrapAnonymous` (for calls made without a session), `ApiError`, and `loginUrl` / `redirectToLogin`. It adds the write header and shows the `Warning` header of any answer as a warning toast. `api-types.ts` is generated. |
 | `apiServer.ts` | `apiServer(serverUrl, appToken)`: the client for calls that go straight from the browser to an API server (storage used, export, record counts, e-mail templates, the SQL test of a custom endpoint, records, files, history and the series of a report). `get` and `getBlob` read (`get` takes `{ signal }` of an `AbortController`, for a read a newer one replaces; `isAbort(error)` tells that failure apart); `put` and `post` send a JSON body; `delete` deletes; `postFile(path, field, file)` uploads one file as multipart/form-data. A query value that is `undefined` is left out. It fetches the user's API token from the Portal, keeps it in memory only, and throws the same `ApiError` as `api` (with the `Property` the API server names, so `formErrors` marks that field). |
 | `agents.ts` | The rules of agents on the Users and Sharing screens: `isAgent` (an address at `@agent.local`), and `isAgentName` with `agentNameRule` (a copy of the name rule of `POST /admin/agents`). |
+| `agentPermissions.ts` | Read-only defaults, copies of saved policies, access-level transitions and collaborator permission summaries. Resource capabilities come from the API catalogue. |
 | `session.ts` | The signed-in user: loaded before the app starts, `useSession()` inside `AppShell`, `setSession` after signing in. |
 | `returnUrl.ts` | `safeReturnUrl`: the check that a `returnUrl` is a path on this site before it is followed after signing in. `isServerPath`: whether the Portal answers an address itself (`/swagger`), so it needs a full page load. |
 | `forms.ts` | What a form shows for a failed write: `formErrors` (a message per field and one above the form) and `listErrors` (a message per item of a list sent as a whole, `Constraints[1]...`, and one above the list). |
@@ -1223,10 +1279,15 @@ Rules that need neither Vue nor the browser, as pure functions, each with a `*.t
 
 | Where | What it covers | Run |
 |---|---|---|
-| `src/**/*.test.ts` (this folder) | The pure modules under `src/lib`, `usePolling`, and the route table (`src/router.test.ts`: which address opens which screen, that no route sits under a server prefix, and `afterSignIn`). Vitest, without a browser environment (no jsdom), so components are not unit-tested. `npm run build` type-checks the tests but does not bundle them. | `npm test` |
+| `src/**/*.test.ts` (this folder) | The pure modules under `src/lib`, `usePolling`, and the route table (`src/router.test.ts`: which address opens which screen, that no route sits under a server prefix, and `afterSignIn`). Sharing and agent-rights component tests mount the real page, dialogs and controls using Vue Test Utils and jsdom, with mocked API responses; they cover permission choices, saving/cancelling, failures, and delayed catalogue loading. Other tests keep Vitest's default Node environment. `npm run build` type-checks the tests but does not bundle them. | `npm test` |
 | `tests/Apilane.Portal.Tests` | The management API, endpoint by endpoint (`*ApiTests.cs`); the rules every endpoint must keep and the contract file (`ApiContractTests`); the error body, the write header and the cache headers (`ApiPipelineTests`); how the UI is served at the site root next to the Portal's own addresses (`UiServingTests`); the internal API (`InternalApiTests`). xUnit: the real Portal in memory (`Infrastructure/PortalFactory.cs`) on a throw-away SQLite database, with a scripted stand-in for the API servers (`FakeApiServer`). No Docker, no Node. | `dotnet test tests/Apilane.Portal.Tests` |
 | `tests/Apilane.UnitTests` | MSTest unit tests of the shared code, among them `PortalInfoServiceTests`: the addresses and headers the API server sends to `/api/internal`. | `dotnet test tests/Apilane.UnitTests` |
 | `tests/Apilane.Api.Component.Tests` | The API server against SQLite, SQL Server, MySQL and PostgreSQL. It fakes the Portal, so it does not exercise this API. Needs Docker. | `dotnet test tests/Apilane.Api.Component.Tests` |
+
+Run just the Sharing and permission-control interactions with
+`npm test -- SharingPage.test.ts AgentPermissionsEditor.test.ts`. These exercise the actual dialogs,
+keyboard-operated select menus, and deletion checkboxes. jsdom does not render layout, so responsive
+appearance and full-stack browser behavior still need a browser smoke test.
 
 `ApiContractTests` fails when the API no longer matches `openapi/portal-v1.json`: follow
 [When the API changes](#when-the-api-changes). An endpoint that works without a session must be on
@@ -1267,3 +1328,4 @@ Adding one is a deliberate decision: note here what it is for, and add its licen
 | `tailwindcss`, `@tailwindcss/vite` | Styling. |
 | `vite`, `@vitejs/plugin-vue`, `typescript`, `vue-tsc`, `@vue/tsconfig`, `@types/node` | Build and type-checking. TypeScript stays on 6.0.x until `vue-tsc` supports 7. |
 | `vitest` | Runs the unit tests (`npm test`). Development only; it reads `vite.config.ts` and needs no configuration of its own. The Docker image does not run it. |
+| `@vue/test-utils`, `jsdom` | Mount the Sharing page and agent-rights editor for component interaction tests. Only tests with `@vitest-environment jsdom` opt into the DOM environment. The test utilities are pinned to a release compatible with the development Node runtime. Development only. |

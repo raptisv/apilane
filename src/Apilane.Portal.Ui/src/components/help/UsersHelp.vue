@@ -53,10 +53,11 @@ import HelpSheet from '@/components/HelpSheet.vue'
         </li>
         <li>
           It manages the applications <strong>shared with its address</strong>: share an application with it, on the Sharing
-          tab of the application.
+          tab of the application. Agents start read-only; the owner chooses their rights when sharing or with Edit rights later.
         </li>
         <li>
-          It can never be an administrator, and it cannot delete or rebuild an application.
+          It can never be an administrator or delete an application. Rebuilding and deletion within selected areas require
+          separate permission from the application owner.
         </li>
         <li>
           Deleting an agent stops its key at once and removes it from every application shared with it.

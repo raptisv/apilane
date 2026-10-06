@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 namespace Apilane.Portal.Api.V1
 {
     [Route(RoutePrefix + "/entities/{entity}/default-order")]
+    [AgentPermission("entities")]
     public class EntityDefaultOrderController : PortalApplicationApiControllerBase
     {
         private readonly IEntityDefaultOrderService _entityDefaultOrderService;

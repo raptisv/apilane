@@ -74,10 +74,10 @@ namespace Apilane.Portal.Api
     }
 
     /// <summary>
-    /// Marks an action an agent may not call. Every DELETE and everything under /api/v1/admin is
-    /// refused without it.
+    /// Marks an action or controller an agent may not call. Everything under /api/v1/admin and
+    /// DELETE actions without a granular permission classification are also refused.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Method)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
     public class NoAgentAttribute : Attribute
     {
     }

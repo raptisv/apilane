@@ -32,6 +32,7 @@ namespace Apilane.Portal.Models
         public DbSet<DBWS_ReportSeries> ReportSeries { get; set; }
         public DbSet<PortalAuditLog> AuditLogs { get; set; }
         public DbSet<PortalAgentKey> AgentKeys { get; set; }
+        public DbSet<PortalAgentPermission> AgentPermissions { get; set; }
 
         public ApplicationDbContext(
             DbContextOptions<ApplicationDbContext> options,
@@ -86,6 +87,15 @@ namespace Apilane.Portal.Models
 
             builder.Entity<DBWS_Collaborate>().ToTable("Collaborations").HasKey(p => p.ID);
             builder.Entity<DBWS_Collaborate>().HasOne(p => p.Application).WithMany(b => b.Collaborates).HasForeignKey(p => p.AppID).IsRequired();
+
+            // A complete agent policy belongs to one collaboration and disappears when it does.
+            builder.Entity<PortalAgentPermission>().ToTable("AgentPermissions").HasKey(p => p.CollaborationId);
+            builder.Entity<PortalAgentPermission>()
+                .HasOne(p => p.Collaboration)
+                .WithOne()
+                .HasForeignKey<PortalAgentPermission>(p => p.CollaborationId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
 
             builder.Entity<DBWS_ReportPanel>().ToTable("ReportPanels").HasKey(p => p.ID);
             builder.Entity<DBWS_ReportPanel>().HasOne(p => p.Application).WithMany(b => b.Reports).HasForeignKey(p => p.AppID).IsRequired();
@@ -235,6 +245,7 @@ namespace Apilane.Portal.Models
             typeof(DBWS_EntityProperty),
             typeof(DBWS_CustomEndpoint),
             typeof(DBWS_Collaborate),
+            typeof(PortalAgentPermission),
             typeof(DBWS_ReportPanel),
             typeof(DBWS_Server),
             typeof(GlobalSettings),
@@ -437,6 +448,7 @@ namespace Apilane.Portal.Models
                 DBWS_EntityProperty prop => GetAppIdForProperty(prop),
                 DBWS_CustomEndpoint ce => ce.AppID > 0 ? ce.AppID : null,
                 DBWS_Collaborate collab => collab.AppID > 0 ? collab.AppID : null,
+                PortalAgentPermission permission => permission.Collaboration.AppID > 0 ? permission.Collaboration.AppID : null,
                 DBWS_ReportPanel report => report.AppID > 0 ? report.AppID : null,
                 _ => null // Admin-level: Server, GlobalSettings, UserRole
             };
@@ -464,6 +476,7 @@ namespace Apilane.Portal.Models
                 DBWS_EntityProperty => "Property",
                 DBWS_CustomEndpoint => "Custom Endpoint",
                 DBWS_Collaborate => "Collaboration",
+                PortalAgentPermission => "Agent Permissions",
                 DBWS_ReportPanel => "Report",
                 DBWS_Server => "Server",
                 Common.Models.GlobalSettings => "Global Settings",
@@ -482,6 +495,7 @@ namespace Apilane.Portal.Models
                 DBWS_EntityProperty prop => prop.Name ?? "Unknown",
                 DBWS_CustomEndpoint ce => ce.Name ?? "Unknown",
                 DBWS_Collaborate collab => collab.UserEmail ?? "Unknown",
+                PortalAgentPermission permission => permission.Collaboration.UserEmail,
                 DBWS_ReportPanel report => report.Title ?? "Unknown",
                 DBWS_Server server => server.Name ?? "Unknown",
                 Apilane.Common.Models.GlobalSettings => "Instance Settings",

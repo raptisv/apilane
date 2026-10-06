@@ -2,7 +2,7 @@
   "openapi": "3.0.4",
   "info": {
     "title": "Apilane Portal API",
-    "description": "Management API of an Apilane instance: servers, applications, entities and their settings. Records, files and custom endpoints of an application are served by the Apilane API server. Every POST, PUT, PATCH and DELETE request must send the header 'X-Apilane-Portal: 1'; without it the answer is 403 FORBIDDEN. A script or an AI agent sends an agent key instead of the session cookie, as 'Authorization: Bearer {key}', and needs no such header (an administrator creates agents with POST /api/v1/admin/agents). An agent key is refused with 403 FORBIDDEN on every DELETE, on everything under /api/v1/admin, and on the calls that create, import, clone or rebuild an application, read its encryption key, return the API-server token, sign in, register or set a password.",
+    "description": "Management API of an Apilane instance: servers, applications, entities and their settings. Records, files and custom endpoints of an application are served by the Apilane API server. Every POST, PUT, PATCH and DELETE request must send the header 'X-Apilane-Portal: 1'; without it the answer is 403 FORBIDDEN. A script or an AI agent sends an agent key instead of the session cookie, as 'Authorization: Bearer {key}', and needs no such header (an administrator creates agents with POST /api/v1/admin/agents). Agents start read-only, including existing collaborations. Owners grant per-application read, write, delete and rebuild access through Sharing. GET /api/v1/applications/{appToken}/permissions discovers current grants and operation requirements. Agent keys are always refused with 403 FORBIDDEN on administrator and sharing calls, application creation, import, cloning and deletion, encryption keys, API-server tokens, sign-in, registration and password changes.",
     "version": "v1"
   },
   "paths": {
@@ -971,6 +971,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -993,16 +1003,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -1042,6 +1042,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -1101,6 +1111,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -1180,6 +1200,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -1248,6 +1278,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -1278,16 +1318,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -1338,6 +1368,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -1423,6 +1463,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -1453,16 +1503,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -1519,6 +1559,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -1536,16 +1586,6 @@
                 "description": "Present only when the change was saved and the API server could not be told to reload the application. Its value is a text for the user: 'Saved, but the API server could not be refreshed.'. POST /api/v1/applications/{appToken}/cache-reset tries again.",
                 "schema": {
                   "type": "string"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1600,6 +1640,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -1622,16 +1672,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -1663,6 +1703,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -1739,6 +1789,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -1776,6 +1836,37 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/applications/{appToken}/permissions": {
+      "get": {
+        "tags": [
+          "ApplicationPermissions"
+        ],
+        "summary": "Discovers the caller's current access to this application: effective resource grants,\nsupported operations and restrictions. Available even when the owner has denied every\nresource. Agents should read this before working and refresh it after a 403: owner edits\ntake effect on the next request. An application not shared with the caller returns 404.",
+        "operationId": "ApplicationPermissions_Get",
+        "parameters": [
+          {
+            "name": "appToken",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "403": {
             "description": "Forbidden",
@@ -1783,6 +1874,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationPermissionsResponse"
                 }
               }
             }
@@ -1810,6 +1921,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -1886,6 +2007,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -1908,16 +2039,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -1958,6 +2079,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -2043,6 +2174,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -2065,16 +2206,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -2121,6 +2252,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -2133,16 +2274,6 @@
           },
           "204": {
             "description": "No Content"
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
           }
         }
       }
@@ -2194,6 +2325,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -2209,16 +2350,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -2250,6 +2381,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -2328,6 +2469,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -2358,16 +2509,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -2426,6 +2567,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -2456,16 +2607,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -2541,7 +2682,7 @@
         "tags": [
           "Collaborators"
         ],
-        "summary": "Shares the application with an e-mail address, which gets administrator access to it:\neverything except sharing it further. The address is trimmed and must be a valid e-mail\naddress (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an\naddress the application is already shared with, in any letter case. When the instance\nmail is configured the address gets a notification mail, unless it is an agent's\n(@agent.local); NotificationSent says whether the mail was handed over for sending\n(delivery is not reported). The share is matched to an account by exact address, as\ntyped. Owner only.",
+        "summary": "Shares the application with an e-mail address. A person gets everything except sharing\nit further; an agent gets the supplied permissions, or read-only access when omitted.\nThe owner can edit an agent's permissions later. The address is trimmed and must be a valid e-mail\naddress (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an\naddress the application is already shared with, in any letter case. When the instance\nmail is configured the address gets a notification mail, unless it is an agent's\n(@agent.local); NotificationSent says whether the mail was handed over for sending\n(delivery is not reported). The share is matched to an account by exact address, as\ntyped. Owner only.",
         "operationId": "Collaborators_Add",
         "parameters": [
           {
@@ -2697,6 +2838,105 @@
         }
       }
     },
+    "/api/v1/applications/{appToken}/collaborators/{id}/permissions": {
+      "put": {
+        "tags": [
+          "Collaborators"
+        ],
+        "summary": "Replaces the complete permissions of an agent collaborator. Omitted resources are\ndenied. Only the application owner may edit access. A human collaborator gives 400\nVALIDATION; an id from another application gives 404 NOT_FOUND (Collaborator).",
+        "operationId": "Collaborators_UpdatePermissions",
+        "parameters": [
+          {
+            "name": "appToken",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentPermissionsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentPermissionsRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAgentPermissionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollaboratorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/applications/{appToken}/collaborators/{id}": {
       "delete": {
         "tags": [
@@ -2796,6 +3036,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -2864,6 +3114,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -2894,16 +3154,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -2963,6 +3213,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -3047,6 +3307,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3077,16 +3347,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -3132,6 +3392,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3155,16 +3425,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -3251,6 +3511,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3281,16 +3551,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -3350,6 +3610,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -3434,6 +3704,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3464,16 +3744,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -3523,6 +3793,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -3607,6 +3887,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3637,16 +3927,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -3693,6 +3973,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -4082,6 +4372,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4150,6 +4450,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4187,16 +4497,6 @@
                 }
               }
             }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
           }
         }
       },
@@ -4227,6 +4527,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4242,16 +4552,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -4293,6 +4593,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -4376,6 +4686,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4437,6 +4757,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4452,16 +4782,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -4530,6 +4850,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4560,16 +4890,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -4609,6 +4929,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -4632,16 +4962,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -4955,6 +5275,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -5031,6 +5361,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -5061,16 +5401,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -5138,6 +5468,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -5230,6 +5570,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -5260,16 +5610,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -5333,6 +5673,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -5356,16 +5706,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -5460,6 +5800,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -5490,16 +5840,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -5559,6 +5899,16 @@
         "responses": {
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -5657,6 +6007,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -5687,16 +6047,6 @@
           },
           "400": {
             "description": "Bad Request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
@@ -5944,6 +6294,14 @@
             "minLength": 1,
             "type": "string",
             "description": "The e-mail address of a user of this instance. Spaces around it are removed. The share\ntakes effect only for an account with exactly this address."
+          },
+          "Permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionGrant"
+            },
+            "description": "The complete access policy for an agent. Omit it to grant read-only access; an empty\nlist denies all resources. Only agents accept this field. The owner can edit it later.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -6109,6 +6467,127 @@
         "additionalProperties": false,
         "description": "The agent that was created, with its key."
       },
+      "AgentPermissionAccess": {
+        "enum": [
+          "Read",
+          "Write",
+          "Delete"
+        ],
+        "type": "string",
+        "description": "An operation required by an application endpoint. Serialized as Read, Write or Delete."
+      },
+      "AgentPermissionGrant": {
+        "required": [
+          "Delete",
+          "Read",
+          "Resource",
+          "Write"
+        ],
+        "type": "object",
+        "properties": {
+          "Resource": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "Read": {
+            "type": "boolean"
+          },
+          "Write": {
+            "type": "boolean"
+          },
+          "Delete": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "description": "An agent's access to one application resource. Delete is an independent grant. Write and\ndelete require read for resources that support reading. Omitted resources are denied."
+      },
+      "AgentPermissionOperation": {
+        "required": [
+          "AllowedForThisApplication",
+          "Method",
+          "Path",
+          "Requirements"
+        ],
+        "type": "object",
+        "properties": {
+          "Method": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "Path": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "AllowedForThisApplication": {
+            "type": "boolean"
+          },
+          "Requirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionRequirement"
+            }
+          },
+          "AdditionalRequirements": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AgentPermissionRequirement": {
+        "required": [
+          "Access",
+          "Resource"
+        ],
+        "type": "object",
+        "properties": {
+          "Resource": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "Access": {
+            "$ref": "#/components/schemas/AgentPermissionAccess"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AgentPermissionResource": {
+        "required": [
+          "CanDelete",
+          "CanRead",
+          "CanWrite",
+          "Description",
+          "Name",
+          "Resource"
+        ],
+        "type": "object",
+        "properties": {
+          "Resource": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "Name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "Description": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "CanRead": {
+            "type": "boolean"
+          },
+          "CanWrite": {
+            "type": "boolean"
+          },
+          "CanDelete": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A resource and the operations that the Portal supports granting for it."
+      },
       "ApiTokenResponse": {
         "required": [
           "Token"
@@ -6156,6 +6635,49 @@
         },
         "additionalProperties": false,
         "description": "What differs between two applications. The application of the route is the source, the\nother one the target: Added is what only the target has, Removed what only the source\nhas, Changed what both have with different values (Before is the source, After the\ntarget). Names are matched exactly, so 'Orders' and 'orders' are two different things.\nEvery list is empty when the applications are identical."
+      },
+      "ApplicationPermissionsResponse": {
+        "required": [
+          "IsAgent",
+          "Operations",
+          "Permissions",
+          "Resources",
+          "Restrictions"
+        ],
+        "type": "object",
+        "properties": {
+          "IsAgent": {
+            "type": "boolean"
+          },
+          "Permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionGrant"
+            }
+          },
+          "Resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionResource"
+            }
+          },
+          "Operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionOperation"
+            },
+            "description": "Application operations and whether the caller's current grants satisfy their fixed\npermission requirements. AdditionalRequirements describes checks dependent on another\napplication, the request body or the selected entity."
+          },
+          "Restrictions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Restrictions that no application permission can override. Empty for a human caller."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The caller's current permissions and the resource catalogue. This discovery remains\navailable to a collaborator even if every application permission has been removed."
       },
       "ApplicationResponse": {
         "required": [
@@ -6604,6 +7126,14 @@
             "type": "string",
             "description": "The e-mail address the application is shared with, trimmed."
           },
+          "Permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionGrant"
+            },
+            "description": "The resolved access for an agent, including denied resources; null for a person.",
+            "nullable": true
+          },
           "NotificationSent": {
             "type": "boolean",
             "description": "False when the instance has no mail settings, the mail could not be handed over for\nsending, or the address is an agent's. The application is shared either way."
@@ -6627,10 +7157,18 @@
             "minLength": 1,
             "type": "string",
             "description": "The e-mail address the application is shared with, as it was entered."
+          },
+          "Permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionGrant"
+            },
+            "description": "The resolved access for an agent, including denied resources; null for a person.",
+            "nullable": true
           }
         },
         "additionalProperties": false,
-        "description": "A user an application is shared with. A collaborator has full access to the application,\nexcept sharing it with others."
+        "description": "A user an application is shared with. Human collaborators have full application access,\nexcept sharing; agents have the permissions granted by the owner."
       },
       "CollaboratorResponseListResponse": {
         "required": [
@@ -9561,6 +10099,22 @@
         "additionalProperties": false,
         "description": "The e-mail and password of a portal user, for signing in."
       },
+      "UpdateAgentPermissionsRequest": {
+        "required": [
+          "Permissions"
+        ],
+        "type": "object",
+        "properties": {
+          "Permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionGrant"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Replaces an agent collaborator's permissions. An empty list denies all application\nresources. Resources omitted from this complete policy are denied."
+      },
       "UpdateApplicationRequest": {
         "required": [
           "Name"
@@ -9733,6 +10287,9 @@
     },
     {
       "name": "ApplicationEmailSettings"
+    },
+    {
+      "name": "ApplicationPermissions"
     },
     {
       "name": "ApplicationReports"

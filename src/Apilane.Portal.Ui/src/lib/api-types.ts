@@ -426,6 +426,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/applications/{appToken}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discovers the caller's current access to this application: effective resource grants,
+         *     supported operations and restrictions. Available even when the owner has denied every
+         *     resource. Agents should read this before working and refresh it after a 403: owner edits
+         *     take effect on the next request. An application not shared with the caller returns 404.
+         */
+        get: operations["ApplicationPermissions_Get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/applications/{appToken}/reports": {
         parameters: {
             query?: never;
@@ -593,8 +615,9 @@ export interface paths {
         get: operations["Collaborators_List"];
         put?: never;
         /**
-         * Shares the application with an e-mail address, which gets administrator access to it:
-         *     everything except sharing it further. The address is trimmed and must be a valid e-mail
+         * Shares the application with an e-mail address. A person gets everything except sharing
+         *     it further; an agent gets the supplied permissions, or read-only access when omitted.
+         *     The owner can edit an agent's permissions later. The address is trimmed and must be a valid e-mail
          *     address (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an
          *     address the application is already shared with, in any letter case. When the instance
          *     mail is configured the address gets a notification mail, unless it is an agent's
@@ -622,6 +645,27 @@ export interface paths {
          */
         get: operations["Collaborators_ListAvailableAgents"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/applications/{appToken}/collaborators/{id}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replaces the complete permissions of an agent collaborator. Omitted resources are
+         *     denied. Only the application owner may edit access. A human collaborator gives 400
+         *     VALIDATION; an id from another application gives 404 NOT_FOUND (Collaborator).
+         */
+        put: operations["Collaborators_UpdatePermissions"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1411,6 +1455,11 @@ export interface components {
              *     takes effect only for an account with exactly this address.
              */
             Email: string;
+            /**
+             * @description The complete access policy for an agent. Omit it to grant read-only access; an empty
+             *     list denies all resources. Only agents accept this field. The owner can edit it later.
+             */
+            Permissions?: components["schemas"]["AgentPermissionGrant"][] | null;
         };
         /**
          * @description An application of any user of the instance with its entities and their properties, for the
@@ -1480,6 +1529,41 @@ export interface components {
              */
             Key: string;
         };
+        /**
+         * @description An operation required by an application endpoint. Serialized as Read, Write or Delete.
+         * @enum {string}
+         */
+        AgentPermissionAccess: "Read" | "Write" | "Delete";
+        /**
+         * @description An agent's access to one application resource. Delete is an independent grant. Write and
+         *     delete require read for resources that support reading. Omitted resources are denied.
+         */
+        AgentPermissionGrant: {
+            Resource: string;
+            Read: boolean;
+            Write: boolean;
+            Delete: boolean;
+        };
+        AgentPermissionOperation: {
+            Method: string;
+            Path: string;
+            AllowedForThisApplication: boolean;
+            Requirements: components["schemas"]["AgentPermissionRequirement"][];
+            AdditionalRequirements?: string | null;
+        };
+        AgentPermissionRequirement: {
+            Resource: string;
+            Access: components["schemas"]["AgentPermissionAccess"];
+        };
+        /** @description A resource and the operations that the Portal supports granting for it. */
+        AgentPermissionResource: {
+            Resource: string;
+            Name: string;
+            Description: string;
+            CanRead: boolean;
+            CanWrite: boolean;
+            CanDelete: boolean;
+        };
         /** @description The token the signed-in user calls the API servers with (records, files, statistics). */
         ApiTokenResponse: {
             /**
@@ -1503,6 +1587,23 @@ export interface components {
             Entities: components["schemas"]["ComparisonEntities"];
             CustomEndpoints: components["schemas"]["ComparisonCustomEndpoints"];
             Security: components["schemas"]["ComparisonSecurity"];
+        };
+        /**
+         * @description The caller's current permissions and the resource catalogue. This discovery remains
+         *     available to a collaborator even if every application permission has been removed.
+         */
+        ApplicationPermissionsResponse: {
+            IsAgent: boolean;
+            Permissions: components["schemas"]["AgentPermissionGrant"][];
+            Resources: components["schemas"]["AgentPermissionResource"][];
+            /**
+             * @description Application operations and whether the caller's current grants satisfy their fixed
+             *     permission requirements. AdditionalRequirements describes checks dependent on another
+             *     application, the request body or the selected entity.
+             */
+            Operations: components["schemas"]["AgentPermissionOperation"][];
+            /** @description Restrictions that no application permission can override. Empty for a human caller. */
+            Restrictions: string[];
         };
         /**
          * @description An application the signed-in user owns or collaborates on. It never carries the encryption
@@ -1711,6 +1812,8 @@ export interface components {
             ID: number;
             /** @description The e-mail address the application is shared with, trimmed. */
             Email: string;
+            /** @description The resolved access for an agent, including denied resources; null for a person. */
+            Permissions?: components["schemas"]["AgentPermissionGrant"][] | null;
             /**
              * @description False when the instance has no mail settings, the mail could not be handed over for
              *     sending, or the address is an agent's. The application is shared either way.
@@ -1718,14 +1821,16 @@ export interface components {
             NotificationSent: boolean;
         };
         /**
-         * @description A user an application is shared with. A collaborator has full access to the application,
-         *     except sharing it with others.
+         * @description A user an application is shared with. Human collaborators have full application access,
+         *     except sharing; agents have the permissions granted by the owner.
          */
         CollaboratorResponse: {
             /** Format: int64 */
             ID: number;
             /** @description The e-mail address the application is shared with, as it was entered. */
             Email: string;
+            /** @description The resolved access for an agent, including denied resources; null for a person. */
+            Permissions?: components["schemas"]["AgentPermissionGrant"][] | null;
         };
         /** @description The shape of every list answer, the same as the data API: the items and their total count. */
         CollaboratorResponseListResponse: {
@@ -3084,6 +3189,13 @@ export interface components {
             Password: string;
         };
         /**
+         * @description Replaces an agent collaborator's permissions. An empty list denies all application
+         *     resources. Resources omitted from this complete policy are denied.
+         */
+        UpdateAgentPermissionsRequest: {
+            Permissions: components["schemas"]["AgentPermissionGrant"][];
+        };
+        /**
          * @description The values of an application that can be changed after it was created. The database type
          *     and the server cannot be changed: a DatabaseType or ServerID in the body is ignored.
          */
@@ -3994,6 +4106,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -4045,6 +4166,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -4087,6 +4217,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4203,6 +4342,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4440,6 +4588,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -4517,6 +4674,55 @@ export interface operations {
             };
         };
     };
+    ApplicationPermissions_Get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appToken: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationPermissionsResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     ApplicationReports_List: {
         parameters: {
             query?: never;
@@ -4539,6 +4745,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4644,6 +4859,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4859,6 +5083,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5180,6 +5413,71 @@ export interface operations {
             };
         };
     };
+    Collaborators_UpdatePermissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                appToken: string;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateAgentPermissionsRequest"];
+                "text/json": components["schemas"]["UpdateAgentPermissionsRequest"];
+                "application/*+json": components["schemas"]["UpdateAgentPermissionsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollaboratorResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     Collaborators_Delete: {
         parameters: {
             query?: never;
@@ -5252,6 +5550,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5377,6 +5684,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5654,6 +5970,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -5764,6 +6089,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5883,6 +6217,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6192,6 +6535,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -6363,6 +6715,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -6410,6 +6771,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6855,6 +7225,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Not Found */
             404: {
                 headers: {
@@ -6975,6 +7354,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7267,6 +7655,15 @@ export interface operations {
             };
             /** @description Unauthorized */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

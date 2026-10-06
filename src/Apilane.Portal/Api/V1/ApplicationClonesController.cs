@@ -53,6 +53,7 @@ namespace Apilane.Portal.Api.V1
         /// 30 minutes, and none survives a restart of the Portal.
         /// </summary>
         [HttpGet("{operationId}")]
+        [NoAgent]
         [ProducesResponseType(typeof(CloneOperationResponse), StatusCodes.Status200OK)]
         public async Task<CloneOperationResponse> Get(string appToken, string operationId)
         {

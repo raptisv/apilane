@@ -13,6 +13,8 @@ namespace Apilane.Portal.Api
     /// no other action may use that method.
     /// </summary>
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+    [ServiceFilter(typeof(PortalAgentPermissionFilter), Order = 1)]
     public abstract class PortalApplicationApiControllerBase : PortalApiControllerBase
     {
         public const string RoutePrefix = "api/v1/applications/{appToken}";

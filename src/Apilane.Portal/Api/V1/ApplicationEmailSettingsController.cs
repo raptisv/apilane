@@ -11,6 +11,7 @@ namespace Apilane.Portal.Api.V1
     /// server ({ServerUrl}/api/Email/GetEmails and /api/Email/Update), not here.
     /// </summary>
     [Route(RoutePrefix + "/email-settings")]
+    [AgentPermission("email-settings")]
     public class ApplicationEmailSettingsController : PortalApplicationApiControllerBase
     {
         private readonly IApplicationEmailSettingsService _emailSettingsService;

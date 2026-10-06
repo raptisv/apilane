@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Apilane.Portal.Services
@@ -28,6 +29,7 @@ namespace Apilane.Portal.Services
         private readonly IPortalSettingsService _portalSettingsService;
         private readonly IPortalMailService _portalMailService;
         private readonly IPortalLinkBuilder _portalLinkBuilder;
+        private readonly IAgentPermissionService _agentPermissionService;
         private readonly ILogger<CollaboratorService> _logger;
 
         public CollaboratorService(
@@ -37,6 +39,7 @@ namespace Apilane.Portal.Services
             IPortalSettingsService portalSettingsService,
             IPortalMailService portalMailService,
             IPortalLinkBuilder portalLinkBuilder,
+            IAgentPermissionService agentPermissionService,
             ILogger<CollaboratorService> logger)
         {
             _dbContext = dbContext;
@@ -45,6 +48,7 @@ namespace Apilane.Portal.Services
             _portalSettingsService = portalSettingsService;
             _portalMailService = portalMailService;
             _portalLinkBuilder = portalLinkBuilder;
+            _agentPermissionService = agentPermissionService;
             _logger = logger;
         }
 
@@ -52,10 +56,13 @@ namespace Apilane.Portal.Services
         {
             var application = await _applicationAccessService.GetApplicationAsync(appToken, requireOwner: true);
 
-            return application.Collaborates
-                .OrderBy(x => x.ID)
-                .Select(x => new CollaboratorResponse { ID = x.ID, Email = x.UserEmail })
-                .ToList();
+            var collaborators = new List<CollaboratorResponse>();
+            foreach (var collaborator in application.Collaborates.OrderBy(x => x.ID))
+            {
+                collaborators.Add(await ToResponseAsync(collaborator));
+            }
+
+            return collaborators;
         }
 
         public async Task<List<AvailableAgentResponse>> GetAvailableAgentsAsync(string appToken)
@@ -100,6 +107,18 @@ namespace Apilane.Portal.Services
                 throw PortalException.Conflict(AlreadySharedMessage, EntityName);
             }
 
+            var isAgent = PortalAgent.IsAgent(email);
+            if (!isAgent && request.Permissions is not null)
+            {
+                throw PortalException.Validation(nameof(request.Permissions), "Permissions can only be set for agent collaborators.");
+            }
+
+            var permissions = isAgent
+                ? request.Permissions is null
+                    ? _agentPermissionService.CreateReadOnlyPermissions()
+                    : _agentPermissionService.ValidatePermissions(request.Permissions)
+                : null;
+
             var collaborator = new DBWS_Collaborate
             {
                 AppID = application.ID,
@@ -108,14 +127,56 @@ namespace Apilane.Portal.Services
             };
 
             _dbContext.Collaborations.Add(collaborator);
+            if (permissions is not null)
+            {
+                // EF inserts the collaboration and its policy together, propagating the generated
+                // collaboration ID through the relationship in the same SaveChanges transaction.
+                _dbContext.AgentPermissions.Add(new PortalAgentPermission
+                {
+                    Collaboration = collaborator,
+                    PermissionsJson = JsonSerializer.Serialize(permissions)
+                });
+            }
+
             await _dbContext.SaveChangesAsync();
 
             return new CollaboratorAddedResponse
             {
                 ID = collaborator.ID,
                 Email = collaborator.UserEmail,
+                Permissions = permissions,
                 // An agent is never mailed: nobody reads its address.
-                NotificationSent = !PortalAgent.IsAgent(email) && SendNotification(application, email)
+                NotificationSent = !isAgent && SendNotification(application, email)
+            };
+        }
+
+        public async Task<CollaboratorResponse> UpdatePermissionsAsync(string appToken, long id, UpdateAgentPermissionsRequest request)
+        {
+            var application = await _applicationAccessService.GetApplicationAsync(appToken, requireOwner: true);
+            var collaborator = application.Collaborates.FirstOrDefault(x => x.ID == id)
+                ?? throw PortalException.NotFound(EntityName);
+
+            if (!PortalAgent.IsAgent(collaborator.UserEmail))
+            {
+                throw PortalException.Validation(nameof(request.Permissions), "Permissions can only be set for agent collaborators.");
+            }
+
+            var permissions = _agentPermissionService.ValidatePermissions(request.Permissions);
+            var policy = await _dbContext.AgentPermissions.SingleOrDefaultAsync(x => x.CollaborationId == id);
+            if (policy is null)
+            {
+                policy = new PortalAgentPermission { Collaboration = collaborator };
+                _dbContext.AgentPermissions.Add(policy);
+            }
+
+            policy.PermissionsJson = JsonSerializer.Serialize(permissions);
+            await _dbContext.SaveChangesAsync();
+
+            return new CollaboratorResponse
+            {
+                ID = collaborator.ID,
+                Email = collaborator.UserEmail,
+                Permissions = permissions
             };
         }
 
@@ -129,6 +190,18 @@ namespace Apilane.Portal.Services
 
             _dbContext.Collaborations.Remove(collaborator);
             await _dbContext.SaveChangesAsync();
+        }
+
+        private async Task<CollaboratorResponse> ToResponseAsync(DBWS_Collaborate collaborator)
+        {
+            return new CollaboratorResponse
+            {
+                ID = collaborator.ID,
+                Email = collaborator.UserEmail,
+                Permissions = PortalAgent.IsAgent(collaborator.UserEmail)
+                    ? await _agentPermissionService.GetForCollaboratorAsync(collaborator)
+                    : null
+            };
         }
 
         // Tells the new collaborator by mail, with a link to the applications page (/apps).

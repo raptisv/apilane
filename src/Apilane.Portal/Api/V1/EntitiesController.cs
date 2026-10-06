@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 namespace Apilane.Portal.Api.V1
 {
     [Route(RoutePrefix + "/entities")]
+    [AgentPermission("entities")]
     public class EntitiesController : PortalApplicationApiControllerBase
     {
         private readonly IEntityManagementService _entityManagementService;

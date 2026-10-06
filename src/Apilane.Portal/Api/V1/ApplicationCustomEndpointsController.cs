@@ -28,6 +28,7 @@ namespace Apilane.Portal.Api.V1
         /// its parameters and its addresses on the API server.
         /// </summary>
         [HttpGet]
+        [AgentPermission("custom-endpoints")]
         [ProducesResponseType(typeof(ListResponse<CustomEndpointResponse>), StatusCodes.Status200OK)]
         public async Task<ListResponse<CustomEndpointResponse>> List(string appToken)
         {
@@ -38,6 +39,7 @@ namespace Apilane.Portal.Api.V1
         /// Returns one custom endpoint. An ID of another application is 404 NOT_FOUND (CustomEndpoint).
         /// </summary>
         [HttpGet("{id:long}")]
+        [AgentPermission("custom-endpoints")]
         [ProducesResponseType(typeof(CustomEndpointResponse), StatusCodes.Status200OK)]
         public async Task<CustomEndpointResponse> Get(string appToken, long id)
         {
@@ -52,6 +54,7 @@ namespace Apilane.Portal.Api.V1
         /// be refreshed afterwards.
         /// </summary>
         [HttpPost]
+        [AgentPermission("custom-endpoints")]
         [ProducesCacheResetWarning]
         [ProducesResponseType(typeof(CustomEndpointResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -71,6 +74,7 @@ namespace Apilane.Portal.Api.V1
         /// back). An ID of another application is 404 NOT_FOUND (CustomEndpoint).
         /// </summary>
         [HttpPut("{id:long}")]
+        [AgentPermission("custom-endpoints")]
         [ProducesCacheResetWarning]
         [ProducesResponseType(typeof(CustomEndpointResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -87,6 +91,7 @@ namespace Apilane.Portal.Api.V1
         /// NOT_FOUND (CustomEndpoint).
         /// </summary>
         [HttpDelete("{id:long}")]
+        [AgentPermission("custom-endpoints")]
         [ProducesCacheResetWarning]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
@@ -103,6 +108,7 @@ namespace Apilane.Portal.Api.V1
         /// a query does not fit in a URL; it needs the 'X-Apilane-Portal: 1' header like every POST.
         /// </summary>
         [HttpPost("preview")]
+        [AgentPermission("custom-endpoints", ReadOnly = true)]
         [ProducesResponseType(typeof(CustomEndpointPreviewResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]

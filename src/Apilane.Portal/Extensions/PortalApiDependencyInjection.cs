@@ -74,6 +74,7 @@ namespace Apilane.Portal.Extensions
                 .AddScoped<IPortalMailService, PortalMailService>()
                 .AddScoped<IPortalLinkBuilder, PortalLinkBuilder>()
                 .AddScoped<IApplicationAccessService, ApplicationAccessService>()
+                .AddScoped<IAgentPermissionService, AgentPermissionService>()
                 .AddScoped<IApplicationService, ApplicationService>()
                 .AddScoped<IApplicationProvisioningService, ApplicationProvisioningService>()
                 .AddScoped<IApiServerClient, ApiServerClient>()
@@ -92,6 +93,7 @@ namespace Apilane.Portal.Extensions
                 .AddScoped<IApplicationComparisonService, ApplicationComparisonService>()
                 .AddScoped<IApplicationCloneService, ApplicationCloneService>()
                 .AddScoped<PortalSessionFilter>()
+                .AddScoped<PortalAgentPermissionFilter>()
                 .AddScoped<PortalApiExceptionFilter>()
                 .AddScoped<InstallationKeyFilter>()
                 .AddSingleton<PortalCsrfFilter>()
@@ -161,9 +163,10 @@ namespace Apilane.Portal.Extensions
                         $"Every POST, PUT, PATCH and DELETE request must send the header '{PortalCsrfFilter.HeaderName}: {PortalCsrfFilter.HeaderValue}'; " +
                         "without it the answer is 403 FORBIDDEN. " +
                         "A script or an AI agent sends an agent key instead of the session cookie, as 'Authorization: Bearer {key}', and needs no such header " +
-                        "(an administrator creates agents with POST /api/v1/admin/agents). An agent key is refused with 403 FORBIDDEN on every DELETE, " +
-                        "on everything under /api/v1/admin, and on the calls that create, import, clone or rebuild an application, read its encryption key, " +
-                        "return the API-server token, sign in, register or set a password."
+                        "(an administrator creates agents with POST /api/v1/admin/agents). Agents start read-only, including existing collaborations. " +
+                        "Owners grant per-application read, write, delete and rebuild access through Sharing. GET /api/v1/applications/{appToken}/permissions " +
+                        "discovers current grants and operation requirements. Agent keys are always refused with 403 FORBIDDEN on administrator and sharing calls, " +
+                        "application creation, import, cloning and deletion, encryption keys, API-server tokens, sign-in, registration and password changes."
                 });
 
                 // Only /api/v1 is the contract: /api/internal is for the API servers.
@@ -266,8 +269,8 @@ namespace Apilane.Portal.Extensions
         /// Agent keys (see <see cref="PortalAgent"/>). A request under /api/v1 that sends
         /// 'Authorization: Bearer ...' is authenticated by that value alone: a valid key makes it the
         /// agent's request, whatever cookie came with it, and anything else is 401 with one body.
-        /// Right after that, the one check of what an agent may not call: any DELETE, anything under
-        /// /api/v1/admin, and the actions marked <see cref="NoAgentAttribute"/>.
+        /// Right after that, refuse administrator routes, actions marked <see cref="NoAgentAttribute"/>
+        /// and unclassified DELETE actions. PortalAgentPermissionFilter checks granular application grants.
         /// Call after UseAuthentication and before UseAuthorization.
         /// </summary>
         public static IApplicationBuilder UsePortalAgentKeys(this IApplicationBuilder app)
@@ -296,7 +299,8 @@ namespace Apilane.Portal.Extensions
                         },
                         PortalAgent.AuthenticationType));
 
-                    if (HttpMethods.IsDelete(context.Request.Method)
+                    if ((HttpMethods.IsDelete(context.Request.Method)
+                            && context.GetEndpoint()?.Metadata.GetMetadata<AgentPermissionAttribute>() is null)
                         || context.Request.Path.StartsWithSegments("/" + PortalAdminApiControllerBase.RoutePrefix)
                         || context.GetEndpoint()?.Metadata.GetMetadata<NoAgentAttribute>() is not null)
                     {

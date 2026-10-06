@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 namespace Apilane.Portal.Api.V1
 {
     [Route(RoutePrefix + "/entities/{entity}/report-fields")]
+    [AgentPermission("reports")]
     public class EntityReportFieldsController : PortalApplicationApiControllerBase
     {
         private readonly IReportService _reportService;

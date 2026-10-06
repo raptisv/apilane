@@ -15,6 +15,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Xunit;
@@ -167,6 +168,19 @@ namespace Apilane.Portal.Tests
         public async Task Key_Should_Read_And_Write_A_Shared_Application_Without_A_Cookie_Or_The_Csrf_Header()
         {
             var scene = await CreateSceneAsync();
+            await _portal.WithDbContextAsync(async db =>
+            {
+                var collaborator = await db.Collaborations.SingleAsync(x => x.AppID == scene.Shared.ID && x.UserEmail == scene.Created.Email);
+                db.AgentPermissions.Add(new PortalAgentPermission
+                {
+                    Collaboration = collaborator,
+                    PermissionsJson = JsonSerializer.Serialize(new[]
+                    {
+                        new AgentPermissionGrant { Resource = AgentPermissionResources.Application, Write = true }
+                    })
+                });
+                return await db.SaveChangesAsync();
+            });
             _portal.ApiServer.Respond(FakeApiServer.ClearCachePath, HttpStatusCode.OK, "\"OK\"");
 
             // The request is the agent's.
@@ -298,16 +312,12 @@ namespace Apilane.Portal.Tests
 
             var calls = new (HttpMethod Method, string Url, object? Body)[]
             {
-                // Every DELETE.
+                // Destructive calls that cannot be granted.
                 (HttpMethod.Delete, app, null),
-                (HttpMethod.Delete, $"{app}/entities/Orders", null),
-                (HttpMethod.Delete, $"{app}/entities/Orders/properties/Amount", null),
-                (HttpMethod.Delete, $"{app}/custom-endpoints/1", null),
-                (HttpMethod.Delete, $"{app}/reports/1", null),
                 (HttpMethod.Delete, $"{app}/collaborators/1", null),
                 (HttpMethod.Delete, SessionUrl, null),
-                // Rebuild, the encryption key, and new applications.
-                (HttpMethod.Post, $"{app}/rebuild", null),
+                (HttpMethod.Put, $"{app}/collaborators/1/permissions", new { Permissions = Array.Empty<AgentPermissionGrant>() }),
+                // The encryption key and new applications.
                 (HttpMethod.Get, $"{app}/connection-info", null),
                 (HttpMethod.Post, ApplicationsUrl, new { Name = "agent-app", ServerID = scene.Shared.ServerID, DatabaseType = "SQLLite" }),
                 (HttpMethod.Post, $"{ApplicationsUrl}/import", new MultipartFormDataContent { { new StringContent("1"), "ServerID" } }),

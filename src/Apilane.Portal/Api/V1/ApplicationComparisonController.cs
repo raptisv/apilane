@@ -8,6 +8,10 @@ using System.Threading.Tasks;
 namespace Apilane.Portal.Api.V1
 {
     [Route(RoutePrefix + "/comparison")]
+    [AgentPermission("schema")]
+    [AgentPermission("entities")]
+    [AgentPermission("security")]
+    [AgentPermission("custom-endpoints")]
     public class ApplicationComparisonController : PortalApplicationApiControllerBase
     {
         private readonly IApplicationComparisonService _applicationComparisonService;

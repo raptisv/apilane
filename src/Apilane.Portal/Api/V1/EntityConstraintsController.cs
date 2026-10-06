@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 namespace Apilane.Portal.Api.V1
 {
     [Route(RoutePrefix + "/entities/{entity}/constraints")]
+    [AgentPermission("entities")]
     public class EntityConstraintsController : PortalApplicationApiControllerBase
     {
         private readonly IEntityConstraintService _entityConstraintService;

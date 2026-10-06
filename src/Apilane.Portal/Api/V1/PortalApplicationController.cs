@@ -21,6 +21,7 @@ namespace Apilane.Portal.Api.V1
         /// Returns one application, as the list shows it. For the owner and collaborators.
         /// </summary>
         [HttpGet]
+        [AgentPermissionDiscovery]
         [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status200OK)]
         public async Task<ApplicationResponse> Get(string appToken)
         {
@@ -48,6 +49,7 @@ namespace Apilane.Portal.Api.V1
         /// owner and collaborators.
         /// </summary>
         [HttpGet("audit-log")]
+        [AgentPermission("audit-log")]
         [ProducesResponseType(typeof(ListResponse<AuditLogEntryResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         public async Task<ListResponse<AuditLogEntryResponse>> GetAuditLog(string appToken, [FromQuery] PageQuery paging)
@@ -63,6 +65,7 @@ namespace Apilane.Portal.Api.V1
         /// reached or fails.
         /// </summary>
         [HttpPost("cache-reset")]
+        [AgentPermission("application")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
@@ -84,6 +87,7 @@ namespace Apilane.Portal.Api.V1
         /// server could not be refreshed afterwards.
         /// </summary>
         [HttpPut]
+        [AgentPermission("application")]
         [ProducesCacheResetWarning]
         [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -101,6 +105,7 @@ namespace Apilane.Portal.Api.V1
         /// could not be refreshed: it keeps the old status until its cache expires.
         /// </summary>
         [HttpPut("status")]
+        [AgentPermission("application")]
         [ProducesCacheResetWarning]
         [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -119,7 +124,7 @@ namespace Apilane.Portal.Api.V1
         /// could not be refreshed afterwards.
         /// </summary>
         [HttpPost("rebuild")]
-        [NoAgent]
+        [AgentPermission("rebuild")]
         [ProducesCacheResetWarning]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
@@ -140,6 +145,7 @@ namespace Apilane.Portal.Api.V1
         /// it 502 UPSTREAM_ERROR; in both cases the application stays.
         /// </summary>
         [HttpDelete]
+        [NoAgent]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]

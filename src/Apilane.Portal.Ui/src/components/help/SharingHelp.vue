@@ -12,6 +12,7 @@ import HelpSheet from '@/components/HelpSheet.vue'
       <ul>
         <li><strong>Share</strong> an application with another user, by their e-mail address.</li>
         <li>See who it is <strong>shared with</strong>, and write to them.</li>
+        <li>Choose an agent's <strong>read, write and deletion rights</strong> for each part of the application, when sharing or later.</li>
         <li><strong>Stop sharing</strong> with anyone, at any time.</li>
       </ul>
     </HelpItem>
@@ -22,7 +23,7 @@ import HelpSheet from '@/components/HelpSheet.vue'
         security, custom endpoints, e-mail settings and reports.
       </p>
       <ul>
-        <li><strong>They have full access to modify the application, even delete it.</strong></li>
+        <li><strong>A person has full access to modify the application, even delete it.</strong> An agent gets only the rights you grant.</li>
         <li>
           They need an account on this instance with exactly this address, letter case included. Sharing with an address that
           has no account is accepted, and works once that person has an account with it.
@@ -39,7 +40,21 @@ import HelpSheet from '@/components/HelpSheet.vue'
         offered.
       </p>
       <p>
-        An agent is not notified by e-mail, and cannot delete or rebuild the application: those two stay with people.
+        An agent starts with read-only access, including agents shared before permissions were introduced. Choose its rights
+        when sharing, or use <strong>Edit rights</strong> beside an existing agent. Changes apply to its next request.
+        Each application has its own rights, and no e-mail is sent to an agent.
+      </p>
+      <ul>
+        <li><strong>None</strong> denies the area; <strong>Read</strong> lets the agent inspect it; <strong>Read and write</strong> also lets it change it.</li>
+        <li>Deletion of entities, properties, custom endpoints and reports is a separate choice. It needs read access, but does not need write access.</li>
+        <li>Application settings and rebuilding are separate permissions. Rebuilding removes all application data and cannot be undone.</li>
+        <li>The application summary stays visible so the agent can identify its shared applications, even when every area is set to None.</li>
+        <li>An agent can discover its current rights through the management API, including which operations it may call.</li>
+        <li>Sharing, deleting the application, reading its encryption key and instance administration remain for people.</li>
+      </ul>
+      <p>
+        Write access can still have wide effects: security rights replace access rules, entity rights can change constraints,
+        and custom endpoint rights can save SQL. Grant only what the agent needs for its work.
       </p>
     </HelpItem>
 

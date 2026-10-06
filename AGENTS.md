@@ -257,9 +257,12 @@ both: addresses, behaviour, known limits, open decisions, commands, layout and c
   `connection-info`, the encryption key shown on demand). Service interfaces go in `src/Apilane.Portal/Abstractions/`.
 - Writes (POST, PUT, PATCH, DELETE) are rejected without the header `X-Apilane-Portal: 1`.
 - Agents: a portal user whose address ends with `@agent.local` (`PortalAgent.IsAgent`) calls `/api/v1` with `Authorization: Bearer apl_...` and needs no
-  `X-Apilane-Portal` header. The key check and the one list of what an agent is refused (every DELETE, `/api/v1/admin`, actions marked
-  `[NoAgent]`) are in `UsePortalAgentKeys` (`Extensions/PortalApiDependencyInjection.cs`); mark a new action an agent must not call
-  with `[NoAgent]`. Decide it for every new POST, PUT or PATCH: an unmarked one is open to every agent. Add a marked
+  `X-Apilane-Portal` header. `UsePortalAgentKeys` refuses `/api/v1/admin`, actions/controllers marked `[NoAgent]`, and DELETE
+  actions without a permission classification. Application actions must declare `[AgentPermission("resource")]`,
+  `[AgentPermissionDiscovery]` (only common summaries and access discovery), or `[NoAgent]`: `PortalAgentPermissionFilter`
+  denies unclassified actions. Grants live in the separate `AgentPermissions` table; missing policies mean read-only,
+  and owners edit them through Sharing. GET `{app}/permissions` exposes effective grants and operation requirements.
+  Check every affected application/resource for bulk and cross-application operations before side effects. Add a marked
   action to the refused calls of `Key_Should_Be_Refused_On_Deletes_Admin_Routes_And_The_Marked_Actions` in
   `tests/Apilane.Portal.Tests/AgentsApiTests.cs`. See "Agents" in `src/Apilane.Portal.Ui/README.md`; the page for people who
   use an agent key, with the block for their own `AGENTS.md`, is `docs/docs/developer_guide/ai_agent_portal.md`: change it with the behaviour.

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 namespace Apilane.Portal.Api.V1
 {
     [Route(RoutePrefix + "/entities/{entity}/properties")]
+    [AgentPermission("entities")]
     public class PropertiesController : PortalApplicationApiControllerBase
     {
         private readonly IPropertyManagementService _propertyManagementService;

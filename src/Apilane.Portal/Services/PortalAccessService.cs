@@ -28,7 +28,8 @@ namespace Apilane.Portal.Services
 
         private ClaimsPrincipal? Principal => _httpContextAccessor.HttpContext?.User;
 
-        public bool IsAdmin => Principal?.IsInRole(Globals.AdminRoleName) ?? false;
+        public bool IsAdmin => !PortalAgent.IsAgent(_currentUser?.Email ?? Principal?.FindFirst("UserEmail")?.Value)
+            && (Principal?.IsInRole(Globals.AdminRoleName) ?? false);
 
         public async Task<ApplicationUser?> FindCurrentUserAsync()
         {
