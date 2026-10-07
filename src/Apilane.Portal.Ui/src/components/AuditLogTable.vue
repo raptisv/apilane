@@ -4,6 +4,8 @@ import { ref } from 'vue'
 import type { Component } from 'vue'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Schemas } from '@/lib/api'
+import { accountDisplayName } from '@/lib/agents'
+import { auditTargetName } from '@/lib/auditDiff'
 import { formatUtc } from '@/lib/format'
 import AuditLogDetail from './AuditLogDetail.vue'
 
@@ -48,7 +50,7 @@ function actionStyle(action: string): { icon: Component; class: string } {
         <template v-for="entry in entries" :key="entry.ID">
           <TableRow class="cursor-pointer" @click="toggle(entry.ID)">
             <TableCell class="hidden pl-4 font-mono text-xs md:table-cell">{{ formatUtc(entry.Timestamp) }}</TableCell>
-            <TableCell class="hidden text-xs break-all whitespace-normal md:table-cell">{{ entry.UserEmail }}</TableCell>
+            <TableCell class="hidden text-xs break-all whitespace-normal md:table-cell">{{ accountDisplayName(entry.UserEmail) }}</TableCell>
             <TableCell class="pl-4 whitespace-normal md:pl-2 md:whitespace-nowrap">
               <span class="inline-flex items-center gap-1.5" :class="actionStyle(entry.Action).class">
                 <component :is="actionStyle(entry.Action).icon" class="size-3.5" aria-hidden="true" />
@@ -57,16 +59,16 @@ function actionStyle(action: string): { icon: Component; class: string } {
               <!-- On a phone the other columns move under the action, so the table fits the screen. -->
               <div class="mt-1 md:hidden">
                 <p class="wrap-anywhere">
-                  {{ entry.EntityType }} <strong class="font-medium">{{ entry.EntityIdentifier }}</strong>
+                  {{ entry.EntityType }} <strong class="font-medium">{{ auditTargetName(entry.EntityType, entry.EntityIdentifier) }}</strong>
                 </p>
                 <p class="mt-0.5 text-xs wrap-anywhere text-muted-foreground">
-                  <span class="font-mono">{{ formatUtc(entry.Timestamp) }}</span> UTC · {{ entry.UserEmail }}
+                  <span class="font-mono">{{ formatUtc(entry.Timestamp) }}</span> UTC · {{ accountDisplayName(entry.UserEmail) }}
                 </p>
               </div>
             </TableCell>
             <TableCell class="hidden whitespace-normal md:table-cell">{{ entry.EntityType }}</TableCell>
             <TableCell class="hidden font-medium wrap-anywhere whitespace-normal md:table-cell">
-              {{ entry.EntityIdentifier }}
+              {{ auditTargetName(entry.EntityType, entry.EntityIdentifier) }}
             </TableCell>
             <TableCell class="w-px pr-4 align-top md:align-middle">
               <!-- The row is clickable for the mouse; this button is the same action for the keyboard. -->
@@ -78,7 +80,7 @@ function actionStyle(action: string): { icon: Component; class: string } {
               >
                 <ChevronDownIcon class="size-4 transition-transform" :class="open.has(entry.ID) ? 'rotate-180' : ''" />
                 <span class="sr-only">
-                  Details of {{ entry.Action }} {{ entry.EntityType }} {{ entry.EntityIdentifier }}
+                  Details of {{ entry.Action }} {{ entry.EntityType }} {{ auditTargetName(entry.EntityType, entry.EntityIdentifier) }}
                 </span>
               </button>
             </TableCell>

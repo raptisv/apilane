@@ -67,6 +67,25 @@ namespace Apilane.Portal.Api.V1.Contracts
         /// </summary>
         [Required]
         public string Email { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Other applications the agent can access that are also in the caller's normal
+        /// Applications list. Excludes the current application and applications hidden from the caller.
+        /// </summary>
+        [Required]
+        public List<AgentApplicationSummaryResponse> Applications { get; set; } = new List<AgentApplicationSummaryResponse>();
+    }
+
+    /// <summary>
+    /// An application visible to both the caller and an available agent. No secrets or permissions.
+    /// </summary>
+    public class AgentApplicationSummaryResponse
+    {
+        [Required]
+        public string Token { get; set; } = string.Empty;
+
+        [Required]
+        public string Name { get; set; } = string.Empty;
     }
 
     /// <summary>

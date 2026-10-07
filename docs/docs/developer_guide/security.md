@@ -96,7 +96,7 @@ Use this setting to allow only specific IP addresses to access your application.
 
 ## Forgot password
 
-The **Forgot password** card shows two addresses that start a password reset: a ready-made page for your users (`{ServerUrl}/App/{appToken}/Account/Manage/ForgotPassword`) and the `Email/ForgotPassword` endpoint. Both send the Reset password [email](email_templates.md) and need the SMTP settings, and both share one limit of one email per address every 5 minutes. The card has nothing to save.
+The **Forgot password** card shows two addresses that start a password reset: a ready-made page for your users (`{ServerUrl}/App/{appToken}/Account/Manage/ForgotPassword`) and the `Email/ForgotPassword` endpoint. Both send the Reset password [email](email_templates.md) and need the SMTP settings, and both share one limit of one email per address every 5 minutes. Forgot-password and confirmation requests also share a 60-call-per-minute budget for the application, including unknown addresses. The rate-limit store expires idle entries and refuses new requests when its bounded capacity is full. A successful password reset or password change signs the user out of every existing session and invalidates outstanding reset links. The card has nothing to save.
 
 ---
 

@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import { ApiError } from './lib/api'
+import { bootstrapRequired, loadBootstrap } from './lib/bootstrap'
 import { tryLoadSession } from './lib/session'
 import { router } from './router'
 import './style.css'
@@ -16,14 +17,25 @@ window.addEventListener('pageshow', (event) => {
 // The session comes first, so the router knows whether somebody is signed in before it opens the
 // first screen: without a session it shows the login page, and with one every screen inside
 // AppShell can rely on useSession() being set.
-tryLoadSession().then(mount, (error: unknown) => {
-  // A public screen (sign in, password reset) needs no session: show it even though that call failed.
-  if (startsOnPublicScreen()) {
-    mount()
-  } else {
-    showStartupError(error)
+async function start(): Promise<void> {
+  // Fail closed even on a public screen if the setup state cannot be read.
+  await loadBootstrap()
+
+  if (!bootstrapRequired()) {
+    try {
+      await tryLoadSession()
+    } catch (error) {
+      // Public screens need no session after the instance has completed setup.
+      if (!startsOnPublicScreen()) {
+        throw error
+      }
+    }
   }
-})
+
+  mount()
+}
+
+start().catch(showStartupError)
 
 function startsOnPublicScreen(): boolean {
   return router.resolve(location.pathname).meta.public === true

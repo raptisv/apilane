@@ -129,7 +129,7 @@ Authorization: Bearer {authToken}
 { "Password": "currentPassword", "NewPassword": "newPassword" }
 ```
 
-`Password` must be the current password, otherwise the call answers `VALIDATION`. `NewPassword` must have 8 to 20 characters (`VALIDATION` otherwise). The user's other auth tokens stay valid.
+`Password` must be the current password, otherwise the call answers `VALIDATION`. `NewPassword` must have 8 to 20 characters (`VALIDATION` otherwise). Success invalidates all of the user's existing auth tokens, including this request's token, and outstanding password-reset links. Sign in again with the new password.
 
 **Response:** `true`.
 

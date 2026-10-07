@@ -202,7 +202,7 @@ await apilane.AccountUpdateAsync<AppUser>(
     user);  // Overwrites all user fields
 ```
 
-`AccountUpdate` writes only the custom properties you added to the `Users` entity: `Email`, `Username`, `Password` and `Roles` cannot be changed there. The model type (`AppUser`) must implement `IApiUser` (derive from `ApiUser`). To change a password call `PUT /api/Account/ChangePassword` with `{ "Password": "current", "NewPassword": "new" }` (8 to 20 characters): the SDKs have no method for it.
+`AccountUpdate` writes only the custom properties you added to the `Users` entity: `Email`, `Username`, `Password` and `Roles` cannot be changed there. The model type (`AppUser`) must implement `IApiUser` (derive from `ApiUser`). To change a password call `PUT /api/Account/ChangePassword` with `{ "Password": "current", "NewPassword": "new" }` (8 to 20 characters): the SDKs have no method for it. Success invalidates all existing sessions and reset links, so sign in again with the new password.
 
 ---
 

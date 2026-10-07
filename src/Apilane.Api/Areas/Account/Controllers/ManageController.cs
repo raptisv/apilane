@@ -1,4 +1,4 @@
-﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Core.Models.AppModules.Authentication;
@@ -28,6 +28,7 @@ namespace Apilane.Api.Areas.Account.Controllers
     {
         private readonly ILogger<ManageController> _logger;
         private readonly IEmailAPI _emailAPI;
+        private readonly IAccountAPI _accountAPI;
         private readonly IApplicationHelperService _applicationHelperService;
         private readonly IApplicationDataStoreFactory _applicationDataStoreFactory;
         protected DBWS_Application Application = null!;
@@ -35,11 +36,13 @@ namespace Apilane.Api.Areas.Account.Controllers
         public ManageController(
             ILogger<ManageController> logger,
             IEmailAPI emailAPI,
+            IAccountAPI accountAPI,
             IApplicationHelperService applicationHelperService,
             IApplicationDataStoreFactory aplicationDataStoreFactory)
         {
             _logger = logger;
             _emailAPI = emailAPI;
+            _accountAPI = accountAPI;
             _applicationHelperService = applicationHelperService;
             _applicationDataStoreFactory = aplicationDataStoreFactory;
         }
@@ -185,15 +188,7 @@ namespace Apilane.Api.Areas.Account.Controllers
 
 				if (userId is not null && userId.Value == userIdFromToken.Value)
 				{
-					await _applicationDataStoreFactory.UpdateDataAsync(
-						nameof(Users),
-						new Dictionary<string, object?>()
-						{
-							{ nameof(Users.Password), Application.EncryptionKey.ApplicationEncrypt(model.Password) }
-						},
-						new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, userId.Value, PropertyType.Number));
-
-					await _applicationHelperService.DeletePasswordResetTokenAsync(Token);
+					await _accountAPI.ResetPasswordAsync(Application, userId.Value, model.Password);
 				}
 
 				return RedirectToAction("ResetPasswordConfirmation", "Manage");

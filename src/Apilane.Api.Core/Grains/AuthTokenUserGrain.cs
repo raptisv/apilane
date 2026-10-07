@@ -1,4 +1,4 @@
-﻿using Apilane.Api.Core.Models.AppModules.Authentication;
+using Apilane.Api.Core.Models.AppModules.Authentication;
 using Apilane.Common;
 using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
@@ -25,6 +25,7 @@ namespace Apilane.Api.Core.Grains
     {
         Task<Users?> GetAsync(ApplicationDbInfoDto applicationDbInfo, int authTokenExpireMinutes);
         Task DeleteAsync(ApplicationDbInfoDto applicationDbInfo);
+        Task ResetAsync();
         Task ResetUserCacheAsync();
     }
 
@@ -115,6 +116,18 @@ namespace Apilane.Api.Core.Grains
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Drops both cached records after a bulk token revocation. Await this on every revoked token
+        /// before reporting success: waiting for the normal refresh would keep a logged-out user authenticated.
+        /// </summary>
+        public Task ResetAsync()
+        {
+            _authToken = null;
+            _user = null;
+            DeactivateOnIdle();
+            return Task.CompletedTask;
+        }
+
         public async Task DeleteAsync(ApplicationDbInfoDto applicationDbInfo)
         {
             await LoadStateAsync(applicationDbInfo);
@@ -129,7 +142,7 @@ namespace Apilane.Api.Core.Grains
                 }
             }
 
-            DeactivateOnIdle();
+            await ResetAsync();
         }
 
         private async Task LoadStateAsync(ApplicationDbInfoDto applicationDbInfo)

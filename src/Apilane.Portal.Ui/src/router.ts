@@ -4,6 +4,7 @@ import { loadedInstanceTitle } from '@/composables/useInstance'
 import AppShell from '@/layouts/AppShell.vue'
 import { isServerPath, safeReturnUrl } from '@/lib/returnUrl'
 import { currentSession } from '@/lib/session'
+import { bootstrapRequired } from '@/lib/bootstrap'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -227,6 +228,12 @@ export const router = createRouter({
           meta: { title: 'Users', requiresAdmin: true },
         },
         {
+          path: 'admin/agents',
+          name: 'admin-agents',
+          component: () => import('@/pages/admin/AgentsPage.vue'),
+          meta: { title: 'Agents', requiresAdmin: true },
+        },
+        {
           // Every application of the instance, whoever owns it.
           path: 'admin/applications',
           name: 'admin-applications',
@@ -277,6 +284,12 @@ export const router = createRouter({
       redirect: { name: 'login' },
       meta: { public: true },
       children: [
+        {
+          path: 'setup',
+          name: 'setup',
+          component: () => import('@/pages/account/SetupPage.vue'),
+          meta: { title: 'Administrator setup' },
+        },
         {
           // ?returnUrl= is where to go after signing in (see afterSignIn).
           path: 'login',
@@ -336,6 +349,14 @@ export function afterSignIn(returnUrl: unknown): RouteLocationRaw | false {
 
 // The one place that decides which screens open without a session.
 router.beforeEach((to) => {
+  if (bootstrapRequired()) {
+    return to.name === 'setup' ? true : { name: 'setup' }
+  }
+
+  if (to.name === 'setup') {
+    return { name: currentSession() ? 'apps' : 'login' }
+  }
+
   const signedIn = currentSession() !== undefined
 
   if (to.meta.public) {

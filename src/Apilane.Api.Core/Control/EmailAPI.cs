@@ -1,4 +1,4 @@
-﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
@@ -59,13 +59,7 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.VALIDATION, "Invalid Email", "Email");
             }
 
-            // Check rate limit
-            var emailConfirmationPermitted = await ApplicationRateLimiter.GetOrCreate(application.Token)
-                .TryAcquireAsync(1, TimeSpan.FromMinutes(5), email.Trim().ToLower(), "email:confirmation", "get", default);
-            if (!emailConfirmationPermitted)
-            {
-                throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED);
-            }
+            await EnforceEmailRateLimitAsync(application.Token, email, "email:confirmation");
 
             var userThatAcceptsTheEmail = await GetUserByEmailAsync(application, email);
 
@@ -107,13 +101,7 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.VALIDATION, "Invalid Email", "Email");
             }
 
-            // Check rate limit
-            var forgotPasswordPermitted = await ApplicationRateLimiter.GetOrCreate(application.Token)
-                .TryAcquireAsync(1, TimeSpan.FromMinutes(5), email.Trim().ToLower(), "email:forgot:password", "get", default);
-            if (!forgotPasswordPermitted)
-            {
-                throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED);
-            }
+            await EnforceEmailRateLimitAsync(application.Token, email, "email:forgot:password");
 
             var userThatAcceptsTheEmail = await GetUserByEmailAsync(application, email);
 
@@ -141,9 +129,22 @@ namespace Apilane.Api.Core
                 ?? throw new ApilaneException(AppErrors.ERROR, "Missing application email settings. Please navigate to the portal to the application's Email section.");
         }
 
+        private static async Task EnforceEmailRateLimitAsync(string appToken, string email, string endpoint)
+        {
+            var limiter = ApplicationRateLimiter.GetOrCreate(appToken);
+
+            // Both public entry points share an application-wide budget, including requests for unknown
+            // addresses. Check it before retaining an address or looking up a user, so rotating addresses
+            // cannot bypass throttling or grow the per-address state without bound.
+            if (!await limiter.TryAcquireAsync(60, TimeSpan.FromMinutes(1), null, "email:requests", "get", default)
+                || !await limiter.TryAcquireAsync(1, TimeSpan.FromMinutes(5), email.Trim().ToLowerInvariant(), endpoint, "get", default))
+            {
+                throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED);
+            }
+        }
+
         /// <summary>
-        /// The rate limiter keeps the address it is asked about for good, and the address comes from whoever asks,
-        /// so one that is longer than an address can be is refused before it gets there.
+        /// Refuse oversized addresses before retaining one in the rate limiter or querying the database.
         /// </summary>
         private static bool IsValidEmail(string email)
         {

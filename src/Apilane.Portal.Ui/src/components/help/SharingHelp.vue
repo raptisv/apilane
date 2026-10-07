@@ -10,7 +10,7 @@ import HelpSheet from '@/components/HelpSheet.vue'
   >
     <HelpItem title="What you can do here" open>
       <ul>
-        <li><strong>Share</strong> an application with another user, by their e-mail address.</li>
+        <li><strong>Share</strong> with a person by their e-mail address, or <strong>Share with agent</strong> by selecting its name.</li>
         <li>See who it is <strong>shared with</strong>, and write to them.</li>
         <li>Choose an agent's <strong>read, write and deletion rights</strong> for each part of the application, when sharing or later.</li>
         <li><strong>Stop sharing</strong> with anyone, at any time.</li>
@@ -35,9 +35,9 @@ import HelpSheet from '@/components/HelpSheet.vue'
 
     <HelpItem title="Agents">
       <p>
-        An agent is an account for a script or an AI agent, created by an administrator under Users. Type its address, which
-        ends in <code>@agent.local</code>, or pick it from the suggestions: only agents that are not yet collaborators are
-        offered.
+        An agent is an account for a script or an AI agent, created by an administrator under <strong>Instance &gt; Agents</strong>.
+        Choose <strong>Share with agent</strong> and select its name. Only agents that are not yet collaborators are offered.
+        After selecting one, you can see its other applications that you also have access to.
       </p>
       <p>
         An agent starts with read-only access, including agents shared before permissions were introduced. Choose its rights

@@ -44,8 +44,8 @@ namespace Apilane.Portal.Tests.Infrastructure
     {
         public const string AdminEmail = "admin@portal.test";
 
-        // The password the Portal gives the administrator it seeds on first start.
-        public const string AdminPassword = "admin";
+        // A test-only password installed after bootstrap; production has no default password.
+        public const string AdminPassword = "portal-tests-admin-password";
 
         // Never resolves, so a test can not reach an API server running on the developer's machine.
         public const string ApiUrl = "http://apilane-api.invalid";
@@ -75,7 +75,11 @@ namespace Apilane.Portal.Tests.Infrastructure
         /// </summary>
         public RecordingEmailService Mail { get; } = new RecordingEmailService();
 
-        public PortalFactory()
+        public PortalFactory() : this(completeBootstrap: true)
+        {
+        }
+
+        internal PortalFactory(bool completeBootstrap)
         {
             _filesPath = Path.Combine(Path.GetTempPath(), "apilane-portal-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_filesPath);
@@ -84,15 +88,34 @@ namespace Apilane.Portal.Tests.Infrastructure
             {
                 ["FilesPath"] = _filesPath,
                 ["Url"] = "http://localhost",
+                ["PublicUrl"] = "https://portal.test",
                 ["ApiUrl"] = ApiUrl,
                 ["InstanceTitle"] = "Apilane tests",
                 ["InstallationKey"] = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"),
-                ["AdminEmail"] = AdminEmail,
                 // On, so the tests can check /metrics.
                 ["OpenTelemetry__Metrics__Enabled"] = "true"
             };
 
             Start(this);
+
+            if (completeBootstrap)
+            {
+                // Most API tests start from an established installation. Bootstrap tests opt out
+                // and exercise the real setup flow against a separate temporary database.
+                using var scope = Services.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var state = db.BootstrapStates.Single();
+                var user = db.Users.Single(x => x.Id == state.UserId);
+                var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                user.Email = AdminEmail;
+                user.UserName = AdminEmail;
+                user.NormalizedEmail = users.NormalizeEmail(AdminEmail);
+                user.NormalizedUserName = users.NormalizeName(AdminEmail);
+                user.EmailConfirmed = true;
+                user.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(user, AdminPassword);
+                state.Completed = true;
+                db.SaveChanges();
+            }
         }
 
         /// <summary>

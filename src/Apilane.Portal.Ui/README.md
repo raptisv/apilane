@@ -61,6 +61,7 @@ marks calls the browser makes straight to the application's API server
 | Screen | Address | Endpoints |
 |---|---|---|
 | **Account** | | |
+| First administrator setup | `/account/setup` | `GET` and `POST /bootstrap`, `GET /instance` |
 | Sign in | `/account/login?returnUrl=` | `POST /session`, `GET /instance` |
 | Sign out | User menu, 'Sign out' | `DELETE /session` |
 | Sign up | `/account/register` | `POST /account`, `GET /instance` |
@@ -94,7 +95,8 @@ marks calls the browser makes straight to the application's API server
 | Clone progress | `/apps/{appToken}/clone/{operationId}` | `GET {app}/clones/{operationId}` |
 | **Instance (administrators)** | | |
 | Servers | `/admin/servers` | `GET` and `POST /admin/servers`, `PUT` and `DELETE /admin/servers/{id}` |
-| Users (with 'Add agent' and the delete of an agent) | `/admin/users` | `GET /admin/users`, `PUT /admin/users/{userId}/role`, `POST /admin/agents`, `DELETE /admin/agents/{userId}` |
+| Users (people and their roles) | `/admin/users` | `GET /admin/users`, `PUT /admin/users/{userId}/role` |
+| Agents (with 'Add agent', the key shown once, and deletion) | `/admin/agents` | `GET /admin/users`, `POST /admin/agents`, `DELETE /admin/agents/{userId}` |
 | Applications of the instance | `/admin/applications` | `GET /admin/applications`, `POST {app}/cache-reset` |
 | Data browser of any application | `/admin/applications/{appToken}/data/{entity}` | `GET /admin/applications/{appToken}`, then the data browser's API server calls |
 | Settings, with 'Backup database' | `/admin/settings` | `GET` and `PUT /admin/settings`, `GET /admin/backup` |
@@ -119,7 +121,12 @@ The user menu also has 'API reference', a link to `/swagger`.
   effect, unless the user signs in again first.
 - 'Last sign-in' of a user moves only on a sign-in, a registration or a password change. For an
   agent it is the time the agent was added.
-- A first start creates the administrator `AdminEmail` with the password `admin`. Change it at once.
+- A first start creates a pending administrator with a random temporary password printed in the server's startup output.
+  Every UI route opens `/account/setup` until the administrator supplies that temporary password and chooses
+  an email address and a new password. The API also blocks other operations (including sign-in, registration and internal access)
+  until setup is complete. A pending setup gets a new temporary password on each server restart; completed
+  setups never regenerate it. Existing installations without a bootstrap record are marked complete directly,
+  without inspecting or changing their accounts or passwords.
 
 **Sign-in, sign-up and passwords**
 
@@ -127,7 +134,7 @@ The user menu also has 'API reference', a link to `/swagger`.
   anything a browser could read as another site is ignored and the applications page opens.
 - A signed-in user who opens the sign-in or sign-up screen is sent on: to `returnUrl` when it is a
   path on this site, otherwise to the applications page.
-- Sign in, sign up and the password-reset request share one rate limit: 30 calls per 60 seconds per
+- Administrator setup, sign in, sign up and the password-reset request share one rate limit: 30 calls per 60 seconds per
   IP address, then 429 (`AccountRateLimit__PermitLimit`, `AccountRateLimit__WindowSeconds`). Behind a
   reverse proxy read [Deploying](#deploying).
 - When registration is switched off (Instance > Settings) the API answers 403 and the sign-up
@@ -143,17 +150,17 @@ The user menu also has 'API reference', a link to `/swagger`.
 
 **Agents**
 
-- An agent is an account for a script or an AI agent. It is a normal user whose address ends with
-  `@agent.local`; nothing else marks it. It has no password, so it cannot sign in: it calls the API
-  with a key. How to call, and what an agent is refused: [Agents](#agents).
-- An administrator adds one on Instance > Users with 'Add agent' and a name (3 to 40 characters:
+- An agent is an account for a script or an AI agent. The Portal shows its name; the internal
+  `@agent.local` address is kept in API payloads and stored records only. It has no password and
+  calls the API with a key. How to call, and what an agent is refused: [Agents](#agents).
+- An administrator adds one on Instance > Agents with 'Add agent' and a name (3 to 40 characters:
   lower-case letters, digits and dashes). The key is shown once; the Portal stores only a hash of it.
-- An agent gets access the way a person does: the owner of an application shares it with the
-  agent's address on the Sharing screen. The address box there offers the agents the application
-  is not shared with yet. Agents start read-only. The owner chooses their rights when sharing,
+- The owner opens 'Share with agent' on the Sharing screen and selects an available agent by name.
+  The dialog lists the selected agent's other applications that the owner can also see (owned or
+  shared with them). Agents start read-only. The owner chooses their rights when sharing,
   or later with 'Edit rights'; each application has its own policy. No mail is sent to an agent.
-- Deleting the agent on the Users screen stops its key at once and removes the agent from every
-  application shared with it. Only agents can be deleted there, not people. A lost key cannot be
+- Deleting the agent on the Agents screen stops its key at once and removes the agent from every
+  application shared with it. The Users screen lists people separately. A lost key cannot be
   shown or replaced: delete the agent, add it again and share again.
 - Nobody can sign up with an address at `@agent.local`, a password-reset request for one does
   nothing, and an agent cannot be made an administrator.
@@ -207,7 +214,8 @@ that hosts the application, and the browser calls that server directly:
 - The token is kept in memory only: never in an address, never in storage. It changes at every
   sign-in; on a 401 from an API server the UI fetches it once more, and a second 401 is shown as an error.
 - The API server asks the Portal whether that user may manage the application
-  (`/api/internal/applications/{appToken}/access`) and remembers the answer for 15 minutes.
+  (`/api/internal/applications/{appToken}/access`) on every authorization check. Grants are not cached,
+  so a revoked token or removed collaborator is refused on the next check; Portal connectivity is required.
 - So every API server must be reachable from the browser at the address stored under
   Instance > Servers, and its open CORS policy is required (the calls carry an Authorization header).
 - The health dot next to a server name is such a call too: any successful answer of
@@ -224,7 +232,7 @@ that hosts the application, and the browser calls that server directly:
   of the API server is a 502 with a fixed text.
 - Dialogs that can be linked to keep their state in the address: `?info=`, `?compare=`, `?item=`, `?view=`.
 - Create, edit, rename and delete are dialogs on the list screen. Deleting a server, entity,
-  property, custom endpoint, application or agent asks you to type its name (an agent's address).
+  property, custom endpoint, application or agent asks you to type its name.
 - A screen that collects several edits before one Save (constraints, default sorting, security
   rules, the custom endpoint editor) asks before you leave with unsaved changes.
 - Every screen works from 360px wide. Dark is the only theme.
@@ -287,10 +295,13 @@ that hosts the application, and the browser calls that server directly:
 
 **Sharing**
 
-- Only an e-mail address is accepted. Sharing with your own address is 409.
-- The address box is free text. It also offers the agents that are not collaborators of the
-  application yet (`GET {app}/collaborators/available-agents`), as suggestions of the browser's own
-  list (`datalist`).
+- 'Share' accepts a person's e-mail address as free text. Sharing with your own address is 409.
+- 'Share with agent' opens a separate dialog with an explicit agent picker. Only agents not
+  already shared with this application are offered (`GET {app}/collaborators/available-agents`).
+  The selected agent's other applications are shown by name, limited on the server to applications
+  the caller owns or collaborates on. Hidden applications are not included, even in counts.
+  Names are displayed; the original agent address is sent to the API. A failed agent list can be
+  retried, and an agent must be selected before sharing.
 - The collaborator gets a mail when the instance can send one; the toast says whether it was sent.
   An agent is never mailed.
 - An agent starts read-only. For each area choose None, Read or Read and write; deletion is a
@@ -431,9 +442,10 @@ that hosts the application, and the browser calls that server directly:
 | Password changed (sent to the address stored on the account) | `/account/forgot-password` |
 | An application was shared with you | `/apps` |
 
-The links are built from the scheme and host of the request that caused the mail. Set `AllowedHosts`
-(see [Deploying](#deploying)), or a reset mail can carry a link to a host the caller chose. The mails
-need the mail settings under Instance > Settings; without them a reset request answers 409.
+The links use the configured `PublicUrl`, never the request's host or forwarded headers. Without an
+explicit value, a concrete listening `Url` is used for local development. A wildcard listener needs
+`PublicUrl` before sending Portal email. Reset requests answer 409 when that origin or the mail settings
+under Instance > Settings are missing. Set `AllowedHosts` as an additional restriction on incoming hosts.
 
 The mails of an application (confirmation, password reset for its end users) are sent by the API
 server, not by the Portal. After a confirmation the API server sends the end user to the
@@ -465,10 +477,10 @@ or environment variables (`__` for nesting).
 | `ApiUrl` | The first API server, as the Portal and browsers reach it. It seeds Instance > Servers on first start. |
 | `FilesPath` | The folder of the Portal's SQLite database (`Apilane.db`) and its data-protection keys. A mounted volume in Docker. |
 | `InstallationKey` | The secret shared with the API servers. It seeds the key stored in the database on first start and is read again only for the startup warning. The key in force, in both directions, is the stored one, changed under Instance > Settings (no restart of the Portal). |
-| `AdminEmail` | The administrator created on first start, with the password `admin`. |
+| `PublicUrl` | Trusted browser-facing http/https origin for Portal email links, without credentials, a path, query or fragment. Falls back to a concrete `Url`; wildcard listeners need an explicit value before mailing. |
 | `InstanceTitle` | The name shown in the UI. It seeds the database on first start only; later it is changed under Instance > Settings. |
 | `AuthCookieDomain` | The domain of the login cookie; `null` for the current host. |
-| `AccountRateLimit__PermitLimit`, `AccountRateLimit__WindowSeconds` | The rate limit of sign in, sign up and reset request. Default 30 per 60 seconds per IP address. Both must be greater than 0, or the Portal does not start. |
+| `AccountRateLimit__PermitLimit`, `AccountRateLimit__WindowSeconds` | The shared rate limit of administrator setup, sign in, sign up and reset request. Default 30 per 60 seconds per IP address. Both must be greater than 0, or the Portal does not start. |
 | `AllowedHosts` | The host names the Portal answers for. Set it to the public host name, plus the host in the API servers' `PortalUrl`. |
 | `OpenTelemetry`, `Serilog`, `MinThreads` | Metrics at `/metrics`, tracing, logging, thread pool. |
 
@@ -505,8 +517,8 @@ Sign-in and mail:
 - An agent has one key, without an expiry date, and wrong keys are not counted or slowed down
   (see [Open decisions](#open-decisions)).
 - An account that a person registered at `@agent.local` before agents existed keeps its password,
-  but counts as an agent: it cannot be made an administrator and it can be deleted on the Users screen.
-- The password-reset link is built from the request's host: set `AllowedHosts`.
+  but counts as an agent: it cannot be made an administrator and it can be deleted on the Agents screen.
+- Portal email links use `PublicUrl`; request headers cannot change their destination.
 - The shared mail service (`Apilane.Common/Services/EmailService.cs`) logs the full mail body, reset
   link included, at Information level, and swallows SMTP failures. So a failed send looks like a
   success, and 'mail sent' means handed to the sender, not delivered.
@@ -573,8 +585,8 @@ Not checked in a browser yet (do these first, see [Release check](#release-check
 - The administrator's data browser on an application the administrator does not own.
 - Constraints of a system entity as a user who is not an administrator, and a real 403 or 502 on a save.
 - Widths from 640 to 1000px, where the application tabs wrap, and keyboard focus after dialogs opened from a menu.
-- The Users screen with agents: 'Add agent', the dialog that shows the key, the 'Agent' badge and the delete of an agent.
-- The share dialog of the Sharing screen: the agents offered under the address box, and the toast after sharing with one.
+- The Agents screen: 'Add agent', the dialog that shows the key, the agent list and deletion.
+- The separate agent-sharing dialog: choosing an agent, its other visible applications, and the toast after sharing.
 
 ## Open decisions
 
@@ -632,9 +644,11 @@ Bearer header as a security scheme: send it yourself.
   the header to a request that carries the user's cookie, which is what protects writes against
   cross-site request forgery. A request with an agent key needs no such header: a browser never
   sends a key on its own.
-- **Without a session**: only `GET /instance`, `POST /session`, `DELETE /session`, `POST /account`,
-  `POST /account/password-reset-requests` and `POST /account/password-resets` work. Sign in, sign up
-  and the reset request share the rate limit (429 with a `Retry-After` header).
+- **Without a session**: only `GET /bootstrap`, `POST /bootstrap`, `GET /instance`, `POST /session`,
+  `DELETE /session`, `POST /account`, `POST /account/password-reset-requests` and
+  `POST /account/password-resets` work. Until administrator setup is complete, only the bootstrap
+  calls and `GET /instance` are available. Setup, sign in, sign up and the reset request share the
+  rate limit (429 with a `Retry-After` header).
 - **JSON**: property names are PascalCase. Types and choices are names, not numbers (`SQLLite`,
   `Grid`, `Owned`). The one exception is the schema import payload, which uses the stored numbers.
 - **Lists**: every list answer is `{ "Data": [...], "Total": n }`. Only the audit logs are paged:
@@ -656,15 +670,15 @@ An agent is an account for a script or an AI agent: a normal user at `@agent.loc
 password, and one key. The documentation page `docs/docs/developer_guide/ai_agent_portal.md` has a
 block to append to the `AGENTS.md` of the project that holds the agent.
 
-1. **Create it.** An administrator opens Instance > Users, chooses 'Add agent' and types a name:
+1. **Create it.** An administrator opens Instance > Agents, chooses 'Add agent' and types a name:
    3 to 40 characters, lower-case letters, digits and dashes. (The call is `POST /api/v1/admin/agents`
    with `{"Name": "deploy-bot"}`.) The answer gives the agent's address, `deploy-bot@agent.local`,
    and its key, `apl_{KeyId}_{Secret}`. The key is shown this once: the Portal stores only a SHA-256
    hash of the secret.
-2. **Give it access.** The owner of an application shares it with the agent's address on the
-   Sharing screen, as with a person: the address box offers the agents the application is not
-   shared with yet (`GET {app}/collaborators/available-agents` lists them). Pick the offered
-   address or type it exactly, in lower case: an access is matched on the exact letter case. The
+2. **Give it access.** The owner opens 'Share with agent' on the Sharing screen and selects its name.
+   `GET {app}/collaborators/available-agents` lists the available names and original addresses,
+   plus `Applications` summaries (`Token`, `Name`) for other applications visible to the caller.
+   The UI sends the selected address unchanged, so exact account matching is preserved. The
    agent is then a collaborator of that application with read-only access by default. Set its
    rights in the share dialog or choose 'Edit rights' beside it later. No mail is sent to an agent.
 3. **Call the API.** Send `Authorization: Bearer {key}` on every call. No sign-in, no cookie, no
@@ -764,7 +778,7 @@ runs and commits against the application's database when called. An agent with c
 and security write access may create one and allow it to run, so those grants carry broad effects
 beyond the management endpoint itself. Give an agent only the rights needed for its work.
 
-**Revoking.** Delete the agent on Instance > Users (`DELETE /api/v1/admin/agents/{userId}`). Its
+**Revoking.** Delete the agent on Instance > Agents (`DELETE /api/v1/admin/agents/{userId}`). Its
 key stops working at once and the agent is removed from every application shared with it. A key
 cannot be replaced: delete the agent, add it again and share again.
 
@@ -794,6 +808,7 @@ an item of a list is named by its place (`Rules[3].Action`). `TraceId` finds the
 | 403 | `FORBIDDEN` | The write header is missing; or the call is for the owner or an administrator only; or registration is switched off; or an agent lacks a permission or called something agents are always refused. |
 | 404 | `NOT_FOUND` | Unknown, or not the caller's. Also an unknown API address or a wrong method. |
 | 409 | `CONFLICT` | The state does not allow it: a duplicate name, a system entity, a property that is part of a constraint, mail not set up. |
+| 409 | `SETUP_REQUIRED` | First-administrator setup is pending. Complete `/bootstrap` before calling other management or internal endpoints. |
 | 415 | `ERROR` | The request body is not sent as `application/json`. |
 | 429 | `TOO_MANY_REQUESTS` | The rate limit of the anonymous account calls. |
 | 502 | `UPSTREAM_ERROR` | The API server could not be reached or failed. |
@@ -855,7 +870,7 @@ With the session cookie, as a person. The same with an agent key is under [Agent
 ```bash
 # Sign in. The cookie jar keeps the session.
 curl -c cookies.txt -H "Content-Type: application/json" -H "X-Apilane-Portal: 1" \
-  -d '{"Email":"admin@admin.com","Password":"admin"}' \
+  -d '{"Email":"your-email@example.com","Password":"your-chosen-password"}' \
   http://localhost:5000/api/v1/session
 
 # The applications of the user. Take the Token of one.
@@ -928,8 +943,8 @@ Run them in this folder. `npm ci` once after cloning (and after pulling dependen
 2. Most screens also need an API server: `dotnet run --project src/Apilane.Api`
    (<http://localhost:5001>), with the same installation key as the Portal: on a fresh database its
    `InstallationKey` setting, otherwise the key under Instance > Settings.
-3. `npm run dev` here, and browse <http://localhost:5173/>. Sign in as `AdminEmail` (password `admin`
-   on a fresh database).
+3. `npm run dev` here, and browse <http://localhost:5173/>. On a fresh database, complete the setup
+   screen using the temporary password from the Portal startup output, then choose your administrator email and a new password.
 
 Local settings go into `src/Apilane.Portal/appsettings.Development.json` (git-ignored). Set at least
 `FilesPath` there: it is the folder of the Portal's database, and the value in `appsettings.json` is
@@ -1066,7 +1081,7 @@ is loaded lazily), the guard that decides which screens open without a session, 
 
 One component per screen. A part only that screen uses sits next to it (`pages/apps/ApplicationCard.vue`).
 
-**`pages/account`**: the public screens: sign in, sign up, forgot password, reset password, e-mail confirmed.
+**`pages/account`**: the public screens: administrator setup, sign in, sign up, forgot password, reset password, e-mail confirmed.
 
 **`pages/apps`**
 
@@ -1090,7 +1105,7 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 | `CustomEndpointEditorPage` | `/apps/:appToken/endpoints/new` and `/apps/:appToken/endpoints/<ID>`: name, description and the SQL in `SqlEditor`, saved with `UnsavedChangesBar`, the rename warning and its Help (`CustomEndpointEditorHelp`, which shows the SQL Server item only for a SQL Server application). `CustomEndpointTestPanel` is its right-hand part (the address and a box per parameter, worked out in the browser, and Test, which runs the SQL on the API server and shows the JSON or the database's error). |
 | `EmailPage` | `/apps/:appToken/email`: the SMTP settings and the confirmation landing page, one form saved to the Portal, and the e-mail templates read from and saved to the API server. `EmailTemplateDialog` edits one template (enabled, subject, HTML body with a live `HtmlPreview`, the placeholders). |
 | `ReportsPage`, `Report*.vue`, `TimeRangePicker` | `/apps/:appToken/reports`: the dashboard. On a wide screen (768px and up) the reports are panels on a 12-column grid (`ReportsGrid`, gridstack), dragged by their title and resized by their edges; the layout is saved 600 ms after the last change (`PUT reports/layout`, every panel), and a save that fails shows above the grid with 'Reload the dashboard'. On a phone the panels are one column in the same order and nothing moves. The page also holds the delete confirm, `ReportEndpointDialog` ('View API endpoint': the address of each series' call, with a copy button) and the editor. `ReportPanel`: one report: title, the time range or Top N badge, Refresh (which moves the time window to now), the menu, and the body: `ReportTable` for a Grid, `ReportChart` (Chart.js) for the other types. It loads each series itself from the API server (`/api/Stats/Aggregate`); a series that cannot run or whose call fails is named inside the panel and the others still show. `ReportEditorSheet` (`/apps/:appToken/reports/new` and `/apps/:appToken/reports/<ID>/edit`, a side sheet over the dashboard; the three routes share `ReportsPage`): title, visualization, time range (`TimeRangePicker`: the quick ranges or a custom number and unit), Top N and the series. `ReportSeriesEditor` is one series (label, entity, group-by, property, filter), with its choices from `GET entities/{entity}/report-fields?Type=` and the filter edited in a dialog with `FilterBuilder`. |
-| `SharingPage`, `AgentPermissionsEditor` | `/apps/:appToken/sharing`, owner only: collaborators and permission summaries, the share dialog (a free-text address box offering available agents through a `datalist`), per-area rights when adding or editing an agent, and the remove confirm. People keep full collaborator access. |
+| `SharingPage`, `AgentPermissionsEditor` | `/apps/:appToken/sharing`, owner only: collaborators and permission summaries, a free-text email sharing dialog for people, a separate agent picker with other visible applications, per-area rights when adding or editing an agent, and the remove confirm. People keep full collaborator access. |
 | `SchemaImportPage` | `/apps/:appToken/import`, the 'Import' tab (route `app-schema-import`): adds entities, properties, constraints, security rules and custom endpoints from a JSON payload. 'Load diff' asks the API what another application has that this one lacks, puts it into the payload box and shows its counts; the box stays editable. Import checks the text in the browser (`parsePayload`), asks first (not atomic, cannot be undone), then shows 'Imported' with the skipped items, or the failed step with its place in the payload. Its Help (`SchemaImportHelp`) holds how the import works, the payload reference and the example payload (`examplePayload`). |
 | `AuditLogPage` | `/apps/:appToken/audit-log?page=1`: the application's audit log, with `AuditLogTable` and `AppPagination`. |
 | `SettingsPage` | `/apps/:appToken/settings`: General (name, connection string; server and database type read-only), Status (online / offline) and Danger zone (rebuild, delete). |
@@ -1101,6 +1116,7 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 | File | Contents |
 |---|---|
 | `ServersPage`, `UsersPage`, `AuditLogPage` | `/admin/servers`, `/admin/users`, `/admin/audit-log`. |
+| `AgentsPage` | `/admin/agents`: agents only, shown by name, with creation, the key shown once, and deletion confirmed by typing the agent's name. UsersPage lists people and manages their roles. Both pages filter the existing `GET /admin/users` response. |
 | `SettingsPage` | `/admin/settings`, with the 'Backup database' card. |
 | `ApplicationsPage` | `/admin/applications`: every application of the instance in creation order, with a search by name, token or owner e-mail. The table shows name and token, owner, server, database and status; a Details button opens the other settings under the row (a secret only as 'Set' / 'Not set'); the row menu has 'Open data browser', 'Open application' (only for an application the administrator owns or collaborates on) and 'Clear cache'. |
 | `ApplicationDataPage` | `/admin/applications/:appToken/data/:entity?`: the data browser of any application, loaded from `GET /api/v1/admin/applications/{appToken}` and drawn by `ApplicationDataBrowser`, under the breadcrumb Instance / Applications / name / Data. |
@@ -1179,9 +1195,10 @@ Rules that need neither Vue nor the browser, as pure functions, each with a `*.t
 |---|---|
 | `api.ts` | The typed API client, `unwrap`, `unwrapAnonymous` (for calls made without a session), `ApiError`, and `loginUrl` / `redirectToLogin`. It adds the write header and shows the `Warning` header of any answer as a warning toast. `api-types.ts` is generated. |
 | `apiServer.ts` | `apiServer(serverUrl, appToken)`: the client for calls that go straight from the browser to an API server (storage used, export, record counts, e-mail templates, the SQL test of a custom endpoint, records, files, history and the series of a report). `get` and `getBlob` read (`get` takes `{ signal }` of an `AbortController`, for a read a newer one replaces; `isAbort(error)` tells that failure apart); `put` and `post` send a JSON body; `delete` deletes; `postFile(path, field, file)` uploads one file as multipart/form-data. A query value that is `undefined` is left out. It fetches the user's API token from the Portal, keeps it in memory only, and throws the same `ApiError` as `api` (with the `Property` the API server names, so `formErrors` marks that field). |
-| `agents.ts` | The rules of agents on the Users and Sharing screens: `isAgent` (an address at `@agent.local`), and `isAgentName` with `agentNameRule` (a copy of the name rule of `POST /admin/agents`). |
+| `agents.ts` | The rules of agents on the Users, Agents and Sharing screens: `isAgent` (an address at `@agent.local`), `accountDisplayName` (display-only name, original identity retained), and `isAgentName` with `agentNameRule` (a copy of the name rule of `POST /admin/agents`). |
 | `agentPermissions.ts` | Read-only defaults, copies of saved policies, access-level transitions and collaborator permission summaries. Resource capabilities come from the API catalogue. |
 | `session.ts` | The signed-in user: loaded before the app starts, `useSession()` inside `AppShell`, `setSession` after signing in. |
+| `bootstrap.ts` | Loads whether administrator setup is required before the session or first route; the router keeps every screen on setup until completion. |
 | `returnUrl.ts` | `safeReturnUrl`: the check that a `returnUrl` is a path on this site before it is followed after signing in. `isServerPath`: whether the Portal answers an address itself (`/swagger`), so it needs a full page load. |
 | `forms.ts` | What a form shows for a failed write: `formErrors` (a message per field and one above the form) and `listErrors` (a message per item of a list sent as a whole, `Constraints[1]...`, and one above the list). |
 | `formData.ts` | `toFormData`: the `bodySerializer` of an `api` call that uploads a file (multipart/form-data). |
@@ -1304,7 +1321,7 @@ Nothing automated runs the UI in a browser. Before a release:
   application user and follow the confirmation mail to `/account/email-confirmed`.
 - `/swagger` signed out: the sign-in screen, then back on `/swagger`.
 - A password-reset mail, from the request to signing in with the new password.
-- An agent: add it, share an application with its address, call the API with the key, delete it and see the key answer 401.
+- An agent: add it, select it by name when sharing, check its other visible applications, call the API with the key, delete it and see the key answer 401.
 - The Docker image builds, `/` loads, the favicon shows, a file under `/assets` is served as immutable.
 - One pass over the [Screens](#screens) table on desktop and at phone width.
 

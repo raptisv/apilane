@@ -604,6 +604,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether first-administrator setup is required. Never returns the administrator's credential. */
+        get: operations["Bootstrap_Get"];
+        put?: never;
+        /**
+         * Completes first-administrator setup using the temporary password printed on the server,
+         *     sets the chosen administrator email and password and signs in. Every other management operation is
+         *     blocked until setup completes. A completed setup cannot be repeated.
+         */
+        post: operations["Bootstrap_Complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/applications/{appToken}/collaborators": {
         parameters: {
             query?: never;
@@ -641,7 +663,10 @@ export interface paths {
         };
         /**
          * Lists the agents (users at @agent.local) the application can still be shared with: the
-         *     ones that are not collaborators of it yet, by name. Owner only.
+         *     ones that are not collaborators of it yet, by name. Includes each agent's other applications
+         *     only when they are in the caller's normal Applications list, with just Token and Name.
+         *     The current application and applications hidden from the caller are never included;
+         *     an administrator's access to the instance-wide list does not expand this result. Owner only.
          */
         get: operations["Collaborators_ListAvailableAgents"];
         put?: never;
@@ -1517,6 +1542,11 @@ export interface components {
             /** Format: int64 */
             Total: number;
         };
+        /** @description An application visible to both the caller and an available agent. No secrets or permissions. */
+        AgentApplicationSummaryResponse: {
+            Token: string;
+            Name: string;
+        };
         /** @description The agent that was created, with its key. */
         AgentCreatedResponse: {
             /** @description The ID of the agent's user, as in the list of users. */
@@ -1693,12 +1723,32 @@ export interface components {
             Name: string;
             /** @description The agent's address: the value to share the application with. */
             Email: string;
+            /**
+             * @description Other applications the agent can access that are also in the caller's normal
+             *     Applications list. Excludes the current application and applications hidden from the caller.
+             */
+            Applications: components["schemas"]["AgentApplicationSummaryResponse"][];
         };
         /** @description The shape of every list answer, the same as the data API: the items and their total count. */
         AvailableAgentResponseListResponse: {
             Data: components["schemas"]["AvailableAgentResponse"][];
             /** Format: int64 */
             Total: number;
+        };
+        BootstrapRequest: {
+            /**
+             * Format: email
+             * @description The email address to use for the first administrator. Addresses at agent.local are reserved.
+             */
+            Email: string;
+            /** @description The randomly generated credential printed once in the Portal server's startup output. */
+            TemporaryPassword: string;
+            Password: string;
+            ConfirmPassword: string;
+        };
+        BootstrapResponse: {
+            /** @description The instance requires its first administrator to choose an email and password before it can be used. */
+            Required: boolean;
         };
         /** @description The signed-in user's current password and the new one. */
         ChangePasswordRequest: {
@@ -5233,6 +5283,106 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    Bootstrap_Get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BootstrapResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    Bootstrap_Complete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BootstrapRequest"];
+                "text/json": components["schemas"]["BootstrapRequest"];
+                "application/*+json": components["schemas"]["BootstrapRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

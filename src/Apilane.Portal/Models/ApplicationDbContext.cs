@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,6 +34,7 @@ namespace Apilane.Portal.Models
         public DbSet<PortalAuditLog> AuditLogs { get; set; }
         public DbSet<PortalAgentKey> AgentKeys { get; set; }
         public DbSet<PortalAgentPermission> AgentPermissions { get; set; }
+        public DbSet<PortalBootstrapState> BootstrapStates { get; set; }
 
         public ApplicationDbContext(
             DbContextOptions<ApplicationDbContext> options,
@@ -134,27 +136,36 @@ namespace Apilane.Portal.Models
             var adminRoleGuid = Guid.NewGuid().ToString("D");
             var adminUserGuid = Guid.NewGuid().ToString("D");
 
+            builder.Entity<PortalBootstrapState>().ToTable("BootstrapState").HasKey(p => p.ID);
+            builder.Entity<PortalBootstrapState>().Property(p => p.Completed).IsConcurrencyToken();
+            builder.Entity<PortalBootstrapState>().HasData(new PortalBootstrapState
+            {
+                ID = 1,
+                UserId = adminUserGuid
+            });
+
             // Seed Admin role
             builder.Entity<IdentityRole>().HasData(
                 new IdentityRole() { Id = adminRoleGuid, Name = Globals.AdminRoleName, ConcurrencyStamp = "1", NormalizedName = Globals.AdminRoleName });
 
-            // Seed admin user
+            // Seed a pending admin without a public address. Its email and password are chosen
+            // together during setup; the random internal name is never a sign-in credential.
+            var pendingAdminUserName = $"bootstrap-{adminUserGuid}";
             ApplicationUser adminUser = new ApplicationUser()
             {
                 Id = adminUserGuid,
-                UserName = portalConfig.AdminEmail,
-                Email = portalConfig.AdminEmail,
-                NormalizedEmail = portalConfig.AdminEmail.ToUpper(),
-                NormalizedUserName = portalConfig.AdminEmail.ToUpper(),
+                UserName = pendingAdminUserName,
+                NormalizedUserName = pendingAdminUserName.ToUpperInvariant(),
                 LockoutEnabled = false,
                 LastLogin = DateTime.UtcNow,
                 DateRegistered = DateTime.UtcNow,
                 TwoFactorEnabled = false,
-                EmailConfirmed = true,
+                EmailConfirmed = false,
                 SecurityStamp = Guid.NewGuid().ToString("D")
             };
             PasswordHasher<ApplicationUser> passwordHasher = new PasswordHasher<ApplicationUser>();
-            var initialAdminPassword = "admin";
+            // Inaccessible until startup issues a one-time credential and setup completes.
+            var initialAdminPassword = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
             adminUser.PasswordHash = passwordHasher.HashPassword(adminUser, initialAdminPassword);
 
             builder.Entity<ApplicationUser>().HasData(adminUser);

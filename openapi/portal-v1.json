@@ -2618,6 +2618,125 @@
         }
       }
     },
+    "/api/v1/bootstrap": {
+      "get": {
+        "tags": [
+          "Bootstrap"
+        ],
+        "summary": "Whether first-administrator setup is required. Never returns the administrator's credential.",
+        "operationId": "Bootstrap_Get",
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Bootstrap"
+        ],
+        "summary": "Completes first-administrator setup using the temporary password printed on the server,\nsets the chosen administrator email and password and signs in. Every other management operation is\nblocked until setup completes. A completed setup cannot be repeated.",
+        "operationId": "Bootstrap_Complete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BootstrapRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BootstrapRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/BootstrapRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/applications/{appToken}/collaborators": {
       "get": {
         "tags": [
@@ -2782,7 +2901,7 @@
         "tags": [
           "Collaborators"
         ],
-        "summary": "Lists the agents (users at @agent.local) the application can still be shared with: the\nones that are not collaborators of it yet, by name. Owner only.",
+        "summary": "Lists the agents (users at @agent.local) the application can still be shared with: the\nones that are not collaborators of it yet, by name. Includes each agent's other applications\nonly when they are in the caller's normal Applications list, with just Token and Name.\nThe current application and applications hidden from the caller are never included;\nan administrator's access to the instance-wide list does not expand this result. Owner only.",
         "operationId": "Collaborators_ListAvailableAgents",
         "parameters": [
           {
@@ -6440,6 +6559,25 @@
         "additionalProperties": false,
         "description": "The shape of every list answer, the same as the data API: the items and their total count."
       },
+      "AgentApplicationSummaryResponse": {
+        "required": [
+          "Name",
+          "Token"
+        ],
+        "type": "object",
+        "properties": {
+          "Token": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "Name": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "description": "An application visible to both the caller and an available agent. No secrets or permissions."
+      },
       "AgentCreatedResponse": {
         "required": [
           "Email",
@@ -6875,6 +7013,7 @@
       },
       "AvailableAgentResponse": {
         "required": [
+          "Applications",
           "Email",
           "Name"
         ],
@@ -6889,6 +7028,13 @@
             "minLength": 1,
             "type": "string",
             "description": "The agent's address: the value to share the application with."
+          },
+          "Applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentApplicationSummaryResponse"
+            },
+            "description": "Other applications the agent can access that are also in the caller's normal\nApplications list. Excludes the current application and applications hidden from the caller."
           }
         },
         "additionalProperties": false,
@@ -6914,6 +7060,52 @@
         },
         "additionalProperties": false,
         "description": "The shape of every list answer, the same as the data API: the items and their total count."
+      },
+      "BootstrapRequest": {
+        "required": [
+          "ConfirmPassword",
+          "Email",
+          "Password",
+          "TemporaryPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "Email": {
+            "minLength": 1,
+            "type": "string",
+            "description": "The email address to use for the first administrator. Addresses at agent.local are reserved.",
+            "format": "email"
+          },
+          "TemporaryPassword": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string",
+            "description": "The randomly generated credential printed once in the Portal server's startup output."
+          },
+          "Password": {
+            "maxLength": 100,
+            "minLength": 8,
+            "type": "string"
+          },
+          "ConfirmPassword": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BootstrapResponse": {
+        "required": [
+          "Required"
+        ],
+        "type": "object",
+        "properties": {
+          "Required": {
+            "type": "boolean",
+            "description": "The instance requires its first administrator to choose an email and password before it can be used."
+          }
+        },
+        "additionalProperties": false
       },
       "ChangePasswordRequest": {
         "required": [
@@ -10296,6 +10488,9 @@
     },
     {
       "name": "ApplicationSecurity"
+    },
+    {
+      "name": "Bootstrap"
     },
     {
       "name": "Collaborators"

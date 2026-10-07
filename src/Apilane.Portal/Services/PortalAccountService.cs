@@ -145,6 +145,9 @@ namespace Apilane.Portal.Services
                 throw PortalException.Conflict(MailNotConfiguredMessage);
             }
 
+            // Check the trusted origin before looking up the recipient, so a missing setting
+            // gives the same answer for known and unknown addresses.
+            _portalLinkBuilder.Ui(string.Empty);
             var user = await _userManager.FindByEmailAsync(request.Email);
 
             // An unknown e-mail is not an error: it gets the same 202 answer as a known one.
@@ -190,6 +193,10 @@ namespace Apilane.Portal.Services
         {
             var current = await _portalAccessService.GetCurrentUserAsync();
 
+            // Resolve configuration before changing credentials: a missing public origin must
+            // not turn a successful password change into an error response afterwards.
+            var notificationLink = _portalMailService.IsConfigured() ? _portalLinkBuilder.ForgotPassword() : null;
+
             var user = await _userManager.FindByIdAsync(current.Id)
                 ?? throw PortalException.Unauthorized();
 
@@ -206,11 +213,14 @@ namespace Apilane.Portal.Services
             // new one (a session cookie) and ends the user's other sessions.
             await _signInManager.SignInAsync(user, isPersistent: false);
 
-            _portalMailService.Send(
-                user.Email ?? string.Empty,
-                "Password changed",
-                "Your password has been changed successfully.<br/><br/> This is just to confirm that it was you that made this change. " +
-                $"If not, click on <a href=\"{_portalLinkBuilder.ForgotPassword()}\">this link</a> to reset your password.");
+            if (notificationLink is not null)
+            {
+                _portalMailService.Send(
+                    user.Email ?? string.Empty,
+                    "Password changed",
+                    "Your password has been changed successfully.<br/><br/> This is just to confirm that it was you that made this change. " +
+                    $"If not, click on <a href=\"{notificationLink}\">this link</a> to reset your password.");
+            }
         }
 
         /// <summary>

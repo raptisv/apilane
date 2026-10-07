@@ -10,9 +10,9 @@ This page has two parts: how a person sets an agent up, and one block to append 
 
 ## Set up an agent
 
-1. **Add the agent.** An administrator opens **Instance > Users**, chooses **Add agent** and types a name: 3 to 40 characters, lower-case letters, digits and dashes. The agent's address is the name followed by `@agent.local`, for example `deploy-bot@agent.local`. The Portal shows its key (`apl_...`) once and keeps only a hash of it, so copy it then. A key does not expire and cannot be replaced: if it is lost, delete the agent and add it again.
+1. **Add the agent.** An administrator opens **Instance > Agents**, chooses **Add agent** and types a name: 3 to 40 characters, lower-case letters, digits and dashes, for example `deploy-bot`. The Portal shows its key (`apl_...`) once and keeps only a hash of it, so copy it then. A key does not expire and cannot be replaced: if it is lost, delete the agent and add it again.
 2. **Create the application.** An agent cannot create, import or clone an application. A person does it in the Portal.
-3. **Share it with the agent.** The owner opens the **Sharing** tab of the application and types the agent's address exactly, or picks it from the suggestions. The agent starts read-only. Choose its read, write and deletion rights per area in that dialog, or use **Edit rights** beside it later. The policy applies to this application only. No e-mail is sent to an agent.
+3. **Share it with the agent.** The owner opens the **Sharing** tab, chooses **Share with agent** and selects the agent by name. The dialog shows its access to other applications the owner can also see. The agent starts read-only. Choose its read, write and deletion rights per area in that dialog, or use **Edit rights** beside it later. The policy applies to this application only. No e-mail is sent to an agent.
 4. **Hand over the Portal address and the key.** Put them in the environment of the agent (the block below uses `APILANE_PORTAL_URL` and `APILANE_AGENT_KEY`), never in a file that is committed. Then append the block below to the `AGENTS.md`.
 
 ## What an agent can and cannot do
@@ -32,7 +32,7 @@ An agent also gets no token for the API servers. It cannot read or write records
 
 ## Review and revoke
 
-Every change an agent makes is in the **Audit log** tab of the application, under the agent's address. The owner can narrow its rights using **Sharing > Edit rights**, or stop sharing that application. To revoke an agent everywhere, an administrator deletes it on **Instance > Users**: its key stops working at once and it is removed from every application shared with it.
+Every change an agent makes is in the **Audit log** tab of the application, under the agent's name. The owner can narrow its rights using **Sharing > Edit rights**, or stop sharing that application. To revoke an agent everywhere, an administrator deletes it on **Instance > Agents**: its key stops working at once and it is removed from every application shared with it.
 
 !!!warning "Some grants have broad effects"
     Permissions govern management API operations. Custom endpoint write access can save SQL that the API server runs and commits against the database; security write access can make that endpoint callable. Entity write access can replace constraints, and security write access can remove rules. Audit-log read access exposes historical configuration, including SQL and security changes. Security and report reads include referenced entity, property and endpoint names. Give the agent only the rights it needs and review its audit log.

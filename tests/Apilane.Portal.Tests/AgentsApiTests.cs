@@ -333,6 +333,8 @@ namespace Apilane.Portal.Tests
                 (HttpMethod.Get, "/api/v1/admin/audit-log", null),
                 (HttpMethod.Get, "/api/v1/admin/applications", null),
                 // The data-plane token, and the account endpoints that sign in or set a password.
+                (HttpMethod.Get, "/api/v1/bootstrap", null),
+                (HttpMethod.Post, "/api/v1/bootstrap", new { Email = PortalFactory.AdminEmail, TemporaryPassword = "temporary", Password = "a-password", ConfirmPassword = "a-password" }),
                 (HttpMethod.Get, $"{SessionUrl}/api-token", null),
                 (HttpMethod.Post, SessionUrl, new { Email = PortalFactory.AdminEmail, Password = PortalFactory.AdminPassword }),
                 (HttpMethod.Post, "/api/v1/account", new { Email = registerEmail, Password = "a-password", ConfirmPassword = "a-password" }),
@@ -475,12 +477,14 @@ namespace Apilane.Portal.Tests
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-            // Name and address, nothing else: the strict reader fails on any extra property.
+            // Name, address and visible application summaries: the strict reader rejects extra fields.
             // Other tests leave agents behind, so only the ones of this test are looked for.
             var list = await response.ReadJsonAsync<ListResponse<AvailableAgentResponse>>();
             var listed = Assert.Single(list.Data, x => x.Email == free.Email);
             Assert.Equal(free.Email.Split('@')[0], listed.Name);
+            Assert.Empty(listed.Applications);
             Assert.DoesNotContain(list.Data, x => x.Email == shared.Email || x.Email == sharedInUpperCase.Email);
+            Assert.All(list.Data, x => Assert.DoesNotContain(x.Applications, a => a.Token == application.Token));
 
             // Agents only, never a person, and in the order of their names.
             Assert.All(list.Data, x => Assert.Equal($"{x.Name}@agent.local", x.Email));
@@ -499,6 +503,73 @@ namespace Apilane.Portal.Tests
             Assert.Equal(HttpStatusCode.Forbidden, (await KeyClient(shared.Key).GetAsync(url)).StatusCode);
             Assert.Equal(HttpStatusCode.NotFound, (await (await _portal.CreateUserClientAsync()).GetAsync(url)).StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, (await _portal.CreateAnonymousClient().GetAsync(url)).StatusCode);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task Available_Agent_Applications_Should_Respect_Both_Accounts_Access_And_Revocation(bool callerIsAdmin)
+        {
+            var agent = await CreateAgentAsync(await _portal.CreateAdminClientAsync());
+            var (ownerEmail, ownerPassword) = callerIsAdmin
+                ? await _portal.CreateAdminUserAsync()
+                : await _portal.CreateUserAsync();
+            var (otherEmail, otherPassword) = await _portal.CreateUserAsync();
+            var server = await _portal.CreateServerAsync();
+            var target = (await _portal.CreateApplicationAsync(server.ID, ownerEmail, $"target-{Guid.NewGuid():N}")).Application;
+            var otherTarget = (await _portal.CreateApplicationAsync(server.ID, otherEmail, $"target-{Guid.NewGuid():N}")).Application;
+            var owned = (await _portal.CreateApplicationAsync(server.ID, ownerEmail, $"alpha-{Guid.NewGuid():N}", agent.Email)).Application;
+            var shared = (await _portal.CreateApplicationAsync(server.ID, otherEmail, $"beta-{Guid.NewGuid():N}", ownerEmail, agent.Email)).Application;
+            var legacyOwned = (await _portal.CreateApplicationAsync(server.ID, agent.Email, $"gamma-{Guid.NewGuid():N}", ownerEmail)).Application;
+            var hidden = (await _portal.CreateApplicationAsync(server.ID, otherEmail, $"hidden-{Guid.NewGuid():N}", agent.Email)).Application;
+            var unrelated = (await _portal.CreateApplicationAsync(server.ID, ownerEmail, $"unrelated-{Guid.NewGuid():N}")).Application;
+            var wrongCase = (await _portal.CreateApplicationAsync(server.ID, ownerEmail, $"wrong-case-{Guid.NewGuid():N}", agent.Email.ToUpperInvariant())).Application;
+            var owner = await _portal.CreateSignedInClientAsync(ownerEmail, ownerPassword);
+            var other = await _portal.CreateSignedInClientAsync(otherEmail, otherPassword);
+            var url = $"{ApplicationsUrl}/{target.Token}/collaborators/available-agents";
+            var otherUrl = $"{ApplicationsUrl}/{otherTarget.Token}/collaborators/available-agents";
+
+            var response = await owner.GetAsync(url);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var list = await response.ReadJsonAsync<ListResponse<AvailableAgentResponse>>();
+            var applications = Assert.Single(list.Data, x => x.Email == agent.Email).Applications;
+
+            // The intersection includes owned, shared and legacy agent-owned applications, with
+            // only the two summary fields. A differently cased share gives the agent no access.
+            Assert.Equal(new[] { owned.Token, shared.Token, legacyOwned.Token }, applications.Select(x => x.Token));
+            Assert.Equal(new[] { owned.Name, shared.Name, legacyOwned.Name }, applications.Select(x => x.Name));
+            Assert.All(list.Data, x => Assert.DoesNotContain(x.Applications, a => a.Token == target.Token));
+            var json = await response.Content.ReadAsStringAsync();
+            foreach (var excluded in new[] { target, hidden, unrelated, wrongCase })
+            {
+                Assert.DoesNotContain(excluded.Token, json);
+                Assert.DoesNotContain(excluded.Name, json);
+            }
+            foreach (var included in new[] { owned, shared, legacyOwned })
+            {
+                Assert.DoesNotContain(included.EncryptionKey, json);
+                Assert.DoesNotContain(included.ConnectionString ?? string.Empty, json);
+            }
+
+            // The same agent produces a different list for another owner. Admin status above must
+            // not expand the first caller's result to applications only this second caller sees.
+            var otherList = await (await other.GetAsync(otherUrl)).ReadJsonAsync<ListResponse<AvailableAgentResponse>>();
+            var otherApplications = Assert.Single(otherList.Data, x => x.Email == agent.Email).Applications;
+            Assert.Equal(new[] { shared.Token, hidden.Token }, otherApplications.Select(x => x.Token));
+
+            // Remove the agent from one app, and the caller from another, using the real sharing
+            // endpoints. Neither revoked entry may survive on the next catalogue read.
+            var agentShare = owned.Collaborates.Single(x => x.UserEmail == agent.Email);
+            var callerShare = shared.Collaborates.Single(x => x.UserEmail == ownerEmail);
+            Assert.Equal(HttpStatusCode.NoContent,
+                (await owner.DeleteAsync($"{ApplicationsUrl}/{owned.Token}/collaborators/{agentShare.ID}")).StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent,
+                (await other.DeleteAsync($"{ApplicationsUrl}/{shared.Token}/collaborators/{callerShare.ID}")).StatusCode);
+            var after = await (await owner.GetAsync(url)).ReadJsonAsync<ListResponse<AvailableAgentResponse>>();
+            Assert.Equal(legacyOwned.Token, Assert.Single(Assert.Single(after.Data, x => x.Email == agent.Email).Applications).Token);
+
+            var otherAfter = await (await other.GetAsync(otherUrl)).ReadJsonAsync<ListResponse<AvailableAgentResponse>>();
+            Assert.Equal(new[] { shared.Token, hidden.Token }, Assert.Single(otherAfter.Data, x => x.Email == agent.Email).Applications.Select(x => x.Token));
         }
 
         // ---------- Delete ----------

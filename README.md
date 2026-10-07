@@ -39,10 +39,10 @@ docker-compose -p apilane up -d
 Keep the `.env` file for every later `docker-compose up`: the Portal stores the key on first start, so a different value would lock the API out. Never use an example value from documentation or a public repository as the key: it is the only thing standing between the network and every application's configuration.
 
 This will set up the Portal and the API services on Docker.
-You may then access the portal on [http://localhost:5000](http://localhost:5000) with default credentials:
-
-- **Email**: `admin@admin.com`
-- **Password**: `admin`
+Open the portal on [http://localhost:5000](http://localhost:5000) to finish administrator setup.
+Use the random temporary password printed in the Portal startup output
+(`docker-compose -p apilane logs apilanewebportal`), then choose your administrator email and a new password.
+The Portal cannot be used until setup is complete; there is no shared default password.
 
 Before you create an application, set `ApiUrl` and `PortalUrl` in the compose file to addresses the two containers can reach (`127.0.0.1` inside a container is the container itself): see [Getting Started](https://docs.apilane.com/getting_started/).
 

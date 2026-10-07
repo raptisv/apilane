@@ -33,6 +33,7 @@ import { useAsync } from '@/composables/useAsync'
 import { useMutation } from '@/composables/useMutation'
 import { statusChange } from '@/lib/applicationActions'
 import { apiServer, swaggerUrl } from '@/lib/apiServer'
+import { accountDisplayName } from '@/lib/agents'
 import { databaseTypeLabel, formatStorage } from '@/lib/applications'
 import type { Application } from '@/lib/applications'
 import { saveBlob } from '@/lib/download'
@@ -185,7 +186,7 @@ async function onExport(): Promise<void> {
       </p>
       <p class="wrap-anywhere text-muted-foreground">
         <template v-if="application.IsOwner">Shared with {{ application.CollaboratorCount }}</template>
-        <template v-else>Shared by {{ application.OwnerEmail }}</template>
+        <template v-else>Shared by {{ accountDisplayName(application.OwnerEmail ?? '') }}</template>
       </p>
     </div>
 

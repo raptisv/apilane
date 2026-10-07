@@ -50,9 +50,9 @@ grep -qs "^APILANE_INSTALLATION_KEY=." .env || echo "APILANE_INSTALLATION_KEY=$(
 docker-compose -p apilane up -d
 ```
 
-Access the Portal at [http://localhost:5000](http://localhost:5000) with the default credentials:
-
-- **Email:** `admin@admin.com`
-- **Password:** `admin`
+Access the Portal at [http://localhost:5000](http://localhost:5000) to set up the first administrator.
+Use the random temporary password from the Portal startup output
+(`docker-compose -p apilane logs apilanewebportal`), then choose your email address and a new password.
+Setup must be completed before you can use the Portal.
 
 For a complete walkthrough, including the addresses the two services use to reach each other, follow the [Getting Started](getting_started.md) guide.

@@ -53,10 +53,62 @@ $portalUrl = 'http://127.0.0.1:' + (Get-FreePort)
 do { $apiUrl = 'http://127.0.0.1:' + (Get-FreePort) } while ($apiUrl -eq $portalUrl)
 $installationKey = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
 $ownerEmail = 'smoke-owner@portal.test'
-$ownerPassword = 'admin' # The seeded password exists only in this throw-away database.
+$ownerPassword = 'smoke-' + [Guid]::NewGuid().ToString('N')
 $processes = [Collections.Generic.List[object]]::new()
 $checks = [Collections.Generic.List[string]]::new()
 $clients = [Collections.Generic.List[Net.Http.HttpClient]]::new()
+
+# Drain stdout throughout the run, while making the first-run credential available
+# before the host exits. Keep it out of startup diagnostics even if setup fails.
+if (-not ('ApilaneSmoke.HostOutput' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+
+namespace ApilaneSmoke
+{
+    public sealed class HostOutput
+    {
+        private readonly StringBuilder _diagnostics = new StringBuilder();
+        private readonly TaskCompletionSource<string> _bootstrapPassword =
+            new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<string> BootstrapPassword { get { return _bootstrapPassword.Task; } }
+
+        public async Task CaptureAsync(StreamReader reader)
+        {
+            string line;
+            while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) != null)
+            {
+                var match = Regex.Match(line,
+                    @"^INITIAL ADMINISTRATOR SETUP REQUIRED\b.*temporary password: (?<password>[0-9A-Fa-f]{64})\.");
+                if (match.Success)
+                {
+                    var password = match.Groups["password"].Value;
+                    _bootstrapPassword.TrySetResult(password);
+                    line = line.Replace(password, "[redacted]");
+                }
+
+                lock (_diagnostics)
+                {
+                    _diagnostics.AppendLine(line);
+                }
+            }
+        }
+
+        public string GetDiagnostics()
+        {
+            lock (_diagnostics)
+            {
+                return _diagnostics.ToString();
+            }
+        }
+    }
+}
+'@
+}
 
 function Start-IsolatedHost([string]$name, [string]$dll, [string]$directory, [hashtable]$settings) {
     $start = [Diagnostics.ProcessStartInfo]::new()
@@ -86,9 +138,10 @@ function Start-IsolatedHost([string]$name, [string]$dll, [string]$directory, [ha
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $start
     Assert-True ($process.Start()) "Could not start $name."
+    $output = [ApilaneSmoke.HostOutput]::new()
     $processes.Add(@{
         Name = $name; Process = $process
-        Output = $process.StandardOutput.ReadToEndAsync()
+        Output = $output; OutputTask = $output.CaptureAsync($process.StandardOutput)
         Error = $process.StandardError.ReadToEndAsync()
     })
 }
@@ -159,11 +212,22 @@ try {
         Copy-Item -LiteralPath $builtUi -Destination (Join-Path $portalDirectory 'wwwroot/ui') -Recurse
     }
     Start-IsolatedHost 'Portal' $portalDll $portalDirectory @{
-        Url = $portalUrl; ApiUrl = $apiUrl; AdminEmail = $ownerEmail; InstanceTitle = 'Isolated agent smoke'
+        Url = $portalUrl; ApiUrl = $apiUrl; InstanceTitle = 'Isolated agent smoke'
     }
     $owner = New-SmokeClient $portalUrl $true
     $owner.DefaultRequestHeaders.Add('X-Apilane-Portal', '1')
     Wait-Ready $owner 'Portal'
+    $portalOutput = ($processes | Where-Object { $_.Name -eq 'Portal' }).Output
+    Assert-True ($portalOutput.BootstrapPassword.Wait([TimeSpan]::FromSeconds(10))) 'Portal startup did not provide a temporary setup password.'
+    $temporaryPassword = $portalOutput.BootstrapPassword.GetAwaiter().GetResult()
+    try {
+        $session = Send-Smoke $owner 'POST' '/api/v1/bootstrap' @{
+            Email = $ownerEmail; TemporaryPassword = $temporaryPassword
+            Password = $ownerPassword; ConfirmPassword = $ownerPassword
+        }
+        Assert-True ($session.IsAdmin -and $session.Email -eq $ownerEmail) 'Bootstrap did not create the chosen administrator.'
+    }
+    finally { $temporaryPassword = $null }
     Start-IsolatedHost 'API' $apiDll $apiDirectory @{
         Url = $apiUrl; PortalUrl = $portalUrl; Clustering__Type = 'Localhost'
         Clustering__SiloPort = '11111'; Clustering__GatewayPort = '30000'
@@ -264,8 +328,9 @@ finally {
     foreach ($hostProcess in $processes) {
         if (-not $hostProcess.Process.HasExited) { $hostProcess.Process.Kill($true) }
         $hostProcess.Process.WaitForExit()
+        $hostProcess.OutputTask.GetAwaiter().GetResult()
         if ($checks.Count -lt 6) {
-            $log = $hostProcess.Output.GetAwaiter().GetResult() + $hostProcess.Error.GetAwaiter().GetResult()
+            $log = $hostProcess.Output.GetDiagnostics() + $hostProcess.Error.GetAwaiter().GetResult()
             Write-Output ("$($hostProcess.Name) startup diagnostics:`n" + (($log -split "`n" | Select-Object -Last 25) -join "`n"))
         }
         $hostProcess.Process.Dispose()

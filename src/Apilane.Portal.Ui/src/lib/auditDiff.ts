@@ -8,6 +8,15 @@
  * their raw text, so the result depends on the stored text itself.
  */
 
+import { accountDisplayName } from './agents'
+
+/** Account targets have display names; arbitrary entity, application and property names stay exact. */
+export function auditTargetName(entityType: string, identifier: string): string {
+  return ['Agent', 'User', 'User Role', 'Collaboration', 'Agent Permissions'].includes(entityType)
+    ? accountDisplayName(identifier)
+    : identifier
+}
+
 /** The parts of an audit entry the rules need (Schemas['AuditChangeResponse'] fits). */
 export interface AuditChange {
   Property: string
@@ -65,7 +74,7 @@ export function jsonLinkText(count: number): string {
   return `View JSON (${count} ${count === 1 ? 'item' : 'items'})`
 }
 
-export function describeChange(action: string, change: AuditChange): ChangeView {
+export function describeChange(action: string, change: AuditChange, entityType?: string): ChangeView {
   const isJson = jsonProperties.includes(change.Property.toLowerCase())
 
   if (isJson && action === 'Modified') {
@@ -81,8 +90,16 @@ export function describeChange(action: string, change: AuditChange): ChangeView 
     return { kind: 'json', count: parseJsonArray(json).length, json: formatJson(json) }
   }
 
-  const oldCell = { text: change.OldValue ?? '<null>', old: true }
-  const newCell = { text: change.NewValue ?? '<null>', old: false }
+  // Only known account fields are names. Other strings, including mail settings and JSON,
+  // remain the stored value even when they happen to end with the agent suffix.
+  const isAccountField = (entityType === 'Collaboration' && change.Property === 'UserEmail')
+    || (entityType === 'Application' && change.Property === 'AdminEmail')
+    || (entityType === 'Agent' && ['Email', 'UserName', 'NormalizedEmail', 'NormalizedUserName'].includes(change.Property))
+  const displayValue = (value: string | null | undefined) => value == null
+    ? '<null>'
+    : isAccountField ? accountDisplayName(value) : value
+  const oldCell = { text: displayValue(change.OldValue), old: true }
+  const newCell = { text: displayValue(change.NewValue), old: false }
 
   if (action === 'Modified') {
     return { kind: 'text', cells: [oldCell, newCell] }

@@ -68,19 +68,33 @@ namespace Apilane.Portal.Services
         public async Task<List<AvailableAgentResponse>> GetAvailableAgentsAsync(string appToken)
         {
             var application = await _applicationAccessService.GetApplicationAsync(appToken, requireOwner: true);
+            var visibleApplications = (await _applicationAccessService.GetVisibleApplicationsAsync())
+                .Where(x => x.ID != application.ID)
+                .ToList();
 
             // Identity keeps every address in upper case too, so the letter case does not matter here.
             var suffix = PortalAgent.EmailSuffix.ToUpperInvariant();
 
-            var emails = await _dbContext.Users
+            var agents = await _dbContext.Users
                 .AsNoTracking()
                 .Where(x => x.Email != null && x.NormalizedEmail != null && x.NormalizedEmail.EndsWith(suffix))
-                .Select(x => x.Email ?? string.Empty)
+                .Select(x => new { x.Id, Email = x.Email ?? string.Empty })
                 .ToListAsync();
 
-            return emails
-                .Where(x => PortalAgent.IsAgent(x) && !application.Collaborates.Any(c => c.UserEmail.Equals(x, StringComparison.OrdinalIgnoreCase)))
-                .Select(x => new AvailableAgentResponse { Name = x.Substring(0, x.Length - PortalAgent.EmailSuffix.Length), Email = x })
+            return agents
+                .Where(x => PortalAgent.IsAgent(x.Email) && !application.Collaborates.Any(c => c.UserEmail.Equals(x.Email, StringComparison.OrdinalIgnoreCase)))
+                .Select(agent => new AvailableAgentResponse
+                {
+                    Name = agent.Email.Substring(0, agent.Email.Length - PortalAgent.EmailSuffix.Length),
+                    Email = agent.Email,
+                    // The same owner/exact-address rule as the normal Applications list. Filter
+                    // only the caller's visible set, so even an administrator learns nothing hidden.
+                    Applications = visibleApplications
+                        .Where(x => x.UserID == agent.Id || x.Collaborates.Any(c => string.Equals(c.UserEmail, agent.Email, StringComparison.Ordinal)))
+                        .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(x => new AgentApplicationSummaryResponse { Token = x.Token, Name = x.Name })
+                        .ToList()
+                })
                 .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }

@@ -2,7 +2,6 @@
 using Apilane.Api.Core.Configuration;
 using Apilane.Common;
 using Apilane.Common.Models;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Net.Http;
@@ -19,18 +18,15 @@ namespace Apilane.Api.Core.Services
         private readonly ILogger<PortalInfoService> _logger;
         private readonly IHttpClientFactory _clientFactory;
         private readonly ApiConfiguration _apiConfiguration;
-        private readonly IMemoryCache _memoryCache;
 
         public PortalInfoService(
             ILogger<PortalInfoService> logger,
             IHttpClientFactory clientFactory,
-            ApiConfiguration apiConfiguration,
-            IMemoryCache memoryCache)
+            ApiConfiguration apiConfiguration)
         {
             _logger = logger;
             _clientFactory = clientFactory;
             _apiConfiguration = apiConfiguration;
-            _memoryCache = memoryCache;
         }
 
         public async Task IsPortalHealhyAsync()
@@ -55,22 +51,14 @@ namespace Apilane.Api.Core.Services
         {
             // The token is part of the address the Portal is asked at. An application token is a
             // GUID; anything else (empty, '..') is nobody's application and would be another address.
-            if (!Guid.TryParse(appToken, out _))
+            if (string.IsNullOrWhiteSpace(authToken) || !Guid.TryParse(appToken, out _))
             {
                 return false;
             }
 
-            var cacheKey = $"{authToken}_{appToken}";
-
-            if (!_memoryCache.TryGetValue(cacheKey, out bool userOwnsApplication))
-            {
-                userOwnsApplication = await UserOwnsApplicationInnerAsync(authToken, appToken);
-
-                _memoryCache.Set(cacheKey, userOwnsApplication, new MemoryCacheEntryOptions()
-                    .SetSlidingExpiration(TimeSpan.FromMinutes(15)));
-            }
-
-            return userOwnsApplication;
+            // Authorization must reflect the current token, role and collaborators. Caching a
+            // grant here lets a revoked token retain access independently of the Portal session.
+            return await UserOwnsApplicationInnerAsync(authToken, appToken);
         }
 
         private async Task<bool> UserOwnsApplicationInnerAsync(string authToken, string appToken)

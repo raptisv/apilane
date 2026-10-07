@@ -10,10 +10,10 @@ services:
       - 5000:5000
     environment:
       - Url=http://0.0.0.0:5000
+      - PublicUrl=${APILANE_PORTAL_PUBLIC_URL:-http://localhost:5000} # Browser-facing origin used in Portal emails. Set it to your public HTTPS origin when deployed.
       - ApiUrl=http://127.0.0.1:5001 # The url to the initial Api service. Change it according to your setup.
       - FilesPath=/etc/apilanewebportal # The portal server files path.
       - InstallationKey=${APILANE_INSTALLATION_KEY:?Set APILANE_INSTALLATION_KEY to a long random secret (e.g. openssl rand -hex 32); it must be identical for the api and the portal} # Shared secret with apilanewebapi. Never use a published example value.
-      - AdminEmail=admin@admin.com # Default email for instance administrator, change it with your email. Default password is "admin".
     volumes:
       - apilane-portal-data:/etc/apilanewebportal
 

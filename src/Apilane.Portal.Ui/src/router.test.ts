@@ -11,6 +11,8 @@ vi.mock('vue-router', async (original) => {
 
 describe('routes', () => {
   it('opens the public screens at their addresses', () => {
+    expect(router.resolve('/account/setup').name).toBe('setup')
+    expect(router.resolve('/account/setup').meta.public).toBe(true)
     expect(router.resolve('/account/login').name).toBe('login')
     expect(router.resolve('/account/reset-password?code=abc').name).toBe('reset-password')
     expect(router.resolve('/account/email-confirmed').name).toBe('email-confirmed')

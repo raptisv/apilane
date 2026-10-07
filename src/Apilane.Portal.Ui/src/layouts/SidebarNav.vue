@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppWindowIcon, HistoryIcon, LayoutGridIcon, ServerIcon, SettingsIcon, UsersIcon } from '@lucide/vue'
+import { AppWindowIcon, BotIcon, HistoryIcon, LayoutGridIcon, ServerIcon, SettingsIcon, UsersIcon } from '@lucide/vue'
 import { computed } from 'vue'
 import type { Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -26,6 +26,7 @@ const inApplications = computed(() => currentPath.value === '/apps' || currentPa
 const instanceLinks: { route: string; label: string; icon: Component }[] = [
   { route: 'admin-servers', label: 'Servers', icon: ServerIcon },
   { route: 'admin-users', label: 'Users', icon: UsersIcon },
+  { route: 'admin-agents', label: 'Agents', icon: BotIcon },
   { route: 'admin-applications', label: 'Applications', icon: LayoutGridIcon },
   { route: 'admin-settings', label: 'Settings', icon: SettingsIcon },
   { route: 'admin-audit-log', label: 'Audit log', icon: HistoryIcon },

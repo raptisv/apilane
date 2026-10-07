@@ -19,5 +19,6 @@ namespace Apilane.Data.Abstractions
         Task<long?> GetUserIdFromEmailConfitmationTokenAsync(string confirmationToken);
         Task<long?> GetUserIdFromPasswordResetTokenAsync(string resetToken);
         Task DeletePasswordResetTokenAsync(string resetToken);
+        Task DeletePasswordResetTokensForUserAsync(long userId);
     }
 }

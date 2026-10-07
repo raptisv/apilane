@@ -1,24 +1,25 @@
 using Apilane.Portal.Abstractions;
-using Microsoft.AspNetCore.Http;
+using Apilane.Portal.Api;
+using Apilane.Portal.Models;
 using System;
 
 namespace Apilane.Portal.Services
 {
     public class PortalLinkBuilder : IPortalLinkBuilder
     {
-        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly PortalConfiguration _configuration;
 
-        public PortalLinkBuilder(IHttpContextAccessor httpContextAccessor)
+        public PortalLinkBuilder(PortalConfiguration configuration)
         {
-            _httpContextAccessor = httpContextAccessor;
+            _configuration = configuration;
         }
 
         public string Ui(string path)
         {
-            var request = _httpContextAccessor.HttpContext?.Request
-                ?? throw new Exception("A portal link can only be built during a request.");
+            var origin = _configuration.PublicUrl
+                ?? throw PortalException.Conflict("Configure PublicUrl with the Portal's public http or https origin before sending email.");
 
-            return $"{request.Scheme}://{request.Host}{request.PathBase}/{path.TrimStart('/')}";
+            return $"{origin.AbsoluteUri}{path.TrimStart('/')}";
         }
 
         public string ResetPassword(string code)

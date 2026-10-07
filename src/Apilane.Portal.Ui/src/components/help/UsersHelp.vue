@@ -6,14 +6,12 @@ import HelpSheet from '@/components/HelpSheet.vue'
 <template>
   <HelpSheet
     title="About users"
-    lead="Everyone who can sign in to this Portal, and its agents: accounts for scripts and AI agents. This is where you decide who administers the instance."
+    lead="The people who can sign in to this Portal. This is where you decide who administers the instance."
   >
     <HelpItem title="What you can do here" open>
       <ul>
         <li>See <strong>who has an account</strong>, their role and when they last signed in.</li>
         <li><strong>Make admin</strong> or <strong>Make user</strong> changes someone's role.</li>
-        <li><strong>Add agent</strong> creates an account for a script or an AI agent, with a key.</li>
-        <li><strong>Delete</strong> an agent to take its key away.</li>
       </ul>
     </HelpItem>
 
@@ -37,32 +35,11 @@ import HelpSheet from '@/components/HelpSheet.vue'
       </p>
     </HelpItem>
 
-    <HelpItem title="What is an agent?">
+    <HelpItem title="Where are scripts and AI agents?">
       <p>
-        An account without a password, for a script or an AI agent that has to manage applications through the Portal API.
-        Its address is the name you give it followed by <code>@agent.local</code>.
+        Open <strong>Instance &gt; Agents</strong> to add or remove accounts for scripts and AI agents. They use a key
+        instead of signing in and have their own list.
       </p>
-      <ul>
-        <li>
-          Right after you add it, you see its <strong>key</strong>, once. The Portal keeps only a hash of it, so copy it now:
-          if it is lost, delete the agent and add it again.
-        </li>
-        <li>
-          The agent sends the key with every request, as <code>Authorization: Bearer &lt;key&gt;</code>. It never signs in:
-          the key alone is checked on every request.
-        </li>
-        <li>
-          It manages the applications <strong>shared with its address</strong>: share an application with it, on the Sharing
-          tab of the application. Agents start read-only; the owner chooses their rights when sharing or with Edit rights later.
-        </li>
-        <li>
-          It can never be an administrator or delete an application. Rebuilding and deletion within selected areas require
-          separate permission from the application owner.
-        </li>
-        <li>
-          Deleting an agent stops its key at once and removes it from every application shared with it.
-        </li>
-      </ul>
     </HelpItem>
   </HelpSheet>
 </template>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeChange, jsonLinkText, valueHeaders } from './auditDiff'
+import { auditTargetName, describeChange, jsonLinkText, valueHeaders } from './auditDiff'
 import type { ChangeView } from './auditDiff'
 
 /** Narrows a view to the kind a test expects, and fails the test when it is another kind. */
@@ -26,6 +26,18 @@ describe('jsonLinkText', () => {
 })
 
 describe('describeChange: plain properties', () => {
+  it('formats account identities without rewriting arbitrary audit values or stored records', () => {
+    const change = { Property: 'UserEmail', OldValue: 'Build@AGENT.LOCAL', NewValue: 'person@example.test' }
+    const view = as(describeChange('Modified', change, 'Collaboration'), 'text')
+
+    expect(view.cells.map((cell) => cell.text)).toEqual(['Build', 'person@example.test'])
+    expect(change.OldValue).toBe('Build@AGENT.LOCAL')
+    expect(auditTargetName('Agent Permissions', change.OldValue)).toBe('Build')
+    expect(auditTargetName('Application', change.OldValue)).toBe(change.OldValue)
+    expect(as(describeChange('Modified', change, 'Entity'), 'text').cells[0]?.text).toBe(change.OldValue)
+    expect(as(describeChange('Created', { Property: 'MailUserName', NewValue: change.OldValue }, 'Global Settings'), 'text').cells[0]?.text).toBe(change.OldValue)
+  })
+
   it('shows old and new value for Modified, the old one dimmed', () => {
     const view = describeChange('Modified', { Property: 'Name', OldValue: 'Shop', NewValue: 'Store' })
 

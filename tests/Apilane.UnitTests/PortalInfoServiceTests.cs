@@ -1,7 +1,6 @@
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Services;
 using Apilane.Common;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using FakeItEasy;
@@ -83,6 +82,49 @@ namespace Apilane.UnitTests
             Assert.IsEmpty(portal.Requests);
         }
 
+        [TestMethod]
+        public async Task UserOwnsApplicationAsync_RevokedAccess_Should_Be_Refused_On_The_Next_Check()
+        {
+            var portal = new RecordingHandler("true");
+            var service = CreateService(portal);
+
+            Assert.IsTrue(await service.UserOwnsApplicationAsync("user-token", AppToken));
+            portal.Json = "false";
+
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                Assert.IsFalse(await service.UserOwnsApplicationAsync("user-token", AppToken));
+            }
+
+            portal.Json = "true";
+            Assert.IsTrue(await service.UserOwnsApplicationAsync("user-token", AppToken));
+            Assert.HasCount(5, portal.Requests);
+        }
+
+        [TestMethod]
+        public async Task UserOwnsApplicationAsync_PortalFailure_Should_Not_Reuse_A_Previous_Grant()
+        {
+            var portal = new RecordingHandler("true");
+            var service = CreateService(portal);
+
+            Assert.IsTrue(await service.UserOwnsApplicationAsync("user-token", AppToken));
+            portal.StatusCode = HttpStatusCode.ServiceUnavailable;
+
+            await Assert.ThrowsAsync<Exception>(() => service.UserOwnsApplicationAsync("user-token", AppToken));
+            Assert.HasCount(2, portal.Requests);
+        }
+
+        [TestMethod]
+        [DataRow("")]
+        [DataRow(" ")]
+        public async Task UserOwnsApplicationAsync_EmptyUserToken_Should_Not_Ask_The_Portal(string authToken)
+        {
+            var portal = new RecordingHandler("true");
+
+            Assert.IsFalse(await CreateService(portal).UserOwnsApplicationAsync(authToken, AppToken));
+            Assert.IsEmpty(portal.Requests);
+        }
+
         private static PortalInfoService CreateService(RecordingHandler portal)
         {
             var configuration = new ConfigurationBuilder()
@@ -103,9 +145,7 @@ namespace Apilane.UnitTests
             return new PortalInfoService(
                 NullLogger<PortalInfoService>.Instance,
                 clientFactory,
-                new ApiConfiguration(configuration),
-                // Remembers nothing: every question reaches the Portal.
-                A.Fake<IMemoryCache>());
+                new ApiConfiguration(configuration));
         }
 
         /// <summary>
@@ -114,11 +154,12 @@ namespace Apilane.UnitTests
         /// </summary>
         private sealed class RecordingHandler : HttpMessageHandler
         {
-            private readonly string _json;
+            public string Json { get; set; }
+            public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
 
             public RecordingHandler(string json)
             {
-                _json = json;
+                Json = json;
             }
 
             public List<HttpRequestMessage> Requests { get; } = new List<HttpRequestMessage>();
@@ -127,9 +168,9 @@ namespace Apilane.UnitTests
             {
                 Requests.Add(request);
 
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                return Task.FromResult(new HttpResponseMessage(StatusCode)
                 {
-                    Content = new StringContent(_json, Encoding.UTF8, "application/json")
+                    Content = new StringContent(Json, Encoding.UTF8, "application/json")
                 });
             }
         }

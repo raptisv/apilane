@@ -1,4 +1,4 @@
-﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
@@ -12,9 +12,9 @@ using Apilane.Common.Helpers;
 using Apilane.Common.Models;
 using Apilane.Common.Models.AppModules.Authentication;
 using Apilane.Common.Models.Dto;
+using Apilane.Common.Security;
 using Apilane.Common.Utilities;
 using Apilane.Data.Abstractions;
-using Apilane.Data.Utilities;
 using Microsoft.Extensions.Logging;
 using Orleans;
 using System;
@@ -162,23 +162,7 @@ namespace Apilane.Api.Core
                 });
             }
 
-            var expiredAuthTokens = await _dataStore.GetPagedDataAsync(
-                nameof(AuthTokens),
-                null,
-                expiredAuthTokensFilter,
-                null,
-                1,
-                1000);
-
-            foreach (var expiredAuthToken in expiredAuthTokens)
-            {
-                // Delete auth token
-                if (Guid.TryParse(Utils.GetString(expiredAuthToken[nameof(AuthTokens.Token)]), out var guidAuthToken))
-                {
-                    var authTokenGrainRef = _clusterClient.GetAuthTokenUserGrain(application.Token, guidAuthToken);
-                    await authTokenGrainRef.DeleteAsync(application.ToDbInfo(_apiConfiguration.FilesPath));
-                }
-            }
+            await RevokeAuthTokensAsync(application.Token, expiredAuthTokensFilter);
         }
 
         public async Task<LoginResponseDto> RenewAuthTokenAsync(string appToken, Users currentUser)
@@ -434,8 +418,8 @@ namespace Apilane.Api.Core
         }
 
         public async Task<bool> ChangePasswordAsync(
+            DBWS_Application application,
             Users currentUser,
-            string appEncryptionKey,
             string currentPassword,
             string newPassword)
         {
@@ -444,7 +428,15 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.REQUIRED, null, nameof(currentPassword));
             }
 
-            if (!currentUser.Password.Equals(appEncryptionKey.ApplicationEncrypt(currentPassword)))
+            // The authenticated user is deliberately sanitized and cached. Read the current stored
+            // credential, or a previous password could still be accepted after it has been changed.
+            var user = await _dataStore.GetDataByIdAsync(
+                nameof(Users), currentUser.ID, new List<string> { nameof(Users.Password) });
+            var storedPassword = user is not null && user.TryGetValue(nameof(Users.Password), out var value)
+                ? Utils.GetString(value)
+                : null;
+
+            if (!SecureCompare.AreEqual(storedPassword, application.EncryptionKey.ApplicationEncrypt(currentPassword)))
             {
                 throw new ApilaneException(AppErrors.VALIDATION, "Invalid password", nameof(currentPassword));
             }
@@ -464,27 +456,68 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.VALIDATION, "Maximum 20 characters", nameof(newPassword));
             }
 
+            return await ResetPasswordAsync(application, currentUser.ID, newPassword);
+        }
+
+        public async Task<bool> ResetPasswordAsync(DBWS_Application application, long userId, string newPassword)
+        {
             var rowsAffected = await _dataStore.UpdateDataAsync(
                 nameof(Users),
                 new Dictionary<string, object?>()
                 {
-                    { nameof(Users.Password), SqlUtilis.GetString(appEncryptionKey.ApplicationEncrypt(newPassword)) }
+                    { nameof(Users.Password), application.EncryptionKey.ApplicationEncrypt(newPassword) }
                 },
-                new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, currentUser.ID, PropertyType.Number));
+                new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, userId, PropertyType.Number));
 
-            return rowsAffected == 1;
+            if (rowsAffected != 1)
+            {
+                return false;
+            }
+
+            // Recovery must invalidate every outstanding link, not only the one just submitted.
+            await _applicationHelperService.DeletePasswordResetTokensForUserAsync(userId);
+            await LogoutEverywhereAsync(application, userId);
+            return true;
         }
 
-        public async Task<List<string>> GetAuthTokensAsync(long userId)
+        public async Task<long> LogoutEverywhereAsync(DBWS_Application application, long userId)
         {
-            var filter = new FilterData(FilterData.FilterLogic.AND, new List<FilterData>()
+            return await RevokeAuthTokensAsync(application.Token,
+                new FilterData(nameof(AuthTokens.Owner), FilterData.FilterOperators.equal, userId, PropertyType.Number));
+        }
+
+        private async Task<long> RevokeAuthTokensAsync(string appToken, FilterData filter)
+        {
+            // Capture all token identities before deleting their rows. A page limit would leave later
+            // sessions active; the ids are also needed to discard the signed-request secret caches.
+            var tokens = await _dataStore.GetPagedDataAsync(nameof(AuthTokens),
+                new List<string> { nameof(AuthTokens.ID), nameof(AuthTokens.Token) }, filter, null, -1, -1);
+            if (tokens.Count == 0)
             {
-                new(nameof(AuthTokens.Owner), FilterData.FilterOperators.equal, userId, PropertyType.Number)
+                return 0;
+            }
+
+            // Revoke the captured sessions: a concurrent new login is not part of this snapshot.
+            // Never delete a newly issued token whose already-warmed grain we did not capture.
+            var capturedTokensFilter = new FilterData(FilterData.FilterLogic.AND, new List<FilterData>
+            {
+                filter,
+                new FilterData(nameof(AuthTokens.ID), FilterData.FilterOperators.contains,
+                    string.Join(",", tokens.Select(x => Utils.GetLong(x[nameof(AuthTokens.ID)]))), PropertyType.Number)
             });
+            var count = await _dataStore.DeleteDataAsync(nameof(AuthTokens), capturedTokensFilter);
 
-            var result = await _dataStore.GetPagedDataAsync(nameof(AuthTokens), null, filter, null, 1, 1000);
+            foreach (var token in tokens)
+            {
+                if (Guid.TryParse(Utils.GetString(token[nameof(AuthTokens.Token)]), out var guidToken))
+                {
+                    await _clusterClient.GetAuthTokenUserGrain(appToken, guidToken).ResetAsync();
+                }
 
-            return result.Select(x => Utils.GetString(x[nameof(AuthTokens.Token)])).ToList();
+                await _clusterClient.GetAuthTokenByIdGrain(appToken, Utils.GetLong(token[nameof(AuthTokens.ID)])).ResetAsync();
+            }
+
+            return count;
         }
 
         private async Task<Dictionary<string, object?>?> GetUserByEmailAndPasswordAsync(

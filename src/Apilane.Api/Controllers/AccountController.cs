@@ -1,4 +1,4 @@
-﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
 using Apilane.Api.Core.Enums;
 using Apilane.Api.Core.Exceptions;
@@ -173,7 +173,7 @@ namespace Apilane.Api.Controllers
         }
 
         /// <summary>
-        /// Use this endpoint to enable the user to change his password.
+        /// Changes the user's password and signs out every session, including the current one.
         /// </summary>
         /// <param name="user"></param>
         /// <returns>Returns true if the action succeeded</returns>
@@ -190,8 +190,8 @@ namespace Apilane.Api.Controllers
             }
 
             return await _accountAPI.ChangePasswordAsync(
+                Application,
                 ApplicationUser ?? throw new ApilaneException(AppErrors.UNAUTHORIZED),
-                Application.EncryptionKey,
                 user.Password,
                 user.NewPassword);
         }
@@ -229,20 +229,9 @@ namespace Apilane.Api.Controllers
         {
             if (everywhere)
             {
-                var authTokens = await _accountAPI.GetAuthTokensAsync(
+                return await _accountAPI.LogoutEverywhereAsync(
+                    Application,
                     ApplicationUser?.ID ?? throw new ApilaneException(AppErrors.UNAUTHORIZED));
-
-                foreach(var authToken in authTokens)
-                {
-                    // Delete auth token
-                    if (Guid.TryParse(authToken, out var guidAuthToken))
-                    {
-                        var authTokenGrainRef = ClusterClient.GetAuthTokenUserGrain(Application.Token, guidAuthToken);
-                        await authTokenGrainRef.DeleteAsync(Application.ToDbInfo(ApiConfiguration.FilesPath));
-                    }
-                }
-
-                return authTokens.Count;
             }
             else
             {

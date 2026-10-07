@@ -33,7 +33,10 @@ namespace Apilane.Portal.Api.V1
 
         /// <summary>
         /// Lists the agents (users at @agent.local) the application can still be shared with: the
-        /// ones that are not collaborators of it yet, by name. Owner only.
+        /// ones that are not collaborators of it yet, by name. Includes each agent's other applications
+        /// only when they are in the caller's normal Applications list, with just Token and Name.
+        /// The current application and applications hidden from the caller are never included;
+        /// an administrator's access to the instance-wide list does not expand this result. Owner only.
         /// </summary>
         [HttpGet("available-agents")]
         [ProducesResponseType(typeof(ListResponse<AvailableAgentResponse>), StatusCodes.Status200OK)]

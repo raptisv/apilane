@@ -239,6 +239,13 @@ namespace Apilane.Api.Core.Services
                 new FilterData(nameof(H_Auth_Password_Reset_Tokens.Token), FilterData.FilterOperators.equal, resetToken, PropertyType.String));
         }
 
+        public async Task DeletePasswordResetTokensForUserAsync(long userId)
+        {
+            await _factory.DeleteDataAsync(
+                nameof(H_Auth_Password_Reset_Tokens),
+                new FilterData(nameof(H_Auth_Password_Reset_Tokens.Owner), FilterData.FilterOperators.equal, userId, PropertyType.Number));
+        }
+
         /// <summary>
         /// Email confirmation and password reset tokens are always GUIDs (see ApplicationEmailService).
         /// Anything else is rejected before it reaches a query.

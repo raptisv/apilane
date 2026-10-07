@@ -31,10 +31,18 @@ If the Portal is not reachable by your end users, set a **Redirect URL** on the 
 The Portal uses ASP.NET Identity with cookie-based authentication (`Apilane.Portal.Identity`). Portal passwords require a minimum of 8 characters. Data protection keys are persisted to the `FilesPath` directory.
 
 - A Portal user has one session at a time: signing in elsewhere ends the earlier session.
-- Sign in, sign up and the password-reset request together allow 30 calls per minute per client address. Behind a reverse proxy see [Production considerations](deployment.md#production-considerations).
+- A fresh instance requires administrator setup before any management or registration. The administrator uses
+  the random temporary password from startup output to choose an email address and permanent password. Pending
+  setup rotates the temporary password on restart; completed instances never do. Existing installations without
+  a bootstrap record are marked complete without inspecting or changing their accounts or passwords.
+- API-server checks of Portal permissions are not cached. Signing out, rotating a Portal token, or removing a
+  collaborator takes effect at the next authorization check; the API needs the Portal to be reachable for it.
+- Portal email links use the configured `PublicUrl` instead of the incoming Host header. Configure the public
+  HTTPS origin when deploying behind a proxy; a wildcard listener without that setting cannot generate email links.
+- Administrator setup, sign in, sign up and the password-reset request together allow 30 calls per minute per client address. Behind a reverse proxy see [Production considerations](deployment.md#production-considerations).
 - Secrets (connection strings, mail passwords, the installation key) are never shown again once they are saved; an empty box keeps the stored value.
 - An application's owner can share it with other Portal users. A collaborator can do everything the owner can, except sharing.
-- Scripts and AI agents use an **agent key** (`Authorization: Bearer apl_...`) instead of a session. An administrator adds the agent under **Instance > Users**; its key is shown once and the Portal stores only a hash of it. A key has no expiry date, and wrong keys are not counted or slowed down, so keep it secret and delete the agent to revoke it. An agent is refused every delete, everything under **Instance** and the encryption key of an application. See [AI Agent Guidelines for the Portal](developer_guide/ai_agent_portal.md).
+- Scripts and AI agents use an **agent key** (`Authorization: Bearer apl_...`) instead of a session. An administrator adds the agent under **Instance > Agents**; its key is shown once and the Portal stores only a hash of it. A key has no expiry date, and wrong keys are not counted or slowed down, so keep it secret and delete the agent to revoke it. An agent is refused every delete, everything under **Instance** and the encryption key of an application. See [AI Agent Guidelines for the Portal](developer_guide/ai_agent_portal.md).
 - The database backup (**Instance > Settings**) holds every secret of the instance, so store it like one. Every download is written to the audit log.
 
 ### File storage credentials
@@ -67,6 +75,9 @@ When a user logs in, they receive an authentication token. This token:
 - Expires after a configurable period of **inactivity** (`AuthTokenExpireMinutes`, set per application) — a request made after more than a tenth of that time has passed since the token was last extended extends it again, so a token expires after about this time of inactivity (at least 90% of it)
 - Can be renewed via the `RenewAuthToken` endpoint before expiration
 - Can optionally enforce single-session login (`ForceSingleLogin`) — each new login invalidates all previous tokens
+- A successful password change or password reset revokes all existing sessions and outstanding reset links.
+  This includes bearer tokens and cached signed-request credentials. `Account/Logout?everywhere=true` also
+  revokes all existing sessions; sign in again afterwards.
 
 ### IP allow/block
 

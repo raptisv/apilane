@@ -11,6 +11,7 @@ import {
 import { useMutation } from '@/composables/useMutation'
 import { api, loginUrl, unwrap } from '@/lib/api'
 import { useSession } from '@/lib/session'
+import { accountDisplayName } from '@/lib/agents'
 import * as toast from '@/lib/toast'
 
 // `changePassword` asks AppShell to open the change-password dialog over the current screen.
@@ -45,14 +46,14 @@ async function onSignOut(): Promise<void> {
         {{ session.Email.charAt(0) }}
       </span>
       <span class="min-w-0 flex-1">
-        <span class="block truncate">{{ session.Email }}</span>
+        <span class="block truncate">{{ accountDisplayName(session.Email) }}</span>
         <span v-if="session.IsAdmin" class="block text-xs text-muted-foreground">Administrator</span>
       </span>
       <ChevronsUpDownIcon class="size-4 shrink-0 text-muted-foreground" />
     </DropdownMenuTrigger>
 
     <DropdownMenuContent align="start" side="top" class="w-56">
-      <DropdownMenuLabel class="truncate">{{ session.Email }}</DropdownMenuLabel>
+      <DropdownMenuLabel class="truncate">{{ accountDisplayName(session.Email) }}</DropdownMenuLabel>
       <DropdownMenuSeparator />
       <DropdownMenuItem @select="emit('changePassword')">
         <KeyRoundIcon />

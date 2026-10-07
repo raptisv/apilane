@@ -2,7 +2,7 @@ namespace Apilane.Portal.Abstractions
 {
     /// <summary>
     /// Absolute links to pages of the Portal UI, for mails sent by the management API.
-    /// The address is the one the current request came in on.
+    /// The address comes from the configured public origin, never from a request header.
     /// </summary>
     public interface IPortalLinkBuilder
     {

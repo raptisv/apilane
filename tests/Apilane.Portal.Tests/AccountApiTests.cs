@@ -31,7 +31,7 @@ namespace Apilane.Portal.Tests
 
         private const string NewPassword = "a-new-password";
 
-        private static readonly Regex _resetLink = new Regex("href=\"(http://localhost/account/reset-password\\?code=([^\"&]+))\"", RegexOptions.Compiled);
+        private static readonly Regex _resetLink = new Regex("href=\"(https://portal.test/account/reset-password\\?code=([^\"&]+))\"", RegexOptions.Compiled);
 
         private readonly PortalFactory _portal;
 
@@ -300,6 +300,24 @@ namespace Apilane.Portal.Tests
             Assert.Empty(_portal.Mail.SentTo(email));
         }
 
+        [Fact]
+        public async Task ResetRequest_ForgedHostHeaders_Should_Keep_The_Configured_Public_Origin()
+        {
+            await _portal.SetAccountSettingsAsync(allowRegister: true, mailConfigured: true);
+            var (email, _) = await _portal.CreateUserAsync();
+            var client = _portal.CreateAnonymousClient();
+            client.DefaultRequestHeaders.Host = "attacker.invalid";
+            client.DefaultRequestHeaders.Add("X-Forwarded-Host", "attacker.invalid");
+            client.DefaultRequestHeaders.Add("X-Forwarded-Proto", "http");
+
+            var response = await client.PostAsync(ResetRequestUrl, new { Email = email }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+            var mail = Assert.Single(_portal.Mail.SentTo(email));
+            Assert.Matches(_resetLink, mail.Body);
+            Assert.DoesNotContain("attacker.invalid", mail.Body);
+        }
+
         // ---------- Password reset ----------
 
         [Fact]
@@ -450,7 +468,7 @@ namespace Apilane.Portal.Tests
 
             var mail = Assert.Single(_portal.Mail.SentTo(email));
             Assert.Equal("Password changed", mail.Subject);
-            Assert.Contains("href=\"http://localhost/account/forgot-password\"", mail.Body);
+            Assert.Contains("href=\"https://portal.test/account/forgot-password\"", mail.Body);
             Assert.DoesNotContain(NewPassword, mail.Body);
             Assert.DoesNotContain(oldPassword, mail.Body);
         }

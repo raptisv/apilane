@@ -6,6 +6,11 @@ namespace Apilane.Portal.Models
     public class PortalConfiguration
     {
         public string Url { get; }
+        /// <summary>
+        /// Trusted browser-facing origin for links in e-mails. A concrete listening URL is the
+        /// development fallback; wildcard listeners need an explicit PublicUrl before mailing.
+        /// </summary>
+        public Uri? PublicUrl { get; }
         public string FilesPath { get; }
         public string InstanceTitle { get; }
         /// <summary>
@@ -14,7 +19,6 @@ namespace Apilane.Portal.Models
         /// the stored one an administrator changes under Instance > Settings.
         /// </summary>
         public string InstallationKey { get; }
-        public string AdminEmail { get; }
         public string ApiUrl { get; }
         public int? MinThreads { get; set; }
         public string? AuthCookieDomain { get; }
@@ -23,14 +27,35 @@ namespace Apilane.Portal.Models
         public PortalConfiguration(IConfiguration configuration)
         {
             Url = configuration.GetValue<string>("Url") ?? throw new ArgumentNullException("Url");
+            var publicUrl = configuration.GetValue<string>("PublicUrl");
+            PublicUrl = GetPublicOrigin(string.IsNullOrWhiteSpace(publicUrl) ? Url : publicUrl);
+            if (!string.IsNullOrWhiteSpace(publicUrl) && PublicUrl is null)
+            {
+                throw new ArgumentException("PublicUrl must be an absolute http or https origin with a concrete host, without credentials, a path, a query or a fragment.", "PublicUrl");
+            }
             FilesPath = configuration.GetValue<string>("FilesPath") ?? throw new ArgumentNullException("FilesPath");
             InstanceTitle = configuration.GetValue<string>("InstanceTitle") ?? throw new ArgumentNullException("InstanceTitle");
             InstallationKey = configuration.GetValue<string>("InstallationKey") ?? throw new ArgumentNullException("InstallationKey");
-            AdminEmail = configuration.GetValue<string>("AdminEmail") ?? throw new ArgumentNullException("AdminEmail");
             ApiUrl = configuration.GetValue<string>("ApiUrl") ?? throw new ArgumentNullException("ApiUrl");
             MinThreads = configuration.GetValue<int?>("MinThreads");
             AuthCookieDomain = configuration.GetValue<string>("AuthCookieDomain");
             OpenTelemetry = configuration.GetSection("OpenTelemetry").Get<OpenTelemetryConfiguration>() ?? new OpenTelemetryConfiguration();
+        }
+
+        private static Uri? GetPublicOrigin(string value)
+        {
+            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
+                || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+                || !string.IsNullOrEmpty(uri.UserInfo)
+                || uri.AbsolutePath != "/"
+                || !string.IsNullOrEmpty(uri.Query)
+                || !string.IsNullOrEmpty(uri.Fragment)
+                || uri.Host is "0.0.0.0" or "::" or "[::]" or "*" or "+")
+            {
+                return null;
+            }
+
+            return new Uri(uri.GetLeftPart(UriPartial.Authority) + "/");
         }
 
         public class OpenTelemetryConfiguration

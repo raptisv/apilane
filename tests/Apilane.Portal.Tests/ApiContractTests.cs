@@ -54,6 +54,8 @@ namespace Apilane.Portal.Tests
         // The only endpoints under api/v1 that may be called without a session.
         private static readonly string[] _anonymousActions =
         {
+            "Bootstrap.Get",
+            "Bootstrap.Complete",
             "Instance.Get",
             "Session.Create",
             "Session.Delete",
@@ -74,6 +76,7 @@ namespace Apilane.Portal.Tests
         // The only endpoints that carry the sign-in rate limit.
         private static readonly string[] _rateLimitedActions =
         {
+            "Bootstrap.Complete",
             "Session.Create",
             "PortalAccount.Register",
             "PortalAccount.RequestPasswordReset"

@@ -1,6 +1,7 @@
 using Apilane.Common.Extensions;
 using Apilane.Common.Security;
 using Apilane.Common.Utilities;
+using Apilane.Portal.Abstractions;
 using Apilane.Portal.Extensions;
 using Apilane.Portal.Extentions;
 using Apilane.Portal.Models;
@@ -28,7 +29,7 @@ namespace Apilane.Portal
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -116,6 +117,7 @@ namespace Apilane.Portal
             builder.Services
                 .AddServices(appConfig)
                 .AddPortalApi()
+                .AddPortalBootstrap()
                 .AddOpenTelemetry(appConfig.OpenTelemetry);
 
             // No naming policy and no enum converter: the API servers read the answers of
@@ -163,6 +165,14 @@ namespace Apilane.Portal
 
                 // Apply schema updates for existing databases (new tables, indexes)
                 context.EnsureSchemaUpdated();
+
+                var bootstrap = serviceScope.ServiceProvider.GetRequiredService<IPortalBootstrapService>();
+                var credential = await bootstrap.InitializeAsync();
+                if (credential is not null)
+                {
+                    // A one-time operator credential, never exposed by an HTTP response.
+                    Console.WriteLine($"INITIAL ADMINISTRATOR SETUP REQUIRED. Open /account/setup and use this temporary password: {credential.TemporaryPassword}. Choose your administrator email and password before using the Portal. This credential is printed once per startup and replaced on restart until setup is complete.");
+                }
 
                 // The key used at runtime is the one stored in the portal database (Instance > Settings);
                 // configuration only seeds it on first start.
@@ -232,6 +242,8 @@ namespace Apilane.Portal
 
             app.UsePortalApiDefaults();
 
+            app.UsePortalBootstrap();
+
             app.UseAuthentication();
 
             app.UsePortalAgentKeys();
@@ -249,7 +261,7 @@ namespace Apilane.Portal
             // Last: everything that is not answered above is a screen of the UI.
             app.MapPortalApiAndUi(uiFiles);
 
-            app.Run(appConfig.Url);
+            await app.RunAsync(appConfig.Url);
         }
 
         private static Task ExceptionHandlerAsync(HttpContext context, ILogger logger)

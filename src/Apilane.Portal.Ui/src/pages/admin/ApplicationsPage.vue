@@ -33,6 +33,7 @@ import { useMutation } from '@/composables/useMutation'
 import { applicationDetails, countText, searchApplications } from '@/lib/adminApplications'
 import type { AdminApplication } from '@/lib/adminApplications'
 import { api, unwrap } from '@/lib/api'
+import { accountDisplayName } from '@/lib/agents'
 import { databaseTypeLabel } from '@/lib/applications'
 import * as toast from '@/lib/toast'
 
@@ -160,7 +161,7 @@ async function clear(application: AdminApplication): Promise<void> {
                 <!-- On a narrow screen the other columns move under the name, so the table fits the screen. -->
                 <div class="mt-1.5 flex flex-col items-start gap-1 text-xs text-muted-foreground md:hidden">
                   <p v-if="application.OwnerEmail" class="wrap-anywhere">
-                    <span class="sr-only">Owner </span>{{ application.OwnerEmail }}
+                    <span class="sr-only">Owner </span>{{ accountDisplayName(application.OwnerEmail) }}
                   </p>
                   <p class="wrap-anywhere">
                     <span class="sr-only">Server </span>{{ application.Server.Name }} ·
@@ -172,7 +173,7 @@ async function clear(application: AdminApplication): Promise<void> {
               </TableCell>
 
               <TableCell class="hidden align-top break-all whitespace-normal text-muted-foreground md:table-cell">
-                {{ application.OwnerEmail }}
+                {{ accountDisplayName(application.OwnerEmail ?? '') }}
               </TableCell>
 
               <TableCell class="hidden align-top whitespace-normal md:table-cell">

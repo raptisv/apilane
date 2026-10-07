@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { mount } from '@vue/test-utils'
+import { DOMWrapper, mount } from '@vue/test-utils'
 import type { VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Schemas } from '@/lib/api'
@@ -27,10 +27,12 @@ vi.mock('@/composables/useApplications', () => ({ useApplications: () => ({ relo
 vi.mock('@/lib/toast', () => ({ success: calls.success, warning: calls.warning }))
 
 const collaboratorsPath = '/api/v1/applications/{appToken}/collaborators'
+const availableAgentsPath = '/api/v1/applications/{appToken}/collaborators/available-agents'
 const permissionsPath = '/api/v1/applications/{appToken}/permissions'
 const editPath = '/api/v1/applications/{appToken}/collaborators/{id}/permissions'
 let wrapper: VueWrapper | undefined
 let collaborators: Schemas['CollaboratorResponse'][]
+let availableAgents: Schemas['AvailableAgentResponse'][]
 
 function ok<T>(data: T) {
   return { data, response: new Response(null, { status: 200 }) }
@@ -57,8 +59,8 @@ function getResponse(path: string) {
   if (path === permissionsPath) {
     return ok(catalogue())
   }
-  if (path.endsWith('/available-agents')) {
-    return ok({ Data: [{ Email: 'new@agent.local' }], Total: 1 })
+  if (path === availableAgentsPath) {
+    return ok({ Data: availableAgents, Total: availableAgents.length })
   }
   throw new Error(`Unexpected GET ${path}`)
 }
@@ -70,6 +72,7 @@ beforeEach(() => {
     { ID: 17, Email: 'existing@agent.local', Permissions: readOnlyPolicy() },
     { ID: 18, Email: 'person@example.test', Permissions: null },
   ]
+  availableAgents = [{ Name: 'new', Email: 'new@agent.local', Applications: [] }]
   calls.get.mockImplementation(async (path: string) => getResponse(path))
   calls.post.mockImplementation(async (_path: string, request: { body: { Email: string; Permissions?: AgentPermissionGrant[] } }) => {
     const added = { ID: 19, Email: request.body.Email.trim(), Permissions: request.body.Permissions ?? null, NotificationSent: false }
@@ -82,6 +85,10 @@ beforeEach(() => {
     const updated = { ID: 17, Email: 'existing@agent.local', Permissions: permissions }
     collaborators = [updated, ...collaborators.filter((item) => item.ID !== 17)]
     return ok(updated)
+  })
+  calls.remove.mockImplementation(async (_path: string, request: { params: { path: { id: number } } }) => {
+    collaborators = collaborators.filter((item) => item.ID !== request.params.path.id)
+    return ok(undefined)
   })
   calls.reloadApplications.mockResolvedValue(undefined)
 })
@@ -98,15 +105,29 @@ async function mountPage(): Promise<void> {
   await settle()
 }
 
-async function startSharing(email = 'new@agent.local'): Promise<void> {
-  await button('Share').trigger('click')
-  await settle()
-  await dialog().get('input[type="email"]').setValue(email)
+async function openAgentSharing(): Promise<void> {
+  await button('Share with agent').trigger('click')
   await settle()
 }
 
+async function chooseAgent(name: string): Promise<void> {
+  await dialog().get('[role="combobox"][aria-label="Agent"]').trigger('keydown', { key: 'Enter' })
+  await settle()
+  const option = body().findAll('[role="option"]').find((candidate) => candidate.text() === name)
+  if (!option) {
+    throw new Error(`Agent "${name}" is not offered`)
+  }
+  await option.trigger('keydown', { key: 'Enter' })
+  await settle()
+}
+
+async function startSharing(name = 'new'): Promise<void> {
+  await openAgentSharing()
+  await chooseAgent(name)
+}
+
 async function startEditing(): Promise<void> {
-  await button('Edit rights of existing@agent.local').trigger('click')
+  await button('Edit rights of existing').trigger('click')
   await settle()
 }
 
@@ -133,9 +154,129 @@ describe('SharingPage agent rights', () => {
       params: { path: { appToken: 'shared-app' } }, body: { Email: 'new@agent.local', Permissions: readOnlyPolicy() },
     })
     expect(body().find('[role="dialog"]').exists()).toBe(false)
-    expect(calls.success).toHaveBeenCalledWith('Shared with new@agent.local. You can edit this agent’s rights later from Sharing.')
+    expect(calls.success).toHaveBeenCalledWith('Shared with new. You can edit this agent’s rights later from Sharing.')
     expect(calls.reloadApplications).toHaveBeenCalledOnce()
-    expect(body().text()).toContain('new@agent.local')
+    expect(body().text()).toContain('new')
+    expect(body().text()).not.toContain('@agent.local')
+  })
+
+  it('offers agent names with their original case and submits the raw address of the selected agent', async () => {
+    availableAgents = [{ Name: 'BuildBot', Email: 'BuildBot@AGENT.local', Applications: [] }]
+    await mountPage()
+    await openAgentSharing()
+    expect(dialog().find('input[type="email"]').exists()).toBe(false)
+    await dialog().get('[role="combobox"][aria-label="Agent"]').trigger('keydown', { key: 'Enter' })
+    await settle()
+    const options = body().findAll('[role="option"]')
+    expect(options.map((option) => option.text())).toEqual(['BuildBot'])
+    expect(body().text()).not.toMatch(/@agent\.local/i)
+    await body().get('[role="option"]').trigger('keydown', { key: 'Enter' })
+    await settle()
+    expect(dialog().get('[role="combobox"][aria-label="Agent"]').text()).toContain('BuildBot')
+    await submit()
+    expect(calls.post).toHaveBeenCalledWith(collaboratorsPath, {
+      params: { path: { appToken: 'shared-app' } }, body: { Email: 'BuildBot@AGENT.local', Permissions: readOnlyPolicy() },
+    })
+    expect(calls.success).toHaveBeenCalledWith('Shared with BuildBot. You can edit this agent’s rights later from Sharing.')
+    expect(body().text()).not.toMatch(/@agent\.local/i)
+  })
+
+  it('requires an available agent to be selected before sharing', async () => {
+    await mountPage()
+    await openAgentSharing()
+    await submit()
+    expect(calls.post).not.toHaveBeenCalled()
+    expect(dialog().find('[role="alert"]').exists()).toBe(true)
+    expect(dialog().text()).not.toContain('@agent.local')
+    await chooseAgent('new')
+    await submit()
+    expect(calls.post).toHaveBeenCalledOnce()
+  })
+
+  it('shows only the selected agent’s other visible applications by name', async () => {
+    availableAgents = [
+      { Name: 'new', Email: 'new@agent.local', Applications: [{ Token: 'inventory-app-token', Name: 'Inventory' }] },
+      { Name: 'another', Email: 'another@agent.local', Applications: [{ Token: 'billing-app-token', Name: 'Billing' }] },
+    ]
+    await mountPage()
+    await startSharing()
+    expect(dialog().text()).toContain('Other applications')
+    expect(dialog().text()).toContain('Only applications that both you and this agent can access are listed.')
+    expect(dialog().text()).toContain('Inventory')
+    expect(dialog().text()).not.toContain('Billing')
+    expect(dialog().text()).not.toContain('inventory-app-token')
+    expect(dialog().text()).not.toContain('billing-app-token')
+    expect(dialog().text()).not.toContain('@agent.local')
+    expect(dialog().findAll('a').some((link) => link.text() === 'Inventory')).toBe(false)
+    await chooseAgent('another')
+    expect(dialog().text()).toContain('Billing')
+    expect(dialog().text()).not.toContain('Inventory')
+    expect(dialog().text()).not.toContain('billing-app-token')
+    expect(dialog().findAll('a').some((link) => link.text() === 'Billing')).toBe(false)
+    expect(calls.post).not.toHaveBeenCalled()
+  })
+
+  it('explains when the selected agent has no other applications visible to this user', async () => {
+    await mountPage()
+    await startSharing()
+    expect(dialog().text()).toContain('Other applications')
+    expect(dialog().text()).toContain('This agent has no access to other applications you can see.')
+  })
+
+  it('cannot share while available agents are loading and offers selection when loading completes', async () => {
+    const load = deferred<ReturnType<typeof ok<Schemas['AvailableAgentResponseListResponse']>>>()
+    calls.get.mockImplementation(async (path: string) => path === availableAgentsPath ? load.promise : getResponse(path))
+    await mountPage()
+    await openAgentSharing()
+    expect(dialog().text()).toContain('Loading available agents')
+    expect(dialog().get('[role="combobox"][aria-label="Agent"]').attributes('disabled')).toBeDefined()
+    await submit()
+    expect(calls.post).not.toHaveBeenCalled()
+    load.resolve(ok({ Data: availableAgents, Total: availableAgents.length }))
+    await settle()
+    await chooseAgent('new')
+    await submit()
+    expect(calls.post).toHaveBeenCalledOnce()
+  })
+
+  it('cannot share after available agents fail to load and allows retry', async () => {
+    calls.get.mockImplementation(async (path: string) => path === availableAgentsPath ? rejected('Agents unavailable.') : getResponse(path))
+    await mountPage()
+    await openAgentSharing()
+    expect(dialog().text()).toContain('Agents unavailable.')
+    expect(dialog().get('[role="combobox"][aria-label="Agent"]').attributes('disabled')).toBeDefined()
+    await submit()
+    expect(calls.post).not.toHaveBeenCalled()
+    calls.get.mockImplementation(async (path: string) => getResponse(path))
+    await button('Try again', dialog()).trigger('click')
+    await settle()
+    await chooseAgent('new')
+    await submit()
+    expect(calls.post).toHaveBeenCalledOnce()
+  })
+
+  it('explains where to create agents when none are available and prevents sharing', async () => {
+    availableAgents = []
+    await mountPage()
+    await openAgentSharing()
+    expect(dialog().text()).toContain('No agents available')
+    expect(dialog().text()).toContain('Instance > Agents')
+    expect(dialog().get('[role="combobox"][aria-label="Agent"]').attributes('disabled')).toBeDefined()
+    await submit()
+    expect(calls.post).not.toHaveBeenCalled()
+  })
+
+  it('keeps the person form separate and rejects a reserved agent address without a request', async () => {
+    await mountPage()
+    await button('Share').trigger('click')
+    await settle()
+    expect(dialog().find('[role="combobox"][aria-label="Agent"]').exists()).toBe(false)
+    expect(dialog().find('fieldset').exists()).toBe(false)
+    await dialog().get('input[type="email"]').setValue('  BuildBot@AGENT.LOCAL  ')
+    await submit()
+    expect(calls.post).not.toHaveBeenCalled()
+    expect(dialog().get('[role="alert"]').text()).toBe('Use Share with agent to select an agent by name.')
+    expect(dialog().text()).not.toMatch(/@agent\.local/i)
   })
 
   it('sends chosen read, write, delete, and rebuild grants when adding an agent', async () => {
@@ -155,16 +296,24 @@ describe('SharingPage agent rights', () => {
     expect(submittedPolicy(calls.post)).toHaveLength(permissionResources.length)
   })
 
-  it('omits agent permissions for a person even after an agent draft was customized', async () => {
+  it('omits agent permissions and clears errors for a person after a customized agent draft failed', async () => {
     await mountPage()
     await startSharing()
     await choosePermission('rebuild', 'Allow')
+    calls.post.mockResolvedValueOnce(rejected('Choose valid agent rights.', 'Permissions'))
+    await submit()
+    expect(dialog().get('[role="alert"]').text()).toBe('Choose valid agent rights.')
+    await button('Cancel', dialog()).trigger('click')
+    await settle()
+    await button('Share').trigger('click')
+    await settle()
     await dialog().get('input[type="email"]').setValue('another@example.test')
+    expect(dialog().find('[role="alert"]').exists()).toBe(false)
     expect(dialog().find('fieldset').exists()).toBe(false)
     expect(dialog().text()).toContain('The user gets full access')
     await submit()
     expect(submittedPolicy(calls.post)).toBeUndefined()
-    const wireBody = JSON.parse(JSON.stringify(calls.post.mock.calls[0]?.[1].body))
+    const wireBody = JSON.parse(JSON.stringify(calls.post.mock.calls.at(-1)?.[1].body))
     expect(wireBody).toEqual({ Email: 'another@example.test' })
     expect(calls.warning).toHaveBeenCalledWith(expect.stringContaining('No email was sent'))
   })
@@ -175,6 +324,8 @@ describe('SharingPage agent rights', () => {
     ] }
     await mountPage()
     await startEditing()
+    expect(dialog().text()).toContain('existing')
+    expect(dialog().text()).not.toContain('@agent.local')
     expect(permissionControl('entities').text()).toBe('Read')
     expect(deletionControl('entities').attributes('aria-checked')).toBe('true')
     expect(permissionControl('security').text()).toBe('None')
@@ -190,6 +341,7 @@ describe('SharingPage agent rights', () => {
       { Resource: 'rebuild', Read: false, Write: true, Delete: false },
     ]))
     expect(calls.get.mock.calls.filter(([path]) => path === collaboratorsPath)).toHaveLength(2)
+    expect(calls.success).toHaveBeenCalledWith('Updated the rights of existing.')
     expect(body().find('[role="dialog"]').exists()).toBe(false)
     expect(body().text()).toContain('Read 2 areas · write 2 · delete 1 · rebuild allowed')
     await startEditing()
@@ -337,7 +489,27 @@ describe('SharingPage agent rights', () => {
   it('offers Edit rights only for agents', async () => {
     await mountPage()
     const editButtons = body().findAll('button').filter((candidate) => candidate.text().startsWith('Edit rights'))
-    expect(editButtons.map((candidate) => candidate.text())).toEqual(['Edit rights of existing@agent.local'])
+    expect(editButtons.map((candidate) => candidate.text())).toEqual(['Edit rights of existing'])
+    expect(body().text()).toContain('existing')
+    expect(body().text()).not.toContain('@agent.local')
     expect(body().text()).toContain('Full access, except sharing')
+  })
+
+  it('uses the agent name in removal confirmation and toast while removing by collaborator ID', async () => {
+    await mountPage()
+    await button('Stop sharing with existing').trigger('click')
+    await settle()
+    const confirmation = new DOMWrapper(body().get('[role="alertdialog"]').element)
+    expect(confirmation.text()).toContain('Stop sharing with existing?')
+    expect(confirmation.text()).not.toContain('@agent.local')
+    await button('Stop sharing', confirmation).trigger('click')
+    await settle()
+    expect(calls.remove).toHaveBeenCalledWith('/api/v1/applications/{appToken}/collaborators/{id}', {
+      params: { path: { appToken: 'shared-app', id: 17 } },
+    })
+    expect(calls.success).toHaveBeenCalledWith('Stopped sharing with existing.')
+    expect(body().find('[role="alertdialog"]').exists()).toBe(false)
+    expect(body().text()).not.toContain('existing')
+    expect(body().text()).toContain('person@example.test')
   })
 })

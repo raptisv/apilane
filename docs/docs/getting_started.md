@@ -27,13 +27,16 @@ This starts:
 
 ## 2. Log in to the Portal
 
-Open [http://localhost:5000](http://localhost:5000) and log in with the default credentials:
+Open [http://localhost:5000](http://localhost:5000). The first screen requires administrator setup:
 
-- **Email:** `admin@admin.com`
-- **Password:** `admin`
+1. Choose the email address you want to use for the administrator account.
+2. Enter the random temporary password printed in the Portal startup output. For Compose, read it with `docker-compose -p apilane logs apilanewebportal`.
+3. Choose and confirm a new password. All other Portal operations remain blocked until this succeeds.
 
 !!!warning "Important"
-    After the first login, change the admin password (user menu, **Change password**) and, if the Portal can be reached by anyone else, switch off **Allow new users to register on this instance** under **Instance > Settings**: it is on after a first start. `AdminEmail` only decides the address of the account created on the first start; its password is `admin` whatever the address, and changing the setting later has no effect.
+    Keep the temporary password private. It is only for initial setup and stops working afterwards. If the Portal can be reached by anyone else, switch off **Allow new users to register on this instance** under **Instance > Settings** when setup is complete.
+
+Existing installations without a bootstrap record are marked as already set up. Their accounts and passwords are left unchanged.
 
 ## 3. Create Your First Application
 
@@ -162,13 +165,13 @@ The "Compose file" column shows the values of [docker-compose.yaml](assets/docke
 | Variable | Compose file | Description |
 |---|---|---|
 | `Url` | `http://0.0.0.0:5000` | URL where the Portal is served |
+| `PublicUrl` | `${APILANE_PORTAL_PUBLIC_URL:-http://localhost:5000}` | Browser-facing http/https origin used in Portal emails. Set it to the public HTTPS origin in deployment. No path, credentials, query or fragment. Without it, a concrete `Url` is used; wildcard listeners cannot send Portal emails until it is configured. |
 | `ApiUrl` | `http://127.0.0.1:5001` | The first API server, as the Portal and the browsers reach it (see the warning in step 1). It seeds the first server under **Instance > Servers** on the first start only; later, edit the server there. |
 | `FilesPath` | `/etc/apilanewebportal` | Path for the Portal database (SQLite) and its data protection keys |
 | `InstallationKey` | `${APILANE_INSTALLATION_KEY}` | Shared secret between Portal and API, 30 to 100 characters without spaces (what **Instance > Settings** accepts). The compose file reads it from `APILANE_INSTALLATION_KEY`. Generate it with `openssl rand -hex 32` and **never reuse a published example**: the `appsettings.json` in the image holds the placeholder `REPLACE-WITH-A-LONG-RANDOM-SECRET`, and a Portal started with it only logs a `SECURITY` warning and stores that publicly known value. It only seeds the key stored in the Portal database on first start; see "Changing the installation key" below. |
-| `AdminEmail` | `admin@admin.com` | Email of the administrator account, created on the first start with the password `admin`. Changing the setting later has no effect. |
 | `InstanceTitle` | *(not set)* | Name shown in the Portal, `Apilane` by default. It seeds the setting on the first start; later change it under **Instance > Settings** (3 to 16 characters). |
 | `AuthCookieDomain` | *(not set)* | Domain of the login cookie, for example `.example.com` to share it across subdomains. Without it the cookie belongs to the current host. |
-| `AccountRateLimit__PermitLimit`, `AccountRateLimit__WindowSeconds` | *(not set)* | Calls of sign in, sign up and password-reset request allowed per IP address and window: 30 per 60 seconds by default. See [Deployment](deployment.md#production-considerations). |
+| `AccountRateLimit__PermitLimit`, `AccountRateLimit__WindowSeconds` | *(not set)* | Calls of administrator setup, sign in, sign up and password-reset request allowed per IP address and window: 30 per 60 seconds by default. See [Deployment](deployment.md#production-considerations). |
 | `AllowedHosts` | *(not set)* | The host names the Portal answers for. See [Deployment](deployment.md#production-considerations). |
 
 ### API

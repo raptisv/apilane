@@ -15,3 +15,8 @@ export function isAgentName(name: string): boolean {
 export function isAgent(email: string): boolean {
   return email.toLowerCase().endsWith('@agent.local')
 }
+
+/** Agent names for display; keep the original address for API calls and identity comparisons. */
+export function accountDisplayName(email: string): string {
+  return isAgent(email) ? email.slice(0, -'@agent.local'.length) : email
+}

@@ -11,7 +11,7 @@ const props = defineProps<{ entry: Schemas['AuditLogEntryResponse'] }>()
 
 const headers = computed(() => valueHeaders(props.entry.Action))
 const rows = computed(() =>
-  props.entry.Changes.map((change) => ({ property: change.Property, view: describeChange(props.entry.Action, change) })),
+  props.entry.Changes.map((change) => ({ property: change.Property, view: describeChange(props.entry.Action, change, props.entry.EntityType) })),
 )
 
 // The JSON viewer. `viewing` keeps its value while the dialog fades out.
