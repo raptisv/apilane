@@ -1,5 +1,8 @@
 # Changelog
 
+## 10.4.1 (2026-10-08)
+- feat(portal): preview the changes before an existing custom endpoint is saved
+
 ## 10.4.0 (2026-10-07)
 - feat(portal): add OAuth-authorized MCP connections
 - fix: agent rename and mail restrictions, schema import validation and SQL errors
