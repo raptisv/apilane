@@ -1,5 +1,13 @@
 # Changelog
 
+## 10.4.0 (2026-10-07)
+- feat(portal): add OAuth-authorized MCP connections
+- fix: agent rename and mail restrictions, schema import validation and SQL errors
+- fix: first-admin setup, session revocation, email limits and agent sharing
+- feat(portal): add granular agent permissions and access discovery
+- fix: data API page size and property names, PostgreSQL id sequence, mail logging and forgot-password limit, schema import rules
+- docs: check every page against the code, new Portal agent guide
+
 ## 10.3.0 (2026-10-05)
 - fix: transactions on every server database, one installation key, Portal help sheets
 - docs: redraw all images from the new Portal UI
