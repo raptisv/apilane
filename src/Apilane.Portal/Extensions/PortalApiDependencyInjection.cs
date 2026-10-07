@@ -182,6 +182,7 @@ namespace Apilane.Portal.Extensions
                 options.OperationFilter<PortalWarningHeaderOperationFilter>();
 
                 options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, $"{typeof(Program).Assembly.GetName().Name}.xml"));
+                options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, $"{typeof(IMcpAuthorizationService).Assembly.GetName().Name}.xml"));
 
                 // The same document on Windows and Linux, whatever line ending the comments were written with.
                 options.SwaggerGeneratorOptions.XmlCommentEndOfLine = "\n";

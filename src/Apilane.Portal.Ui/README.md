@@ -1,14 +1,16 @@
 # Apilane Portal: UI and management API
 
-The Portal is one ASP.NET Core process (`src/Apilane.Portal`) that serves two things:
+The Portal is one ASP.NET Core process (`src/Apilane.Portal`) that serves:
 
 - the **management API** under `/api/v1`: JSON in and out, described by the contract `openapi/portal-v1.json`;
+- **MCP** under `/api/mcp`, with browser-approved connections acting as existing agents;
 - the **UI**: this folder, a Vue 3 single-page app, built into static files that the Portal serves at
   the site root (`/apps`, `/apps/{token}/entities`, `/account/login`, `/admin/servers`, ...).
 
 The UI manages applications through this API, so a script or an AI agent can do the same management
-work with the same calls, using an agent key (see [Agents](#agents); a few calls are for people
-only). Records, files, statistics, e-mail templates and the SQL test of a custom endpoint are served
+work with the same calls, using an agent key or an MCP connection (see [Agents](#agents) and
+[MCP connections](#mcp-connections); a few calls are for people only). Records, files,
+statistics, e-mail templates and the SQL test of a custom endpoint are served
 by the API servers and need a person's token: an agent cannot reach them. The Portal renders no
 pages on the server.
 
@@ -24,12 +26,16 @@ This is the one document for both. It has three parts:
 
 ## Addresses
 
-The Portal keeps four address prefixes for itself. Every other address belongs to the UI.
+The Portal keeps four address prefixes for itself and explicitly maps two MCP discovery aliases
+under `/.well-known`. Every other address belongs to the UI.
 
 | Address | What answers | Sign-in |
 |---|---|---|
 | `/api/v1/...` | The management API. | Session cookie, or an agent key (`Authorization: Bearer`). A few account calls need neither. |
 | `/api/internal/...` | The internal API the API servers call. See [The internal API](#the-internal-api). | The `x-installation-key` header. |
+| `/api/mcp` | Portal-hosted MCP, using Streamable HTTP. See [MCP connections](#mcp-connections). | A connection-specific OAuth bearer token. Cookies and raw agent keys are refused. |
+| `/api/mcp/oauth/...`, `/api/mcp/.well-known/...` | OAuth code flow, client registration and discovery. | Public protocol endpoints; approving access requires a signed-in, confirmed personal account. |
+| `/.well-known/oauth-authorization-server/api/mcp`, `/.well-known/openid-configuration/api/mcp` | Standard discovery aliases for the MCP issuer. | None. These two addresses are explicit exceptions to the UI fallback. |
 | `/swagger` | The API reference (Swagger UI) and the contract at `/swagger/v1/swagger.json`. | Signed-in users only. Signed out, the browser is sent to `/account/login?returnUrl=/swagger` and comes back after signing in. |
 | `/health/liveness`, `/health/readiness` | Health checks. | None. |
 | `/metrics` | Prometheus scrape endpoint. Answers 404 when `OpenTelemetry:Metrics:Enabled` is false. | None. |
@@ -69,6 +75,8 @@ marks calls the browser makes straight to the application's API server
 | Reset password | `/account/reset-password?code=` | `POST /account/password-resets` |
 | E-mail confirmed (for end users of an application) | `/account/email-confirmed` | none |
 | Change password | User menu, 'Change password'; `/account/password` opens the same dialog | `PUT /account/password` |
+| MCP connections | `/mcp/connections` | `GET /mcp/connections`, `DELETE /mcp/connections/{id}`; MCP setup reads public MCP resource metadata |
+| Authorize an MCP client | `/mcp/authorize?requestId=` | `GET /mcp/authorize`, `POST /mcp/authorize`, `POST /mcp/authorize/deny` |
 | **Applications** | | |
 | Applications (the home page) | `/apps` | `GET /applications`, `GET /session/api-token`. API server: `Application/GetStorageUsed`, `Application/Export`, `Health/Liveness` |
 | Application info dialog | `/apps?info={appToken}`, and the Info button of an application | `GET {app}/connection-info` |
@@ -196,6 +204,9 @@ The user menu also has 'API reference', a link to `/swagger`.
   (`GET {app}/connection-info`, shown masked in the Info dialog and dropped when it closes), the
   caller's own API-server token (`GET /session/api-token`) and the key of a new agent
   (`POST /admin/agents`, shown once in a dialog; only a hash of it is stored).
+- The separate OAuth token endpoint (`POST /api/mcp/oauth/token`) returns connection-specific
+  access/refresh tokens to the client. Only their hashes are stored; browser connection lists
+  and approval summaries contain no tokens or agent keys.
 - The administrator's list of applications shows each secret as 'Set', 'Not set' or 'Not needed'.
 - A save that changes only a secret writes an audit entry showing `***` to `***`.
 - The database backup (`GET /admin/backup`) holds everything, secrets included. Every download writes
@@ -486,10 +497,11 @@ or environment variables (`__` for nesting).
 | `ApiUrl` | The first API server, as the Portal and browsers reach it. It seeds Instance > Servers on first start. |
 | `FilesPath` | The folder of the Portal's SQLite database (`Apilane.db`) and its data-protection keys. A mounted volume in Docker. |
 | `InstallationKey` | The secret shared with the API servers. It seeds the key stored in the database on first start and is read again only for the startup warning. The key in force, in both directions, is the stored one, changed under Instance > Settings (no restart of the Portal). |
-| `PublicUrl` | Trusted browser-facing http/https origin for Portal email links, without credentials, a path, query or fragment. Falls back to a concrete `Url`; wildcard listeners need an explicit value before mailing. |
+| `PublicUrl` | Trusted browser-facing origin for Portal email links and MCP discovery/audience, without credentials, a path, query or fragment. Falls back to a concrete `Url`; wildcard listeners need an explicit value. MCP requires HTTPS except loopback development. |
 | `InstanceTitle` | The name shown in the UI. It seeds the database on first start only; later it is changed under Instance > Settings. |
 | `AuthCookieDomain` | The domain of the login cookie; `null` for the current host. |
 | `AccountRateLimit__PermitLimit`, `AccountRateLimit__WindowSeconds` | The shared rate limit of administrator setup, sign in, sign up and reset request. Default 30 per 60 seconds per IP address. Both must be greater than 0, or the Portal does not start. |
+| `McpOAuthRateLimit__PermitLimit`, `McpOAuthRateLimit__WindowSeconds` | The shared rate limit of MCP OAuth registration, authorization and token exchange. Default 60 per 60 seconds per IP address. Both must be greater than 0. |
 | `AllowedHosts` | The host names the Portal answers for. Set it to the public host name, plus the host in the API servers' `PortalUrl`. |
 | `OpenTelemetry`, `Serilog`, `MinThreads` | Metrics at `/metrics`, tracing, logging, thread pool. |
 
@@ -616,7 +628,7 @@ For the owner. The default is what the code does today; say nothing and it stays
 | Collaborator rights | A human collaborator can delete, rebuild, clone, import schema, edit security and read the encryption key; only Sharing is owner-only. Agents have per-application read/write/delete policies and permanent restrictions described below. | Narrow them for people too. |
 | Collaborator e-mail letter case | Saved as typed; access needs an exact match. | Save the exact address of the matching account when sharing (`CollaboratorService.AddAsync`), or match without case everywhere. |
 | Rate limit | 30 calls per 60 seconds per IP address. | Other numbers. |
-| Agents | One key per agent, with per-application permissions starting read-only. Left out on purpose: an expiry date, several keys per agent, re-issuing a key without deleting the agent, a rate limit on wrong keys, an MCP server. | Add the ones that turn out to be needed. |
+| Agents | One key per agent, with per-application permissions starting read-only. Left out on purpose: an expiry date for raw keys, several keys per agent, re-issuing a key without deleting the agent, a rate limit on wrong keys. MCP connections have their own expiry and revocation. | Add the ones that turn out to be needed. |
 | Schema import: numbers in the payload | TypeID, Record and TimeWindowType are the stored numbers. | Names, like the rest of the API. |
 | Schema import: foreign-key order | A referenced entity must be listed before the entities that point to it. | Order them in `InForeignKeyOrder`. |
 | Stored sort direction that is neither asc nor desc | Shown as descending, although the API server sorts it ascending. | Show it as ascending. |
@@ -692,6 +704,8 @@ block to append to the `AGENTS.md` of the project that holds the agent.
    rights in the share dialog or choose 'Edit rights' beside it later. No mail is sent to an agent.
 3. **Call the API.** Send `Authorization: Bearer {key}` on every call. No sign-in, no cookie, no
    `X-Apilane-Portal` header.
+
+For an MCP client, use [MCP connections](#mcp-connections) instead of handing it the agent key.
 
 ```bash
 KEY='apl_0123456789ab_...'
@@ -796,6 +810,79 @@ beyond the management endpoint itself. Give an agent only the rights needed for 
 **Revoking.** Delete the agent on Instance > Agents (`DELETE /api/v1/admin/agents/{userId}`). Its
 key stops working at once and the agent is removed from every application shared with it. A key
 cannot be replaced: delete the agent, add it again and share again.
+
+## MCP connections
+
+The Portal hosts MCP in the same process at `/api/mcp`; no sidecar or client-specific plugin is needed.
+The implementation is the `Apilane.Portal.MCP` class library: transport, OAuth, database models,
+connection actions/contracts and the operation gateway. It references Common rather than the
+Portal host. The Portal registers it through `AddPortalMcpHost`, supplies database/identity and
+operation-policy adapters, and attaches its usual guards through a thin connection controller.
+The five MCP tables stay in the Portal database, configured by `ConfigureMcpModel`. This is a
+project boundary within the current deployment; the Portal remains the host and authorization
+authority.
+Set `PublicUrl` to the canonical HTTPS Portal origin (loopback HTTP is allowed for local
+development). Discovery and credentials are bound to this configured address, never an incoming
+Host header. The two tools are `apilane_operations` (operation catalogue, or the detailed contract
+for one `operationId`) and `apilane_call` (operation ID, `path`, `query` and JSON `body`). The latter
+returns `status`, `data` and any `warning`, and marks failed API calls as tool errors. Use
+`PortalApplications_List` to discover the connection's applications, then
+`ApplicationPermissions_Get` to discover the agent's current grants. The catalogue omits
+permanently refused calls and does not imply that a particular grant is enabled.
+
+**Connect a client.** In **MCP connections > MCP setup**, copy the server address and suggested
+unique server name. Add a remote Streamable HTTP server with OAuth browser authentication in
+your client's settings. Supported clients must implement OAuth discovery, dynamic registration,
+authorization-code flow with S256 PKCE and a loopback callback. Each client has its own
+configuration syntax and sign-in controls; the Portal does not generate a client-specific file.
+For separate project connections, use a distinct server name per project, such as `apilane_shop`
+or `apilane_billing`, in project configuration when supported by the client.
+Authenticate the server in the client, then sign into the Portal in the browser. Pick an existing
+agent, review the listed applications, name the connection and approve it. No agent key,
+profile name or chat ID is needed in the client's configuration.
+The Portal's approval page returns only to the registered loopback callback, with PKCE protecting
+the authorization code.
+
+Chats using the same authenticated server share its connection. Clients may store credentials
+outside project configuration or reuse them across projects; follow the client's instructions
+for separate authentication entries. Names and directories are configuration scopes and do not
+isolate credentials from people/processes with access to the same credential store.
+For a client in a container or on a remote host, the browser must reach its loopback OAuth callback:
+forward the callback port to the browser's machine before authenticating. See the client's
+documentation for callback settings. Separate concurrent callback listeners need separate ports.
+
+**Delegated access.** Any confirmed personal account can approve an agent already shared into
+at least one application it owns. Administrators have the same ownership boundary when approving.
+A connection snapshots only the application IDs reviewed on the approval page; approval refuses
+applications no longer owned/shared and cannot silently include a new share. Each request intersects that snapshot
+with the authorizer's current ownership and the agent's current collaborations, then applies the
+agent's current resource grants. Future applications/shares cannot enlarge the connection. Lists,
+primary application calls and secondary application lookups (comparison/schema import) all
+respect this boundary. The existing agent restrictions, including entity/property renames,
+administration, sharing, application lifecycle, secrets and mail-setting writes, also apply.
+MCP runs the existing management actions through MVC's validation and agent/session filters;
+its transport is stateless so no transport session retains an old identity or permission set.
+
+**Review and revoke.** `/mcp/connections` lists the caller's connections; administrators can see
+and revoke all. Each row shows its agent, effective applications, authorizer (for administrators),
+creation/last use, expiry and status. Revoking one stops its access and refresh tokens without
+affecting the agent's other connections or raw key. Deleting the agent, replacing its key,
+deleting/locking its authorizer or changing the author's security stamp invalidates access.
+Removing an application's share or transferring its ownership removes that application from
+the connection. Connections last 30 days, access tokens 15 minutes, browser approval requests
+10 minutes and authorization codes 2 minutes. Refresh tokens rotate; replay revokes the whole
+connection. Codes and tokens are stored only as hashes. Browser approval/revocation endpoints
+are cookie-only, retain the CSRF header requirement and are marked `[NoAgent]`.
+
+OAuth registration, authorization and token endpoints have their own per-IP limit, configured
+by `McpOAuthRateLimit:PermitLimit` and `McpOAuthRateLimit:WindowSeconds` (60 requests per 60
+seconds by default). Dynamic registration accepts only public clients and exact HTTP loopback
+callbacks. OAuth is authorization-code flow with mandatory S256 PKCE, exact callbacks and a
+matching resource/audience. It does not authenticate a chat ID.
+Unused client registrations expire after one hour when they have no live pending approval;
+the 10,000-client capacity limit applies to registrations without a connection, so unused
+registrations cannot permanently block new clients. Management tool requests are limited to
+1 MiB and operation responses to 8 MiB.
 
 ## Errors
 

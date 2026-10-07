@@ -216,6 +216,18 @@ export const router = createRouter({
           ],
         },
         {
+          path: 'mcp/authorize',
+          name: 'mcp-authorize',
+          component: () => import('@/pages/mcp/AuthorizePage.vue'),
+          meta: { title: 'Connect an MCP client' },
+        },
+        {
+          path: 'mcp/connections',
+          name: 'mcp-connections',
+          component: () => import('@/pages/mcp/ConnectionsPage.vue'),
+          meta: { title: 'MCP connections' },
+        },
+        {
           path: 'admin/servers',
           name: 'admin-servers',
           component: () => import('@/pages/admin/ServersPage.vue'),

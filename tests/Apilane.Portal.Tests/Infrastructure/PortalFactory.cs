@@ -4,6 +4,7 @@ using Apilane.Common.Enums;
 using Apilane.Common.Models;
 using Apilane.Common.Utilities;
 using Apilane.Portal.Api;
+using Apilane.Portal.Extensions;
 using Apilane.Portal.Models;
 using Apilane.Portal.Services;
 using Microsoft.AspNetCore.Hosting;
@@ -432,6 +433,7 @@ namespace Apilane.Portal.Tests.Infrastructure
 
                 // Every test calls from the same address: the sign-in rate limit must not get in the way.
                 services.Configure<PortalRateLimitOptions>(options => options.PermitLimit = 1_000_000);
+                services.Configure<McpOAuthRateLimitOptions>(options => options.PermitLimit = 1_000_000);
 
                 // Controllers that exist only for tests (ErrorTestController).
                 services.AddControllers().AddApplicationPart(typeof(PortalFactory).Assembly);

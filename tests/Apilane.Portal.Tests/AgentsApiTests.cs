@@ -325,6 +325,12 @@ namespace Apilane.Portal.Tests
                 (HttpMethod.Post, ApplicationsUrl, new { Name = "agent-app", ServerID = scene.Shared.ServerID, DatabaseType = "SQLLite" }),
                 (HttpMethod.Post, $"{ApplicationsUrl}/import", new MultipartFormDataContent { { new StringContent("1"), "ServerID" } }),
                 (HttpMethod.Post, $"{app}/clones", new { ServerID = scene.Shared.ServerID, DatabaseType = "SQLLite" }),
+                // Only a person may authorize, inspect or revoke MCP connections.
+                (HttpMethod.Get, "/api/v1/mcp/authorize?requestId=unknown", null),
+                (HttpMethod.Post, "/api/v1/mcp/authorize", new { RequestId = "unknown", AgentId = scene.Created.ID, Name = "Unapproved" }),
+                (HttpMethod.Post, "/api/v1/mcp/authorize/deny", new { RequestId = "unknown" }),
+                (HttpMethod.Get, "/api/v1/mcp/connections", null),
+                (HttpMethod.Delete, "/api/v1/mcp/connections/unknown", null),
                 // Everything under /api/v1/admin.
                 (HttpMethod.Get, UsersUrl, null),
                 (HttpMethod.Put, $"{UsersUrl}/{personId}/role", new { IsAdmin = true }),

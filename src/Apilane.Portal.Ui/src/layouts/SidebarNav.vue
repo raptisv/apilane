@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AppWindowIcon, BotIcon, HistoryIcon, LayoutGridIcon, ServerIcon, SettingsIcon, UsersIcon } from '@lucide/vue'
+import { AppWindowIcon, BotIcon, HistoryIcon, LayoutGridIcon, PlugIcon, ServerIcon, SettingsIcon, UsersIcon } from '@lucide/vue'
 import { computed } from 'vue'
 import type { Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -55,6 +55,11 @@ const groupClass = 'px-2.5 pb-1 pt-4 text-xs font-medium uppercase tracking-wide
       Applications
     </RouterLink>
     <AppSwitcher />
+
+    <RouterLink :to="{ name: 'mcp-connections' }" :class="[linkClass, inSection('mcp-connections') && activeClass]" @click="emit('navigate')">
+      <PlugIcon class="size-4" />
+      MCP connections
+    </RouterLink>
 
     <template v-if="session.IsAdmin">
       <p :class="groupClass">Instance</p>

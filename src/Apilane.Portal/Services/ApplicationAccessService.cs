@@ -2,6 +2,7 @@ using Apilane.Common.Models;
 using Apilane.Portal.Abstractions;
 using Apilane.Portal.Api;
 using Apilane.Portal.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -16,13 +17,16 @@ namespace Apilane.Portal.Services
 
         private readonly ApplicationDbContext _dbContext;
         private readonly IPortalAccessService _portalAccessService;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
         public ApplicationAccessService(
             ApplicationDbContext dbContext,
-            IPortalAccessService portalAccessService)
+            IPortalAccessService portalAccessService,
+            IHttpContextAccessor httpContextAccessor)
         {
             _dbContext = dbContext;
             _portalAccessService = portalAccessService;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<List<DBWS_Application>> GetVisibleApplicationsAsync()
@@ -91,8 +95,18 @@ namespace Apilane.Portal.Services
         }
 
         // The owner, or anyone the application is shared with by e-mail.
-        private static IQueryable<DBWS_Application> Visible(IQueryable<DBWS_Application> applications, ApplicationUser user)
+        private IQueryable<DBWS_Application> Visible(IQueryable<DBWS_Application> applications, ApplicationUser user)
         {
+            var principal = _httpContextAccessor.HttpContext?.User;
+            if (McpConnectionScope.IsConnection(principal))
+            {
+                // Applied to lists and every primary/secondary application lookup. A new share
+                // cannot enlarge a connection, and transferring ownership removes access.
+                var tokens = McpConnectionScope.GetApplicationTokens(principal);
+                var authorizerId = principal?.FindFirst(McpConnectionScope.AuthorizedBy)?.Value;
+                applications = applications.Where(x => tokens.Contains(x.Token) && x.UserID == authorizerId);
+            }
+
             return WithIncludes(applications)
                 .Where(x => x.UserID == user.Id || x.Collaborates.Any(c => c.UserEmail == user.Email));
         }

@@ -15,6 +15,7 @@ It uses Microsoft Orleans for distributed actor state and targets SQLite, SQL Se
 | `Apilane.Common` | `src/Apilane.Common/` | Shared models, enums, extensions, utilities |
 | `Apilane.Data` | `src/Apilane.Data/` | Data access layer (multi-DB) |
 | `Apilane.Portal` | `src/Apilane.Portal/` | Portal host: the management API (`/api/v1`), and the built UI served at the site root |
+| `Apilane.Portal.MCP` | `src/Apilane.Portal.MCP/` | MCP transport, OAuth, connection management and operation gateway, hosted by the Portal |
 | `Apilane.Portal.Ui` | `src/Apilane.Portal.Ui/` | The Portal UI: a Vue 3 single-page app (not in the `.sln`; its `README.md` documents the UI and the management API) |
 | `Apilane.Net` | `sdk/Apilane.Net/` | .NET client SDK (NuGet package; MIT, see `sdk/LICENSE`) |
 | `Apilane.Js` | `sdk/Apilane.Js/` | JavaScript client SDK (the one file `apilane.js`; MIT, see `sdk/LICENSE`) |
@@ -252,8 +253,10 @@ both: addresses, behaviour, known limits, open decisions, commands, layout and c
   UI's index page. Every controller sits under `api/v1` or `api/internal` (a test checks it).
 - A new screen is a page in the UI plus endpoints under `/api/v1`: follow "Adding a screen" in that README.
 - API controllers inherit `PortalApiControllerBase` (`PortalApplicationApiControllerBase` for the endpoints of
-  one application, `PortalAdminApiControllerBase` for administrators). Request and response shapes live only in
-  `Api/V1/Contracts` (never EF models, never secrets; the one response that carries a secret of an application is
+  one application, `PortalAdminApiControllerBase` for administrators). The sealed `McpConnectionsController` facade
+  inherits the MCP project's action base and explicitly attaches the same CSRF/session/error filters and `[NoAgent]`;
+  the contract tests check those guards. Request and response shapes live only in
+  `Api/V1/Contracts` in their owning project (never EF models, never secrets; the one response that carries a secret of an application is
   `connection-info`, the encryption key shown on demand). Service interfaces go in `src/Apilane.Portal/Abstractions/`.
 - Writes (POST, PUT, PATCH, DELETE) are rejected without the header `X-Apilane-Portal: 1`.
 - Agents: a portal user whose address ends with `@agent.local` (`PortalAgent.IsAgent`) calls `/api/v1` with `Authorization: Bearer apl_...` and needs no
@@ -270,6 +273,23 @@ both: addresses, behaviour, known limits, open decisions, commands, layout and c
   action to the refused calls of `Key_Should_Be_Refused_On_Deletes_Admin_Routes_And_The_Marked_Actions` in
   `tests/Apilane.Portal.Tests/AgentsApiTests.cs`. See "Agents" in `src/Apilane.Portal.Ui/README.md`; the page for people who
   use an agent key, with the block for their own `AGENTS.md`, is `docs/docs/developer_guide/ai_agent_portal.md`: change it with the behaviour.
+- MCP lives in `src/Apilane.Portal.MCP` and is hosted by the Portal at `/api/mcp`, using stateless Streamable HTTP and OAuth code flow with S256 PKCE.
+  The library references Common, never the Portal host. `IMcpPortalStore` and `IMcpOperationPolicy` define the integration;
+  the host supplies `PortalMcpStore`, `PortalMcpOperationPolicy` and the guarded connection controller facade. Register with
+  `AddPortalMcpHost`, and include `ConfigureMcpModel` in the host's EF model. MCP tables remain in the Portal database.
+  Discovery/OAuth endpoints are minimal routes in `PortalMcpAuthorizationExtensions`, including explicit root
+  `/.well-known` aliases. Browser approval and connection revocation are cookie-only `[NoAgent]` actions under
+  `/api/v1/mcp`. A confirmed application owner selects an existing agent; connections snapshot applications owned
+  by the approver and already shared with that agent. `ApplicationAccessService` intersects MCP scope claims with
+  live ownership and agent visibility for lists and every primary/secondary application lookup. Never bypass this
+  service for an MCP-accessible application lookup. `PortalMcpOperationService` dispatches only classified agent
+  operations through MVC's validation and permission filters. Isolate the nested MVC execution flow before assigning
+  its synthetic `HttpContext`; changing the caller's `IHttpContextAccessor` clears its shared ambient holder.
+  Carry the authenticated principal and cancellation explicitly. Keep permanent agent restrictions, cross-application
+  checks, current grants and revocation effective; never treat a project name, chat ID or transport session as
+  authorization. Clients should use distinct server names for separate projects; chats configured to use the same
+  server share its connection. Keep MCP setup and documentation client-neutral. Update
+  MCP OAuth/gateway tests and both agent documentation pages when this behavior changes.
 - `/api/internal` (`Api/Internal`) is what the API servers call (`PortalInfoService` in `Apilane.Api.Core`): it
   is guarded by the `x-installation-key` header, answers the stored records with PascalCase names and numeric
   enums, and is not in the contract. Change both sides together; `tests/Apilane.Portal.Tests/InternalApiTests.cs`

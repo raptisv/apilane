@@ -39,6 +39,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Apilane.Common\Apilane.Common.csproj" />
+		<ProjectReference Include="..\Apilane.Portal.MCP\Apilane.Portal.MCP.csproj" />
 	</ItemGroup>
 
 </Project>

@@ -1,5 +1,6 @@
 ﻿using Apilane.Common;
 using Apilane.Common.Models;
+using Apilane.Portal.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -35,6 +36,11 @@ namespace Apilane.Portal.Models
         public DbSet<PortalAgentKey> AgentKeys { get; set; }
         public DbSet<PortalAgentPermission> AgentPermissions { get; set; }
         public DbSet<PortalBootstrapState> BootstrapStates { get; set; }
+        public DbSet<McpClient> McpClients { get; set; }
+        public DbSet<McpAuthorizationRequest> McpAuthorizationRequests { get; set; }
+        public DbSet<McpConnection> McpConnections { get; set; }
+        public DbSet<McpAuthorizationCode> McpAuthorizationCodes { get; set; }
+        public DbSet<McpToken> McpTokens { get; set; }
 
         public ApplicationDbContext(
             DbContextOptions<ApplicationDbContext> options,
@@ -132,6 +138,8 @@ namespace Apilane.Portal.Models
                 .HasForeignKey<PortalAgentKey>(p => p.UserId)
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
+
+            builder.ConfigureMcpModel();
 
             var adminRoleGuid = Guid.NewGuid().ToString("D");
             var adminUserGuid = Guid.NewGuid().ToString("D");

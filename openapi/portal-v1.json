@@ -4174,6 +4174,362 @@
         }
       }
     },
+    "/api/v1/mcp/authorize": {
+      "get": {
+        "tags": [
+          "McpConnections"
+        ],
+        "summary": "Gets a pending client's authorization request and eligible existing agents. Each agent\nincludes only applications the caller owns and that are already shared with the agent.",
+        "operationId": "McpConnections_Authorize",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpAuthorizationResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "McpConnections"
+        ],
+        "summary": "Approves the selected existing agent for a named, 30-day MCP connection, limited to\ncurrently owned applications shared with that agent. Returns the client's exact callback.",
+        "operationId": "McpConnections_Approve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpApproveRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpApproveRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpApproveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpRedirectResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/authorize/deny": {
+      "post": {
+        "tags": [
+          "McpConnections"
+        ],
+        "summary": "Refuses a pending request and returns its registered callback with access_denied.",
+        "operationId": "McpConnections_Deny",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpDenyRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpDenyRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/McpDenyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpRedirectResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/connections": {
+      "get": {
+        "tags": [
+          "McpConnections"
+        ],
+        "summary": "Lists the caller's MCP connections; administrators can see all connections.\nIncludes effective application scope, expiry and revocation, without credentials.",
+        "operationId": "McpConnections_Connections",
+        "responses": {
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpConnectionResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp/connections/{id}": {
+      "delete": {
+        "tags": [
+          "McpConnections"
+        ],
+        "summary": "Immediately revokes a connection and all its tokens. The approving person or an\nadministrator may revoke it. Previously revoked connections remain revoked.",
+        "operationId": "McpConnections_Revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/v1/account": {
       "post": {
         "tags": [
@@ -8775,6 +9131,196 @@
         "additionalProperties": false,
         "description": "The settings of this Apilane instance. The mail password and the installation key are never\nreturned; HasMailPassword and HasInstallationKey say whether they are set."
       },
+      "McpAgentResponse": {
+        "required": [
+          "Applications",
+          "Id",
+          "Name"
+        ],
+        "type": "object",
+        "properties": {
+          "Id": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "Applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpApplicationResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "McpApplicationResponse": {
+        "required": [
+          "Name",
+          "Token"
+        ],
+        "type": "object",
+        "properties": {
+          "Token": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "McpApproveRequest": {
+        "required": [
+          "AgentId",
+          "ApplicationTokens",
+          "Name",
+          "RequestId"
+        ],
+        "type": "object",
+        "properties": {
+          "RequestId": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          },
+          "AgentId": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          },
+          "Name": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ApplicationTokens": {
+            "maxItems": 1000,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "McpAuthorizationResponse": {
+        "required": [
+          "Agents",
+          "ClientName",
+          "RedirectUri",
+          "RequestId"
+        ],
+        "type": "object",
+        "properties": {
+          "RequestId": {
+            "type": "string"
+          },
+          "ClientName": {
+            "type": "string"
+          },
+          "RedirectUri": {
+            "type": "string"
+          },
+          "Agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpAgentResponse"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "McpConnectionResponse": {
+        "required": [
+          "AgentId",
+          "AgentName",
+          "Applications",
+          "AuthorizedByEmail",
+          "ClientName",
+          "CreatedAt",
+          "ExpiresAt",
+          "Id",
+          "IsUsable",
+          "Name"
+        ],
+        "type": "object",
+        "properties": {
+          "Id": {
+            "type": "string"
+          },
+          "Name": {
+            "type": "string"
+          },
+          "ClientName": {
+            "type": "string"
+          },
+          "AgentId": {
+            "type": "string"
+          },
+          "AgentName": {
+            "type": "string"
+          },
+          "AuthorizedByEmail": {
+            "type": "string"
+          },
+          "Applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpApplicationResponse"
+            }
+          },
+          "CreatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "IsUsable": {
+            "type": "boolean"
+          },
+          "LastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "ExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "RevokedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "McpDenyRequest": {
+        "required": [
+          "RequestId"
+        ],
+        "type": "object",
+        "properties": {
+          "RequestId": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "McpRedirectResponse": {
+        "required": [
+          "RedirectUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "RedirectUrl": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "PropertyResponse": {
         "required": [
           "AllowEdit",
@@ -10509,6 +11055,9 @@
     },
     {
       "name": "Instance"
+    },
+    {
+      "name": "McpConnections"
     },
     {
       "name": "PortalAccount"

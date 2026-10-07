@@ -25,6 +25,18 @@ describe('routes', () => {
     expect(router.resolve('/Admin/Servers/').name).toBe('admin-servers')
   })
 
+  it('keeps MCP approval and connections signed-in screens available to application owners', () => {
+    const approval = router.resolve('/mcp/authorize?requestId=pending-request')
+    expect(approval.name).toBe('mcp-authorize')
+    expect(approval.meta.public).toBeUndefined()
+    expect(approval.meta.requiresAdmin).toBeUndefined()
+    const connections = router.resolve('/mcp/connections')
+    expect(connections.name).toBe('mcp-connections')
+    expect(connections.meta.public).toBeUndefined()
+    expect(connections.meta.requiresAdmin).toBeUndefined()
+    expect(afterSignIn('/mcp/authorize?requestId=pending-request')).toBe('/mcp/authorize?requestId=pending-request')
+  })
+
   it('shows Not found for any other address', () => {
     expect(router.resolve('/nope/at/all').name).toBe('not-found')
     expect(router.resolve('/nope/at/all').meta.public).toBeUndefined()

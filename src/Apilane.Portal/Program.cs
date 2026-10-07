@@ -118,6 +118,7 @@ namespace Apilane.Portal
                 .AddServices(appConfig)
                 .AddPortalApi()
                 .AddPortalBootstrap()
+                .AddPortalMcpHost()
                 .AddOpenTelemetry(appConfig.OpenTelemetry);
 
             // No naming policy and no enum converter: the API servers read the answers of
@@ -248,12 +249,16 @@ namespace Apilane.Portal
 
             app.UsePortalAgentKeys();
 
+            app.UsePortalMcpAuthentication();
+
             app.UseAuthorization();
 
             app.UsePortalApiDocs();
 
             // The management API (/api/v1) and the internal API of the API servers (/api/internal).
             app.MapControllers();
+
+            app.MapPortalMcp();
 
             app.MapHealthChecks("/health/liveness", AspNetCoreExtensions.SetupHealthCheck("live"));
             app.MapHealthChecks("/health/readiness", AspNetCoreExtensions.SetupHealthCheck("ready"));

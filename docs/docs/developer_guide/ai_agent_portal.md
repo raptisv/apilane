@@ -1,10 +1,10 @@
 ---
-description: "What to add to your AGENTS.md so an AI agent can manage Apilane applications through the Portal's management API, and how to create, share and revoke its key."
+description: "Connect an AI agent to the Portal through MCP or the management API, authorize owned applications, and review or revoke its access."
 ---
 
 # AI Agent Guidelines for the Portal
 
-A script or an AI agent can manage Apilane applications through the Portal's management API: entities, properties, constraints, default sorting, security rules, custom endpoints, reports and schema import. It can inspect e-mail settings but cannot change them. It authenticates with an **agent key** instead of a person's password. The data of an application (its records and files) is a different matter: it goes through the API server and the SDKs, see [AI Agent Guidelines](ai_agent_guidelines.md).
+A script or an AI agent can manage Apilane applications through the Portal's management API: entities, properties, constraints, default sorting, security rules, custom endpoints, reports and schema import. It can inspect e-mail settings but cannot change them. It uses an **agent key** for direct API calls, or a browser-approved **MCP connection** acting as an existing agent. The data of an application (its records and files) is a different matter: it goes through the API server and the SDKs, see [AI Agent Guidelines](ai_agent_guidelines.md).
 
 This page has two parts: how a person sets an agent up, and one block to append to the `AGENTS.md` of the project that holds the agent, or to the system prompt of the agent. The block is written to the agent and can be read on its own.
 
@@ -13,7 +13,50 @@ This page has two parts: how a person sets an agent up, and one block to append 
 1. **Add the agent.** An administrator opens **Instance > Agents**, chooses **Add agent** and types a name: 3 to 40 characters, lower-case letters, digits and dashes, for example `deploy-bot`. The Portal shows its key (`apl_...`) once and keeps only a hash of it, so copy it then. A key does not expire and cannot be replaced: if it is lost, delete the agent and add it again.
 2. **Create the application.** An agent cannot create, import or clone an application. A person does it in the Portal.
 3. **Share it with the agent.** The owner opens the **Sharing** tab, chooses **Share with agent** and selects the agent by name. The dialog shows its access to other applications the owner can also see. The agent starts read-only. Choose its read, write and deletion rights per area in that dialog, or use **Edit rights** beside it later. The policy applies to this application only. No e-mail is sent to an agent.
-4. **Hand over the Portal address and the key.** Put them in the environment of the agent (the block below uses `APILANE_PORTAL_URL` and `APILANE_AGENT_KEY`), never in a file that is committed. Then append the block below to the `AGENTS.md`.
+4. **Connect the client.** For an MCP client, follow the next section; no agent key is handed over. For direct API scripts, put the Portal address and key in the script's environment (the API block below uses `APILANE_PORTAL_URL` and `APILANE_AGENT_KEY`), never in a file that is committed.
+
+## Connect an MCP client
+
+The MCP server is part of the Portal, at `https://your-portal/api/mcp`. The Portal needs its canonical
+HTTPS `PublicUrl` configured; loopback HTTP is allowed for local development. Open **MCP connections >
+MCP setup** to copy the server address and a suggested unique server name. Add a remote MCP server
+in your client's settings using Streamable HTTP and OAuth browser authentication. The client must
+support OAuth discovery, dynamic client registration and authorization-code flow with S256 PKCE,
+using a loopback browser callback. The configuration format and sign-in command depend on the client.
+For separate project connections, use a different server name for each project, such as
+`apilane_shop` and `apilane_billing`, in that project's configuration when the client supports it.
+
+The browser opens the Portal. Sign in with a confirmed personal account, select an existing agent,
+review the applications listed, name the connection and approve. Only applications you currently
+own and have already shared with that agent are approved. Administrators have the same ownership
+boundary. Approval includes only the applications reviewed on that page; new shares cannot
+silently expand the approved set. The connection keeps this fixed application set and also checks current ownership,
+sharing and agent grants on every request. New applications and later shares do not expand it.
+Chats configured to use the same authenticated server share its connection.
+
+Clients may save OAuth credentials outside project configuration and reuse them across projects.
+Follow your client's instructions for separate authentication entries; a project or server name
+is not a security boundary between people who can access the same credential store. If the client
+runs in a container or on a remote host, the browser must reach its loopback OAuth callback: forward
+the callback port to the machine running the browser before authenticating. Follow the client's
+documentation for configuration, credential storage and callback settings.
+
+Use this block in a project connected through MCP:
+
+```markdown
+## Apilane Portal through MCP
+
+Use this project's Apilane MCP connection. Do not request, print or store an agent key.
+Call apilane_operations to list operation IDs, then call it with an operationId for the
+exact request contract. Execute operations using apilane_call with operationId, path,
+query and body. Start with PortalApplications_List and read ApplicationPermissions_Get
+for each application before changing it. Treat returned status >=400 as a failed call.
+Follow the current grants; after 403, refresh permissions instead of trying another route.
+Entity/property renames, sharing, administrator calls, application creation/import/cloning/
+deletion, secrets and mail-setting writes are unavailable. Records and files require the
+API server and are outside this MCP connection. Report warnings and request a person to
+test saved SQL; MCP cannot run the API server's custom-endpoint Test.
+```
 
 ## What an agent can and cannot do
 
@@ -36,14 +79,15 @@ An agent also gets no token for the API servers. It cannot read or write records
 
 ## Review and revoke
 
-Every change an agent makes is in the **Audit log** tab of the application, under the agent's name. The owner can narrow its rights using **Sharing > Edit rights**, or stop sharing that application. To revoke an agent everywhere, an administrator deletes it on **Instance > Agents**: its key stops working at once and it is removed from every application shared with it.
+Every change an agent makes is in the **Audit log** tab of the application, under the agent's name. The owner can narrow its rights using **Sharing > Edit rights**, or stop sharing that application. Revoke an individual MCP connection on **MCP connections**; administrators can revoke any connection. Connections expire after 30 days and use rotating refresh tokens. Agent removal, authorizer removal/lockout or a change to the authorizer's security stamp also invalidates the connection. To revoke an agent everywhere, an administrator deletes it on **Instance > Agents**: its key and MCP connections stop working at once and it is removed from every application shared with it.
 
 !!!warning "Some grants have broad effects"
     Permissions govern management API operations. Custom endpoint write access can save SQL that the API server runs and commits against the database; security write access can make that endpoint callable. Entity write access can replace constraints, and security write access can remove rules. Audit-log read access exposes historical configuration, including SQL and security changes. Security and report reads include referenced entity, property and endpoint names. Give the agent only the rights it needs and review its audit log.
 
 ## The block
 
-Append the following to your project's `AGENTS.md` file, or to the system prompt of your agent.
+For direct API calls with an agent key, append the following to your project's `AGENTS.md` file,
+or to the system prompt of your agent. MCP clients use the MCP block above instead.
 
 ````markdown
 ## Apilane Portal agent instructions

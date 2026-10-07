@@ -113,8 +113,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "licenses", "licenses", "{99
 		licenses\jsdom-MIT = licenses\jsdom-MIT
 		licenses\Lucide-ISC = licenses\Lucide-ISC
 		licenses\Microsoft.Data.SqlClient-MIT = licenses\Microsoft.Data.SqlClient-MIT
+		licenses\Microsoft.Extensions.AI.Abstractions-MIT = licenses\Microsoft.Extensions.AI.Abstractions-MIT
 		licenses\Microsoft.NET.Test.Sdk-MIT = licenses\Microsoft.NET.Test.Sdk-MIT
 		licenses\Microsoft.Orleans-MIT = licenses\Microsoft.Orleans-MIT
+		licenses\ModelContextProtocol-Apache-2.0 = licenses\ModelContextProtocol-Apache-2.0
+		licenses\ModelContextProtocol.AspNetCore-Apache-2.0 = licenses\ModelContextProtocol.AspNetCore-Apache-2.0
+		licenses\ModelContextProtocol.Core-Apache-2.0 = licenses\ModelContextProtocol.Core-Apache-2.0
 		licenses\MSTest-MIT = licenses\MSTest-MIT
 		licenses\MySqlConnector-MIT = licenses\MySqlConnector-MIT
 		licenses\Npgsql-PostgreSQL = licenses\Npgsql-PostgreSQL
@@ -152,6 +156,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Js", "Js", "{26279FAE-1F2C-
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apilane.Portal.Tests", "tests\Apilane.Portal.Tests\Apilane.Portal.Tests.csproj", "{ECDB11D7-471D-480E-94C8-7E511669E762}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Apilane.Portal.MCP", "src\Apilane.Portal.MCP\Apilane.Portal.MCP.csproj", "{40E29725-69B5-45D3-A95C-EF67545F0F58}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -233,6 +239,14 @@ Global
 		{ECDB11D7-471D-480E-94C8-7E511669E762}.Release|Any CPU.Build.0 = Release|Any CPU
 		{ECDB11D7-471D-480E-94C8-7E511669E762}.Release|x86.ActiveCfg = Release|Any CPU
 		{ECDB11D7-471D-480E-94C8-7E511669E762}.Release|x86.Build.0 = Release|Any CPU
+		{40E29725-69B5-45D3-A95C-EF67545F0F58}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{40E29725-69B5-45D3-A95C-EF67545F0F58}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{40E29725-69B5-45D3-A95C-EF67545F0F58}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{40E29725-69B5-45D3-A95C-EF67545F0F58}.Debug|x86.Build.0 = Debug|Any CPU
+		{40E29725-69B5-45D3-A95C-EF67545F0F58}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{40E29725-69B5-45D3-A95C-EF67545F0F58}.Release|Any CPU.Build.0 = Release|Any CPU
+		{40E29725-69B5-45D3-A95C-EF67545F0F58}.Release|x86.ActiveCfg = Release|Any CPU
+		{40E29725-69B5-45D3-A95C-EF67545F0F58}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

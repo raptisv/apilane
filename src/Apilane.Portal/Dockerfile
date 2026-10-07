@@ -20,6 +20,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Apilane.Portal/Apilane.Portal.csproj", "src/Apilane.Portal/"]
+COPY ["src/Apilane.Portal.MCP/Apilane.Portal.MCP.csproj", "src/Apilane.Portal.MCP/"]
 COPY ["src/Apilane.Common/Apilane.Common.csproj", "src/Apilane.Common/"]
 RUN dotnet restore "./src/Apilane.Portal/Apilane.Portal.csproj"
 COPY . .

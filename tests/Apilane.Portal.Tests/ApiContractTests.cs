@@ -1,6 +1,7 @@
 using Apilane.Common;
 using Apilane.Portal.Api;
 using Apilane.Portal.Api.Internal;
+using Apilane.Portal.Api.V1;
 using Apilane.Portal.Tests.Infrastructure;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -225,13 +226,31 @@ namespace Apilane.Portal.Tests
             {
                 var action = endpoint.Metadata.GetMetadata<ControllerActionDescriptor>();
 
-                if (action is null || !typeof(PortalApiControllerBase).IsAssignableFrom(action.ControllerTypeInfo))
+                // The MCP module owns its action implementations. Its one sealed Portal facade
+                // attaches the same guards without taking a circular reference to this host.
+                if (action is null || (!typeof(PortalApiControllerBase).IsAssignableFrom(action.ControllerTypeInfo)
+                    && action.ControllerTypeInfo.AsType() != typeof(McpConnectionsController)))
                 {
-                    offenders.Add($"{endpoint.DisplayName} is not an action of a PortalApiControllerBase controller.");
+                    offenders.Add($"{endpoint.DisplayName} is not an action of a supported Portal API controller.");
                     continue;
                 }
 
                 var name = $"{action.ControllerName}.{action.ActionName}";
+
+                var filters = action.FilterDescriptors.Select(x => x.Filter).OfType<ServiceFilterAttribute>().ToList();
+                if (!filters.Any(x => x.ServiceType == typeof(PortalCsrfFilter) && x.Order == -1)
+                    || !filters.Any(x => x.ServiceType == typeof(PortalSessionFilter))
+                    || !filters.Any(x => x.ServiceType == typeof(PortalApiExceptionFilter))
+                    || endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>().Count == 0)
+                {
+                    offenders.Add($"{name} is missing the Portal's CSRF, session, error or authorization guard.");
+                }
+
+                if (action.ControllerTypeInfo.AsType() == typeof(McpConnectionsController)
+                    && endpoint.Metadata.GetMetadata<NoAgentAttribute>() is null)
+                {
+                    offenders.Add($"{name} allows agent calls to the MCP connection controls.");
+                }
 
                 if (endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null && !_anonymousActions.Contains(name))
                 {
@@ -340,14 +359,18 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public void Rate_Limit_Should_Be_On_The_Three_Anonymous_Account_Actions_Only()
+        public void Rate_Limits_Should_Keep_Account_And_Mcp_OAuth_Policies_Separate()
         {
             var limited = _portal.Services.GetRequiredService<EndpointDataSource>().Endpoints
                 .Where(x => x.Metadata.GetMetadata<EnableRateLimitingAttribute>() is not null)
                 .ToList();
 
-            // Every limited endpoint is an API action.
-            Assert.All(limited, x => Assert.StartsWith(
+            Assert.All(limited, x => Assert.Contains(
+                x.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName,
+                new[] { PortalRateLimitOptions.AccountPolicy, "McpOAuth" }));
+
+            // The existing account budget stays on exactly its management API actions.
+            Assert.All(limited.Where(x => x.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName == PortalRateLimitOptions.AccountPolicy), x => Assert.StartsWith(
                 ApiPrefix,
                 ((x as RouteEndpoint)?.RoutePattern.RawText ?? string.Empty).TrimStart('/'),
                 StringComparison.OrdinalIgnoreCase));
@@ -355,6 +378,12 @@ namespace Apilane.Portal.Tests
             var names = GetActionNames(x => x.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName == PortalRateLimitOptions.AccountPolicy);
 
             Assert.Equal(_rateLimitedActions.OrderBy(x => x), names.OrderBy(x => x));
+
+            var oauth = limited.Where(x => x.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName == "McpOAuth").ToList();
+            Assert.Equal(
+                new[] { "api/mcp/oauth/authorize", "api/mcp/oauth/register", "api/mcp/oauth/token" },
+                oauth.Select(x => ((x as RouteEndpoint)?.RoutePattern.RawText ?? string.Empty).TrimStart('/')).OrderBy(x => x));
+            Assert.All(oauth, x => Assert.NotNull(x.Metadata.GetMetadata<IAllowAnonymous>()));
         }
 
         private List<string> GetActionNames(Func<RouteEndpoint, bool> filter)
