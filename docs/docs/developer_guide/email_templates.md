@@ -12,6 +12,8 @@ Apilane supports sending emails to users for account-related events such as regi
 
 Before emails can be sent, you must configure the SMTP settings for your application. Open the **Email** tab of your application in the Portal. **Save settings** saves the SMTP settings and the confirmation landing page together.
 
+Only a person may change these settings. Portal agents with email-settings Read can inspect the configuration without its password, but no grant permits changing the SMTP transport, sender, credentials or confirmation redirect. Older email-write grants are retired while unrelated grants are retained.
+
 | Setting | Description |
 |---|---|
 | **Mail server** | SMTP server hostname (e.g., `smtp.gmail.com`) |

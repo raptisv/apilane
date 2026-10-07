@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -469,6 +470,43 @@ namespace Apilane.Portal.Tests
 
         // ---------- Access ----------
 
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task Agent_With_Full_Grants_Should_Read_But_Not_Change_Mail_Settings(bool legacyCookie)
+        {
+            var scene = await CreateSceneAsync();
+            using var agent = await CreateAgentWithFullGrantsAsync(scene, legacyCookie);
+            var before = await LoadAsync(scene.AppId);
+
+            // Even a stored policy from before email-setting writes were retired cannot let an
+            // agent move SMTP credentials or account emails to another destination. Supplying
+            // a replacement password does not make changing the transport safe either.
+            foreach (var password in new string?[] { null, "", "agent-supplied-password" })
+            {
+                var response = await agent.PutAsync(scene.Url, FullBody(password).ToJsonContent());
+
+                Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+                var error = await response.ReadJsonAsync<ErrorResponse>();
+                Assert.Equal(PortalErrorCode.Forbidden, error.Code);
+                Assert.Equal(PortalAgent.RefusedMessage, error.Message);
+                await AssertUnchangedAsync(scene);
+                Assert.Equal(before.DateModified, (await LoadAsync(scene.AppId)).DateModified);
+            }
+
+            // Reads remain available under the saved read grant, with the password still hidden.
+            var read = await agent.GetAsync(scene.Url);
+            Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+            var settings = await read.ReadJsonAsync<EmailSettingsResponse>();
+            Assert.Equal("smtp.example.test", settings.MailServer);
+            Assert.Equal("https://example.test/confirmed", settings.EmailConfirmationRedirectUrl);
+            Assert.True(settings.HasMailPassword);
+            var text = await read.Content.ReadAsStringAsync();
+            Assert.DoesNotContain(StoredPassword, text);
+            Assert.DoesNotContain("\"MailPassword\"", text);
+            await AssertUnchangedAsync(scene);
+        }
+
         [Fact]
         public async Task Collaborator_Should_Read_And_Update()
         {
@@ -608,6 +646,71 @@ namespace Apilane.Portal.Tests
             application.MailUserName = "mailer";
             application.MailPassword = StoredPassword;
             application.EmailConfirmationRedirectUrl = "https://example.test/confirmed";
+        }
+
+        private async Task<HttpClient> CreateAgentWithFullGrantsAsync(Scene scene, bool legacyCookie)
+        {
+            string email;
+            HttpClient client;
+            if (legacyCookie)
+            {
+                // Old agent accounts may retain both a password and an administrator role.
+                // The restriction must follow the account, not only Bearer authentication.
+                var (oldEmail, password) = await _portal.CreateAdminUserAsync();
+                email = $"legacy-mail-{Guid.NewGuid():N}@agent.local";
+                await _portal.WithDbContextAsync(async db =>
+                {
+                    var user = await db.Users.SingleAsync(x => x.Email == oldEmail);
+                    user.Email = email;
+                    user.UserName = email;
+                    user.NormalizedEmail = email.ToUpperInvariant();
+                    user.NormalizedUserName = email.ToUpperInvariant();
+                    return await db.SaveChangesAsync();
+                });
+                client = await _portal.CreateSignedInClientAsync(email, password);
+            }
+            else
+            {
+                using var admin = await _portal.CreateAdminClientAsync();
+                var response = await admin.PostAsync("/api/v1/admin/agents", new { Name = $"mail-{Guid.NewGuid():N}" }.ToJsonContent());
+                Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+                var created = await response.ReadJsonAsync<AgentCreatedResponse>();
+                email = created.Email;
+                client = _portal.CreateAnonymousClient();
+                client.DefaultRequestHeaders.Remove(PortalCsrfFilter.HeaderName);
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", created.Key);
+            }
+
+            var permissions = await (await scene.Owner.GetAsync($"/api/v1/applications/{scene.Token}/permissions"))
+                .ReadJsonAsync<ApplicationPermissionsResponse>();
+            var grants = permissions.Resources.Select(resource => new AgentPermissionGrant
+            {
+                Resource = resource.Resource,
+                Read = resource.CanRead,
+                Write = resource.CanWrite || resource.Resource == "email-settings",
+                Delete = resource.CanDelete
+            }).ToList();
+
+            // Seed the retired write bit directly: new policies correctly reject it, but saved
+            // grants must never bypass the endpoint's permanent restriction after an upgrade.
+            await _portal.WithDbContextAsync(async db =>
+            {
+                var collaboration = new DBWS_Collaborate
+                {
+                    AppID = scene.AppId,
+                    UserEmail = email,
+                    DateModified = DateTime.UtcNow
+                };
+                db.Collaborations.Add(collaboration);
+                db.AgentPermissions.Add(new PortalAgentPermission
+                {
+                    Collaboration = collaboration,
+                    PermissionsJson = JsonSerializer.Serialize(grants)
+                });
+                return await db.SaveChangesAsync();
+            });
+
+            return client;
         }
 
         private void ScriptApiServer()

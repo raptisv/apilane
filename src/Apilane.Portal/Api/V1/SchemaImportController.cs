@@ -72,8 +72,11 @@ namespace Apilane.Portal.Api.V1
         /// property list or rate limit. An existing custom endpoint is skipped whatever its query.
         /// Also 400 VALIDATION, before anything is applied: a missing Name, RoleID, Action or
         /// Query, a constraint TypeID other than 1 or 2, a constraint with IsSystem true, a null
-        /// list item, a foreign key that is not 'Property,Entity[,ON_DELETE_x]', a rate limit
-        /// with MaxRequests below 1 or a TimeWindowType other than 0 to 3, the name of a new
+        /// list item, a foreign key that is not 'Property,Entity[,ON_DELETE_x]', a malformed
+        /// constraint reference, a constraint naming a missing property or
+        /// entity in the complete imported schema, an encrypted unique property, a repeated unique
+        /// property, a foreign key on a system or non-integer property or pointing to Files,
+        /// a rate limit with MaxRequests below 1 or a TimeWindowType other than 0 to 3, the name of a new
         /// entity, property or custom endpoint that its own create endpoint would refuse, a new
         /// property with an unknown TypeID, and every security rule that PUT security/rules would
         /// refuse, one error for each rule with its place (Security[2].Action): a TypeID other than

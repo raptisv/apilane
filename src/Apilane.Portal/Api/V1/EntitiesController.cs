@@ -84,13 +84,15 @@ namespace Apilane.Portal.Api.V1
 
         /// <summary>
         /// Renames a custom entity and its table on the API server. The entity's URL changes with
-        /// its name. Answers 409 CONFLICT for a system entity, when a foreign key of any entity
+        /// its name. Portal agents are always refused (403), regardless of their grants.
+        /// Answers 409 CONFLICT for a system entity, when a foreign key of any entity
         /// points to it, and when another entity has the new name, whatever its letter case.
         /// Custom endpoints, security rules and reports that name the entity are not changed. A
         /// refusal of the API server is 400 VALIDATION with its own message, any other failure of
         /// it 502 UPSTREAM_ERROR; in both cases the name stays.
         /// </summary>
         [HttpPost("{entity}/rename")]
+        [NoAgent]
         [ProducesCacheResetWarning]
         [ProducesResponseType(typeof(EntityResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]

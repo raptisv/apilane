@@ -416,7 +416,7 @@ namespace Apilane.Portal.Tests
                 {
                     "Entity 'Customers' already exists — skipped creation.",
                     "Property 'Customers.NAME' already exists — skipped creation.",
-                    "Constraint on entity 'Customers' (TypeID=1, Properties=' NAME ') already exists — skipped.",
+                    "Constraint on entity 'Customers' (TypeID=1, Properties='Name') already exists — skipped.",
                     "Security item 'Entity Customers - anonymous GET' already exists — skipped.",
                     "Custom endpoint 'getCUSTOMERS' already exists — skipped creation."
                 },
@@ -538,8 +538,8 @@ namespace Apilane.Portal.Tests
             {
                 Entities = new object[]
                 {
-                    Entity("Lines", constraints: new[] { new { TypeID = 2, Properties = "Bill_ID,Bills" } }),
-                    Entity("Bills", constraints: new[] { new { TypeID = 2, Properties = "Customer_ID,Customers" } })
+                    Entity("Lines", properties: new[] { ForeignKeyProperty("Bill_ID") }, constraints: new[] { new { TypeID = 2, Properties = "Bill_ID,Bills" } }),
+                    Entity("Bills", properties: new[] { ForeignKeyProperty("Customer_ID") }, constraints: new[] { new { TypeID = 2, Properties = "Customer_ID,Customers" } })
                 }
             }.ToJsonContent());
 
@@ -562,13 +562,13 @@ namespace Apilane.Portal.Tests
             {
                 Entities = new object[]
                 {
-                    Entity("Comments", constraints: new[] { new { TypeID = 2, Properties = "Task_ID,Tasks" } }),
-                    Entity("Tasks", constraints: new[]
+                    Entity("Comments", properties: new[] { ForeignKeyProperty("Task_ID") }, constraints: new[] { new { TypeID = 2, Properties = "Task_ID,Tasks" } }),
+                    Entity("Tasks", properties: new[] { ForeignKeyProperty("Assignee_ID"), ForeignKeyProperty("Project_ID") }, constraints: new[]
                     {
                         new { TypeID = 2, Properties = "Assignee_ID,Users" },
                         new { TypeID = 2, Properties = "Project_ID,Projects" }
                     }),
-                    Entity("Projects", constraints: new[] { new { TypeID = 2, Properties = "Lead_ID,Users" } })
+                    Entity("Projects", properties: new[] { ForeignKeyProperty("Lead_ID") }, constraints: new[] { new { TypeID = 2, Properties = "Lead_ID,Users" } })
                 }
             }.ToJsonContent());
 
@@ -586,6 +586,7 @@ namespace Apilane.Portal.Tests
             {
                 FillTarget(x);
                 x.DifferentiationEntity = "Companies";
+                x.Entities.Add(SchemaScene.Custom("Companies", Array.Empty<DBWS_EntityProperty>()));
             });
             scene.ScriptApiServer();
 
@@ -594,8 +595,8 @@ namespace Apilane.Portal.Tests
             {
                 Entities = new object[]
                 {
-                    Entity("Desks", constraints: new[] { new { TypeID = 2, Properties = "Office_ID,Offices" } }),
-                    Entity("Offices", constraints: new[] { new { TypeID = 2, Properties = "Company_ID,Companies" } })
+                    Entity("Desks", properties: new[] { ForeignKeyProperty("Office_ID") }, constraints: new[] { new { TypeID = 2, Properties = "Office_ID,Offices" } }),
+                    Entity("Offices", properties: new[] { ForeignKeyProperty("Company_ID") }, constraints: new[] { new { TypeID = 2, Properties = "Company_ID,Companies" } })
                 }
             }.ToJsonContent());
 
@@ -617,7 +618,7 @@ namespace Apilane.Portal.Tests
             {
                 Entities = new[]
                 {
-                    Entity("Comments", constraints: new[]
+                    Entity("Comments", properties: new[] { ForeignKeyProperty("Author_ID"), ForeignKeyProperty("Parent_ID") }, constraints: new[]
                     {
                         new { TypeID = 2, Properties = "Author_ID,Users" },
                         new { TypeID = 2, Properties = "Parent_ID,Comments" }
@@ -642,12 +643,12 @@ namespace Apilane.Portal.Tests
             {
                 Entities = new object[]
                 {
-                    Entity("Alpha", constraints: new[]
+                    Entity("Alpha", properties: new[] { ForeignKeyProperty("User_ID"), ForeignKeyProperty("Bravo_ID") }, constraints: new[]
                     {
                         new { TypeID = 2, Properties = "User_ID,Users" },
                         new { TypeID = 2, Properties = "Bravo_ID,Bravo" }
                     }),
-                    Entity("Bravo", constraints: new[] { new { TypeID = 2, Properties = "Alpha_ID,Alpha" } })
+                    Entity("Bravo", properties: new[] { ForeignKeyProperty("Alpha_ID") }, constraints: new[] { new { TypeID = 2, Properties = "Alpha_ID,Alpha" } })
                 }
             }.ToJsonContent());
 
@@ -854,13 +855,150 @@ namespace Apilane.Portal.Tests
             // The stored foreign key 'Broken' names no property, so it is no conflict for a new one.
             var added = await scene.Owner.PostAsync(ImportUrl(target), new
             {
-                Entities = new[] { Entity("Customers", constraints: new[] { new { TypeID = 2, Properties = "Name,Users" } }) }
+                Entities = new[] { Entity("Customers", properties: new[] { ForeignKeyProperty("Agent_ID") }, constraints: new[] { new { TypeID = 2, Properties = "Agent_ID,Users" } }) }
             }.ToJsonContent());
 
             Assert.Equal(HttpStatusCode.OK, added.StatusCode);
             Assert.Equal(
-                $"[{stored},{SchemaScene.ForeignKey("Name,Users")}]",
+                $"[{stored},{SchemaScene.ForeignKey("Agent_ID,Users")}]",
                 Assert.Single(_portal.ApiServer.RequestsTo(FakeApiServer.GenerateConstraintsPath)).Body);
+        }
+
+        [Theory]
+        [InlineData(1, "Code;marker", "Property 'Code;marker' does not exist or is not a valid constraint identifier")]
+        [InlineData(1, "Code--marker", "Property 'Code--marker' does not exist or is not a valid constraint identifier")]
+        [InlineData(1, "Code]marker", "Property 'Code]marker' does not exist or is not a valid constraint identifier")]
+        [InlineData(1, "Code,,Owner", "Property '' does not exist or is not a valid constraint identifier")]
+        [InlineData(1, "Missing", "Property 'Missing' does not exist or is not a valid constraint identifier")]
+        [InlineData(1, "Code,code", "A property can be listed only once")]
+        [InlineData(1, "Secret", "Property 'Secret' is encrypted and cannot be unique")]
+        [InlineData(2, "Agent_ID,Users;marker", ForeignKeyFormat)]
+        [InlineData(2, "Agent_ID,Users,7", ForeignKeyFormat)]
+        [InlineData(2, "Missing,Users", "Property 'Missing' does not exist or is not a valid constraint identifier")]
+        [InlineData(2, "Agent_ID,Missing", "Entity 'Missing' does not exist or is not a valid constraint identifier")]
+        [InlineData(2, "Code,Users", "A foreign key must use a custom Number property with 0 decimal places")]
+        [InlineData(2, "Amount,Users", "A foreign key must use a custom Number property with 0 decimal places")]
+        [InlineData(2, "Owner,Users", "A foreign key must use a custom Number property with 0 decimal places")]
+        public async Task Import_Invalid_Constraint_On_A_New_Entity_Should_Reject_The_Whole_Payload_Before_Writing(int typeId, string properties, string message)
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+            var before = await scene.StoredSchemaAsync(target);
+            var secret = Property("Secret", PropertyType.String);
+            secret["Encrypted"] = true;
+            var amount = Property("Amount", PropertyType.Number);
+            amount["DecimalPlaces"] = 2;
+
+            // A valid entity comes first, and the invalid constraint's columns are introduced by
+            // this same request. Neither the API server nor tracked metadata may see any changes.
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[]
+                {
+                    Entity("Suppliers"),
+                    Entity("Orders", properties: new[] { Property("Code", PropertyType.String), secret, amount, ForeignKeyProperty("Agent_ID") },
+                        constraints: new[] { new { TypeID = typeId, Properties = properties } })
+                },
+                CustomEndpoints = new[] { new { Name = "Totals", Query = "SELECT 1" } }
+            }.ToJsonContent());
+
+            await SchemaScene.AssertValidationAsync(response, $"Entities[1].Constraints[0].Properties: {message}");
+            Assert.Equal(before, await scene.StoredSchemaAsync(target));
+            await AssertNothingAppliedAsync(scene, target);
+        }
+
+        [Theory]
+        [InlineData(1, "Secret", "Property 'Secret' is encrypted and cannot be unique")]
+        [InlineData(2, "Code,Users", "A foreign key must use a custom Number property with 0 decimal places")]
+        [InlineData(2, "Amount,Users", "A foreign key must use a custom Number property with 0 decimal places")]
+        [InlineData(2, "Customer_ID,Files", "A foreign key cannot point to Files")]
+        public async Task Import_Constraint_Should_Check_Stored_Property_Types_And_Disallowed_Foreign_Entities(int typeId, string properties, string message)
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", application =>
+            {
+                FillSource(application);
+                application.Entities.Add(SchemaScene.Custom("Files", Array.Empty<DBWS_EntityProperty>()));
+            });
+            scene.ScriptApiServer();
+            var before = await scene.StoredSchemaAsync(target);
+
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[]
+                {
+                    Entity("Suppliers"),
+                    Entity("Orders", requireChangeTracking: true, constraints: new[] { new { TypeID = typeId, Properties = properties } })
+                }
+            }.ToJsonContent());
+
+            await SchemaScene.AssertValidationAsync(response, $"Entities[1].Constraints[0].Properties: {message}");
+            Assert.Equal(before, await scene.StoredSchemaAsync(target));
+            Assert.Empty(_portal.ApiServer.Requests);
+            Assert.Empty(await scene.AuditAsync(target));
+        }
+
+        [Fact]
+        public async Task Import_Constraint_Should_Use_Canonical_Names_From_Existing_And_Later_Imported_Schema()
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", FillTarget);
+            scene.ScriptApiServer();
+
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[]
+                {
+                    Entity("Orders", properties: new[] { ForeignKeyProperty("Agent_ID"), ForeignKeyProperty("Invoice_ID") }, constraints: new[]
+                    {
+                        new { TypeID = 1, Properties = " agent_id , owner " },
+                        new { TypeID = 2, Properties = " agent_id , users , 1 " },
+                        new { TypeID = 2, Properties = " invoice_id , invoices " }
+                    }),
+                    Entity("Invoices")
+                }
+            }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var constraints = JsonSerializer.Deserialize<List<EntityConstraint>>(
+                Assert.Single(_portal.ApiServer.RequestsTo(FakeApiServer.GenerateConstraintsPath)).Body)
+                ?? throw new InvalidOperationException("No constraints.");
+            Assert.Equal(new[] { "Agent_ID,Owner", "Agent_ID,Users,ON_DELETE_SET_NULL", "Invoice_ID,Invoices" },
+                constraints.Where(x => !x.IsSystem).Select(x => x.Properties));
+        }
+
+        [Theory]
+        [InlineData("Agent_ID,Users,1", " agent_id , USERS , ON_DELETE_SET_NULL ")]
+        [InlineData("Agent_ID,Users,ON_DELETE_SET_NULL", " agent_id , USERS , 1 ")]
+        [InlineData("Agent_ID,Users", " agent_id , USERS , 0 ")]
+        [InlineData("Agent_ID,Users,0", " agent_id , USERS ")]
+        public async Task Import_Equivalent_Constraint_After_Canonicalization_Should_Skip_Without_Changing_Stored_Metadata(string stored, string imported)
+        {
+            var scene = await SchemaScene.CreateAsync(_portal);
+            var target = await scene.AddApplicationAsync("target", application =>
+            {
+                FillSource(application);
+                application.Entities.Single(x => x.Name == "Orders").EntConstraints =
+                    $"[{SchemaScene.OwnerConstraint},{SchemaScene.ForeignKey(stored)},{SchemaScene.Unique(" Code , Owner ")}]";
+            });
+            scene.ScriptApiServer();
+            var before = await scene.StoredSchemaAsync(target);
+
+            var response = await scene.Owner.PostAsync(ImportUrl(target), new
+            {
+                Entities = new[] { Entity("Orders", requireChangeTracking: true, constraints: new[]
+                {
+                    new { TypeID = 1, Properties = " owner , CODE " },
+                    new { TypeID = 2, Properties = imported }
+                }) }
+            }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(3, (await response.ReadJsonAsync<SchemaImportResponse>()).Warnings.Count);
+            Assert.Equal(FakeApiServer.ClearCachePath, Assert.Single(_portal.ApiServer.Requests).Path);
+            Assert.Equal(before, await scene.StoredSchemaAsync(target));
+            Assert.Empty(await scene.AuditAsync(target));
         }
 
         [Fact]
@@ -1013,7 +1151,7 @@ namespace Apilane.Portal.Tests
             await AssertStoppedAsync(
                 response,
                 "Entities[0].Constraints[1].Properties",
-                "Entity 'Orders': FK constraint on local property 'agent_id' already exists with different configuration (existing: 'Agent_ID,Users,ON_DELETE_SET_NULL', import: 'agent_id,Customers').");
+                "Entity 'Orders': FK constraint on local property 'Agent_ID' already exists with different configuration (existing: 'Agent_ID,Users,ON_DELETE_SET_NULL', import: 'Agent_ID,Customers').");
 
             Assert.Empty(_portal.ApiServer.Requests);
             Assert.Equal(before, await scene.StoredSchemaAsync(target));
@@ -1231,7 +1369,8 @@ namespace Apilane.Portal.Tests
             // action of a foreign key may be written as its number, 0 to 2: not 7, and not a
             // number too large to read.
             var response = await scene.Owner.PostAsync(ImportUrl(target), Json(
-                "{\"Entities\":[{\"Name\":\"Suppliers\"},null,{\"Name\":\"Bills\",\"Properties\":[null],\"Constraints\":[null," +
+                "{\"Entities\":[{\"Name\":\"Suppliers\"},null,{\"Name\":\"Bills\",\"Properties\":[null," +
+                "{\"Name\":\"Customer_ID\",\"TypeID\":2,\"DecimalPlaces\":0},{\"Name\":\"Agent_ID\",\"TypeID\":2,\"DecimalPlaces\":0}],\"Constraints\":[null," +
                 "{\"TypeID\":2,\"Properties\":\"Customer_ID\"},{\"TypeID\":2,\"Properties\":null},{\"TypeID\":2,\"Properties\":\"Customer_ID,Customers,ON_DELETE_EXPLODE\"}," +
                 "{\"TypeID\":2,\"Properties\":\"Customer_ID,Customers,ON_DELETE_CASCADE\"},{\"TypeID\":1,\"Properties\":null}," +
                 "{\"TypeID\":2,\"Properties\":\"Customer_ID,Customers,7\"},{\"TypeID\":2,\"Properties\":\"Customer_ID,Customers,99999999999\"}," +
@@ -2148,6 +2287,13 @@ namespace Apilane.Portal.Tests
                 ["ValidationRegex"] = null,
                 ["Description"] = null
             };
+        }
+
+        private static Dictionary<string, object?> ForeignKeyProperty(string name)
+        {
+            var property = Property(name, PropertyType.Number);
+            property["DecimalPlaces"] = 0;
+            return property;
         }
 
         /// <summary>

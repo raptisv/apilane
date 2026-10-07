@@ -38,6 +38,13 @@ import HelpSheet from '@/components/HelpSheet.vue'
         An agent can never be an administrator or delete an application. Rebuilding and deletion within selected areas
         require separate permission from the application owner.
       </p>
+      <p>
+        Renaming entities or properties and changing mail settings always require a person, regardless of the agent's
+        rights. Email settings offer read access only. Renaming a custom endpoint follows its existing permissions.
+      </p>
+      <p>
+        Older permission to change email settings no longer applies. The agent keeps its other permissions.
+      </p>
     </HelpItem>
 
     <HelpItem title="Revoke access">

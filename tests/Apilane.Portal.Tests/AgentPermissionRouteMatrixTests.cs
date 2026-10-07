@@ -33,7 +33,7 @@ namespace Apilane.Portal.Tests
             Delete("/custom-endpoints/{id}", "custom-endpoints"),
             new("POST", "/custom-endpoints/preview", AgentPermissionAccess.Read, new[] { "custom-endpoints" }),
             Read("/email-settings", "email-settings"),
-            Write("PUT", "/email-settings", "email-settings"),
+            Human("PUT", "/email-settings"),
             new("GET", "/permissions", null, Array.Empty<string>(), Discovery: true),
             Read("/reports", "reports"),
             Read("/reports/{reportId}", "reports"),
@@ -54,7 +54,7 @@ namespace Apilane.Portal.Tests
             Write("POST", "/entities", "entities"),
             Write("PUT", "/entities/{entity}", "entities"),
             Delete("/entities/{entity}", "entities"),
-            Write("POST", "/entities/{entity}/rename", "entities"),
+            Human("POST", "/entities/{entity}/rename"),
             Read("/entities/{entity}/constraints", "entities"),
             Write("PUT", "/entities/{entity}/constraints", "entities"),
             Read("/entities/{entity}/default-order", "entities"),
@@ -73,7 +73,7 @@ namespace Apilane.Portal.Tests
             Write("POST", "/entities/{entity}/properties", "entities"),
             Write("PUT", "/entities/{entity}/properties/{property}", "entities"),
             Delete("/entities/{entity}/properties/{property}", "entities"),
-            Write("POST", "/entities/{entity}/properties/{property}/rename", "entities"),
+            Human("POST", "/entities/{entity}/properties/{property}/rename"),
             Read("/schema-import/diff", "schema", "entities", "security", "custom-endpoints"),
             Write("POST", "/schema-import", "schema")
         };
@@ -95,7 +95,9 @@ namespace Apilane.Portal.Tests
                 var metadata = action.ActionDescriptor.EndpointMetadata;
                 Assert.Equal(expected.Discovery, metadata.OfType<AgentPermissionDiscoveryAttribute>().Any());
                 Assert.Equal(expected.Access is null && !expected.Discovery, metadata.OfType<NoAgentAttribute>().Any());
-                var requirements = metadata.OfType<AgentPermissionAttribute>().ToList();
+                // NoAgent takes precedence over any permission inherited from its controller.
+                var requirements = metadata.OfType<NoAgentAttribute>().Any()
+                    ? new List<AgentPermissionAttribute>() : metadata.OfType<AgentPermissionAttribute>().ToList();
                 Assert.Equal(expected.Resources.OrderBy(x => x, StringComparer.Ordinal), requirements.Select(x => x.Resource).OrderBy(x => x, StringComparer.Ordinal));
                 Assert.All(requirements, requirement => Assert.Equal(expected.Access, requirement.GetAccess(expected.Method)));
             }

@@ -30,10 +30,8 @@ namespace Apilane.Portal.Tests
         [Theory]
         [InlineData("entities", "entity-create")]
         [InlineData("entities", "entity-update")]
-        [InlineData("entities", "entity-rename")]
         [InlineData("entities", "property-create")]
         [InlineData("entities", "property-update")]
-        [InlineData("entities", "property-rename")]
         [InlineData("entities", "constraints")]
         [InlineData("entities", "default-order")]
         [InlineData("security", "security-settings")]
@@ -41,7 +39,6 @@ namespace Apilane.Portal.Tests
         [InlineData("reports", "report-create")]
         [InlineData("reports", "report-update")]
         [InlineData("reports", "report-layout")]
-        [InlineData("email-settings", "email-settings")]
         [InlineData("application", "application-settings")]
         [InlineData("application", "cache-reset")]
         public async Task Write_Should_Require_The_Correct_Resource_And_Apply_Only_After_It_Is_Granted(string resource, string operation)
@@ -94,6 +91,34 @@ namespace Apilane.Portal.Tests
             Assert.Equal(after, await SnapshotAsync(scene.Entity.AppId));
             Assert.Equal(auditCount, (await scene.Entity.AuditRowsAsync(scene.Email)).Count);
             Assert.Empty(_portal.ApiServer.Requests);
+        }
+
+        [Theory]
+        [InlineData("entity-rename")]
+        [InlineData("property-rename")]
+        [InlineData("email-settings")]
+        public async Task Permanently_Restricted_Writes_Should_Refuse_Even_Full_Grants_Without_Effects(string operation)
+        {
+            var scene = await CreateSceneAsync();
+            var call = RequestFor(operation, scene.ReportId);
+            var before = await SnapshotAsync(scene.Entity.AppId);
+
+            await AssertDeniedWithoutEffectsAsync(scene, call, before);
+
+            var discovery = await (await scene.Agent.GetAsync($"{scene.Entity.AppUrl}/permissions"))
+                .ReadJsonAsync<ApplicationPermissionsResponse>();
+            await SetPermissionsAsync(scene, discovery.Resources.Select(x => new AgentPermissionGrant
+            {
+                Resource = x.Resource,
+                Read = x.CanRead,
+                Write = x.CanWrite,
+                Delete = x.CanDelete
+            }).ToArray());
+
+            // Valid requests remain forbidden when every supported permission is granted.
+            // Successful upstream responses ensure a missing guard would allow the mutation.
+            ScriptApiServer();
+            await AssertDeniedWithoutEffectsAsync(scene, call, before);
         }
 
         private record Scene(EntityScene Entity, HttpClient Agent, string Email, long CollaborationId, long ReportId);
@@ -165,10 +190,10 @@ namespace Apilane.Portal.Tests
                 "entity-create" => new(HttpMethod.Post, "/entities", new { Name = "Products", Description = "Allowed creation" }, HttpStatusCode.Created,
                     FakeApiServer.GetSystemPropertiesAndConstraintsPath, FakeApiServer.GenerateEntityPath, cache),
                 "entity-update" => new(HttpMethod.Put, "/entities/Orders", new { Description = "Allowed edit", RequireChangeTracking = true }, HttpStatusCode.OK, cache),
-                "entity-rename" => new(HttpMethod.Post, "/entities/Invoices/rename", new { NewName = "Renamed" }, HttpStatusCode.OK, FakeApiServer.RenameEntityPath, cache),
+                "entity-rename" => new(HttpMethod.Post, "/entities/Invoices/rename", new { NewName = "Renamed" }, HttpStatusCode.Forbidden),
                 "property-create" => new(HttpMethod.Post, "/entities/Orders/properties", new { Name = "Notes", Type = "String" }, HttpStatusCode.Created, FakeApiServer.GeneratePropertyPath, cache),
                 "property-update" => new(HttpMethod.Put, "/entities/Orders/properties/Amount", new { Description = "Allowed edit", Minimum = 1, Maximum = 99 }, HttpStatusCode.OK, cache),
-                "property-rename" => new(HttpMethod.Post, "/entities/Orders/properties/Paid/rename", new { NewName = "Settled" }, HttpStatusCode.OK, FakeApiServer.RenameEntityPropertyPath, cache),
+                "property-rename" => new(HttpMethod.Post, "/entities/Orders/properties/Paid/rename", new { NewName = "Settled" }, HttpStatusCode.Forbidden),
                 "constraints" => new(HttpMethod.Put, "/entities/Orders/constraints", new { Constraints = new[] { new { Type = "Unique", Properties = new[] { "Amount" } } } }, HttpStatusCode.OK, FakeApiServer.GenerateConstraintsPath, cache),
                 "default-order" => new(HttpMethod.Put, "/entities/Orders/default-order", new { Items = new[] { new { Property = "Amount", Direction = "desc" } } }, HttpStatusCode.OK, cache),
                 "security-settings" => new(HttpMethod.Put, "/security/settings", new
@@ -187,7 +212,7 @@ namespace Apilane.Portal.Tests
                 {
                     MailServer = "smtp.agent.test", MailServerPort = 587, MailFromAddress = "agent@example.test",
                     MailFromDisplayName = "Agent", MailUserName = "agent", MailPassword = "test-password", EmailConfirmationRedirectUrl = "https://example.test/confirmed"
-                }, HttpStatusCode.OK, cache),
+                }, HttpStatusCode.Forbidden),
                 "application-settings" => new(HttpMethod.Put, string.Empty, new { Name = "Allowed application" }, HttpStatusCode.OK, cache),
                 "cache-reset" => new(HttpMethod.Post, "/cache-reset", null, HttpStatusCode.NoContent, cache),
                 _ => throw new ArgumentOutOfRangeException(nameof(operation))
@@ -243,10 +268,6 @@ namespace Apilane.Portal.Tests
                     Assert.Equal("Allowed edit", orders.Description);
                     Assert.True(orders.RequireChangeTracking);
                     break;
-                case "entity-rename":
-                    Assert.Contains(entities, x => x.Name == "Renamed");
-                    Assert.DoesNotContain(entities, x => x.Name == "Invoices");
-                    break;
                 case "property-create":
                     Assert.Contains(orders.Properties, x => x.Name == "Notes" && x.TypeID == (int)PropertyType.String);
                     break;
@@ -255,10 +276,6 @@ namespace Apilane.Portal.Tests
                     Assert.Equal("Allowed edit", amount.Description);
                     Assert.Equal(1, amount.Minimum);
                     Assert.Equal(99, amount.Maximum);
-                    break;
-                case "property-rename":
-                    Assert.Contains(orders.Properties, x => x.Name == "Settled");
-                    Assert.DoesNotContain(orders.Properties, x => x.Name == "Paid");
                     break;
                 case "constraints":
                     Assert.Contains(orders.Constraints ?? new List<EntityConstraint>(), x => !x.IsSystem && x.Properties == "Amount");
@@ -287,11 +304,6 @@ namespace Apilane.Portal.Tests
                         var rule = Assert.Single(JsonSerializer.Deserialize<List<DBWS_Security>>(app.Security ?? string.Empty) ?? new List<DBWS_Security>());
                         Assert.Equal("Orders", rule.Name);
                         Assert.Equal("Amount", rule.Properties);
-                    }
-                    else if (operation == "email-settings")
-                    {
-                        Assert.Equal("smtp.agent.test", app.MailServer);
-                        Assert.Equal("test-password", app.MailPassword);
                     }
                     else
                     {

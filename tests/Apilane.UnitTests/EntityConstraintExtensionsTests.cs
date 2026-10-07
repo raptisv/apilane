@@ -92,6 +92,28 @@ namespace Apilane.UnitTests
             Assert.ThrowsExactly<InvalidOperationException>(() => constraint.GetUniqueProperties());
         }
 
+        [TestMethod]
+        [DataRow("Name;marker")]
+        [DataRow("Name--marker")]
+        [DataRow("Name]marker")]
+        [DataRow("Name/*marker*/")]
+        [DataRow("Name,,Other")]
+        [DataRow("Name,")]
+        public void GetUniqueProperties_InvalidIdentifier_ThrowsBeforeSqlCanBeBuilt(string properties)
+        {
+            var constraint = new EntityConstraint { TypeID = (int)ConstraintType.Unique, Properties = properties };
+
+            Assert.ThrowsExactly<InvalidOperationException>(() => constraint.GetUniqueProperties());
+        }
+
+        [TestMethod]
+        public void GetUniqueProperties_WhitespaceAndSafeLegacyNames_ReturnsIdentifiers()
+        {
+            var constraint = new EntityConstraint { TypeID = (int)ConstraintType.Unique, Properties = " _Name2 , ID " };
+
+            CollectionAssert.AreEquivalent(new List<string> { "_Name2", "ID" }, constraint.GetUniqueProperties());
+        }
+
         // ─── GetForeignKeyProperties ───────────────────────────────────────────
 
         [TestMethod]
@@ -160,6 +182,35 @@ namespace Apilane.UnitTests
             };
 
             Assert.ThrowsExactly<InvalidOperationException>(() => constraint.GetForeignKeyProperties());
+        }
+
+        [TestMethod]
+        [DataRow("Company_ID;marker,Companies")]
+        [DataRow("Company_ID,Companies--marker")]
+        [DataRow("Company_ID,Companies]marker")]
+        [DataRow("Company_ID,,Companies")]
+        [DataRow("Company_ID,Companies,")]
+        [DataRow("Company_ID,Companies,7")]
+        public void GetForeignKeyProperties_InvalidIdentifierOrAction_ThrowsBeforeSqlCanBeBuilt(string properties)
+        {
+            var constraint = new EntityConstraint { TypeID = (int)ConstraintType.ForeignKey, Properties = properties };
+
+            Assert.ThrowsExactly<InvalidOperationException>(() => constraint.GetForeignKeyProperties());
+        }
+
+        [TestMethod]
+        [DataRow(0)]
+        [DataRow(1)]
+        [DataRow(2)]
+        public void GetForeignKeyProperties_WhitespaceSafeLegacyNamesAndNumericAction_ReturnsIdentifiers(int action)
+        {
+            var constraint = new EntityConstraint { TypeID = (int)ConstraintType.ForeignKey, Properties = $" _Company2_ID , Companies2 , {action} " };
+
+            var (property, entity, logic) = constraint.GetForeignKeyProperties();
+
+            Assert.AreEqual("_Company2_ID", property);
+            Assert.AreEqual("Companies2", entity);
+            Assert.AreEqual((ForeignKeyLogic)action, logic);
         }
 
         // ─── GetForeignKeyPropertiesAsList ─────────────────────────────────────

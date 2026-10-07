@@ -121,8 +121,9 @@ namespace Apilane.Portal.Api.V1.Contracts
     }
 
     /// <summary>
-    /// A constraint to add to the entity, as it is stored. One that the entity already has (same
-    /// TypeID and Properties, whatever the letter case) is skipped with a warning.
+    /// A constraint to add to the entity. References are validated against the complete imported
+    /// schema and normalized to its names before any changes. An equivalent existing constraint
+    /// is skipped with a warning, ignoring name casing, whitespace and unique-property order.
     /// </summary>
     public class SchemaImportConstraint
     {
@@ -141,7 +142,10 @@ namespace Apilane.Portal.Api.V1.Contracts
         /// <summary>
         /// Unique: the property names, separated by commas ('Code' or 'Code,Owner'). ForeignKey:
         /// 'Property,Entity' or 'Property,Entity,ON_DELETE_NO_ACTION' (or ON_DELETE_SET_NULL,
-        /// ON_DELETE_CASCADE). A unique constraint without properties is ignored.
+        /// ON_DELETE_CASCADE, also numeric 0, 1, 2). Every name must be a valid identifier of an
+        /// existing or imported item. Unique properties must be unencrypted and listed once.
+        /// A foreign key needs a custom Number property with 0 decimal places and cannot point
+        /// to Files. A unique constraint without properties is ignored.
         /// </summary>
         public string? Properties { get; set; }
     }

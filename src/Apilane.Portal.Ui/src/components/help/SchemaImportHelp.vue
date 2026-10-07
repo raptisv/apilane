@@ -37,6 +37,12 @@ const codeClass = 'rounded-sm bg-muted px-1 font-mono text-xs text-foreground'
         </li>
         <li>A custom endpoint whose name already exists is skipped, whatever its query.</li>
         <li>
+          Constraints are checked before any changes: their properties and referenced entities must exist in this
+          application or the payload. Unique properties must be unencrypted. A foreign key needs a custom Number
+          property with 0 decimal places and cannot point to Files. Names are matched ignoring letter case and saved
+          with their schema spelling; SQL expressions are refused.
+        </li>
+        <li>
           Security rules are identified by <code :class="codeClass">TypeID + Name + RoleID + Action</code>. Identical entries
           are skipped; differing ones cause an error.
         </li>

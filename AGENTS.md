@@ -262,6 +262,10 @@ both: addresses, behaviour, known limits, open decisions, commands, layout and c
   `[AgentPermissionDiscovery]` (only common summaries and access discovery), or `[NoAgent]`: `PortalAgentPermissionFilter`
   denies unclassified actions. Grants live in the separate `AgentPermissions` table; missing policies mean read-only,
   and owners edit them through Sharing. GET `{app}/permissions` exposes effective grants and operation requirements.
+  Agents can never rename entities or properties, or update application mail settings (SMTP and confirmation redirects),
+  regardless of grants: those actions stay `[NoAgent]`. `email-settings` supports Read only. On reading saved policies,
+  retire only its former Write flag and retain unrelated grants; reject that Write flag in new policies.
+  Custom endpoint renames retain their existing permission rules.
   Check every affected application/resource for bulk and cross-application operations before side effects. Add a marked
   action to the refused calls of `Key_Should_Be_Refused_On_Deletes_Admin_Routes_And_The_Marked_Actions` in
   `tests/Apilane.Portal.Tests/AgentsApiTests.cs`. See "Agents" in `src/Apilane.Portal.Ui/README.md`; the page for people who

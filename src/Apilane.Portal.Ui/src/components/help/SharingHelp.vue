@@ -51,7 +51,12 @@ import HelpSheet from '@/components/HelpSheet.vue'
         <li>The application summary stays visible so the agent can identify its shared applications, even when every area is set to None.</li>
         <li>An agent can discover its current rights through the management API, including which operations it may call.</li>
         <li>Sharing, deleting the application, reading its encryption key and instance administration remain for people.</li>
+        <li>Agents can never rename entities or properties, or change mail settings, regardless of their rights. Email settings offer Read only.</li>
       </ul>
+      <p>
+        Older permission to change email settings no longer applies; other permissions are kept. Custom endpoint renames
+        continue to use their existing permissions.
+      </p>
       <p>
         Write access can still have wide effects: security rights replace access rules, entity rights can change constraints,
         and custom endpoint rights can save SQL. Grant only what the agent needs for its work.

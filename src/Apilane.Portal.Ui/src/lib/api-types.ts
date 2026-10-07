@@ -414,9 +414,10 @@ export interface paths {
         /**
          * Saves the SMTP settings and the e-mail confirmation redirect URL, all together. Every
          *     value is written (null or empty clears it) except MailPassword, which null keeps and an
-         *     empty string clears. For the owner and collaborators. A 'Warning' response header means
-         *     the settings were saved and the API server could not be refreshed: it keeps sending
-         *     with the old settings until its cache expires.
+         *     empty string clears. For human owners and collaborators only: agents cannot change
+         *     mail transport or confirmation redirects, regardless of their application grants.
+         *     A 'Warning' response header means the settings were saved and the API server could not
+         *     be refreshed: it keeps sending with the old settings until its cache expires.
          */
         put: operations["ApplicationEmailSettings_Update"];
         post?: never;
@@ -794,7 +795,8 @@ export interface paths {
         put?: never;
         /**
          * Renames a custom entity and its table on the API server. The entity's URL changes with
-         *     its name. Answers 409 CONFLICT for a system entity, when a foreign key of any entity
+         *     its name. Portal agents are always refused (403), regardless of their grants.
+         *     Answers 409 CONFLICT for a system entity, when a foreign key of any entity
          *     points to it, and when another entity has the new name, whatever its letter case.
          *     Custom endpoints, security rules and reports that name the entity are not changed. A
          *     refusal of the API server is 400 VALIDATION with its own message, any other failure of
@@ -1295,7 +1297,8 @@ export interface paths {
         put?: never;
         /**
          * Renames a custom property and its column on the API server. The property's URL changes
-         *     with its name. Answers 409 CONFLICT for a system property, for a property that a unique
+         *     with its name. Portal agents are always refused (403), regardless of their grants.
+         *     Answers 409 CONFLICT for a system property, for a property that a unique
          *     or foreign key constraint of the entity names (remove the constraint first), and when
          *     another property of the entity has the new name, whatever its letter case. A change of
          *     letter case only (Price to price) is stored in the Portal but the API server keeps the
@@ -1373,8 +1376,11 @@ export interface paths {
          *     property list or rate limit. An existing custom endpoint is skipped whatever its query.
          *     Also 400 VALIDATION, before anything is applied: a missing Name, RoleID, Action or
          *     Query, a constraint TypeID other than 1 or 2, a constraint with IsSystem true, a null
-         *     list item, a foreign key that is not 'Property,Entity[,ON_DELETE_x]', a rate limit
-         *     with MaxRequests below 1 or a TimeWindowType other than 0 to 3, the name of a new
+         *     list item, a foreign key that is not 'Property,Entity[,ON_DELETE_x]', a malformed
+         *     constraint reference, a constraint naming a missing property or
+         *     entity in the complete imported schema, an encrypted unique property, a repeated unique
+         *     property, a foreign key on a system or non-integer property or pointing to Files,
+         *     a rate limit with MaxRequests below 1 or a TimeWindowType other than 0 to 3, the name of a new
          *     entity, property or custom endpoint that its own create endpoint would refuse, a new
          *     property with an unknown TypeID, and every security rule that PUT security/rules would
          *     refuse, one error for each rule with its place (Security[2].Action): a TypeID other than
@@ -2814,8 +2820,9 @@ export interface components {
             ConfirmPassword: string;
         };
         /**
-         * @description A constraint to add to the entity, as it is stored. One that the entity already has (same
-         *     TypeID and Properties, whatever the letter case) is skipped with a warning.
+         * @description A constraint to add to the entity. References are validated against the complete imported
+         *     schema and normalized to its names before any changes. An equivalent existing constraint
+         *     is skipped with a warning, ignoring name casing, whitespace and unique-property order.
          */
         SchemaImportConstraint: {
             /**
@@ -2831,7 +2838,10 @@ export interface components {
             /**
              * @description Unique: the property names, separated by commas ('Code' or 'Code,Owner'). ForeignKey:
              *     'Property,Entity' or 'Property,Entity,ON_DELETE_NO_ACTION' (or ON_DELETE_SET_NULL,
-             *     ON_DELETE_CASCADE). A unique constraint without properties is ignored.
+             *     ON_DELETE_CASCADE, also numeric 0, 1, 2). Every name must be a valid identifier of an
+             *     existing or imported item. Unique properties must be unencrypted and listed once.
+             *     A foreign key needs a custom Number property with 0 decimal places and cannot point
+             *     to Files. A unique constraint without properties is ignored.
              */
             Properties?: string | null;
         };

@@ -3,6 +3,7 @@ using Apilane.Common.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace Apilane.Common.Extensions
 {
@@ -17,7 +18,8 @@ namespace Apilane.Common.Extensions
 
             if (!string.IsNullOrWhiteSpace(constraint.Properties))
             {
-                return constraint.Properties.Split(',', StringSplitOptions.RemoveEmptyEntries).Where(x => !string.IsNullOrWhiteSpace(x)).OrderBy(x => x).Distinct().ToList();
+                return constraint.Properties.Split(',', StringSplitOptions.TrimEntries)
+                    .Select(ValidateIdentifier).OrderBy(x => x).Distinct().ToList();
             }
 
             return new List<string>();
@@ -43,14 +45,18 @@ namespace Apilane.Common.Extensions
 
             if (!string.IsNullOrWhiteSpace(constraint.Properties))
             {
-                var list = constraint.Properties.Split(',', StringSplitOptions.RemoveEmptyEntries).Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+                var list = constraint.Properties.Split(',', StringSplitOptions.TrimEntries).ToList();
                 if (list.Count == 2)
                 {
-                    return (list[0], list[1], ForeignKeyLogic.ON_DELETE_NO_ACTION); // Default is no action
+                    return (ValidateIdentifier(list[0]), ValidateIdentifier(list[1]), ForeignKeyLogic.ON_DELETE_NO_ACTION); // Default is no action
                 }
-                else if(list.Count == 3)
+                else if (list.Count == 3)
                 {
-                    return (list[0], list[1], (ForeignKeyLogic)Enum.Parse(typeof(ForeignKeyLogic), list[2]));
+                    if (!Enum.TryParse<ForeignKeyLogic>(list[2], out var logic) || !Enum.IsDefined(logic))
+                    {
+                        throw new InvalidOperationException("Invalid foreign key on-delete action");
+                    }
+                    return (ValidateIdentifier(list[0]), ValidateIdentifier(list[1]), logic);
                 }
                 else
                 {
@@ -59,6 +65,19 @@ namespace Apilane.Common.Extensions
             }
 
             throw new InvalidOperationException($"Invalid properties on FK contraint | Properties '{constraint.Properties}'");
+        }
+
+        // SQL builders compose constraint names from these parts as well as quoting columns.
+        // Keep fragments, delimiters and empty names out before any database command is built.
+        // Digits after the first character allow safe legacy identifiers in addition to the
+        // letters/underscores accepted by today's entity and property creation endpoints.
+        private static string ValidateIdentifier(string identifier)
+        {
+            if (!Regex.IsMatch(identifier, @"\A[A-Za-z_][A-Za-z0-9_]*\z"))
+            {
+                throw new InvalidOperationException("Invalid constraint identifier");
+            }
+            return identifier;
         }
     }
 }

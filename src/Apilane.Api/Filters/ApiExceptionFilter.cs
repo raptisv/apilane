@@ -11,6 +11,7 @@ using Apilane.Api.Models.ViewModels;
 using Apilane.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
@@ -75,10 +76,9 @@ namespace Apilane.Api.Filters
                     error = appError;
                     message = errorMessage;
                 }
-                else if (context.Exception is Microsoft.Data.SqlClient.SqlException sqlServerException &&
-                        (sqlServerException.Number == 2627 || sqlServerException.Number == 515 || sqlServerException.Number == 547))
+                else if (context.Exception is SqlException sqlServerException)
                 {
-                    property = sqlServerException.Message.TryExtractPropertyFromSqlServerUniqueConstraintException(entity, out var appError, out string errorMessage);
+                    property = sqlServerException.TryExtractPropertyFromSqlServerConstraintException(entity, out var appError, out string errorMessage);
                     error = appError;
                     message = errorMessage;
                 }
@@ -119,9 +119,11 @@ namespace Apilane.Api.Filters
 
             var displayMessage = message ?? EnumProvider<AppErrors>.GetDisplayValue(error);
 
-            if (userHasFullAccess && displayMessage.Equals(Globals.GeneralError))
+            if (userHasFullAccess && displayMessage.Equals(Globals.GeneralError) && context.Exception is not SqlException)
             {
-                // For admins, display a more descriptive error instead of the general error message.
+                // SQL errors may contain stored record values, including when a Portal agent calls
+                // a management operation. Never replace their sanitized result with driver text.
+                // Preserve the existing diagnostics for other privileged errors.
                 displayMessage = context.Exception.Message;
             }
 
@@ -262,52 +264,62 @@ namespace Apilane.Api.Filters
             return string.Empty;
         }
 
-        public static string TryExtractPropertyFromSqlServerUniqueConstraintException(
-            this string exceptionMessage,
-            string entityName,
+        public static string TryExtractPropertyFromSqlServerConstraintException(
+            this SqlException exception,
+            string? entityName,
             out AppErrors appError,
             out string errorMessage)
         {
-            // The unique contraint ex message will have the following format
-            /*
-                 Violation of UNIQUE KEY constraint 'UNIQUE_TestConstraints_TestConstraints_Str'. Cannot insert duplicate key in object 'dbo.TestConstraints'. The duplicate key value is (1).
-                 The statement has been terminated.
-            */
-
-            // The FK ex message will have the following format
-            /*
-                The INSERT statement conflicted with the FOREIGN KEY constraint "FOREIGN_KEY_TestEntity_TestInt_AuthTokens".The conflict occurred in database "TestConstraint", table "dbo.AuthTokens", column 'ID'.
-                The statement has been terminated.
-             */
-
-            // The not null ex message will have the following format
-            /*
-                Cannot insert the value NULL into column 'TestInt', table 'TestConstraint.dbo.TestEntity'; column does not allow nulls.INSERT fails.
-                The statement has been terminated.
-             */
-
-
             appError = AppErrors.ERROR;
             errorMessage = Globals.GeneralError;
-            
-            if (exceptionMessage.Contains("Violation of UNIQUE KEY constraint"))
+
+            // A failed index build can report 1750 or a statement-termination error before 1505.
+            // Inspect the full collection; the combined Message also contains duplicate values.
+            var errors = exception.Errors.Cast<SqlError>().ToList();
+            if (errors.Any(error => error.Number == 1505))
             {
                 appError = AppErrors.UNIQUE_CONSTRAINT_VIOLATION;
-                errorMessage = "Value already exists";
-                return exceptionMessage.Split('.').FirstOrDefault()?.Trim('\'')?.Split('\'')
-                    ?.LastOrDefault()?.Replace($"UNIQUE_{entityName}", string.Empty, System.StringComparison.OrdinalIgnoreCase)
-                    ?.Trim('_') ?? string.Empty;
+                errorMessage = "Cannot create a unique constraint because duplicate values exist. Remove duplicate values and try again.";
+                return string.Empty;
             }
-            else if (exceptionMessage.Contains("Cannot insert the value NULL"))
+
+            var constraintError = errors.FirstOrDefault(error => error.Number is 2601 or 2627 or 515 or 547);
+            if (constraintError is null)
             {
-                appError = AppErrors.REQUIRED;
-                errorMessage = "Required";
-                return exceptionMessage.Split(',').FirstOrDefault()?.Split(' ')?.LastOrDefault()?.Trim('\'') ?? string.Empty;
+                return string.Empty;
             }
-            else if (exceptionMessage.Contains("FOREIGN KEY constraint"))
+
+            switch (constraintError.Number)
             {
-                appError = AppErrors.FOREIGN_KEY_CONSTRAINT_VIOLATION;
-                errorMessage = "Foreign key constraint violation";
+                case 2601:
+                case 2627:
+                {
+                    appError = AppErrors.UNIQUE_CONSTRAINT_VIOLATION;
+                    errorMessage = "Value already exists";
+
+                    // Parse only the constraint name at the start of this one error, never the
+                    // duplicate value or text appended by another error in the same batch.
+                    var match = Regex.Match(constraintError.Message, "\\AViolation of UNIQUE KEY constraint '(?<name>[^']+)'\\.");
+                    var constraintName = match.Groups["name"].Value;
+                    var prefix = $"UNIQUE_{entityName}_";
+                    return !string.IsNullOrEmpty(entityName) && constraintName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                        ? constraintName.Substring(prefix.Length)
+                        : string.Empty;
+                }
+
+                case 515:
+                {
+                    appError = AppErrors.REQUIRED;
+                    errorMessage = "Required";
+                    return Regex.Match(constraintError.Message, "\\ACannot insert the value NULL into column '(?<name>[^']+)'").Groups["name"].Value;
+                }
+
+                case 547 when constraintError.Message.Contains("FOREIGN KEY constraint", StringComparison.Ordinal):
+                {
+                    appError = AppErrors.FOREIGN_KEY_CONSTRAINT_VIOLATION;
+                    errorMessage = "Foreign key constraint violation";
+                    break;
+                }
             }
 
             return string.Empty;

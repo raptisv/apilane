@@ -22,6 +22,7 @@ The same payload can be sent to the Portal's management API (see [Calling the ma
 - **List referenced entities first.** Entities without a foreign key are created first, then the ones whose foreign keys lead to `Users`; the others are created in the order they are listed. So list an entity before the entities whose foreign keys point to it (or make sure it already exists in the application).
 - **System columns are added for you.** When a new entity is created, Apilane automatically adds its system properties (`ID`, `Owner`, `Created`, and `{DifferentiationEntity}_ID` when `HasDifferentiationProperty` is `true`). **Never** include them in `Properties`: a listed one is compared with the real one and the import stops if it differs.
 - **Names of new items follow the rules of the Portal.** An entity name has 4 to 30 letters and underscores. A property name has 4 to 120 letters and underscores and must not end in `_Data`. A custom endpoint name has letters a-z and A-Z only, at most 80. A name that is refused stops the import before anything is applied, and so does a security rule that the Security tab would refuse (see [Security rules](#security-rules)). Names are matched ignoring case against what the application has already, so `product` finds `Product`.
+- **Constraint references are checked before any changes.** Every property and referenced entity must belong to the application or the schema being imported and be a valid identifier. Invalid references, SQL fragments and unsupported constraint fields stop the entire request before any database or API-server changes. Errors name the constraint's place, such as `Entities[0].Constraints[1].Properties`.
 
 ---
 
@@ -116,7 +117,11 @@ A constraint is `{ "TypeID": <int>, "Properties": "<string>" }`. The `Properties
 | `1` | Unique | Comma-separated column name(s). One column, or several for a composite unique key. | `"Email"` · `"FirstName,LastName"` |
 | `2` | Foreign key | `"LocalColumn,ReferencedEntity"` or `"LocalColumn,ReferencedEntity,OnDelete"` | `"Product_ID,Product"` · `"Product_ID,Product,ON_DELETE_CASCADE"` |
 
-For a foreign key, first add a `Number` property to hold the reference (e.g. `Product_ID`), then add the FK constraint pointing at the **referenced entity's** name. The FK targets that entity's `ID` primary key.
+Unique constraints may use only existing or imported, unencrypted properties. List each property once; empty comma-separated elements are rejected. A null, empty or whitespace-only unique constraint is ignored.
+
+For a foreign key, first add a custom `Number` property with `DecimalPlaces: 0` to hold the reference (e.g. `Product_ID`), then add the FK constraint pointing at the **referenced entity's** name. The FK targets that entity's `ID` primary key. The referenced entity must already exist or appear in the same payload; `Files` is not a valid target. System properties cannot be the local foreign-key property.
+
+Property and entity names are matched ignoring case, trimmed around commas and stored with their actual schema spelling. Only identifiers are accepted, never SQL expressions or fragments.
 
 **On delete** (the optional 3rd element; without it, no action) is written with its name, as the Portal stores it and **Load diff** returns it:
 
@@ -126,7 +131,7 @@ For a foreign key, first add a `Number` property to hold the reference (e.g. `Pr
 | `ON_DELETE_SET_NULL` | The property of the records that point to it is set to null |
 | `ON_DELETE_CASCADE` | The records that point to it are deleted too |
 
-A foreign key of the same property that exists with another target or on-delete action stops the import, and the text is compared as written: copy it from **Load diff** to be safe.
+A foreign key of the same property that exists with another target or on-delete action stops the import. Equivalent constraints are skipped even when whitespace, name casing, unique-property order or the spelling of the default foreign-key action differs. Numeric on-delete values `0`, `1` and `2` are also accepted for the actions above; other values are rejected.
 
 !!!info "IsSystem"
     A constraint may carry `"IsSystem": false`, which is what **Load diff** returns, or leave it out. `true` is refused: the system constraints come with a new entity and cannot be imported.

@@ -309,12 +309,16 @@ that hosts the application, and the browser calls that server directly:
   rebuild are separate permissions with no read choice. The application summary stays visible.
 - 'Edit rights' beside an agent changes its policy for this application, effective on its next
   request. Existing agent collaborators without a saved policy also start read-only.
+- Email settings support Read only. Entity/property renames and all mail-setting changes are
+  permanently unavailable to agents, regardless of their other rights.
 - A collaborator who opens the Sharing address gets the 'no access' state (403).
 
 **Email**
 
 - The SMTP settings and the confirmation landing page are saved to the Portal with one 'Save settings'.
   The e-mail templates live on the API server and are read and saved there.
+- Only people may change these settings. Agents with email-settings Read may inspect them without
+  the password; no grant permits an agent to change the transport, sender, credentials or redirect.
 - A template preview is drawn in a sandboxed frame in which no script runs.
 - Without a Redirect URL, a user who confirmed their e-mail lands on `/account/email-confirmed` of the Portal.
 
@@ -393,6 +397,11 @@ that hosts the application, and the browser calls that server directly:
 
 - Everything is checked before anything is applied. A failure is an HTTP error that names the place
   in the payload (`Entities[0].Properties[2].TypeID`).
+- Constraint references are validated against the complete imported schema before any writes.
+  Unique properties must be unencrypted; a foreign key needs a custom Number property with 0 decimal
+  places and cannot point to Files. Names are trimmed and normalized to schema spelling; invalid
+  identifiers, missing references and SQL fragments are refused. Equivalent existing constraints
+  are skipped, including whitespace, unique-property order and default/numeric foreign-key actions.
 - The import is not atomic: the steps before a failed one stay applied. Sending the same payload again
   is safe, since what exists and does not differ is skipped with a warning. The screen asks before it runs.
 - In the payload an entity must be listed before the entities whose foreign keys point to it.
@@ -709,11 +718,11 @@ records. A policy is checked on every request, so changing it takes effect on th
 | Resource | Read | Write | Delete |
 |---|---|---|---|
 | `application` | The common summary is always visible | General settings, status and cache reset | Never |
-| `entities` | Entities, properties, constraints, sorting and report fields | Create, edit, rename, constraints and sorting | Entities and properties |
+| `entities` | Entities, properties, constraints, sorting and report fields | Create, edit, constraints and sorting; never rename entities or properties | Entities and properties |
 | `security` | Settings, roles and rules | Settings and rules, including replacing or removing rules | — |
 | `custom-endpoints` | Definitions and preview | Create and edit SQL definitions | Custom endpoints |
 | `reports` | Definitions and layout | Create, edit and arrange reports | Reports |
-| `email-settings` | SMTP settings, excluding secrets | SMTP settings | — |
+| `email-settings` | SMTP settings and confirmation redirect, excluding secrets | Never | — |
 | `audit-log` | The application's audit log | — | — |
 | `schema` | Schema import diff and comparison | Schema import | — |
 | `rebuild` | — | Rebuild, which removes all application data | — |
@@ -722,6 +731,10 @@ Write and Delete require Read for areas that support reading; Delete does not re
 Application settings and rebuild are write-only capabilities and default to denied. All areas
 that support Read default to readable. Write access can have wide effects even without Delete:
 security can replace rules, entities can replace constraints, and custom endpoints can save SQL.
+Entity/property renames and all application mail-setting changes remain unavailable regardless
+of grants. Custom endpoint renames keep their existing custom-endpoint permissions. The former
+email-settings Write grant is retired: it is ignored when reading saved policies while unrelated
+grants remain in effect, and new policies cannot grant it.
 
 **Discovering rights.** `GET {app}/permissions` remains available even if all areas are denied.
 It answers `IsAgent`, effective `Permissions` (`Resource`, `Read`, `Write`, `Delete`), the resource
@@ -754,6 +767,8 @@ A person has to do it in the Portal.':
 
 - deleting an application or collaborator, and signing out through `DELETE /session`;
 - `GET {app}/connection-info`, the encryption key;
+- `POST {app}/entities/{entity}/rename` and `POST {app}/entities/{entity}/properties/{property}/rename`;
+- `PUT {app}/email-settings`, including every SMTP field and the confirmation redirect;
 - `POST /applications`, `POST /applications/import` and `POST {app}/clones`: a new application;
 - everything under `/api/v1/admin`. An agent cannot be made an administrator either;
 - `GET /session/api-token`, so an agent cannot call the API servers (records, files);

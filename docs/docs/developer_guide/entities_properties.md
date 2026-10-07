@@ -30,6 +30,8 @@ System entities cannot be renamed or deleted. You can add custom properties to `
 
 Rename and Delete are in the entity's menu (properties have the same actions on their page); deleting asks you to type the name and removes all its data. Neither is possible for a system entity or property, for an entity that a foreign key of any entity points to, or for a property that is part of a constraint: remove the constraint first. Security rules, reports, custom endpoint SQL and the default sorting that name the old name are not updated, and deleting does not remove them, so change them yourself. On PostgreSQL do not rename a property only by changing its letter case.
 
+Renaming an entity or property requires a person. Portal agents are always refused these rename operations, regardless of their grants; their Delete grants remain separate. Custom endpoint renames have their own unchanged permissions.
+
 ### Change Tracking
 
 Each entity can optionally have **record change tracking** enabled when you create or edit it (it is on by default for `Users`). When enabled, Apilane stores a snapshot of the record, as it was, every time it is updated or deleted through the Data API, and when a user updates their own profile. This allows you to:

@@ -317,6 +317,9 @@ namespace Apilane.Portal.Tests
                 (HttpMethod.Delete, $"{app}/collaborators/1", null),
                 (HttpMethod.Delete, SessionUrl, null),
                 (HttpMethod.Put, $"{app}/collaborators/1/permissions", new { Permissions = Array.Empty<AgentPermissionGrant>() }),
+                (HttpMethod.Post, $"{app}/entities/Orders/rename", new { NewName = "RenamedOrders" }),
+                (HttpMethod.Post, $"{app}/entities/Orders/properties/Amount/rename", new { NewName = "RenamedAmount" }),
+                (HttpMethod.Put, $"{app}/email-settings", new { MailServer = "smtp.changed.test" }),
                 // The encryption key and new applications.
                 (HttpMethod.Get, $"{app}/connection-info", null),
                 (HttpMethod.Post, ApplicationsUrl, new { Name = "agent-app", ServerID = scene.Shared.ServerID, DatabaseType = "SQLLite" }),

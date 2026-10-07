@@ -202,6 +202,7 @@ namespace Apilane.Portal.Tests
         [InlineData("{\"Permissions\":[{\"Resource\":\"entities\",\"Delete\":true}]}")]
         [InlineData("{\"Permissions\":[{\"Resource\":\"security\",\"Read\":true,\"Delete\":true}]}")]
         [InlineData("{\"Permissions\":[{\"Resource\":\"audit-log\",\"Read\":true,\"Write\":true}]}")]
+        [InlineData("{\"Permissions\":[{\"Resource\":\"email-settings\",\"Read\":true,\"Write\":true}]}")]
         [InlineData("{\"Permissions\":[{\"Resource\":\"entities\",\"Read\":true},{\"Resource\":\"entities\",\"Read\":true}]}")]
         [InlineData("{\"Permissions\":[null]}")]
         [InlineData("{\"Permissions\":null}")]
@@ -498,6 +499,7 @@ namespace Apilane.Portal.Tests
         [InlineData("[null]")]
         [InlineData("[{\"Resource\":\"unknown\",\"Read\":true}]")]
         [InlineData("[{\"Resource\":\"entities\",\"Write\":true}]")]
+        [InlineData("[{\"Resource\":\"email-settings\",\"Write\":true},{\"Resource\":\"entities\",\"Read\":true}]")]
         [InlineData("[{\"Resource\":\"entities\",\"Read\":true},{\"Resource\":\"entities\",\"Read\":true}]")]
         public async Task Corrupt_Stored_Policy_Should_Deny_Access_Instead_Of_Restoring_Defaults(string storedPolicy)
         {

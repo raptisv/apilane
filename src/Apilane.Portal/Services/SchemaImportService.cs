@@ -21,7 +21,6 @@ namespace Apilane.Portal.Services
     public class SchemaImportService : ISchemaImportService
     {
         private const string StoppedNote = " The import stopped at this step; the steps before it stay applied.";
-        private const string ForeignKeyFormat = "A foreign key is 'Property,Entity' or 'Property,Entity,ON_DELETE_NO_ACTION' (or ON_DELETE_SET_NULL, ON_DELETE_CASCADE)";
         private const string PropertyTypeMessage = "Must be 1 (String), 2 (Number), 3 (Boolean) or 4 (Date)";
 
         private readonly ApplicationDbContext _dbContext;
@@ -106,7 +105,7 @@ namespace Apilane.Portal.Services
             }
 
             // What the application is once the entities and custom endpoints of the payload are in it:
-            // the security rules are checked against it and stored under the names it gives their items.
+            // constraints and security rules are checked against it and use its canonical names.
             var imported = ApplicationAfterImport(application, entities, customEndpoints);
 
             // Before anything is applied.
@@ -272,7 +271,7 @@ namespace Apilane.Portal.Services
         /// read (the foreign-key order of the entities is computed from it), and a name or type
         /// its own create endpoint would refuse for an entity, property or custom endpoint the
         /// application does not have yet. What it has is matched and skipped whatever its name.
-        /// A security rule is checked as PUT security/rules checks it, against the application
+        /// Constraints and security rules are checked against the application
         /// as the import leaves it (<paramref name="imported"/>, see <see cref="ApplicationAfterImport"/>):
         /// the rules are applied after the entities, so an entity or a property of this same payload
         /// can be named, and one that is neither in the payload nor in the application cannot.
@@ -344,18 +343,19 @@ namespace Apilane.Portal.Services
                     if (constraints[j].IsSystem)
                     {
                         errors.Add(Error($"{constraintPath}.{nameof(SchemaImportConstraint.IsSystem)}", "Must be false: system constraints come with the entity"));
+                        continue;
                     }
 
-                    if (constraints[j].TypeID == (int)ConstraintType.ForeignKey)
+                    if (!Enum.IsDefined(typeof(ConstraintType), constraints[j].TypeID))
                     {
-                        var foreignKey = ToStored(constraints[j]);
-
-                        // The model takes any number as the on-delete action.
-                        if (!IsForeignKey(foreignKey) || !Enum.IsDefined(foreignKey.GetForeignKeyProperties().FKLogic))
-                        {
-                            errors.Add(Error($"{constraintPath}.{nameof(SchemaImportConstraint.Properties)}", ForeignKeyFormat));
-                        }
+                        errors.Add(Error($"{constraintPath}.{nameof(SchemaImportConstraint.TypeID)}", "Must be 1 (Unique) or 2 (ForeignKey)"));
+                        continue;
                     }
+
+                    var finalEntity = FindEntity(imported, entities[i].Name)
+                        ?? throw new InvalidOperationException("The imported entity is missing from the validation schema.");
+                    AddIfRefused(errors, $"{constraintPath}.{nameof(SchemaImportConstraint.Properties)}",
+                        SchemaImportConstraintChecks.ValidateAndCanonicalize(imported, finalEntity, constraints[j]));
                 }
             }
 
@@ -669,7 +669,7 @@ namespace Apilane.Portal.Services
                     continue;
                 }
 
-                if (current.Any(x => SchemaDiff.ConstraintKey(x) == SchemaDiff.ConstraintKey(item)))
+                if (current.Any(x => SameImportedConstraint(x, item)))
                 {
                     warnings.Add($"Constraint on entity '{entity.Name}' (TypeID={item.TypeID}, Properties='{item.Properties}') already exists — skipped.");
                     continue;
@@ -714,6 +714,36 @@ namespace Apilane.Portal.Services
                 path,
                 $"Setting the constraints of entity '{entity.Name}' on the API server",
                 () => _apiServerClient.GenerateConstraintsAsync(application, entity.Name, constraints));
+        }
+
+        private static bool SameImportedConstraint(EntityConstraint existing, EntityConstraint imported)
+        {
+            if (existing.TypeID != imported.TypeID)
+            {
+                return false;
+            }
+            if (SchemaDiff.ConstraintKey(existing) == SchemaDiff.ConstraintKey(imported))
+            {
+                return true;
+            }
+            if (imported.TypeID == (int)ConstraintType.ForeignKey && IsForeignKey(existing))
+            {
+                var left = existing.GetForeignKeyProperties();
+                var right = imported.GetForeignKeyProperties();
+                return string.Equals(left.Property, right.Property, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(left.FKEntity, right.FKEntity, StringComparison.OrdinalIgnoreCase)
+                    && left.FKLogic == right.FKLogic;
+            }
+            if (imported.TypeID == (int)ConstraintType.Unique)
+            {
+                // The imported names are already validated. Compare stored whitespace and order
+                // tolerantly without modifying legacy metadata or parsing it into a SQL command.
+                var left = (existing.Properties ?? string.Empty).Split(',', StringSplitOptions.TrimEntries);
+                var right = (imported.Properties ?? string.Empty).Split(',', StringSplitOptions.TrimEntries);
+                return left.OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .SequenceEqual(right.OrderBy(x => x, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+            }
+            return false;
         }
 
         /// <summary>
@@ -839,7 +869,7 @@ namespace Apilane.Portal.Services
         }
 
         /// <summary>
-        /// A copy of the application as the import leaves it, for the checks of the security rules
+        /// A copy of the application as the import leaves it, for constraint and security checks
         /// to read: its entities, properties and custom endpoints, and the ones of the payload it
         /// does not have yet, matched as the steps match them. A copy, because the context tracks
         /// the application and must not see an entity that no step has created.
@@ -860,7 +890,11 @@ namespace Apilane.Portal.Services
                         IsSystem = x.IsSystem,
                         HasDifferentiationProperty = x.HasDifferentiationProperty,
                         Properties = x.Properties
-                            .Select(p => new DBWS_EntityProperty { ID = p.ID, Name = p.Name, IsSystem = p.IsSystem, IsPrimaryKey = p.IsPrimaryKey })
+                            .Select(p => new DBWS_EntityProperty
+                            {
+                                ID = p.ID, Name = p.Name, IsSystem = p.IsSystem, IsPrimaryKey = p.IsPrimaryKey,
+                                TypeID = p.TypeID, DecimalPlaces = p.DecimalPlaces, Encrypted = p.Encrypted
+                            })
                             .ToList()
                     })
                     .ToList(),
@@ -892,7 +926,11 @@ namespace Apilane.Portal.Services
                 {
                     if (FindProperty(entity, property.Name) is null)
                     {
-                        entity.Properties.Add(new DBWS_EntityProperty { Name = property.Name });
+                        entity.Properties.Add(new DBWS_EntityProperty
+                        {
+                            Name = property.Name, TypeID = property.TypeID,
+                            DecimalPlaces = property.DecimalPlaces, Encrypted = property.Encrypted
+                        });
                     }
                 }
             }

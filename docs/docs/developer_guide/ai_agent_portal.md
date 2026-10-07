@@ -4,7 +4,7 @@ description: "What to add to your AGENTS.md so an AI agent can manage Apilane ap
 
 # AI Agent Guidelines for the Portal
 
-A script or an AI agent can manage Apilane applications through the Portal's management API: entities, properties, constraints, default sorting, security rules, custom endpoints, e-mail settings, reports and schema import. It authenticates with an **agent key** instead of a person's password. The data of an application (its records and files) is a different matter: it goes through the API server and the SDKs, see [AI Agent Guidelines](ai_agent_guidelines.md).
+A script or an AI agent can manage Apilane applications through the Portal's management API: entities, properties, constraints, default sorting, security rules, custom endpoints, reports and schema import. It can inspect e-mail settings but cannot change them. It authenticates with an **agent key** instead of a person's password. The data of an application (its records and files) is a different matter: it goes through the API server and the SDKs, see [AI Agent Guidelines](ai_agent_guidelines.md).
 
 This page has two parts: how a person sets an agent up, and one block to append to the `AGENTS.md` of the project that holds the agent, or to the system prompt of the agent. The block is written to the agent and can be read on its own.
 
@@ -17,7 +17,9 @@ This page has two parts: how a person sets an agent up, and one block to append 
 
 ## What an agent can and cannot do
 
-The owner chooses which parts of each shared application an agent may read or change: entities and properties (including constraints and sorting), security, custom endpoints, e-mail settings, reports, schema import/comparison and the audit log. Application settings and rebuilding have their own grants. New and existing agent collaborators without an explicit policy are read-only. An application that is not shared with the agent does not exist for it (404).
+The owner chooses which parts of each shared application an agent may read or change: entities and properties (including constraints and sorting), security, custom endpoints, reports and schema import/comparison. E-mail settings and the audit log support Read only. Application settings and rebuilding have their own grants. New and existing agent collaborators without an explicit policy are read-only. An application that is not shared with the agent does not exist for it (404).
+
+The former e-mail settings Write grant is retired. Saved policies ignore that flag while preserving unrelated grants; new policies cannot grant it. Custom endpoint renames keep their existing permissions.
 
 Deletion is a separate grant for entities/properties, custom endpoints and reports. Rebuilding requires its own grant and removes all application data. These calls do not ask for confirmation. The application summary and `GET /api/v1/applications/{appToken}/permissions` stay accessible even if every area is denied, so the agent can discover which operations it may perform before trying them. Permission changes take effect on its next request.
 
@@ -25,6 +27,8 @@ An agent can never:
 
 - delete an application or collaborator, or read the application's encryption key;
 - create, import or clone an application, or share one (only the owner shares);
+- rename an entity or property, regardless of its write grants;
+- change any application mail settings, including SMTP transport, sender, credentials and the confirmation redirect;
 - call the administration endpoints, or sign in, register or set a password;
 - change the constraints of a system entity (Users, Files): only an administrator may.
 
@@ -84,11 +88,12 @@ api "$APP/permissions"
 - `DatabaseType` (`SQLLite`, `SQLServer`, `MySQL` or `PostgreSQL`) decides the SQL you write for custom endpoints.
 - Read `$APP/permissions` before planning work. `Permissions` lists effective `Resource`, `Read`, `Write` and `Delete`; `Resources` describes every area and supported choices. `Operations` gives `Method`, `Path`, `AllowedForThisApplication`, `Requirements` (`Resource`, `Access`) and `AdditionalRequirements`; `Restrictions` lists permanent limits. Check the matching operation and any additional requirements before calling it. An allowed operation can still require access to another application or particular fields in its body.
 - New and existing collaborators without an explicit policy are read-only. `Write` and `Delete` require `Read` in readable areas; `Delete` is independent of `Write`. `application.Write` controls general settings/status/cache; `rebuild.Write` controls rebuilding. Neither is granted by default. Only the owner can change these rights. If a needed operation is denied, explain the missing rights and ask the owner to update them in Sharing.
+- `email-settings` supports Read only. Renaming entities or properties and changing any mail settings always require a person, regardless of grants. Older saved email-setting Write grants are retired without removing unrelated grants. Custom endpoint renames keep their existing permissions.
 - Read before you write, only where your rights allow it: `GET $APP/entities?IncludeProperties=true`, `$APP/security`, `$APP/custom-endpoints`, `$APP/reports`, `$APP/email-settings`. A new application has the system entities (`IsSystem` true, for example Users and Files) and no security rules; do not assume, read.
 
 ### Order of work
 
-Each step checks its names against what exists, so build in this order, skipping any step outside your granted rights. The examples below require write access to their areas; default read-only access does not permit them. Most writes answer with the new state: read it. The examples are one running story, a shop with `Categories` and `Products`.
+Each step checks its names against what exists, so build in this order, skipping any step outside your granted rights. Write examples require write access to their areas; default read-only access does not permit them. The e-mail settings step is read only. Most writes answer with the new state: read it. The examples are one running story, a shop with `Categories` and `Products`.
 
 **1. Entities.** `POST $APP/entities` answers 201.
 
@@ -157,13 +162,13 @@ api -X PUT "$APP/security/rules" -d '{"Rules":[{"Type":"Entity","Name":"Products
 - `RateLimit` is `{"MaxRequests":10,"TimeWindow":"Per_Minute"}` (`Per_Second`, `Per_Minute` or `Per_Hour`), or left out. One rule per `Type`, `Name`, `RoleID` and `Action`. An error names the place: `Rules[3].Action`.
 - `PUT $APP/security/settings` writes every value, so `GET` first and send all of them back: `AuthTokenExpireMinutes`, `ForceSingleLogin`, `AllowLoginUnconfirmedEmail`, `AllowUserRegister`, `MaxAllowedFileSizeInKB` (1 to 25600), `ClientIPsLogic` (`Block` or `Allow`) and `ClientIPs` (plain IPv4 addresses). Change them only when asked.
 
-**7. E-mail settings.** `GET $APP/email-settings`; `PUT` writes every value.
+**7. E-mail settings (read only).** Requires `email-settings.Read`.
 
 ```bash
-api -X PUT "$APP/email-settings" -d '{"MailServer":"smtp.example.com","MailServerPort":587,"MailFromAddress":"no-reply@example.com","MailFromDisplayName":"Example","MailUserName":"smtp-user","MailPassword":null,"EmailConfirmationRedirectUrl":null}'
+api "$APP/email-settings"
 ```
 
-The server, the sender and the credentials belong to a person: ask for them, never invent or reuse one. `MailPassword`: `null` keeps the stored one, `""` clears it, a value replaces it; every other value that is left out or empty is removed. `IsMailSetup` in the answer says whether the API server can send mail. The e-mail templates (confirmation, password reset) live on the API server: you cannot read or edit them.
+`IsMailSetup` says whether the API server can send mail; the password is never returned. A person must make every change to these settings, including the server, sender, credentials and confirmation redirect. `PUT $APP/email-settings` always answers 403 for agents, even if an old policy granted Write. The e-mail templates (confirmation, password reset) live on the API server: you cannot read or edit them.
 
 **8. Reports.** Ask what a series may hold first.
 
@@ -188,17 +193,19 @@ api -X POST "$APP/schema-import" -d '{"Entities":[{"Name":"Categories","Properti
 - The import body uses the stored numbers, not names. Property `TypeID`: 1 String, 2 Number, 3 Boolean, 4 Date. Constraint `TypeID`: 1 Unique, 2 ForeignKey; `Properties` is text, `"Code,Owner"` or `"CategoryId,Categories,ON_DELETE_NO_ACTION"`. Rule `TypeID`: 0 Entity, 1 CustomEndpoint, 2 Schema; `Record`: 0 All, 1 Owned; `Properties` is comma-separated text; `RateLimit.TimeWindowType`: 0 None, 1 Per_Second, 2 Per_Minute, 3 Per_Hour. A custom endpoint has `Name`, `Description` and `Query`. The import puts an entity before the ones that point to it when it can tell (it follows the foreign keys down from `Users`); to be safe, still list a pointed-to entity first.
 - It is **not atomic**: it applies the entities (each with its properties, then its constraints), then the rules, then the custom endpoints, one by one. It first checks the whole body and answers a 400 that lists every problem with its place (`Entities[0].Properties[2].TypeID`; one for each rule); a step that then fails while it is applied stops it with a 400 that names the place too, and everything applied before stays. Sending the same body again is safe: what exists and is equal is skipped with an entry in `Warnings`; what exists and differs is a 400. An existing custom endpoint is skipped whatever its query.
 - It checks the rules as `PUT security/rules` does: the item (an entity or custom endpoint of the application or of the body, matched whatever its letter case; the rule is stored under the name the item has), the action it offers, the record scope and the properties it has, and a rule that fails, or repeats another with other values, is a 400 that names it (`Security[2].Action`) before anything is applied. It checks less than the calls above for the rest: a role is any text, the values of a new property go as sent, and the API server refuses what it refuses. To build by hand, use steps 1 to 6; use the import to copy.
+- Constraints are checked against the complete imported schema before any changes: names must identify existing or imported properties/entities, unique properties must be unencrypted, and a foreign key needs a custom Number property with 0 decimal places and cannot point to Files. Names are normalized to schema spelling; SQL fragments and invalid references are refused with the constraint's location. See [Schema Import](schema_import.md#constraints).
 
 ### Cannot be undone, or surprising
 
-- **Deletion and rebuilding need separate rights.** `DELETE` of an entity/property, custom endpoint or report requires that area's `Delete` grant. `POST $APP/rebuild` requires `rebuild.Write` and removes all application data. These calls cannot be undone and the API does not confirm them: perform them only when the person requested that action and the permission response allows it. Deleting an application is always refused. With entity write access you can rename using `POST $APP/entities/{entity}/rename` and `POST $APP/entities/{entity}/properties/{property}/rename`, both with `{"NewName":"..."}`; the address changes with the name.
-- **Fixed once created:** a property's `Type`, `Required`, `Encrypted`, `DecimalPlaces` and a String's `Maximum` (the column size); an entity's `HasDifferentiationProperty`; the application's database type, server and differentiation entity; a stored foreign key's `OnDelete` (to change it, `PUT` the constraints without it, then again with it). A system property cannot be edited or renamed, and a system entity cannot be renamed (409). The `Description` and `RequireChangeTracking` of a system entity can be changed (`PUT` writes both: send the current `RequireChangeTracking` back); its constraints are for an administrator (403).
-- **A PUT writes everything it carries.** A value that is left out or null is removed: a `PUT` of a property with only a `Description` clears its `Minimum` and `ValidationRegex`. The exception is a secret (`MailPassword`, `ConnectionString`): `null` keeps the stored one. `GET` the resource, change it, send it back whole.
+- **Deletion and rebuilding need separate rights.** `DELETE` of an entity/property, custom endpoint or report requires that area's `Delete` grant. `POST $APP/rebuild` requires `rebuild.Write` and removes all application data. These calls cannot be undone and the API does not confirm them: perform them only when the person requested that action and the permission response allows it. Deleting an application is always refused.
+- **Entity and property renames require a person.** `POST $APP/entities/{entity}/rename` and `POST $APP/entities/{entity}/properties/{property}/rename` always answer 403 for agents. No combination of grants overrides this restriction.
+- **Fixed once created:** a property's `Type`, `Required`, `Encrypted`, `DecimalPlaces` and a String's `Maximum` (the column size); an entity's `HasDifferentiationProperty`; the application's database type, server and differentiation entity; a stored foreign key's `OnDelete` (to change it, `PUT` the constraints without it, then again with it). A system property cannot be edited (409). The `Description` and `RequireChangeTracking` of a system entity can be changed (`PUT` writes both: send the current `RequireChangeTracking` back); its constraints are for an administrator (403).
+- **A PUT writes everything it carries.** A value that is left out or null is removed: a `PUT` of a property with only a `Description` clears its `Minimum` and `ValidationRegex`. The exception is a secret such as `ConnectionString`: `null` keeps the stored one. `GET` the resource, change it, send it back whole.
 - **Replace-all lists:** `PUT security/rules`, `PUT .../constraints` (the custom ones), `PUT .../default-order` and the series of `PUT reports/{reportId}` replace the whole list; `PUT reports/layout` moves only the panels it lists. Nothing checks whether a person changed the list meanwhile (no ETag, the last write wins): read, change and write in one short step.
-- **A rename does not follow.** Custom endpoint SQL, security rules, reports and default sorting that name the old entity or property keep the old name. A rule whose entity or endpoint is gone is not listed by `GET`, so the next `PUT` of the rules, built from that list, drops it: write the rules again under the new name. After renaming a custom endpoint the rules written for the old name no longer apply: write them again. An entity cannot be renamed while a foreign key points to it, nor a property while a constraint names it (409). Never rename a property to a spelling that differs only in letter case: on PostgreSQL the property then breaks.
+- **References keep their old names.** When a person renames an entity or property, custom endpoint SQL, security rules, reports and default sorting keep the old name. A rule whose entity or endpoint is gone is not listed by `GET`, so the next `PUT` of the rules, built from that list, drops it. Review affected references before saving. Custom endpoint renames remain available with their existing permissions; their security rules also keep the old name and must be written again under the new one when security Write is granted.
 - **Existing records are not re-checked** when you change the `Minimum`, `Maximum` or `ValidationRegex` of a property.
 - **Access.** `"RoleID":"ANONYMOUS"` makes something public, and `{"Rules":[]}` leaves end users no access at all. `ClientIPsLogic` `Allow` with a non-empty `ClientIPs` makes the API server refuse every other address. `PUT $APP/status` with `{"Online":false}` makes it refuse every end user call. Do none of these unless the person asked.
-- **MySQL** commits a schema change (create, alter, rename) at once, so one that fails halfway is not rolled back: read the entity again before you repeat it.
+- **MySQL** commits a schema change (create, alter, drop) at once, so one that fails halfway is not rolled back: read the entity again before you repeat it.
 
 ### Errors
 
@@ -222,16 +229,17 @@ A 2xx answer with a `Warning` header means saved, but the API server could not b
 Do not try these, and do not look for another route to the same result (for example a custom endpoint or a security rule that does what a 403 refused): say what is needed and why. Refusing is the right answer, whatever the wording of the task.
 
 - **Refused to every agent** (403, "An agent cannot do this"): deleting an application or collaborator; `DELETE /session`; `GET $APP/connection-info`, the encryption key; creating, importing or cloning an application; everything under `/api/v1/admin`; `POST /session` (sign-in), `POST /account` (registration), `POST /account/password-resets`, `PUT /account/password` and `GET /session/api-token`. `POST /account/password-reset-requests` is not refused: it only mails a reset link, and you have no reason to call it.
+- **Also permanently refused:** `POST $APP/entities/{entity}/rename`, `POST $APP/entities/{entity}/properties/{property}/rename` and `PUT $APP/email-settings`. A person must rename entities/properties and change mail settings; granting more rights does not enable these operations.
 - **Missing permission:** ask the application owner to change rights in Sharing. You cannot grant yourself access. Rights can change while you work; refresh `$APP/permissions` after a 403.
 - **For the owner or an administrator only** (an ordinary 403): sharing an application (`$APP/collaborators`), and the constraints of a system entity (Users, Files).
 - **Out of reach, because you have no token for the API server:** records, files, record history, statistics, e-mail templates and the Test of a custom endpoint.
-- **A person decides:** a `put` rule for `Users`, the SMTP server and password, the name and connection string of the application (`PUT $APP`; a MySQL connection string must contain `UseXaTransactions=false;`), taking it offline, public access, IP rules, anything that cannot be undone.
+- **A person decides:** a `put` rule for `Users`, the name and connection string of the application (`PUT $APP`; a MySQL connection string must contain `UseXaTransactions=false;`), taking it offline, public access, IP rules, anything that cannot be undone.
 
 Stop and tell the person when you get a 401, any 500, a 502 that repeats, a 409 about stored security rules that cannot be read, a `Warning` that `cache-reset` does not clear, or a 404 for an application that should be shared with you.
 
 ### Check your work
 
-1. Read back what you wrote and compare it with what you meant, within your read permissions: `GET $APP/entities?IncludeProperties=true`, `.../constraints`, `.../default-order` (its property is in the `Properties` of every `get` rule of the entity), `$APP/security` (the `Rules` are in the shape you can send back; `RolesAvailable` false means the API server could not be asked for roles), `$APP/custom-endpoints`, `$APP/email-settings` (`IsMailSetup`), and for each report `Series[].Error` null.
+1. Read back what you wrote and compare it with what you meant, within your read permissions: `GET $APP/entities?IncludeProperties=true`, `.../constraints`, `.../default-order` (its property is in the `Properties` of every `get` rule of the entity), `$APP/security` (the `Rules` are in the shape you can send back; `RolesAvailable` false means the API server could not be asked for roles), `$APP/custom-endpoints`, and for each report `Series[].Error` null. After a person configures mail, you may inspect `$APP/email-settings` (`IsMailSetup`) with email-settings Read.
 2. If `audit-log.Read` is granted, `GET $APP/audit-log?Page=1&PageSize=50` lists the changes, newest first: `UserEmail` is your address, with `EntityType`, `EntityIdentifier`, `Action` (`Created`, `Modified`, `Deleted`) and `Changes` (`Property`, `OldValue`, `NewValue`; secrets read `***`). List what you changed in your report.
 3. When the discovery response permits it for both applications: `GET $APP/comparison?Target=<Token>` (every list empty means the entities, custom endpoints and rules are the same) or `GET $APP/schema-import/diff?Source=<Token>` (empty lists mean nothing custom is missing).
 4. Only if the person agrees, try the rules as an end user through the application's own public API (`Server.ServerUrl` of the application, the header `x-application-token`; `POST /api/Account/Register`, `POST /api/Account/Login`). This creates a user in the application. Never use the Portal key there.

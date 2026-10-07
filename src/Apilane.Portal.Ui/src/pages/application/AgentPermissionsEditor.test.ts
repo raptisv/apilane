@@ -56,11 +56,11 @@ describe('AgentPermissionsEditor controls', () => {
     expect(grant('entities')?.Delete).toBe(false)
   })
 
-  it('offers only supported levels and deletion controls', async () => {
+  it.each(['audit-log', 'email-settings'])('offers only read access for %s and supported deletion controls', async (resource) => {
     await settle()
     expect(body().findAll('[role="checkbox"]')).toHaveLength(3)
     expect(body().find('[role="checkbox"][id$="-security-delete"]').exists()).toBe(false)
-    await permissionControl('audit-log').trigger('keydown', { key: 'Enter' })
+    await permissionControl(resource).trigger('keydown', { key: 'Enter' })
     await settle()
     expect(body().findAll('[role="option"]').map((option) => option.text())).toEqual(['None', 'Read'])
   })

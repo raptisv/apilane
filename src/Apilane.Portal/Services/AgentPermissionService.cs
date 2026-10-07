@@ -21,11 +21,11 @@ namespace Apilane.Portal.Services
         private static readonly AgentPermissionResource[] Resources =
         {
             new() { Resource = AgentPermissionResources.Application, Name = "Application settings", Description = "Change general settings, application status and reset the cache. Basic application information is always visible; agents cannot delete applications.", CanWrite = true },
-            new() { Resource = AgentPermissionResources.Entities, Name = "Entities and properties", Description = "Entities, properties, constraints and default sorting. Delete can remove entities and properties with their data.", CanRead = true, CanWrite = true, CanDelete = true },
+            new() { Resource = AgentPermissionResources.Entities, Name = "Entities and properties", Description = "Entities, properties, constraints and default sorting. Agents cannot rename entities or properties. Delete can remove entities and properties with their data.", CanRead = true, CanWrite = true, CanDelete = true },
             new() { Resource = AgentPermissionResources.Security, Name = "Security", Description = "Authentication settings and access rules, including referenced entity, property and endpoint names and types.", CanRead = true, CanWrite = true },
             new() { Resource = AgentPermissionResources.CustomEndpoints, Name = "Custom endpoints", Description = "Custom endpoint definitions and query preview.", CanRead = true, CanWrite = true, CanDelete = true },
             new() { Resource = AgentPermissionResources.Reports, Name = "Reports", Description = "Report definitions, chart settings and dashboard layout, including referenced entity and property names and types.", CanRead = true, CanWrite = true, CanDelete = true },
-            new() { Resource = AgentPermissionResources.EmailSettings, Name = "Email settings", Description = "Application mail configuration. Stored passwords remain hidden.", CanRead = true, CanWrite = true },
+            new() { Resource = AgentPermissionResources.EmailSettings, Name = "Email settings", Description = "Read application mail configuration. Stored passwords remain hidden; only people can change mail settings.", CanRead = true },
             new() { Resource = AgentPermissionResources.AuditLog, Name = "Audit log", Description = "Historical changes across every application area, including SQL and security rules, regardless of the agent's current grants for those areas. Secret values remain masked.", CanRead = true },
             new() { Resource = AgentPermissionResources.Schema, Name = "Schema comparison and import", Description = "Compare application schemas and import changes. Access to the affected resources is also required.", CanRead = true, CanWrite = true },
             new() { Resource = AgentPermissionResources.Rebuild, Name = "Rebuild application", Description = "Rebuild the application's database and permanently erase its stored data.", CanWrite = true }
@@ -65,6 +65,8 @@ namespace Apilane.Portal.Services
                     "Agents cannot create, import, clone or delete applications.",
                     "Agents cannot manage collaborators or their permissions.",
                     "Agents cannot access administration endpoints or change constraints of system entities.",
+                    "Agents cannot rename entities or properties, regardless of their grants.",
+                    "Agents cannot change application mail settings, including SMTP and the email confirmation redirect.",
                     "Agents cannot obtain application encryption keys or Portal API-server tokens.",
                     "Application permissions do not grant API-server access to records, files, record history, statistics, email templates or SQL execution."
                 } : new List<string>()
@@ -86,6 +88,15 @@ namespace Apilane.Portal.Services
             try
             {
                 var saved = JsonSerializer.Deserialize<List<AgentPermissionGrant>>(policy.PermissionsJson);
+                if (saved is not null)
+                {
+                    // Mail writes are now human-only. Retire this old grant without invalidating
+                    // the rest of an otherwise valid saved policy; new policies still reject it.
+                    foreach (var grant in saved.Where(x => x is not null && x.Resource == AgentPermissionResources.EmailSettings && x.Read))
+                    {
+                        grant.Write = false;
+                    }
+                }
                 return saved is null ? CreateDeniedPermissions() : ValidatePermissions(saved);
             }
             catch (Exception ex) when (ex is JsonException || ex is PortalException)
@@ -150,11 +161,12 @@ namespace Apilane.Portal.Services
                 foreach (var method in methods)
                 {
                     var metadata = action.EndpointMetadata;
-                    var requirements = metadata.OfType<AgentPermissionAttribute>()
+                    var humanOnly = metadata.OfType<NoAgentAttribute>().Any();
+                    var requirements = humanOnly ? new List<AgentPermissionRequirement>() : metadata.OfType<AgentPermissionAttribute>()
                         .Select(x => new AgentPermissionRequirement { Resource = x.Resource, Access = x.GetAccess(method) }).ToList();
                     var discovery = metadata.OfType<AgentPermissionDiscoveryAttribute>().Any();
                     var allowed = isAgent
-                        ? !metadata.OfType<NoAgentAttribute>().Any()
+                        ? !humanOnly
                             && (discovery || (requirements.Count > 0 && requirements.All(x => Allows(permissions, x.Resource, x.Access))))
                         : isOwner || action.ControllerName != "Collaborators";
 

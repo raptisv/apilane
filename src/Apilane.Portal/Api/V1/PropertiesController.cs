@@ -101,7 +101,8 @@ namespace Apilane.Portal.Api.V1
 
         /// <summary>
         /// Renames a custom property and its column on the API server. The property's URL changes
-        /// with its name. Answers 409 CONFLICT for a system property, for a property that a unique
+        /// with its name. Portal agents are always refused (403), regardless of their grants.
+        /// Answers 409 CONFLICT for a system property, for a property that a unique
         /// or foreign key constraint of the entity names (remove the constraint first), and when
         /// another property of the entity has the new name, whatever its letter case. A change of
         /// letter case only (Price to price) is stored in the Portal but the API server keeps the
@@ -112,6 +113,7 @@ namespace Apilane.Portal.Api.V1
         /// message, any other failure of it 502 UPSTREAM_ERROR; in both cases the name stays.
         /// </summary>
         [HttpPost("{property}/rename")]
+        [NoAgent]
         [ProducesCacheResetWarning]
         [ProducesResponseType(typeof(PropertyResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]

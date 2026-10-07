@@ -4,11 +4,11 @@ import type { AgentPermissionGrant, AgentPermissionResource } from '@/lib/agentP
 // the production helper: a regression in the default-grant logic must fail the component tests.
 export const permissionResources: AgentPermissionResource[] = [
   { Resource: 'application', Name: 'Application settings', Description: 'Change application settings.', CanRead: false, CanWrite: true, CanDelete: false },
-  { Resource: 'entities', Name: 'Entities', Description: 'Manage entities and properties.', CanRead: true, CanWrite: true, CanDelete: true },
+  { Resource: 'entities', Name: 'Entities', Description: 'Manage entities and properties. Agents cannot rename them.', CanRead: true, CanWrite: true, CanDelete: true },
   { Resource: 'security', Name: 'Security', Description: 'Manage access rules.', CanRead: true, CanWrite: true, CanDelete: false },
   { Resource: 'custom-endpoints', Name: 'Custom endpoints', Description: 'Manage custom SQL endpoints.', CanRead: true, CanWrite: true, CanDelete: true },
   { Resource: 'reports', Name: 'Reports', Description: 'Manage reports.', CanRead: true, CanWrite: true, CanDelete: true },
-  { Resource: 'email-settings', Name: 'Email settings', Description: 'Manage email templates.', CanRead: true, CanWrite: true, CanDelete: false },
+  { Resource: 'email-settings', Name: 'Email settings', Description: 'Read application mail configuration. Only people can change mail settings.', CanRead: true, CanWrite: false, CanDelete: false },
   { Resource: 'audit-log', Name: 'Audit log', Description: 'Read application history.', CanRead: true, CanWrite: false, CanDelete: false },
   { Resource: 'schema', Name: 'Schema', Description: 'Compare and import schemas.', CanRead: true, CanWrite: true, CanDelete: false },
   { Resource: 'rebuild', Name: 'Rebuild', Description: 'Remove all application data.', CanRead: false, CanWrite: true, CanDelete: false },
