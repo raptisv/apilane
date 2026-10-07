@@ -21,11 +21,12 @@ import { renameLosesRules } from '@/lib/customEndpoints'
 import { formErrors } from '@/lib/forms'
 import type { SqlSchema } from '@/lib/sqlEditor'
 import * as toast from '@/lib/toast'
+import CustomEndpointSavePreview from './CustomEndpointSavePreview.vue'
 import CustomEndpointTestPanel from './CustomEndpointTestPanel.vue'
 
 // Creates a custom endpoint (/endpoints/new) or edits one (/endpoints/<id>): name, description and
 // SQL on the left, the address, parameters and the SQL test on the right, the help below. Saving
-// goes back to the list. A jump in the browser history from one editor
+// an existing endpoint first shows what changes (CustomEndpointSavePreview); saving goes back to the list. A jump in the browser history from one editor
 // address of this application to another keeps this screen, so the endpoint is read from the
 // address each time it changes.
 const route = useRoute()
@@ -100,7 +101,19 @@ watch(endpointId, () => {
 const errors = computed(() => formErrors(save.error.value, ['Name', 'Description', 'Query']))
 const formEl = useTemplateRef<HTMLFormElement>('formEl')
 
+// Saving an existing endpoint asks first, with the old and the new SQL side by side; a new one has nothing to compare.
+const previewOpen = ref(false)
+
 async function submit(): Promise<void> {
+  if (endpointId.value !== undefined && dirty.value) {
+    previewOpen.value = true
+    return
+  }
+
+  await saveNow()
+}
+
+async function saveNow(): Promise<void> {
   if (!(await save.run())) {
     // Move to the first rejected field, so it is read out and scrolled into view. An error of the
     // whole form (a taken name, a network failure) has no field: bring its message into view, as
@@ -264,6 +277,8 @@ const linkClass = 'font-medium underline underline-offset-4'
         :query="form.Query"
       />
     </div>
+
+    <CustomEndpointSavePreview v-model:open="previewOpen" :before="saved" :after="form" :renaming="renaming" @confirm="saveNow" />
 
     <UnsavedChangesBar
       :dirty="dirty"

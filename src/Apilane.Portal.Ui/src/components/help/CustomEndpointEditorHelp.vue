@@ -17,7 +17,7 @@ defineProps<{ databaseType?: string }>()
         <li>Add a <strong>description</strong> to remember why the endpoint exists.</li>
         <li>Write the <strong>SQL</strong> to run on every call.</li>
         <li><strong>Try it</strong> with the Test button of the Result panel, with sample values for the parameters.</li>
-        <li><strong>Save</strong>, then give access to the roles that may call it on the Security tab.</li>
+        <li><strong>Save</strong>. For an existing endpoint a window first shows what changes (the SQL line by line); Back returns to the editor. Then give access to the roles that may call it on the Security tab.</li>
       </ol>
     </HelpItem>
 
