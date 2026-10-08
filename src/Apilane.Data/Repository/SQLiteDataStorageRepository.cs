@@ -390,21 +390,12 @@ namespace Apilane.Data.Repository
                 .ToList();
         }
 
-        public Task CreateColumnAsync(
+        public Task CreateColumnsAsync(
             string tableName,
-            string columnName,
-            PropertyType type,
-            bool notNull,
-            int? numDecimalPlaces,
-            long? strMaxLength)
+            List<(string Name, PropertyType Type, bool NotNull, int? NumDecimalPlaces, long? StrMaxLength)> columns)
         {
-            var columnCmd = GetCreate(
-                columnName,
-                type,
-                notNull,
-                numDecimalPlaces);
-
-            return ExecNQAsync($@"ALTER TABLE [{tableName}] ADD {columnCmd}");
+            return ExecNQAsync(string.Concat(columns.Select(x =>
+                $"ALTER TABLE [{tableName}] ADD {GetCreate(x.Name, x.Type, x.NotNull, x.NumDecimalPlaces)};")));
         }
 
         private static string GetCreate(

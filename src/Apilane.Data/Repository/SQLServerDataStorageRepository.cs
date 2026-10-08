@@ -234,22 +234,18 @@ namespace Apilane.Data.Repository
             return Utils.GetLong(result, 0) > 0;
         }
 
-        public Task CreateColumnAsync(
+        public Task CreateColumnsAsync(
             string tableName,
-            string columnName,
-            PropertyType type,
-            bool notNull,
-            int? numDecimalPlaces,
-            long? strMaxLength)
+            List<(string Name, PropertyType Type, bool NotNull, int? NumDecimalPlaces, long? StrMaxLength)> columns)
         {
-            var columnCmd = GetCreate(
-                columnName,
-                type,
-                notNull,
-                numDecimalPlaces,
-                strMaxLength);
+            if (columns.Count == 0)
+            {
+                return Task.CompletedTask;
+            }
 
-            return ExecNQAsync($@"ALTER TABLE [{tableName}] ADD {columnCmd}");
+            // SQL Server names ADD once for the whole list of columns.
+            return ExecNQAsync($"ALTER TABLE [{tableName}] ADD {string.Join(", ", columns.Select(x =>
+                GetCreate(x.Name, x.Type, x.NotNull, x.NumDecimalPlaces, x.StrMaxLength)))};");
         }
 
         private static string GetCreate(

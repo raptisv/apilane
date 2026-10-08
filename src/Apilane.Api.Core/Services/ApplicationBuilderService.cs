@@ -45,8 +45,15 @@ namespace Apilane.Api.Core.Services
 
             // All entities should be present in property "groups.Flat" with a level, depending on the FK chain.
             // An entity might be preset multiple times on the list due to many FK relationships, so it is important to take the maximum level of all occurrences.
+            var maxLevels = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in groups.Flat)
+            {
+                maxLevels[item.ID] = maxLevels.TryGetValue(item.ID, out var level) ? Math.Max(level, item.Level) : item.Level;
+            }
+
             var entitiesOrderedByFKReferences = application.Entities
-                .OrderBy(e => groups.Flat.Where(x => x.ID.Equals(e.Name, StringComparison.OrdinalIgnoreCase)).Select(x => x.Level).DefaultIfEmpty(0).Max());
+                .OrderBy(e => maxLevels.TryGetValue(e.Name, out var level) ? level : 0)
+                .ToList();
 
             foreach (var entity in entitiesOrderedByFKReferences)
             {
@@ -295,12 +302,21 @@ namespace Apilane.Api.Core.Services
             await _applicationDataStoreFactory.CreateTableWithPrimaryKeyAsync(entity.Name);
 
             // Generate properties
-            foreach (DBWS_EntityProperty property in entity.Properties)
+            // The table was created just above, so there is no column to find: skip the existence check
+            // GeneratePropertyAsync does, and add all the columns in one call to the database.
+            var columns = entity.Properties
+                .Where(x => !x.IsPrimaryKey) // The primary key is created on table creation
+                .Select(x => (
+                    x.Name,
+                    x.TypeID_Enum,
+                    x.Required,
+                    x.DecimalPlaces,
+                    StrMaxLength: GetColumnMaximum(x)))
+                .ToList();
+
+            if (columns.Count > 0)
             {
-                await GeneratePropertyAsync(
-                    (DatabaseType)application.DatabaseType,
-                    entity.Name,
-                    property);
+                await _applicationDataStoreFactory.CreateColumnsAsync(entity.Name, columns);
             }
 
             // Generate constraints after having created the properties
@@ -322,19 +338,18 @@ namespace Apilane.Api.Core.Services
                     throw new ApilaneException(AppErrors.ERROR, property: property.Name, entity: entityName, message: $"Property {property.Name} already exists");
                 }
 
-                // Encrypted string properties require more characters in database so, we proceed without limit in the database layer.
-                var maximum = property.TypeID_Enum == PropertyType.String && property.Encrypted
-                    ? null : property.Maximum;
-
-                await _applicationDataStoreFactory.CreateColumnAsync(
+                await _applicationDataStoreFactory.CreateColumnsAsync(
                     entityName,
-                    property.Name,
-                    property.TypeID_Enum,
-                    property.Required,
-                    property.DecimalPlaces,
-                    maximum);
+                    new List<(string Name, PropertyType Type, bool NotNull, int? NumDecimalPlaces, long? StrMaxLength)>
+                    {
+                        (property.Name, property.TypeID_Enum, property.Required, property.DecimalPlaces, GetColumnMaximum(property))
+                    });
             }
         }
+
+        // Encrypted string properties require more characters in database so, we proceed without limit in the database layer.
+        private static long? GetColumnMaximum(DBWS_EntityProperty property)
+            => property.TypeID_Enum == PropertyType.String && property.Encrypted ? null : property.Maximum;
 
         public async Task DegenerateEntityAsync(
             DBWS_Application application,
@@ -444,16 +459,12 @@ namespace Apilane.Api.Core.Services
 
                     await _applicationDataStoreFactory.CreateTableWithPrimaryKeyAsync(entity.Name);
 
-                    foreach (var property in entity.Properties.Where(x => !x.IsPrimaryKey))
-                    {
-                        await _applicationDataStoreFactory.CreateColumnAsync(
-                            entity.Name,
-                            property.Name,
-                            property.TypeID_Enum,
-                            property.Required,
-                            property.DecimalPlaces,
-                            property.Maximum);
-                    }
+                    await _applicationDataStoreFactory.CreateColumnsAsync(
+                        entity.Name,
+                        entity.Properties
+                            .Where(x => !x.IsPrimaryKey)
+                            .Select(x => (x.Name, x.TypeID_Enum, x.Required, x.DecimalPlaces, x.Maximum))
+                            .ToList());
 
                     // Seed H_Email_Templates with default rows
                     if (entity.Name == nameof(H_Email_Templates))

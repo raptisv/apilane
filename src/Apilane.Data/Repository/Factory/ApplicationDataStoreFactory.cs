@@ -102,10 +102,10 @@ namespace Apilane.Data.Repository.Factory
             await (await CurrentDataStoreAsync()).RenameTableAsync(oldTableName, newTableName);
         }
 
-        public async Task CreateColumnAsync(string tableName, string columnName, PropertyType type, bool notNull, int? numDecimalPlaces, long? strMaxLength)
+        public async Task CreateColumnsAsync(string tableName, List<(string Name, PropertyType Type, bool NotNull, int? NumDecimalPlaces, long? StrMaxLength)> columns)
         {
-            using var trace = _tracer?.StartActiveSpan("CreateColumnAsync");
-            await (await CurrentDataStoreAsync()).CreateColumnAsync(tableName, columnName, type, notNull, numDecimalPlaces, strMaxLength);
+            using var trace = _tracer?.StartActiveSpan("CreateColumnsAsync");
+            await (await CurrentDataStoreAsync()).CreateColumnsAsync(tableName, columns);
         }
 
         public async Task DropColumnAsync(string tableName, string columnName)

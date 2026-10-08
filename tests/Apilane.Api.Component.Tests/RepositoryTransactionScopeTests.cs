@@ -133,7 +133,7 @@ namespace Apilane.Api.Component.Tests
 
                 using var setup = table.NewRepository();
                 await setup.CreateTableWithPrimaryKeyAsync(table.Name);
-                await setup.CreateColumnAsync(table.Name, "Name", PropertyType.String, notNull: true, numDecimalPlaces: null, strMaxLength: 100);
+                await setup.CreateColumnsAsync(table.Name, new() { ("Name", PropertyType.String, true, null, 100) });
 
                 return table;
             }
