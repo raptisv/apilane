@@ -1,5 +1,8 @@
 # Changelog
 
+## 10.4.2 (2026-10-08)
+- perf(api): build applications faster by adding a table's columns in one call
+
 ## 10.4.1 (2026-10-08)
 - feat(portal): preview the changes before an existing custom endpoint is saved
 
