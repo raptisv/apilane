@@ -1,5 +1,8 @@
 # Changelog
 
+## 10.4.3 (2026-10-08)
+- feat(portal): let the Claude connector register with the MCP sign-in service
+
 ## 10.4.2 (2026-10-08)
 - perf(api): build applications faster by adding a table's columns in one call
 
