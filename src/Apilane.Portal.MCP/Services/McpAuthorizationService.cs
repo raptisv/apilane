@@ -52,7 +52,7 @@ namespace Apilane.Portal.Services
                     || !request.GrantTypes.Contains("authorization_code")
                     || request.GrantTypes.Any(x => x is not "authorization_code" and not "refresh_token"))))
             {
-                throw new McpOAuthException("invalid_client_metadata", "Use a public client with code flow and exact HTTP loopback callback addresses.");
+                throw new McpOAuthException("invalid_client_metadata", "Use a public client with code flow and exact HTTP loopback callback addresses (or a known hosted client).");
             }
 
             // Registrations abandoned before consent cannot permanently consume capacity.
@@ -449,7 +449,19 @@ namespace Apilane.Portal.Services
             };
         }
 
+        // Callbacks of hosted clients that cannot listen on the loopback of this machine. Exact match only.
+        private static readonly string[] HostedCallbacks =
+        [
+            "https://claude.ai/api/mcp/auth_callback",
+            "https://claude.com/api/mcp/auth_callback"
+        ];
+
         private static bool ValidRedirect(string? value)
+        {
+            return value is not null && Array.IndexOf(HostedCallbacks, value) >= 0 || ValidLoopbackRedirect(value);
+        }
+
+        private static bool ValidLoopbackRedirect(string? value)
         {
             return value is not null && value.Length <= 2048 && Uri.TryCreate(value, UriKind.Absolute, out var uri)
                 && uri.Scheme == Uri.UriSchemeHttp && uri.Host is "localhost" or "127.0.0.1" or "[::1]"

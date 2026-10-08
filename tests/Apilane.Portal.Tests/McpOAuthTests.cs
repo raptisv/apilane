@@ -45,6 +45,28 @@ namespace Apilane.Portal.Tests
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
 
+        [Theory]
+        [InlineData("https://claude.ai/api/mcp/auth_callback")]
+        [InlineData("https://claude.com/api/mcp/auth_callback")]
+        public async Task Register_Should_Accept_The_Callback_Of_A_Hosted_Client(string redirect)
+        {
+            using var client = _portal.CreateCookielessClient();
+            var response = await client.PostAsync("/api/mcp/oauth/register", new { client_name = "Claude", redirect_uris = new[] { redirect } }.ToJsonContent());
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        }
+
+        [Theory]
+        [InlineData("https://claude.ai/api/mcp/auth_callback/")]
+        [InlineData("https://claude.ai/api/mcp/auth_callback?x=1")]
+        [InlineData("https://claude.ai.attacker.test/api/mcp/auth_callback")]
+        [InlineData("https://CLAUDE.ai@attacker.test/api/mcp/auth_callback")]
+        public async Task Register_Should_Reject_Lookalikes_Of_A_Hosted_Callback(string redirect)
+        {
+            using var client = _portal.CreateCookielessClient();
+            var response = await client.PostAsync("/api/mcp/oauth/register", new { client_name = "Lookalike", redirect_uris = new[] { redirect } }.ToJsonContent());
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
         [Fact]
         public async Task Discovery_Should_Use_Configured_Origin_And_Advertise_Pkce()
         {

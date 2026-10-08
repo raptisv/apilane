@@ -22,7 +22,8 @@ HTTPS `PublicUrl` configured; loopback HTTP is allowed for local development. Op
 MCP setup** to copy the server address and a suggested unique server name. Add a remote MCP server
 in your client's settings using Streamable HTTP and OAuth browser authentication. The client must
 support OAuth discovery, dynamic client registration and authorization-code flow with S256 PKCE,
-using a loopback browser callback. The configuration format and sign-in command depend on the client.
+using a loopback browser callback, or the fixed callback of a hosted client (the Claude connector at
+`https://claude.ai/api/mcp/auth_callback` or `https://claude.com/api/mcp/auth_callback`). The configuration format and sign-in command depend on the client.
 For separate project connections, use a different server name for each project, such as
 `apilane_shop` and `apilane_billing`, in that project's configuration when the client supports it.
 
