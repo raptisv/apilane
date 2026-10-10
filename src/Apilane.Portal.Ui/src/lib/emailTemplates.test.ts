@@ -15,22 +15,32 @@ describe('visibleTemplates', () => {
 })
 
 describe('templatePlaceholders', () => {
-  it('lists the user placeholders and the confirmation link for the confirmation e-mail', () => {
+  it('lists the user placeholders, the confirmation link and the confirmation token for the confirmation e-mail', () => {
     expect(templatePlaceholders('UserRegisterConfirmation').map((p) => p.name)).toEqual([
       '{Users.ID}',
       '{Users.Username}',
       '{Users.Email}',
       '{confirmation_url}',
+      '{confirmation_token}',
     ])
   })
 
   it('lists the reset link for the forgotten password e-mail, with its description', () => {
-    const last = templatePlaceholders('UserForgotPassword').at(-1)
+    const link = templatePlaceholders('UserForgotPassword').find((p) => p.name === '{reset_password_url}')
 
-    expect(last).toEqual({
+    expect(link).toEqual({
       name: '{reset_password_url}',
       description: 'The url that the user has to follow in order to reset the password',
     })
+  })
+
+  it('lists the reset token after the reset link, and says what it is for', () => {
+    const names = templatePlaceholders('UserForgotPassword').map((p) => p.name)
+    const token = templatePlaceholders('UserForgotPassword').find((p) => p.name === '{reset_password_token}')
+
+    expect(names.at(-2)).toBe('{reset_password_url}')
+    expect(names.at(-1)).toBe('{reset_password_token}')
+    expect(token?.description).toContain('Email/ResetPassword')
   })
 
   it('lists nothing for an unknown event', () => {

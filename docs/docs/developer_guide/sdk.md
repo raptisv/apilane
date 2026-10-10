@@ -512,6 +512,29 @@ string sendResetEmailUrl = _apilaneService.UrlFor_Email_ForgotPassword("user@exa
 string confirmEmailUrl = _apilaneService.UrlFor_Email_RequestConfirmation("user@example.com");
 ```
 
+## Completing the email flows on your own server
+
+A template can hold the token of the email alone: `{confirmation_token}` or `{reset_password_token}` (see [Email templates](email_templates.md#template-placeholders)). Build your own link with it, and spend the token with these calls. Both are anonymous: they need the application token only, and the token travels in the request body.
+
+```csharp
+// Confirm the email address of a user
+var confirmed = await _apilaneService.EmailConfirmEmailAsync(
+    EmailConfirmEmailRequest.New(token));
+
+// Set a new password (8 to 100 characters)
+var reset = await _apilaneService.EmailResetPasswordAsync(
+    EmailResetPasswordRequest.New(token, newPassword));
+
+reset.Match(
+    ok => { /* the password is changed, and the user's sessions are ended */ return true; },
+    error => { /* error.Code is VALIDATION, error.Property is "Token" or "Password" */ return false; });
+```
+
+```javascript
+const confirmed = await apilane.emailConfirmEmail(EmailConfirmEmailRequest.new(token));
+const reset = await apilane.emailResetPassword(EmailResetPasswordRequest.new(token, newPassword));
+```
+
 ## Health Check
 
 Verify the API is running:

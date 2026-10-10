@@ -123,6 +123,19 @@ const logout = await apilane.accountLogout(
 );
 ```
 
+### Confirm an email and reset a password with the token of the email
+
+Put `{confirmation_token}` or `{reset_password_token}` in the email template, build your own link with it, and spend the token with these calls. Both are anonymous and send the token in the request body:
+
+```javascript
+import { EmailConfirmEmailRequest, EmailResetPasswordRequest } from './apilane.js';
+
+const confirmed = await apilane.emailConfirmEmail(EmailConfirmEmailRequest.new(token));
+
+// 8 to 100 characters; an unknown or expired token is a VALIDATION error for Token
+const reset = await apilane.emailResetPassword(EmailResetPasswordRequest.new(token, newPassword));
+```
+
 ### Data CRUD
 
 ```javascript
@@ -405,6 +418,8 @@ const ts = dateToUnixTimestampSeconds(new Date());
 | `GetCustomEndpointAsync()` | `getCustomEndpoint()` |
 | `GetApplicationSchemaAsync()` | `getApplicationSchema()` |
 | `HealthCheckAsync()` | `healthCheck()` |
+| `EmailConfirmEmailAsync()` | `emailConfirmEmail()` |
+| `EmailResetPasswordAsync()` | `emailResetPassword()` |
 | `UrlFor_Account_Manage_ForgotPassword()` | `urlForAccountManageForgotPassword()` |
 | `UrlFor_Email_RequestConfirmation()` | `urlForEmailRequestConfirmation()` |
 | `UrlFor_Email_ForgotPassword()` | `urlForEmailForgotPassword()` |

@@ -689,6 +689,70 @@ export class AccountLogoutRequest extends ApilaneRequestBase {
     }
 }
 
+/**
+ * Confirm email request builder: confirms the email of a user with the token of the confirmation email,
+ * the value of the {confirmation_token} placeholder of the template. The token travels in the request
+ * body, never in the address. Anonymous: it needs the application token only.
+ */
+export class EmailConfirmEmailRequest extends ApilaneRequestBase {
+    #token;
+
+    /**
+     * @param {string} token
+     */
+    constructor(token) {
+        super(null, 'Email', 'ConfirmEmail');
+        this.#token = token;
+    }
+
+    /**
+     * @param {string} token
+     * @returns {EmailConfirmEmailRequest}
+     */
+    static new(token) {
+        return new EmailConfirmEmailRequest(token);
+    }
+
+    /** @internal */
+    get _body() {
+        return { Token: this.#token };
+    }
+}
+
+/**
+ * Reset password request builder: sets a new password with the token of the reset email, the value of
+ * the {reset_password_token} placeholder of the template. The token and the password travel in the
+ * request body, never in the address. Anonymous: it needs the application token only.
+ */
+export class EmailResetPasswordRequest extends ApilaneRequestBase {
+    #token;
+    #newPassword;
+
+    /**
+     * @param {string} token
+     * @param {string} newPassword - 8 to 100 characters.
+     */
+    constructor(token, newPassword) {
+        super(null, 'Email', 'ResetPassword');
+        this.#token = token;
+        this.#newPassword = newPassword;
+    }
+
+    /**
+     * @param {string} token
+     * @param {string} newPassword - 8 to 100 characters.
+     * @returns {EmailResetPasswordRequest}
+     */
+    static new(token, newPassword) {
+        return new EmailResetPasswordRequest(token, newPassword);
+    }
+
+    /** @internal */
+    get _body() {
+        return { Token: this.#token, Password: this.#newPassword };
+    }
+}
+
 /** Renew auth token request builder. */
 export class AccountRenewAuthTokenRequest extends ApilaneRequestBase {
     constructor() {
@@ -2079,6 +2143,31 @@ export class ApilaneService {
      */
     async accountUpdate(request, updateItem, signal) {
         return this.#putJson(request, updateItem, signal);
+    }
+
+    /**
+     * Confirms the email of a user with the token of the confirmation email (the value of the
+     * {confirmation_token} placeholder). Succeeds also for an email that is already confirmed. An unknown
+     * or expired token is a VALIDATION error for the property Token.
+     * @param {EmailConfirmEmailRequest} request
+     * @param {AbortSignal} [signal]
+     * @returns {Promise<ApilaneResult<boolean>>}
+     */
+    async emailConfirmEmail(request, signal) {
+        return this.#postJson(request, request._body, signal, () => true);
+    }
+
+    /**
+     * Sets a new password with the token of the reset email (the value of the {reset_password_token}
+     * placeholder). A successful reset ends all the sessions of the user and invalidates all the reset
+     * links. An unknown or expired token is a VALIDATION error for the property Token; a password that
+     * is too short or too long, for the property Password.
+     * @param {EmailResetPasswordRequest} request
+     * @param {AbortSignal} [signal]
+     * @returns {Promise<ApilaneResult<boolean>>}
+     */
+    async emailResetPassword(request, signal) {
+        return this.#postJson(request, request._body, signal, () => true);
     }
 
     // ========================================================================

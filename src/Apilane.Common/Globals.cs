@@ -62,5 +62,12 @@
         // The longest an email address can be (RFC 5321). The endpoints that send a mail on request refuse
         // anything longer before they keep it as the key of a rate limit.
         public const int MaxEmailLength = 254;
+
+        /// <summary>
+        /// The length of a new password set through a reset link: the ready-made reset page and the
+        /// Email/ResetPassword endpoint share it.
+        /// </summary>
+        public const int MinResetPasswordLength = 8;
+        public const int MaxResetPasswordLength = 100;
     }
 }

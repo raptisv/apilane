@@ -58,6 +58,11 @@ import HelpSheet from '@/components/HelpSheet.vue'
         <code>{reset_password_url}</code>). The preview shows them as they are written, and does not run scripts.
       </p>
       <p>
+        To finish the flow on your own server instead of the hosted pages, use <code>{confirmation_token}</code> or
+        <code>{reset_password_token}</code>: they hold the token alone, so you can build your own link and call
+        <code>Email/ConfirmEmail</code> or <code>Email/ResetPassword</code> with it.
+      </p>
+      <p>
         Templates are kept on the API server of this application, not in the Portal.
       </p>
     </HelpItem>

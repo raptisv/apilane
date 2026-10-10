@@ -11,9 +11,14 @@ namespace Apilane.Common.Services
     public class EmailService : IEmailService
     {
         private const string LinkPlaceholder = "[link]";
+        private const string TokenPlaceholder = "[token]";
 
         // The reset and confirmation placeholders are replaced in the subject as well as in the body
         private static readonly Regex LinkPattern = new Regex(@"https?://\S+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // So are the {confirmation_token} and {reset_password_token} placeholders, which expand to a bare token
+        private static readonly Regex TokenPattern = new Regex(
+            @"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private readonly ILogger<EmailService> _logger;
 
@@ -28,7 +33,7 @@ namespace Apilane.Common.Services
             // the body of a confirmation or a password reset mail holds a live token link, and the subject
             // can hold one too. Worked out before the try, as the catch needs both.
             var recipients = string.Join(",", info.Recipients ?? Array.Empty<string>());
-            var subject = LinkPattern.Replace(info.Subject ?? string.Empty, LinkPlaceholder);
+            var subject = TokenPattern.Replace(LinkPattern.Replace(info.Subject ?? string.Empty, LinkPlaceholder), TokenPlaceholder);
 
             try
             {

@@ -543,6 +543,46 @@ x-application-token: {appToken}
 !!!info "Note"
     Both endpoints answer `"OK"` even if no user has that email, to prevent user enumeration. An `email` that is not a valid address answers `VALIDATION`, and the call fails with `ERROR` when the application has no [email settings](developer_guide/email_templates.md). Only one email per address and kind is sent every 5 minutes: a second request inside that time answers `RATE_LIMIT_EXCEEDED`.
 
+### Confirm Email with a Token
+
+Confirms the email of a user with the token of the confirmation email, from your own server or page, instead of the link of the email. The token is the value of the `{confirmation_token}` [placeholder](developer_guide/email_templates.md#template-placeholders) of the template. Anonymous: it needs the application token only.
+
+```
+POST /api/Email/ConfirmEmail
+x-application-token: {appToken}
+Content-Type: application/json
+
+{ "Token": "{confirmation_token}" }
+```
+
+**Response:** `"OK"`. As with the link of the email, the token is not spent: it works again for the hour it is valid, and confirming an email that is already confirmed answers `"OK"` too.
+
+An unknown or expired token answers `VALIDATION` with `Property` `Token`; a missing one answers `REQUIRED` with `Property` `Token`.
+
+### Reset Password with a Token
+
+Sets a new password with the token of the reset email, from your own server or page, instead of the ready-made page. The token is the value of the `{reset_password_token}` placeholder of the template. Anonymous: it needs the application token only.
+
+```
+POST /api/Email/ResetPassword
+x-application-token: {appToken}
+Content-Type: application/json
+
+{ "Token": "{reset_password_token}", "Password": "new password" }
+```
+
+**Response:** `"OK"`. The password is changed, every outstanding reset link is invalidated and every session of the user is ended: the user signs in again with the new password.
+
+| Code | Property | When |
+|---|---|---|
+| `REQUIRED` | `Password` or `Token` | The value is missing |
+| `VALIDATION` | `Password` | The password has fewer than 8 or more than 100 characters. The token is not spent: send again with another password |
+| `VALIDATION` | `Token` | The token is unknown, expired (24 hours) or already used |
+| `RATE_LIMIT_EXCEEDED` | | More than 60 calls a minute for the application |
+
+!!!info "Note"
+    Both endpoints take the token in the request body, so it does not appear in an address, a proxy log or the log of the API server. Each allows 60 calls per minute per application and answers `RATE_LIMIT_EXCEEDED` over it.
+
 ---
 
 ## Errors

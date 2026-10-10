@@ -78,6 +78,7 @@ key id, recomputes the signature, and rejects requests outside a small clock-ske
 ## Features
 
 - **Authentication** — Login, Register, UserData, ChangePassword, RenewAuthToken, Logout
+- **Email tokens** — ConfirmEmail and ResetPassword with the token of the email (`{confirmation_token}`, `{reset_password_token}`), to complete both flows without the hosted pages
 - **Data CRUD** — Get, GetById, Post, Put, Delete with filtering, sorting, and paging
 - **Transactions** — Grouped and ordered (TransactionOperations) with cross-reference support
 - **Files** — Upload, Download, List, Delete

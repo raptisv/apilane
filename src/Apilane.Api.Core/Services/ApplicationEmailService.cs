@@ -169,31 +169,53 @@ namespace Apilane.Api.Core.Services
 
             // Fill with global properties
 
+            // One token for the mail: the URL placeholder and the token placeholder of an event expand
+            // from the same one, so a template that uses both hands out a single valid token.
+            var userId = Utils.GetLong(userThatAcceptsTheEmail[nameof(Users.ID)]);
+            string? confirmationToken = null;
+            string? resetToken = null;
+
             foreach (var ph in emailEvent.Placeholders)
             {
                 string strPlaceholder = $"{{{ph.ToString()}}}";
+                string value;
 
                 switch (ph)
                 {
                     case EmailEventsPlaceholders.confirmation_url:
+                    case EmailEventsPlaceholders.confirmation_token:
                         {
-                            string confirmationToken = Guid.NewGuid().ToString();
-                            await _applicationHelperService.CreateEmailConfirmationTokenAsync(Utils.GetLong(userThatAcceptsTheEmail[nameof(Users.ID)]), confirmationToken);
-                            string confirmUrl = $"{applicationServerUrl.Trim('/').ToLower()}/api/Account/Confirm?{Globals.ApplicationTokenQueryParam}={appToken}&token={confirmationToken}";
-                            subject = subject.Replace(strPlaceholder, confirmUrl);
-                            content = content.Replace(strPlaceholder, confirmUrl);
+                            if (confirmationToken is null)
+                            {
+                                confirmationToken = Guid.NewGuid().ToString();
+                                await _applicationHelperService.CreateEmailConfirmationTokenAsync(userId, confirmationToken);
+                            }
+
+                            value = ph == EmailEventsPlaceholders.confirmation_url
+                                ? $"{applicationServerUrl.Trim('/').ToLower()}/api/Account/Confirm?{Globals.ApplicationTokenQueryParam}={appToken}&token={confirmationToken}"
+                                : confirmationToken;
                         }
                         break;
                     case EmailEventsPlaceholders.reset_password_url:
+                    case EmailEventsPlaceholders.reset_password_token:
                         {
-                            string resetToken = Guid.NewGuid().ToString();
-                            await _applicationHelperService.CreatePasswordResetTokenAsync(Utils.GetLong(userThatAcceptsTheEmail[nameof(Users.ID)]), resetToken);
-                            string resetUrl = $"{applicationServerUrl.Trim('/').ToLower()}/App/{appToken}/Account/Manage/ResetPassword?Token={resetToken}";
-                            subject = subject.Replace(strPlaceholder, resetUrl);
-                            content = content.Replace(strPlaceholder, resetUrl);
+                            if (resetToken is null)
+                            {
+                                resetToken = Guid.NewGuid().ToString();
+                                await _applicationHelperService.CreatePasswordResetTokenAsync(userId, resetToken);
+                            }
+
+                            value = ph == EmailEventsPlaceholders.reset_password_url
+                                ? $"{applicationServerUrl.Trim('/').ToLower()}/App/{appToken}/Account/Manage/ResetPassword?Token={resetToken}"
+                                : resetToken;
                         }
                         break;
+                    default:
+                        continue;
                 }
+
+                subject = subject.Replace(strPlaceholder, value);
+                content = content.Replace(strPlaceholder, value);
             }
 
             return (subject, content);

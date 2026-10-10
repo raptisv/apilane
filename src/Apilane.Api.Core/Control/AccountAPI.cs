@@ -391,7 +391,20 @@ namespace Apilane.Api.Core
                 return null;
             }
 
-            var drUser = await _appDataService.GetUserByIdAsync(appToken, userIdForToken.Value);
+            await ConfirmUserEmailAsync(appToken, userIdForToken.Value);
+
+            // Do not delete the token, it might be requested again.
+
+            var redirectToUrl = string.IsNullOrWhiteSpace(emailConfirmationRedirectUrl) ?
+                $"{_apiConfiguration.PortalUrl.Trim('/')}/account/email-confirmed"
+                : emailConfirmationRedirectUrl;
+
+            return redirectToUrl;
+        }
+
+        private async Task ConfirmUserEmailAsync(string appToken, long userId)
+        {
+            var drUser = await _appDataService.GetUserByIdAsync(appToken, userId);
 
             // Do not show that we did not find the user
 
@@ -405,16 +418,78 @@ namespace Apilane.Api.Core
                     {
                         { nameof(Users.EmailConfirmed), true }
                     },
-                    new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, userIdForToken.Value, PropertyType.Number));
+                    new FilterData(nameof(Users.ID), FilterData.FilterOperators.equal, userId, PropertyType.Number));
+            }
+        }
+
+        public async Task ConfirmEmailWithTokenAsync(DBWS_Application application, string? confirmationToken)
+        {
+            await EnforceTokenRateLimitAsync(application.Token, "email:confirm:token");
+
+            if (string.IsNullOrWhiteSpace(confirmationToken))
+            {
+                throw new ApilaneException(AppErrors.REQUIRED, null, "Token");
+            }
+
+            var userId = await _applicationHelperService.GetUserIdFromEmailConfitmationTokenAsync(confirmationToken);
+
+            if (userId is null)
+            {
+                // Not the token: it is a one-time secret, and a near miss of a live token is still a lead
+                _logger.LogWarning("Email confirmation token not found or expired");
+                throw new ApilaneException(AppErrors.VALIDATION, "Invalid or expired token.", "Token");
             }
 
             // Do not delete the token, it might be requested again.
+            await ConfirmUserEmailAsync(application.Token, userId.Value);
+        }
 
-            var redirectToUrl = string.IsNullOrWhiteSpace(emailConfirmationRedirectUrl) ?
-                $"{_apiConfiguration.PortalUrl.Trim('/')}/account/email-confirmed"
-                : emailConfirmationRedirectUrl;
+        public async Task ResetPasswordWithTokenAsync(DBWS_Application application, string? resetToken, string? newPassword)
+        {
+            await EnforceTokenRateLimitAsync(application.Token, "email:reset:token");
 
-            return redirectToUrl;
+            // The checks of the ready-made reset page, in its words
+            if (string.IsNullOrWhiteSpace(newPassword))
+            {
+                throw new ApilaneException(AppErrors.REQUIRED, null, "Password");
+            }
+
+            if (newPassword.Length < Globals.MinResetPasswordLength)
+            {
+                throw new ApilaneException(AppErrors.VALIDATION, $"The Password must be at least {Globals.MinResetPasswordLength} characters long.", "Password");
+            }
+
+            if (newPassword.Length > Globals.MaxResetPasswordLength)
+            {
+                throw new ApilaneException(AppErrors.VALIDATION, $"The Password must be at most {Globals.MaxResetPasswordLength} characters long.", "Password");
+            }
+
+            if (string.IsNullOrWhiteSpace(resetToken))
+            {
+                throw new ApilaneException(AppErrors.REQUIRED, null, "Token");
+            }
+
+            var userId = await _applicationHelperService.GetUserIdFromPasswordResetTokenAsync(resetToken);
+
+            // ResetPasswordAsync also ends every session of the user and invalidates all their reset links
+            if (userId is null || !await ResetPasswordAsync(application, userId.Value, newPassword))
+            {
+                // Not the token: it is a one-time secret
+                _logger.LogWarning("Password reset token not found or expired");
+                throw new ApilaneException(AppErrors.VALIDATION, "Invalid or expired token.", "Token");
+            }
+        }
+
+        /// <summary>
+        /// The calls that spend a token share the limits of the other e-mail endpoints: an allowance for the whole
+        /// application, taken before the token is looked up.
+        /// </summary>
+        private static async Task EnforceTokenRateLimitAsync(string appToken, string endpoint)
+        {
+            if (!await ApplicationRateLimiter.GetOrCreate(appToken).TryAcquireAsync(60, TimeSpan.FromMinutes(1), null, endpoint, "post", default))
+            {
+                throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED);
+            }
         }
 
         public async Task<bool> ChangePasswordAsync(

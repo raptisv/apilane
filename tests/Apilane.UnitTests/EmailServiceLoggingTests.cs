@@ -114,6 +114,20 @@ namespace Apilane.UnitTests
         }
 
         [TestMethod]
+        public void SendMail_SubjectCarriesTheBareToken_NoEntryContainsTheToken()
+        {
+            // The {confirmation_token} and {reset_password_token} placeholders expand to the token alone,
+            // not to a link, and they are replaced in the subject as well.
+
+            // Act
+            SendMail($"Your code is {_token}");
+
+            // Assert
+            AssertNoneContains(_logger.Entries, _token);
+            Assert.IsTrue(_logger.Entries.Any(x => x.Text.Contains("Your code is")), "The subject is not logged.");
+        }
+
+        [TestMethod]
         public void SendMail_ServerDown_DoesNotLogTheMailServerPassword()
         {
             // Act

@@ -26,7 +26,7 @@ namespace Apilane.Common.Helpers
                 IsUserTriggeredSameAsAcceptingTheEmail = true,
                 Code = EmailEventsCodes.UserRegisterConfirmation,
                 Description = "Email confirmation",
-                Placeholders = new List<EmailEventsPlaceholders>() { EmailEventsPlaceholders.confirmation_url },
+                Placeholders = new List<EmailEventsPlaceholders>() { EmailEventsPlaceholders.confirmation_url, EmailEventsPlaceholders.confirmation_token },
                 DefaultSubject = $"Welcome!",
                 DefaultContent = $"Thank you for creating an account.<br/>" +
                                  $"Please click on this <a href=\"{{{EmailEventsPlaceholders.confirmation_url}}}\">link</a> to confirm your email address"
@@ -36,7 +36,7 @@ namespace Apilane.Common.Helpers
                 IsUserTriggeredSameAsAcceptingTheEmail = true,
                 Code = EmailEventsCodes.UserForgotPassword,
                 Description = "Reset password",
-                Placeholders = new List<EmailEventsPlaceholders>() { EmailEventsPlaceholders.reset_password_url },
+                Placeholders = new List<EmailEventsPlaceholders>() { EmailEventsPlaceholders.reset_password_url, EmailEventsPlaceholders.reset_password_token },
                 DefaultSubject = $"Reset Password",
                 DefaultContent = $"Please click on this <a href=\"{{{EmailEventsPlaceholders.reset_password_url}}}\">link</a> to reset your password"
             }

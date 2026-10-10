@@ -43,6 +43,7 @@ Sent to the user after registration. Typically contains a welcome message and a 
 - **Event code**: `UserRegisterConfirmation`
 - **Default subject**: `Welcome!`
 - **Default body**: `Thank you for creating an account.<br/>Please click on this <a href="{confirmation_url}">link</a> to confirm your email address`
+- **Placeholders**: `{confirmation_url}`, `{confirmation_token}`
 
 ### Reset password
 
@@ -51,6 +52,7 @@ Sent to the user when they request a password reset via the `ForgotPassword` API
 - **Event code**: `UserForgotPassword`
 - **Default subject**: `Reset Password`
 - **Default body**: `Please click on this <a href="{reset_password_url}">link</a> to reset your password`
+- **Placeholders**: `{reset_password_url}`, `{reset_password_token}`
 
 ![Apilane](../assets/email_templates.png)
 
@@ -77,7 +79,29 @@ Each email event has its own special placeholder:
 | Event | Placeholder | Description |
 |---|---|---|
 | Email confirmation | `{confirmation_url}` | The URL the user must follow to confirm their email address |
+| Email confirmation | `{confirmation_token}` | The confirmation token alone (URL-safe), to build your own link |
 | Reset password | `{reset_password_url}` | The URL the user must follow to reset their password |
+| Reset password | `{reset_password_token}` | The password reset token alone (URL-safe), to build your own link |
+
+The URL and the token placeholder of an event expand from **one** token: a template that uses both hands out a single valid token. The tokens are generated as before and live as long as before (1 hour for the confirmation, 24 hours for the reset). The Portal lists the placeholders of a template under its editor.
+
+### Complete a flow on your own server
+
+The link in the email leads to a page of the API server. To handle the flow in your own application instead, put the token in a link of yours and spend it with an endpoint:
+
+```html
+<a href="https://app.example.com/reset?token={reset_password_token}">Reset your password</a>
+```
+
+| Flow | Placeholder | Endpoint | SDK |
+|---|---|---|---|
+| Confirm the email | `{confirmation_token}` | `POST /api/Email/ConfirmEmail` with `{ "Token" }` | `EmailConfirmEmailAsync` / `emailConfirmEmail` |
+| Reset the password | `{reset_password_token}` | `POST /api/Email/ResetPassword` with `{ "Token", "Password" }` | `EmailResetPasswordAsync` / `emailResetPassword` |
+
+Both answer `"OK"` or the usual error (`{ "Code", "Message", "Property" }`): an unknown or expired token is `VALIDATION` for `Token`, and a new password of fewer than 8 or more than 100 characters is `VALIDATION` for `Password`, with the words of the ready-made page. Both are anonymous, need the application token, and allow 60 calls per minute per application. See the [REST API reference](../api_reference.md#confirm-email-with-a-token).
+
+!!!warning "A token in your own link"
+    The token is a one-time secret. Put it in the address of a page of yours only to read it there and send it straight to the endpoint; do not log it, and keep it out of the `Referer` of other sites. The API server never logs it: the subject of a mail is logged with a token replaced by `[token]`.
 
 ### Example template
 
