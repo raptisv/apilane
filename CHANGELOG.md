@@ -1,5 +1,8 @@
 # Changelog
 
+## 10.5.1 (2026-10-12)
+- feat(security): IP ranges and trusted proxies for the client IP list, security page in tabs
+
 ## 10.5.0 (2026-10-10)
 - feat(api): `{confirmation_token}` and `{reset_password_token}` email placeholders, and the `Email/ConfirmEmail` and `Email/ResetPassword` endpoints to complete both flows without the hosted pages; SDK calls in Apilane.Net and Apilane.Js
 
