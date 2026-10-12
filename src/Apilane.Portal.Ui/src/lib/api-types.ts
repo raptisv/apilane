@@ -3275,10 +3275,13 @@ export interface components {
             /** @description Block or Allow. */
             ClientIPsLogic: string;
             /**
-             * @description IPv4 addresses in plain dotted form: four numbers from 0 to 255, separated by dots, with
-             *     no leading zeros, signs or spaces inside (for example 10.0.0.1). Each is trimmed and empty
-             *     entries are dropped. Every entry that is not an address gets its own error
-             *     (ClientIPs[2], ...). Null or left out stores an empty list.
+             * @description Each entry is an address, a network or a range. An address is IPv4 in plain dotted form: four
+             *     numbers from 0 to 255, separated by dots, with no leading zeros, signs or spaces inside (for
+             *     example 10.0.0.1), or IPv6 (2001:db8::1). A network is an address, a slash and a prefix length,
+             *     without bits set beyond the prefix (10.0.0.0/8, 2001:db8::/32). A range is two addresses of one
+             *     family joined by a hyphen, the first not after the last (10.0.0.1-10.0.0.50). Each entry is
+             *     trimmed, written in its canonical form, and empty and repeated entries are dropped. Every entry
+             *     that is not valid gets its own error (ClientIPs[2], ...). Null or left out stores an empty list.
              */
             ClientIPs?: string[] | null;
         };
@@ -3308,7 +3311,11 @@ export interface components {
              *     accepted. An empty ClientIPs accepts every address either way.
              */
             ClientIPsLogic: string;
-            /** @description IPv4 addresses, compared exactly with the caller's address. */
+            /**
+             * @description Addresses, networks and ranges that the caller's address is looked up in: an IPv4 or IPv6 address
+             *     (10.0.0.1), a network in CIDR notation (10.0.0.0/8) or a range of addresses, both ends included
+             *     (10.0.0.1-10.0.0.50).
+             */
             ClientIPs: string[];
         };
         /** @description The values of a server, for creating one and for changing one. */

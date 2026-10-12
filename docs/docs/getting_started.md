@@ -191,6 +191,7 @@ The "Compose file" column shows the values of [docker-compose.yaml](assets/docke
 | Variable | Compose file | Description |
 |---|---|---|
 | `MinThreads` | *(not set)* | Minimum number of worker threads of the .NET thread pool; `50` in the `appsettings.json` of the image |
+| `TrustedProxies` | *(not set)* | The reverse proxies in front of the API whose `X-Forwarded-For` header is believed (addresses, networks such as `172.18.0.0/16`, or ranges, comma separated), or `none` when callers reach the API directly. Not set, the header of any caller is believed and the IP lists of the applications can be bypassed: the API logs a `SECURITY` warning. See [IP allow/block](developer_guide/security.md#where-the-address-of-a-caller-comes-from) |
 | `OpenTelemetry__*` | *(not set)* | Metrics and tracing. See [Deployment](deployment.md#metrics-and-tracing). |
 | `ASPNETCORE_ENVIRONMENT` | *(not set)* | `Production` or `Development`; without it both services run as `Development`. See [Deployment](deployment.md#production-considerations). |
 

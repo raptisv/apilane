@@ -79,7 +79,7 @@ The largest file a user can upload, from 1 KB to 25,600 KB (25 MB). Whether a us
 
 ## IP allow/block
 
-Two modes are available for IP-based access control (card **IP access**, choice 'Addresses in the list are'). Addresses are plain dotted IPv4, one per box, compared exactly with the caller's address. An empty list accepts every address. The caller's address is the first entry of the `X-Forwarded-For` header when the request carries one (a reverse proxy sets it), otherwise the address of the connection. The list does not apply to people who manage the application in the Portal.
+Two modes are available for IP-based access control (card **IP access**, choice 'Addresses in the list are'). Each box holds one entry, which is an **address** (IPv4 `203.0.113.7`, or IPv6 `2001:db8::1`), a **network** in CIDR notation (`10.0.0.0/8`, `192.168.1.0/24`, `2001:db8::/32`) or a **range** of addresses of one family, both ends included (`10.0.0.1-10.0.0.50`). A network is written without bits beyond its prefix (`10.0.0.0/8`, not `10.1.2.3/8`), and an IPv4 address in plain dotted form, with no leading zeros. The Portal stores every entry in this canonical form. An empty list accepts every address. The caller's address is the first entry of the `X-Forwarded-For` header when the request carries one (a reverse proxy sets it), otherwise the address of the connection. The list does not apply to people who manage the application in the Portal.
 
 #### Blocked: every other address is accepted
 Use this setting to block specific IP addresses from accessing your application. This configuration may be useful if you wish to isolate applications, e.g. prevent access to a production application from a development/staging server.
@@ -87,8 +87,22 @@ Use this setting to block specific IP addresses from accessing your application.
 #### Allowed: every other address is blocked
 Use this setting to allow only specific IP addresses to access your application. This configuration may be useful if you wish to isolate applications, e.g. allow access to a production application only from a production server.
 
-!!!warning "Warning"
-    Anyone who can reach the API server directly can send their own `X-Forwarded-For` header, so the list is only reliable when a proxy in front of the API server sets or overwrites that header and is the only way in. These settings are not a replacement for network security tools. You can use these settings as an additional security measure but not as the main application security tool.
+### Where the address of a caller comes from
+
+The list is looked up with the address of each caller. The API server takes it from the connection, or from the `X-Forwarded-For` header that a reverse proxy, load balancer or CDN adds. **A header is only text**: anyone who can reach the API server can send `X-Forwarded-For: 10.0.0.5` and be taken for `10.0.0.5`. The same address is written in the log. The `TrustedProxies` setting of the API server says which connections are your own proxies, and so how much of the header is believed.
+
+| `TrustedProxies` | Meaning | Use it when |
+|---|---|---|
+| `none` | The header is never read: the address is the connection's. It cannot be forged. | Callers reach the API server directly |
+| Addresses, networks or ranges, comma separated (`172.18.0.2`, `10.0.0.0/8`) | The header is read only when the connection comes from one of them, and then from its right end: the first entry that is not one of them is the caller. A header written by the caller is ignored. | A reverse proxy of yours is the only way in |
+| *(not set)* | The first entry of the header is believed, from anyone. **The list can be bypassed.** The API server logs a `SECURITY` warning at start. | Never on purpose: it is the behaviour of versions before the setting existed |
+
+Set it in `appsettings.json` of the API server, as `"TrustedProxies": ["172.18.0.2"]`, or as the environment variable `TrustedProxies=172.18.0.2` (`TrustedProxies__0=...` for each one of a list), and restart the API server. A value that is not an address, a network or a range stops the start with a message that names it. It is a setting of the server, so it applies to every application on it.
+
+The **IP access** card of the **Security** tab shows what the API server sees for your browser and says what, if anything, to change: *Works*, or which address to set. **How the address is determined** opens the explanation with examples for nginx, Caddy, Traefik, HAProxy, docker-compose and appsettings.
+
+!!!warning "What works and what does not"
+    An **Allow** list works only when the address is the caller's real one: set `TrustedProxies` first, then fill the list. A **Block** list only stops callers who do not try, because anyone can come from another address. When a proxy sits in front of the API server and is not in `TrustedProxies`, every caller looks like the proxy: an Allow list refuses everyone. These settings are not a replacement for network security tools; use them as an additional measure.
 
 ![Apilane](../assets/security_ipblock.png)
 

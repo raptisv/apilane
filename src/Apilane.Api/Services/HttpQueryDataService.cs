@@ -1,5 +1,7 @@
-﻿using Apilane.Common;
+﻿using Apilane.Api.Core.Configuration;
+using Apilane.Common;
 using Apilane.Common.Utilities;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Primitives;
 using System;
@@ -11,11 +13,14 @@ namespace Apilane.Api.Services
     public class HttpQueryDataService : IQueryDataService
     {
         private readonly IActionContextAccessor _actionContextAccessor;
+        private readonly ForwardedHeaderTrust _trust;
 
         public HttpQueryDataService(
-            IActionContextAccessor actionContextAccessor)
+            IActionContextAccessor actionContextAccessor,
+            ApiConfiguration apiConfiguration)
         {
             _actionContextAccessor = actionContextAccessor;
+            _trust = apiConfiguration.TrustedProxies;
         }
 
         public string RouteController
@@ -101,14 +106,21 @@ namespace Apilane.Api.Services
         {
             get
             {
-                var httpContext = _actionContextAccessor.ActionContext?.HttpContext;
-
-                // A header that was sent several times reads as one comma separated value.
-                return ClientIpResolver.Resolve(
-                    httpContext?.Request.Headers["X-Forwarded-For"].ToString(),
-                    httpContext?.Connection.RemoteIpAddress?.ToString(),
-                    httpContext?.Request.Headers["REMOTE_ADDR"].ToString()) ?? string.Empty;
+                return ResolveClientAddress(_actionContextAccessor.ActionContext?.HttpContext, _trust).Address;
             }
+        }
+
+        /// <summary>
+        /// The address of the caller, as far as the TrustedProxies setting lets the X-Forwarded-For header count.
+        /// </summary>
+        public static ClientAddress ResolveClientAddress(HttpContext? httpContext, ForwardedHeaderTrust trust)
+        {
+            // A header that was sent several times reads as one comma separated value.
+            return ClientIpResolver.Resolve(
+                trust,
+                httpContext?.Request.Headers["X-Forwarded-For"].ToString(),
+                httpContext?.Connection.RemoteIpAddress?.ToString(),
+                httpContext?.Request.Headers["REMOTE_ADDR"].ToString());
         }
 
         public string Entity

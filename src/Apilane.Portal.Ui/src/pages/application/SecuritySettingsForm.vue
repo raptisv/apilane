@@ -10,12 +10,14 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useApplication } from '@/composables/useApplication'
 import { useLeaveGuard } from '@/composables/useLeaveGuard'
 import { useMutation } from '@/composables/useMutation'
 import { api, unwrap } from '@/lib/api'
 import type { Schemas } from '@/lib/api'
 import { formErrors, listErrors } from '@/lib/forms'
 import * as toast from '@/lib/toast'
+import ClientAddressStatus from './ClientAddressStatus.vue'
 
 // The access settings of the security screen: sign-in, register, files, IP access, and the two
 // forgot-password links (read-only). One form with its own Save; the rules below save separately.
@@ -27,7 +29,13 @@ const props = defineProps<{
   rulesDirty: boolean
 }>()
 
-const emit = defineEmits<{ saved: [settings: Schemas['SecuritySettingsResponse']] }>()
+const emit = defineEmits<{
+  saved: [settings: Schemas['SecuritySettingsResponse']]
+  /** Whether the form differs from the saved settings, for the tab that holds it. */
+  dirty: [value: boolean]
+}>()
+
+const { application } = useApplication()
 
 const form = reactive({
   AuthTokenExpireMinutes: '' as string | number,
@@ -70,6 +78,8 @@ const dirty = computed(() => {
     form.ClientIPs.some((address, index) => address !== saved.ClientIPs[index])
   )
 })
+
+watch(dirty, (value) => emit('dirty', value))
 
 // One question at a time: with unsaved rules the bar of the rules editor asks for the whole screen.
 // Two guards that both asked would open each other's question again and again.
@@ -148,57 +158,57 @@ const linkClass = 'font-medium text-link underline underline-offset-4'
 <template>
   <form ref="formEl" novalidate aria-label="Security settings" class="min-w-0" @submit.prevent="submit">
     <div class="grid gap-4 lg:grid-cols-2">
-      <section :class="sectionClass" aria-labelledby="signin-title">
-        <h2 id="signin-title" class="text-sm font-semibold">Sign-in</h2>
+      <!-- The two short cards share one column, so the tall IP card beside them does not stretch either. -->
+      <div class="grid content-start gap-4">
+        <section :class="sectionClass" aria-labelledby="signin-title">
+          <h2 id="signin-title" class="text-sm font-semibold">Sign-in</h2>
 
-        <FormField
-          v-slot="{ field }"
-          label="Auth token lifetime (minutes)"
-          help="When a user signs in, the auth token stays valid for at least this many minutes. After that time of inactivity, the user has to sign in again."
-          :error="errors.fields.AuthTokenExpireMinutes"
-        >
-          <Input v-model="form.AuthTokenExpireMinutes" v-bind="field" type="number" min="1" step="1" class="max-w-40" />
-        </FormField>
+          <FormField
+            v-slot="{ field }"
+            label="Auth token lifetime (minutes)"
+            help="When a user signs in, the auth token stays valid for at least this many minutes. After that time of inactivity, the user has to sign in again."
+            :error="errors.fields.AuthTokenExpireMinutes"
+          >
+            <Input v-model="form.AuthTokenExpireMinutes" v-bind="field" type="number" min="1" step="1" class="max-w-40" />
+          </FormField>
 
-        <SwitchField
-          v-model="form.ForceSingleLogin"
-          label="Allow only one sign-in at a time"
-          help="A new sign-in ends the user's other sessions."
-          :error="errors.fields.ForceSingleLogin"
-        />
+          <SwitchField
+            v-model="form.ForceSingleLogin"
+            label="Allow only one sign-in at a time"
+            help="A new sign-in ends the user's other sessions."
+            :error="errors.fields.ForceSingleLogin"
+          />
 
-        <SwitchField
-          v-model="form.AllowLoginUnconfirmedEmail"
-          label="Allow users with an unconfirmed email to sign in"
-          :error="errors.fields.AllowLoginUnconfirmedEmail"
-        />
-      </section>
+          <SwitchField
+            v-model="form.AllowLoginUnconfirmedEmail"
+            label="Allow users with an unconfirmed email to sign in"
+            :error="errors.fields.AllowLoginUnconfirmedEmail"
+          />
+        </section>
 
-      <section :class="sectionClass" aria-labelledby="register-title">
-        <h2 id="register-title" class="text-sm font-semibold">Register</h2>
+        <section :class="sectionClass" aria-labelledby="register-title">
+          <h2 id="register-title" class="text-sm font-semibold">Registration and files</h2>
 
-        <SwitchField v-model="form.AllowUserRegister" label="Allow new users to register" :error="errors.fields.AllowUserRegister" />
-      </section>
+          <SwitchField v-model="form.AllowUserRegister" label="Allow new users to register" :error="errors.fields.AllowUserRegister" />
 
-      <section :class="sectionClass" aria-labelledby="files-title">
-        <h2 id="files-title" class="text-sm font-semibold">Files</h2>
-
-        <FormField
-          v-slot="{ field }"
-          label="Maximum file size (KB)"
-          help="The largest file a user can upload: 1 to 25600 KB (25 MB)."
-          :error="errors.fields.MaxAllowedFileSizeInKB"
-        >
-          <Input v-model="form.MaxAllowedFileSizeInKB" v-bind="field" type="number" min="1" max="25600" step="1" class="max-w-40" />
-        </FormField>
-      </section>
+          <FormField
+            v-slot="{ field }"
+            label="Maximum file size (KB)"
+            help="The largest file a user can upload: 1 to 25600 KB (25 MB)."
+            :error="errors.fields.MaxAllowedFileSizeInKB"
+          >
+            <Input v-model="form.MaxAllowedFileSizeInKB" v-bind="field" type="number" min="1" max="25600" step="1" class="max-w-40" />
+          </FormField>
+        </section>
+      </div>
 
       <section :class="sectionClass" aria-labelledby="ip-title">
         <div>
           <h2 id="ip-title" class="text-sm font-semibold">IP access</h2>
           <p class="mt-1" :class="noteClass">
-            Which IPv4 addresses may call the API of this application. An address is compared exactly with the caller's.
-            Leave the list empty to accept every address.
+            Which addresses may call the API of this application. Each entry is an IPv4 or IPv6 address
+            (<code>203.0.113.7</code>), a network (<code>10.0.0.0/8</code>) or a range
+            (<code>10.0.0.1-10.0.0.50</code>). Leave the list empty to accept every address.
           </p>
         </div>
 
@@ -216,9 +226,9 @@ const linkClass = 'font-medium text-link underline underline-offset-4'
 
         <TextListInput
           v-model="form.ClientIPs"
-          item-label="IP address"
-          add-label="Add address"
-          placeholder="192.168.0.1"
+          item-label="Address, network or range"
+          add-label="Add entry"
+          placeholder="192.168.0.0/24"
           :errors="addressErrors"
         />
 
@@ -226,6 +236,13 @@ const linkClass = 'font-medium text-link underline underline-offset-4'
           <TriangleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p>Only the addresses in the list can call the API. Check that the addresses you call it from are there.</p>
         </div>
+
+        <ClientAddressStatus
+          :server-url="application.Server.ServerUrl"
+          :app-token="appToken"
+          :logic="settings.ClientIPsLogic"
+          :entries="settings.ClientIPs"
+        />
       </section>
 
       <section :class="sectionClass" class="lg:col-span-2" aria-labelledby="forgot-title">

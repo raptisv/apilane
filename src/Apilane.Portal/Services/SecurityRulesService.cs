@@ -1,5 +1,6 @@
 using Apilane.Common;
 using Apilane.Common.Enums;
+using Apilane.Common.Utilities;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Portal.Abstractions;
@@ -89,18 +90,23 @@ namespace Apilane.Portal.Services
                     continue;
                 }
 
-                // The API server compares addresses as text, so only the plain dotted form can ever
-                // match: the round trip refuses signs, inner spaces and leading zeros.
-                if (Utils.ValidateIPv4(address) && IPAddress.TryParse(address, out var ip) && ip.ToString() == address)
+                // An address, a network (10.0.0.0/8) or a range (10.0.0.1-10.0.0.50), IPv4 or IPv6. It is stored in
+                // the one text the API server matches: IPv4 in plain dotted form (the round trip refuses signs,
+                // inner spaces and leading zeros), IPv6 compressed, a network without bits beyond its prefix.
+                if (ClientIpFilter.TryNormalize(address, out var normalized, out var problem))
                 {
-                    addresses.Add(address);
+                    // The same entry written twice is one entry
+                    if (!addresses.Contains(normalized))
+                    {
+                        addresses.Add(normalized);
+                    }
                 }
                 else
                 {
                     errors.Add(new ErrorDetail
                     {
                         Property = $"{nameof(SecuritySettingsRequest.ClientIPs)}[{i}]",
-                        Message = $"'{address}' is not a valid IPv4 address"
+                        Message = $"'{address}' {problem}"
                     });
                 }
             }

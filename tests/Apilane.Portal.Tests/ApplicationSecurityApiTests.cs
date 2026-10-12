@@ -383,27 +383,68 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
-        public async Task Update_Settings_With_Bad_Addresses_Should_Name_Each_And_Change_Nothing()
+        public async Task Update_Settings_Should_Accept_Networks_Ranges_And_IPv6_In_Their_Canonical_Text()
+        {
+            var scene = await CreateSceneAsync();
+            ScriptApiServer();
+
+            var body = SettingsBody();
+            body["ClientIPs"] = new[]
+            {
+                "10.0.0.0/8", " 192.168.1.0 / 24 ", "203.0.113.10 - 203.0.113.20", "2001:DB8:0:0::/32",
+                "2001:DB8::1", "10.0.0.0/8", "::ffff:198.51.100.7"
+            };
+
+            var response = await scene.Owner.PutAsync(SettingsUrl(scene), body.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var expected = new[] { "10.0.0.0/8", "192.168.1.0/24", "203.0.113.10-203.0.113.20", "2001:db8::/32", "2001:db8::1", "198.51.100.7" };
+            Assert.Equal(expected, (await response.ReadJsonAsync<SecuritySettingsResponse>()).ClientIPs);
+            Assert.Equal(string.Join(",", expected), (await LoadAsync(scene.AppId)).ClientIPsValue);
+        }
+
+        [Fact]
+        public async Task Update_Settings_With_Bad_Networks_And_Ranges_Should_Say_What_Is_Wrong_And_Change_Nothing()
         {
             var scene = await CreateSceneAsync();
 
             var body = SettingsBody();
-            // The last four would pass a lenient parser, but the API server compares addresses as text, so they could never match.
-            body["ClientIPs"] = new[] { "10.0.0.1", "300.1.1.1", "", "abc", "1.2.3", "::1", "10.0.0.1,10.0.0.2", " 192.168.0.1 ", "010.0.0.1", "+10.0.0.1", "10. 0.0.1", "10.0.0.-0" };
+            body["ClientIPs"] = new[] { "10.1.2.3/8", "10.0.0.0/33", "10.0.0.9-10.0.0.1", "10.0.0.1-2001:db8::1", "2001:db8::/129" };
 
             var response = await scene.Owner.PutAsync(SettingsUrl(scene), body.ToJsonContent());
 
             await EntityScene.AssertValidationAsync(
                 response,
-                "ClientIPs[1]: '300.1.1.1' is not a valid IPv4 address",
-                "ClientIPs[3]: 'abc' is not a valid IPv4 address",
-                "ClientIPs[4]: '1.2.3' is not a valid IPv4 address",
-                "ClientIPs[5]: '::1' is not a valid IPv4 address",
-                "ClientIPs[6]: '10.0.0.1,10.0.0.2' is not a valid IPv4 address",
-                "ClientIPs[8]: '010.0.0.1' is not a valid IPv4 address",
-                "ClientIPs[9]: '+10.0.0.1' is not a valid IPv4 address",
-                "ClientIPs[10]: '10. 0.0.1' is not a valid IPv4 address",
-                "ClientIPs[11]: '10.0.0.-0' is not a valid IPv4 address");
+                "ClientIPs[0]: '10.1.2.3/8' has bits set beyond its /8 prefix: write it as 10.0.0.0/8",
+                "ClientIPs[1]: '10.0.0.0/33' has no valid prefix length (0 to 32 for IPv4)",
+                "ClientIPs[2]: '10.0.0.9-10.0.0.1' ends before it begins",
+                "ClientIPs[3]: '10.0.0.1-2001:db8::1' mixes an IPv4 and an IPv6 address",
+                "ClientIPs[4]: '2001:db8::/129' has no valid prefix length (0 to 128 for IPv6)");
+        }
+
+        [Fact]
+        public async Task Update_Settings_With_Bad_Addresses_Should_Name_Each_And_Change_Nothing()
+        {
+            var scene = await CreateSceneAsync();
+
+            var body = SettingsBody();
+            // The last four would pass a lenient parser, but the API server matches the plain dotted form, so they could never match.
+            body["ClientIPs"] = new[] { "10.0.0.1", "300.1.1.1", "", "abc", "1.2.3", "fe80::1%eth0", "10.0.0.1,10.0.0.2", " 192.168.0.1 ", "010.0.0.1", "+10.0.0.1", "10. 0.0.1", "10.0.0.-0" };
+
+            var response = await scene.Owner.PutAsync(SettingsUrl(scene), body.ToJsonContent());
+
+            await EntityScene.AssertValidationAsync(
+                response,
+                "ClientIPs[1]: '300.1.1.1' is not a valid IPv4 or IPv6 address",
+                "ClientIPs[3]: 'abc' is not a valid IPv4 or IPv6 address",
+                "ClientIPs[4]: '1.2.3' is not a valid IPv4 or IPv6 address",
+                "ClientIPs[5]: 'fe80::1%eth0' is not a valid IPv4 or IPv6 address",
+                "ClientIPs[6]: '10.0.0.1,10.0.0.2' is not a valid IPv4 or IPv6 address",
+                "ClientIPs[8]: '010.0.0.1' is not a valid IPv4 or IPv6 address",
+                "ClientIPs[9]: '+10.0.0.1' is not a valid IPv4 or IPv6 address",
+                "ClientIPs[10]: '10. 0.0.1' is not a valid IPv4 or IPv6 address",
+                "ClientIPs[11]: '10.0.0.-0' is not a valid IPv4 or IPv6 address");
 
             await AssertUnchangedAsync(scene);
         }

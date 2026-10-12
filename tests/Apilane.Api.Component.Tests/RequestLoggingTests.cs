@@ -38,7 +38,7 @@ namespace Apilane.Api.Component.Tests
             var actionContext = new ActionContext(httpContext, routeData, new ActionDescriptor());
 
             httpContext.RequestServices = new ServiceCollection()
-                .AddSingleton<IQueryDataService>(new HttpQueryDataService(new ActionContextAccessor() { ActionContext = actionContext }))
+                .AddSingleton<IQueryDataService>(new HttpQueryDataService(new ActionContextAccessor() { ActionContext = actionContext }, new ApiConfiguration(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>() { ["Url"] = "http://localhost:5001", ["PortalUrl"] = "http://portal.test", ["FilesPath"] = System.IO.Path.GetTempPath(), ["InstallationKey"] = "test-installation-key" }).Build())))
                 .BuildServiceProvider();
 
             return actionContext;

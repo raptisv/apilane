@@ -76,6 +76,16 @@ namespace Apilane.Api
                     Log.Logger.Warning("SECURITY: {Problem}. Set a long random 'InstallationKey' (identical on the portal) via appsettings.{Environment}.json or an environment variable.", installationKeyProblem, environment);
                 }
 
+                // Without TrustedProxies the X-Forwarded-For header of anyone is believed, so anyone who can reach the
+                // API server chooses the address that the IP lists of the applications and the log see.
+                if (appConfig.TrustedProxies.Mode == ForwardedHeaderMode.NotConfigured)
+                {
+                    Log.Logger.Warning(
+                        "SECURITY: 'TrustedProxies' is not set, so the X-Forwarded-For header of any caller is believed and the IP lists " +
+                        "of the applications can be bypassed by sending an address of the list. Set 'TrustedProxies' to the addresses or networks " +
+                        "of the reverse proxies in front of this server, or to 'none' when callers reach it directly. See Security > IP access in the Portal.");
+                }
+
                 builder.AddOrleans(appConfig);
 
                 builder.Services

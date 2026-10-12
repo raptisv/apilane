@@ -12,6 +12,7 @@ using Apilane.Common.Enums;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Common.Security;
+using Apilane.Common.Utilities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
@@ -255,20 +256,15 @@ namespace Apilane.Api.Controllers
                 return true;
             }
 
-            var ipList = clientIPsValue.Trim()
-                .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Where(x => !string.IsNullOrWhiteSpace(x));
+            // An entry is an address, a network (10.0.0.0/8) or a range (10.0.0.1-10.0.0.50)
+            var listed = ClientIpFilter.IsMatch(clientIPsValue, ipAddress);
 
-            if (appClientIPsLogics == AppClientIPsLogics.Block && ipList.Any(x => x.Equals(ipAddress, StringComparison.OrdinalIgnoreCase)))
+            return appClientIPsLogics switch
             {
-                return false;
-            }
-            else if (appClientIPsLogics == AppClientIPsLogics.Allow && !ipList.Any(x => x.Equals(ipAddress, StringComparison.OrdinalIgnoreCase)))
-            {
-                return false;
-            }
-
-            return true;
+                AppClientIPsLogics.Block => !listed,
+                AppClientIPsLogics.Allow => listed,
+                _ => true
+            };
         }
     }
 }

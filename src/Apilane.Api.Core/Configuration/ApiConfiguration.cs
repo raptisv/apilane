@@ -3,6 +3,7 @@ using Apilane.Common.Utilities;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Apilane.Api.Core.Configuration
 {
@@ -27,6 +28,13 @@ namespace Apilane.Api.Core.Configuration
         public OpenTelemetryConfiguration OpenTelemetry { get; set; }
         public ClusteringConfiguration Clustering { get; set; }
 
+        /// <summary>
+        /// The TrustedProxies setting: the proxies in front of this server whose X-Forwarded-For header is believed,
+        /// or "none" when callers reach the server directly. Not set: the header of anyone is believed (see
+        /// <see cref="ForwardedHeaderTrust"/>).
+        /// </summary>
+        public ForwardedHeaderTrust TrustedProxies { get; set; }
+
         public ApiConfiguration(IConfiguration configuration)
         {
             // "Environment" is normally set in appsettings.{Environment}.json. When that file is absent
@@ -48,6 +56,11 @@ namespace Apilane.Api.Core.Configuration
             OpenTelemetry.Metrics ??= new OpenTelemetryConfiguration.OpenTelemetryMetricsConfiguration();
             OpenTelemetry.Tracing ??= new OpenTelemetryConfiguration.OpenTelemetryTracingConfiguration();
             Clustering = configuration.GetSection("Clustering").Get<ClusteringConfiguration>() ?? new ClusteringConfiguration();
+
+            // A list (TrustedProxies:0, TrustedProxies__0 in the environment) or one comma separated value
+            var proxies = configuration.GetSection("TrustedProxies");
+            TrustedProxies = ForwardedHeaderTrust.FromSettings(
+                proxies.GetChildren().Select(x => x.Value).Append(proxies.Value));
         }
 
         private static Exception Missing(string setting)

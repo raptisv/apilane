@@ -91,6 +91,32 @@ namespace Apilane.Api.Controllers
             return Json("OK");
         }
 
+        /// <summary>
+        /// The address of the caller of this request as the IP list of the application sees it, and how it was
+        /// found. The Portal shows it so that the owner can check that the list is looked up with the real
+        /// address of the callers (see the TrustedProxies setting).
+        /// </summary>
+        [HttpGet]
+        public JsonResult GetClientAddress()
+        {
+            var trust = ApiConfiguration.TrustedProxies;
+            var resolved = Services.HttpQueryDataService.ResolveClientAddress(HttpContext, trust);
+            var connection = HttpContext.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
+            var forwardedFor = HttpContext.Request.Headers["X-Forwarded-For"].ToString();
+
+            return Json(new
+            {
+                ClientAddress = resolved.Address,
+                Source = resolved.Source.ToString(),
+                ConnectionAddress = connection,
+                ForwardedFor = forwardedFor.Length == 0 ? null : forwardedFor,
+                ForwardedForHonoured = resolved.ForwardedForHonoured,
+                Mode = trust.Mode.ToString(),
+                ConnectionIsTrustedProxy = trust.Mode == Common.Utilities.ForwardedHeaderMode.TrustedProxies && trust.IsProxy(connection),
+                TrustedProxies = trust.Proxies
+            });
+        }
+
         [HttpGet]
         public double GetStorageUsed() => _applicationAPI.GetStorageUsedInMB(Application.Token, (DatabaseType)Application.DatabaseType);
 

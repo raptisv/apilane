@@ -21,7 +21,7 @@ import HelpSheet from '@/components/HelpSheet.vue'
           delete. Their own Help explains them.
         </li>
       </ul>
-      <p>The settings above and the access rules below are saved separately, each with its own Save.</p>
+      <p>The access settings and the access rules are on separate tabs and are saved separately, each with its own Save. A dot on a tab means it has changes that are not saved.</p>
     </HelpItem>
 
     <HelpItem title="Sign-in">
@@ -55,7 +55,9 @@ import HelpSheet from '@/components/HelpSheet.vue'
 
     <HelpItem title="IP access">
       <p>
-        A list of IPv4 addresses, compared exactly with the address of the caller. Choose what the list means:
+        A list of addresses, networks and ranges, looked up with the address of the caller. An entry is an IPv4 or IPv6
+        address (<code>203.0.113.7</code>), a network in CIDR notation (<code>10.0.0.0/8</code>, <code>2001:db8::/32</code>)
+        or a range with both ends included (<code>10.0.0.1-10.0.0.50</code>). Choose what the list means:
       </p>
       <ul>
         <li><strong>Blocked</strong>: these addresses are refused, every other one is accepted.</li>

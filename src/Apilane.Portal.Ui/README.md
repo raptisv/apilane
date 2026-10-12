@@ -89,7 +89,7 @@ marks calls the browser makes straight to the application's API server
 | Constraints of an entity | `/apps/{appToken}/entities/{entity}/constraints` | `GET` and `PUT {app}/entities/{entity}/constraints` |
 | Default sorting of an entity | `/apps/{appToken}/entities/{entity}/sorting` | `GET` and `PUT {app}/entities/{entity}/default-order` |
 | Data browser | `/apps/{appToken}/data/{entity}?page=&pageSize=&sort=` | `GET {app}/entities?IncludeProperties=true`, `GET /session/api-token`. API server: `Data/*`, `Files/*`, `EntityHistory/*`, `Account/Register` |
-| Security | `/apps/{appToken}/security` (`?item=`, `?view=tree`, `?view=matrix`) | `GET {app}/security`, `PUT {app}/security/settings`, `PUT {app}/security/rules` |
+| Security | `/apps/{appToken}/security` (`?tab=settings`, `?item=`, `?view=tree`, `?view=matrix`) | `GET {app}/security`, `PUT {app}/security/settings`, `PUT {app}/security/rules` |
 | Custom endpoints | `/apps/{appToken}/endpoints` | `GET {app}/custom-endpoints`, `DELETE {app}/custom-endpoints/{id}` |
 | Custom endpoint editor | `/apps/{appToken}/endpoints/new`, `/apps/{appToken}/endpoints/{id}` | `POST {app}/custom-endpoints`, `GET` and `PUT {app}/custom-endpoints/{id}`, `GET {app}/entities?IncludeProperties=true`. API server: `Custom/TestQuery` |
 | Email | `/apps/{appToken}/email` | `GET` and `PUT {app}/email-settings`. API server: `Email/GetEmails`, `Email/Update` |
@@ -347,9 +347,17 @@ that hosts the application, and the browser calls that server directly:
   does not offer, properties on rules that are not about an entity, and a missing record scope.
 - Stored rules that can never apply (deleted item, unknown type or action, blank role, a second rule
   for the same cell) are left out when reading, and so dropped by the next save.
-- IP addresses are plain dotted IPv4 (no leading zeros, signs or spaces inside), because the API
-  server compares them exactly. The logic is Block or Allow. With Allow and a non-empty list the
-  screen warns about locking yourself out.
+- An IP entry is an address (IPv4 in plain dotted form, no leading zeros, signs or spaces inside; or
+  IPv6), a network in CIDR notation (10.0.0.0/8, no bits beyond the prefix) or a range of one family
+  (10.0.0.1-10.0.0.50). Entries are stored in their canonical text, and the API server matches the
+  caller's address against them (`ClientIpFilter` in Apilane.Common). The logic is Block or Allow. With
+  Allow and a non-empty list the screen warns about locking yourself out.
+- Under the list, `ClientAddressStatus` asks the application's API server what it sees for the browser
+  (`GET /api/Application/GetClientAddress`, owner only, through `lib/apiServer.ts`) and `assess`
+  (`lib/clientAddress.ts`) says whether the address is the caller's: *Works*, or what to set. The
+  setting is `TrustedProxies` of the API server (a list of proxies, or `none`; not set believes the
+  `X-Forwarded-For` header of anyone). It is a setting of the server, not of the application, so no
+  database column holds it. `ClientAddressDialog` has the long explanation with examples.
 - The action of a rule is stored in lower case.
 - A switched-on cell with no properties means 'only the ID is returned' (get) or 'the call is
   refused' (post, put). The editor, the tree and the matrix all say so.
@@ -1202,7 +1210,7 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 | `ConstraintsPage` | `.../entities/:entity/constraints`: the unique and foreign key constraints of one entity, added (`AddConstraintDialog`, a two-step dialog: kind, then its fields) and removed in the list and saved together; read-only for a system entity unless the user is an administrator. |
 | `SortingPage` | `.../entities/:entity/sorting`: the default sorting of one entity as an ordered list. |
 | `DataPage` | `/apps/:appToken/data/:entity?page=&pageSize=&sort=`: the data browser of the application: the entities with properties loaded once, then `ApplicationDataBrowser`. |
-| `SecurityPage` | `/apps/:appToken/security`, with a Help for the screen (`SecurityHelp`) and one for the rules (`AccessRulesHelp`, in the header of `SecurityRulesEditor`): `SecuritySettingsForm` (sign-in, register, files, IP access with its own Save, 'Not saved yet' next to it and its own question before leaving; the forgot-password links read-only) and `SecurityRulesEditor` (the rules of every item edited locally and saved together: `SecurityItemPicker` lists the items, a searchable list or a select on a phone, the selected one in `?item=Entity-<name>`, `CustomEndpoint-<name>` or `Schema-Schema`; a role x action grid of `SecurityRuleCell`; `SecurityTreeDialog` and `SecurityMatrixDialog`, the saved rules read-only at `?view=tree` and `?view=matrix`, with `SecurityAccessBadge`). |
+| `SecurityPage` | `/apps/:appToken/security`, in two tabs that both stay mounted (the rules first, `?tab=settings` for the settings; a dot on a tab marks unsaved changes), with a Help for the screen (`SecurityHelp`) and one for the rules (`AccessRulesHelp`, in the header of `SecurityRulesEditor`): `SecuritySettingsForm` (sign-in, register, files, IP access with its own Save, 'Not saved yet' next to it and its own question before leaving; the forgot-password links read-only) and `SecurityRulesEditor` (the rules of every item edited locally and saved together: `SecurityItemPicker` lists the items, a searchable list (with the item being edited named above the search, and Enter editing the first match) or a select on a phone, the selected one in `?item=Entity-<name>`, `CustomEndpoint-<name>` or `Schema-Schema`; a role x action grid of `SecurityRuleCell`; `SecurityTreeDialog` and `SecurityMatrixDialog`, the saved rules read-only at `?view=tree` and `?view=matrix`, with `SecurityAccessBadge`). |
 | `CustomEndpointsPage` | `/apps/:appToken/endpoints`: the custom endpoints, one line each with the SQL cut to one line, the 'Call endpoint' link (opens `CallUrl` in a new tab), Edit and the delete confirm. `CustomEndpointSearchDialog` finds any text of the names, descriptions and whole SQL and marks it, with Edit opening the editor in a new tab. |
 | `CustomEndpointEditorPage` | `/apps/:appToken/endpoints/new` and `/apps/:appToken/endpoints/<ID>`: name, description and the SQL in `SqlEditor`, saved with `UnsavedChangesBar`, the rename warning, its Help and, for an existing endpoint, a preview before the save (`CustomEndpointSavePreview`: the name and description that change and a line diff of the SQL, `LineDiff`) (`CustomEndpointEditorHelp`, which shows the SQL Server item only for a SQL Server application). `CustomEndpointTestPanel` is its right-hand part (the address and a box per parameter, worked out in the browser, and Test, which runs the SQL on the API server and shows the JSON or the database's error). |
 | `EmailPage` | `/apps/:appToken/email`: the SMTP settings and the confirmation landing page, one form saved to the Portal, and the e-mail templates read from and saved to the API server. `EmailTemplateDialog` edits one template (enabled, subject, HTML body with a live `HtmlPreview`, the placeholders). |

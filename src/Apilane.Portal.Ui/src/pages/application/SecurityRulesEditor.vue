@@ -252,7 +252,7 @@ const typeNames: Record<string, string> = { Schema: 'The application schema', En
       </AlertDescription>
     </Alert>
 
-    <div class="grid min-w-0 gap-4 lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start">
+    <div class="grid min-w-0 gap-4 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
       <SecurityItemPicker
         :items="items"
         :selected="selected ? itemKey(selected) : ''"
@@ -263,7 +263,9 @@ const typeNames: Record<string, string> = { Schema: 'The application schema', En
 
       <div v-if="selected" class="grid min-w-0 gap-3">
         <div>
-          <h3 class="text-sm font-medium wrap-anywhere">{{ selected.Name }}</h3>
+          <h3 class="text-base font-semibold wrap-anywhere">
+            <span class="font-normal text-muted-foreground">Rules for </span>{{ selected.Name }}
+          </h3>
           <p class="text-xs text-muted-foreground">
             {{ typeNames[selected.Type] ?? selected.Type }}{{ selected.IsSystem ? ' (system)' : '' }}
           </p>

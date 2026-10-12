@@ -29,6 +29,7 @@ services:
       - Url=http://0.0.0.0:5001
       - PortalUrl=http://127.0.0.1:5000 # The url to the Portal. Change it according to your setup.
       - FilesPath=/etc/apilanewebapi/Files # The api server files path.
+      - TrustedProxies=none # Callers reach the API directly, so the X-Forwarded-For header is ignored. Behind a reverse proxy, put its address or network here instead (e.g. 172.18.0.0/16).
       - InstallationKey=${APILANE_INSTALLATION_KEY:?Set APILANE_INSTALLATION_KEY to a long random secret (e.g. openssl rand -hex 32); it must be identical for the api and the portal} # Shared secret with apilanewebportal. Never use a published example value.
     volumes:
       - apilane-api-data:/etc/apilanewebapi

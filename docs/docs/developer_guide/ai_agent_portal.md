@@ -205,7 +205,7 @@ api -X PUT "$APP/security/rules" -d '{"Rules":[{"Type":"Entity","Name":"Products
 - `Action`: `get`, `post`, `put` or `delete`, and only what the item offers (`Items[].AllowPost`, `AllowPut`, `AllowDelete`; custom endpoints and Schema only `get`). `Record`: always send `All` or `Owned`; `Owned` acts only on `get`, `put` and `delete` of an item with `HasOwner`; elsewhere it is accepted and ignored.
 - `Properties` are for entity rules only: from `PropertiesGet` for `get`, from `PropertiesPostPut` for `post` and `put`, none for `delete`. An empty list means a `get` returns only the ID and a `post` or `put` is refused.
 - `RateLimit` is `{"MaxRequests":10,"TimeWindow":"Per_Minute"}` (`Per_Second`, `Per_Minute` or `Per_Hour`), or left out. One rule per `Type`, `Name`, `RoleID` and `Action`. An error names the place: `Rules[3].Action`.
-- `PUT $APP/security/settings` writes every value, so `GET` first and send all of them back: `AuthTokenExpireMinutes`, `ForceSingleLogin`, `AllowLoginUnconfirmedEmail`, `AllowUserRegister`, `MaxAllowedFileSizeInKB` (1 to 25600), `ClientIPsLogic` (`Block` or `Allow`) and `ClientIPs` (plain IPv4 addresses). Change them only when asked.
+- `PUT $APP/security/settings` writes every value, so `GET` first and send all of them back: `AuthTokenExpireMinutes`, `ForceSingleLogin`, `AllowLoginUnconfirmedEmail`, `AllowUserRegister`, `MaxAllowedFileSizeInKB` (1 to 25600), `ClientIPsLogic` (`Block` or `Allow`) and `ClientIPs` (IPv4 or IPv6 addresses, networks such as `10.0.0.0/8`, or ranges such as `10.0.0.1-10.0.0.50`). Change them only when asked.
 
 **7. E-mail settings (read only).** Requires `email-settings.Read`.
 

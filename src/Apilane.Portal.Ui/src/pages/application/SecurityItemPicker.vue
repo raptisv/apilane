@@ -36,6 +36,19 @@ const shownGroups = computed(() => {
   return groups(text === '' ? props.items : props.items.filter((item) => item.Name.toLowerCase().includes(text)))
 })
 
+// The item being edited, always shown at the top, so that a search that filters it out of the list
+// does not leave the grid beside it without a name.
+const current = computed(() => props.items.find((item) => itemKey(item) === props.selected))
+const firstMatch = computed(() => shownGroups.value[0]?.items[0])
+const typeNames: Record<string, string> = { Schema: 'The application schema', Entity: 'Entity', CustomEndpoint: 'Custom endpoint' }
+
+// Enter in the search box edits the first match: the list narrows as you type, this takes you there.
+function openFirst(): void {
+  if (firstMatch.value) {
+    emit('select', itemKey(firstMatch.value))
+  }
+}
+
 const selectedModel = computed({
   get: () => props.selected,
   set: (key: string) => emit('select', key),
@@ -66,9 +79,27 @@ const itemClass =
 
   <!-- Wide screen: a searchable list. -->
   <nav aria-label="Security items" class="hidden lg:grid lg:content-start lg:gap-3">
-    <div class="relative">
-      <SearchIcon class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-      <Input v-model="search" type="search" aria-label="Search items" placeholder="Search" class="pl-8" />
+    <div v-if="current" class="rounded-lg border bg-card px-3 py-2.5" aria-live="polite">
+      <p class="text-xs text-muted-foreground">Editing the rules of</p>
+      <p class="font-semibold wrap-anywhere">{{ current.Name }}</p>
+      <p class="text-xs text-muted-foreground">{{ typeNames[current.Type] ?? current.Type }}{{ current.IsSystem ? ' (system)' : '' }}</p>
+    </div>
+
+    <div class="grid gap-1.5">
+      <div class="relative">
+        <SearchIcon class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+        <Input
+          v-model="search"
+          type="search"
+          aria-label="Search items"
+          placeholder="Search"
+          class="pl-8"
+          @keydown.enter.prevent="openFirst"
+        />
+      </div>
+      <p v-if="search.trim() !== '' && firstMatch && itemKey(firstMatch) !== selected" class="px-1 text-xs text-muted-foreground">
+        Press Enter to edit <strong class="font-medium text-foreground">{{ firstMatch.Name }}</strong>, or pick one below.
+      </p>
     </div>
 
     <p v-if="shownGroups.length === 0" class="px-2.5 text-sm text-muted-foreground">No item matches.</p>
@@ -84,6 +115,7 @@ const itemClass =
             @click="emit('select', itemKey(item))"
           >
             <span class="min-w-0 wrap-anywhere">{{ item.Name }}</span>
+            <span v-if="itemKey(item) === selected" class="sr-only">(being edited)</span>
             <span v-if="itemKey(item) === failed" class="size-2 shrink-0 rounded-full bg-destructive" title="Not saved: see the error" />
             <span v-else-if="changed.has(itemKey(item))" class="size-2 shrink-0 rounded-full bg-warning" title="Unsaved changes" />
             <span v-if="itemKey(item) === failed" class="sr-only">(has an error)</span>
