@@ -174,6 +174,31 @@ namespace Apilane.UnitTests
             Assert.AreEqual(ClientAddressSource.None, result.Source);
         }
 
+        // ─── Several proxies in a row ────────────────────────────────────────────
+
+        [TestMethod]
+        public void Chain_AllTheProxiesListed_TheCallerIsTheFirstAddressThatIsNotOne()
+        {
+            // client -> a CDN edge (172.70.1.2) -> the proxy of the origin (172.30.0.1) -> the API server.
+            // The proxy of the origin appended the edge address to what the CDN sent: "<what the caller wrote>, <caller>, <edge>".
+            var trust = ForwardedHeaderTrust.FromSettings(new[] { "172.30.0.1", "172.64.0.0/13" });
+
+            var result = ClientIpResolver.Resolve(trust, "6.6.6.6, 203.0.113.7, 172.70.1.2", "172.30.0.1", null);
+
+            Assert.AreEqual("203.0.113.7", result.Address);
+        }
+
+        [TestMethod]
+        public void Chain_AProxyThatIsNotListed_IsTakenForTheCaller()
+        {
+            // The mistake the Portal explains: only the proxy of the origin is listed
+            var trust = ForwardedHeaderTrust.FromSettings(new[] { "172.30.0.1" });
+
+            var result = ClientIpResolver.Resolve(trust, "203.0.113.7, 172.70.1.2", "172.30.0.1", null);
+
+            Assert.AreEqual("172.70.1.2", result.Address);
+        }
+
         // ─── none ────────────────────────────────────────────────────────────────
 
         [TestMethod]

@@ -99,6 +99,12 @@ The list is looked up with the address of each caller. The API server takes it f
 
 Set it in `appsettings.json` of the API server, as `"TrustedProxies": ["172.18.0.2"]`, or as the environment variable `TrustedProxies=172.18.0.2` (`TrustedProxies__0=...` for each one of a list), and restart the API server. A value that is not an address, a network or a range stops the start with a message that names it. It is a setting of the server, so it applies to every application on it.
 
+#### Several proxies in a row
+
+Behind a CDN or a cloud load balancer that sits in front of your own reverse proxy, the API server gets the proxy as the connection and, in `X-Forwarded-For`, the caller followed by the address of the CDN server that your proxy talked to (`203.0.113.7, 172.70.1.2`). The header is read from the right, so **every proxy of the chain** has to be in `TrustedProxies`: yours, and the networks the CDN publishes for its edge servers. With only your own proxy listed, the caller would be taken to be `172.70.1.2`, an address of the CDN, and an Allow list would refuse the real callers. The Security tab notices this: when the header holds addresses to the left of the one in use, it shows them and says to add the network of the one in use if it is a proxy.
+
+Let only the CDN reach your origin (a firewall rule, or authenticated origin pulls): the header of a proxy of the list is believed, so anyone who reaches the origin from a listed address, or who can make your proxy forward their header unchanged, can still write it.
+
 The **IP access** card of the **Security** tab shows what the API server sees for your browser and says what, if anything, to change: *Works*, or which address to set. **How the address is determined** opens the explanation with examples for nginx, Caddy, Traefik, HAProxy, docker-compose and appsettings.
 
 !!!warning "What works and what does not"

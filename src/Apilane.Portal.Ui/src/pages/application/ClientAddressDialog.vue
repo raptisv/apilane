@@ -73,7 +73,7 @@ const cellClass = 'border-b px-3 py-2 align-top'
               <dd>{{ sourceText }}</dd>
               <dt class="text-muted-foreground">Setting of the API server</dt>
               <dd>{{ modeText }}</dd>
-            </dl>
+                        </dl>
 
             <p v-if="assessment" class="font-medium">{{ assessment.title }}.</p>
             <p v-if="assessment" class="text-muted-foreground">{{ assessment.detail }}</p>
@@ -125,9 +125,13 @@ const cellClass = 'border-b px-3 py-2 align-top'
                   <td :class="cellClass">The caller is the address the proxy saw. A forged header is not believed.</td>
                 </tr>
                 <tr>
-                  <td :class="cellClass">A CDN or a cloud load balancer in front</td>
-                  <td :class="cellClass">The networks the provider publishes for its edge, together with your own proxy behind it</td>
-                  <td :class="cellClass">The caller is the first address that is not one of those networks.</td>
+                  <td :class="cellClass">A CDN or a cloud load balancer in front of your proxy (several proxies in a row)</td>
+                  <td :class="cellClass">
+                    <strong>Every</strong> proxy of the chain: your own, and the networks the provider publishes for its edge
+                  </td>
+                  <td :class="cellClass">
+                    The caller is the first address, from the right, that is not listed. A proxy that is not listed is taken for the caller.
+                  </td>
                 </tr>
                 <tr>
                   <td :class="cellClass">Not set</td>
@@ -158,6 +162,22 @@ TrustedProxies=none</pre>
 
           <p class="font-medium">docker-compose</p>
           <pre :class="codeClass">{{ examples.compose }}</pre>
+
+          <p class="font-medium">Several proxies in a row</p>
+          <p class="text-muted-foreground">
+            Each proxy appends the address it saw to <code>X-Forwarded-For</code>, so with a CDN in front of your proxy the API server
+            gets <code>caller, cdn-server</code> and the connection comes from your proxy. The header is read from the right: list
+            your proxy <strong>and</strong> the networks of the CDN (the provider publishes them), or the CDN's server is taken for
+            the caller. This screen tells you when the header holds more addresses than the one used.
+          </p>
+          <pre :class="codeClass"># your proxy, then the networks of the CDN in front of it
+TrustedProxies=172.30.0.1,203.0.113.0/24,198.51.100.0/24</pre>
+          <p class="text-muted-foreground">
+            The address of your own proxy is the one this screen shows as "Connection came from". On Docker it is often the gateway of
+            the network (<code>172.30.0.1</code>); a network such as <code>172.30.0.0/16</code> survives a restart. Let only the CDN
+            reach your origin (a firewall rule or an authenticated origin pull): a header from a proxy of the list is believed, so anyone who
+            can reach the origin directly can write it.
+          </p>
 
           <p class="font-medium">The proxy has to send the header</p>
           <pre :class="codeClass"># nginx: replace the header by the address nginx saw

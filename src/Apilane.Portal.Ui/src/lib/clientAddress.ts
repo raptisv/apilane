@@ -55,6 +55,39 @@ function listInUse(list: IpListState): boolean {
   return list.entries.some((entry) => entry.trim() !== '')
 }
 
+/** 203.0.113.7:51234 and [2001:db8::1]:51234 are an address and a port. */
+function withoutPort(entry: string): string {
+  const bracket = /^\[([^\]]+)\]/.exec(entry)
+
+  if (bracket) {
+    return bracket[1]
+  }
+
+  return /^[\d.]+:\d+$/.test(entry) ? entry.slice(0, entry.lastIndexOf(':')) : entry
+}
+
+/**
+ * The addresses of the X-Forwarded-For header to the left of the one the server settled on: what
+ * the callers or other proxies wrote before it. Empty when there are none, or when the server did
+ * not take its address from the header.
+ *
+ * It is the one sign the screen has of a proxy that is not listed: a CDN or a load balancer in front
+ * of the proxy of the origin appends the address of its server, and the real caller stays to the
+ * left of it. The server takes the unlisted proxy for the caller.
+ */
+export function addressesBeyond(info: ClientAddressInfo): string[] {
+  if (info.ForwardedFor === null || !info.ForwardedForHonoured) {
+    return []
+  }
+
+  const entries = info.ForwardedFor.split(',')
+    .map((entry) => withoutPort(entry.trim()))
+    .filter((entry) => entry !== '')
+  const used = entries.lastIndexOf(info.ClientAddress)
+
+  return used > 0 ? entries.slice(0, used) : []
+}
+
 /** The value to put in the TrustedProxies setting for what this request showed. */
 export function suggestedProxy(info: ClientAddressInfo): string {
   return info.ForwardedFor !== null && info.ConnectionAddress !== '' ? info.ConnectionAddress : 'none'
@@ -62,6 +95,9 @@ export function suggestedProxy(info: ClientAddressInfo): string {
 
 const RESTART = 'Restart the API server: the setting is read at start.'
 const RELOAD = 'Reload this screen: it then shows "Works" when the address is the one of the caller.'
+const OTHER_PROXIES =
+  'If the header holds addresses of other proxies (a CDN or a load balancer in front of yours), list their networks too: ' +
+  'a proxy that is not listed is taken for the caller.'
 
 /**
  * What the owner has to know and do, from what the server saw for this request and the list of the
@@ -83,6 +119,7 @@ export function assess(info: ClientAddressInfo, list: IpListState): Assessment {
           '(in Allow mode by writing an address of the list, in Block mode by writing another one).',
         steps: [
           `Set TrustedProxies on the API server to ${proxy || 'the address of your reverse proxy'}: the proxy, not the caller. Use a network (172.18.0.0/16) when its address changes.`,
+          OTHER_PROXIES,
           'Make sure the proxy sets or appends X-Forwarded-For (see the examples).',
           RESTART,
           RELOAD,
@@ -115,7 +152,7 @@ export function assess(info: ClientAddressInfo, list: IpListState): Assessment {
         detail:
           `TrustedProxies is none, and this request came through ${proxy || 'a proxy'} with an X-Forwarded-For header. ` +
           `The IP list sees ${info.ClientAddress} for every caller${inUse && list.logic === 'Allow' ? ': an Allow list then refuses everyone but that address' : ''}.`,
-        steps: [`Replace none by ${proxy || 'the address of your reverse proxy'} in TrustedProxies.`, RESTART, RELOAD],
+        steps: [`Replace none by ${proxy || 'the address of your reverse proxy'} in TrustedProxies.`, OTHER_PROXIES, RESTART, RELOAD],
         needsSetting: true,
       }
     }
@@ -131,6 +168,28 @@ export function assess(info: ClientAddressInfo, list: IpListState): Assessment {
 
   // TrustedProxies
   if (info.ConnectionIsTrustedProxy && info.ForwardedForHonoured) {
+    const beyond = addressesBeyond(info)
+
+    // The header goes on to the left of the address in use: either it is what a caller wrote, or the
+    // address in use is a proxy that is not listed and the caller is further to the left.
+    if (beyond.length > 0) {
+      return {
+        level: inUse ? 'warning' : 'info',
+        title: 'Check the address in use: the header holds more addresses',
+        detail:
+          `The API server used ${info.ClientAddress}, and the header has ${beyond.length === 1 ? 'another address' : `${beyond.length} more addresses`} to its left: ` +
+          `${beyond.join(', ')}. If ${info.ClientAddress} is a proxy, a CDN or a load balancer in front of yours, it is taken for the caller, ` +
+          `and every caller that comes through it looks the same${inUse && list.logic === 'Allow' ? ', so an Allow list refuses the real ones' : ''}. ` +
+          'If the addresses to its left were only written by the caller, nothing is wrong.',
+        steps: [
+          `If ${info.ClientAddress} is a proxy of yours: add its network to TrustedProxies (now: ${info.TrustedProxies.join(', ') || 'nothing'}), so that ${beyond[beyond.length - 1]} is used.`,
+          RESTART,
+          RELOAD,
+        ],
+        needsSetting: true,
+      }
+    }
+
     return {
       level: 'ok',
       title: 'Works: the address comes from a trusted proxy',
@@ -159,10 +218,10 @@ export function assess(info: ClientAddressInfo, list: IpListState): Assessment {
       level: inUse ? 'critical' : 'warning',
       title: 'The header is ignored: the connection is not a trusted proxy',
       detail:
-        `This request came from ${proxy || 'an address'} with an X-Forwarded-For header, but that address is not in TrustedProxies, ` +
+        `This request came from ${proxy || 'an address'} with an X-Forwarded-For header (${info.ForwardedFor}), but that address is not in TrustedProxies, ` +
         `so the header is ignored and the IP list sees ${info.ClientAddress} for every caller that comes this way` +
         `${inUse && list.logic === 'Allow' ? ' (an Allow list then refuses all of them)' : ''}.`,
-      steps: [`Add ${proxy || 'the address of your reverse proxy'} to TrustedProxies. A network works too.`, RESTART, RELOAD],
+      steps: [`Add ${proxy || 'the address of your reverse proxy'} to TrustedProxies. A network works too.`, OTHER_PROXIES, RESTART, RELOAD],
       needsSetting: true,
     }
   }
@@ -185,6 +244,6 @@ export function settingExamples(info: ClientAddressInfo | undefined): { json: st
   return {
     json: `"TrustedProxies": ["${value}"]`,
     env: `TrustedProxies=${value}`,
-    compose: `services:\n  apilane-api:\n    environment:\n      - TrustedProxies=${value}`,
+    compose: `services:\n  apilane-api:\n    environment:\n      - TrustedProxies__0=${value}`,
   }
 }
