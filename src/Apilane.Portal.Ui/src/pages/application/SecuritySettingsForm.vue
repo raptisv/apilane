@@ -157,114 +157,148 @@ const linkClass = 'font-medium text-link underline underline-offset-4'
 
 <template>
   <form ref="formEl" novalidate aria-label="Security settings" class="min-w-0" @submit.prevent="submit">
-    <div class="grid gap-4 lg:grid-cols-2">
-      <!-- The two short cards share one column, so the tall IP card beside them does not stretch either. -->
-      <div class="grid content-start gap-4">
-        <section :class="sectionClass" aria-labelledby="signin-title">
-          <h2 id="signin-title" class="text-sm font-semibold">Sign-in</h2>
-
-          <FormField
-            v-slot="{ field }"
-            label="Auth token lifetime (minutes)"
-            help="When a user signs in, the auth token stays valid for at least this many minutes. After that time of inactivity, the user has to sign in again."
-            :error="errors.fields.AuthTokenExpireMinutes"
-          >
-            <Input v-model="form.AuthTokenExpireMinutes" v-bind="field" type="number" min="1" step="1" class="max-w-40" />
-          </FormField>
-
-          <SwitchField
-            v-model="form.ForceSingleLogin"
-            label="Allow only one sign-in at a time"
-            help="A new sign-in ends the user's other sessions."
-            :error="errors.fields.ForceSingleLogin"
-          />
-
-          <SwitchField
-            v-model="form.AllowLoginUnconfirmedEmail"
-            label="Allow users with an unconfirmed email to sign in"
-            :error="errors.fields.AllowLoginUnconfirmedEmail"
-          />
-        </section>
-
-        <section :class="sectionClass" aria-labelledby="register-title">
-          <h2 id="register-title" class="text-sm font-semibold">Registration and files</h2>
-
-          <SwitchField v-model="form.AllowUserRegister" label="Allow new users to register" :error="errors.fields.AllowUserRegister" />
-
-          <FormField
-            v-slot="{ field }"
-            label="Maximum file size (KB)"
-            help="The largest file a user can upload: 1 to 25600 KB (25 MB)."
-            :error="errors.fields.MaxAllowedFileSizeInKB"
-          >
-            <Input v-model="form.MaxAllowedFileSizeInKB" v-bind="field" type="number" min="1" max="25600" step="1" class="max-w-40" />
-          </FormField>
-        </section>
-      </div>
-
-      <section :class="sectionClass" aria-labelledby="ip-title">
+    <!-- Three regions, each about one thing: the users, the network, password recovery. -->
+    <div class="grid gap-8">
+      <section class="grid gap-3" aria-labelledby="users-region">
         <div>
-          <h2 id="ip-title" class="text-sm font-semibold">IP access</h2>
-          <p class="mt-1" :class="noteClass">
+          <h2 id="users-region" class="text-base font-semibold">Users</h2>
+          <p :class="noteClass" class="mt-0.5">How people sign in, how they join, and what they may upload.</p>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div :class="sectionClass" role="group" aria-labelledby="sessions-title">
+            <h3 id="sessions-title" class="text-sm font-semibold">Sessions</h3>
+
+            <FormField
+              v-slot="{ field }"
+              label="Auth token lifetime (minutes)"
+              help="When a user signs in, the auth token stays valid for at least this many minutes. After that time of inactivity, the user has to sign in again."
+              :error="errors.fields.AuthTokenExpireMinutes"
+            >
+              <Input v-model="form.AuthTokenExpireMinutes" v-bind="field" type="number" min="1" step="1" class="max-w-40" />
+            </FormField>
+
+            <SwitchField
+              v-model="form.ForceSingleLogin"
+              label="Allow only one sign-in at a time"
+              help="A new sign-in ends the user's other sessions."
+              :error="errors.fields.ForceSingleLogin"
+            />
+          </div>
+
+          <div :class="sectionClass" role="group" aria-labelledby="registration-title">
+            <h3 id="registration-title" class="text-sm font-semibold">Registration</h3>
+
+            <SwitchField
+              v-model="form.AllowUserRegister"
+              label="Allow new users to register"
+              help="When off, only you create users and a registration call is refused."
+              :error="errors.fields.AllowUserRegister"
+            />
+
+            <SwitchField
+              v-model="form.AllowLoginUnconfirmedEmail"
+              label="Allow users with an unconfirmed email to sign in"
+              help="When off, a user signs in only after following the link of the confirmation email."
+              :error="errors.fields.AllowLoginUnconfirmedEmail"
+            />
+          </div>
+
+          <div :class="sectionClass" role="group" aria-labelledby="uploads-title" class="md:col-span-2 xl:col-span-1">
+            <h3 id="uploads-title" class="text-sm font-semibold">Uploads</h3>
+
+            <FormField
+              v-slot="{ field }"
+              label="Maximum file size (KB)"
+              help="The largest file a user can upload: 1 to 25600 KB (25 MB)."
+              :error="errors.fields.MaxAllowedFileSizeInKB"
+            >
+              <Input v-model="form.MaxAllowedFileSizeInKB" v-bind="field" type="number" min="1" max="25600" step="1" class="max-w-40" />
+            </FormField>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid gap-3" aria-labelledby="network-region">
+        <div>
+          <h2 id="network-region" class="text-base font-semibold">Network access</h2>
+          <p :class="noteClass" class="mt-0.5">
             Which addresses may call the API of this application. Each entry is an IPv4 or IPv6 address
             (<code>203.0.113.7</code>), a network (<code>10.0.0.0/8</code>) or a range
             (<code>10.0.0.1-10.0.0.50</code>). Leave the list empty to accept every address.
           </p>
         </div>
 
-        <FormField v-slot="{ field }" label="Addresses in the list are" :error="errors.fields.ClientIPsLogic">
-          <Select v-model="form.ClientIPsLogic">
-            <SelectTrigger v-bind="field" class="w-full sm:w-auto">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Block">Blocked: every other address is accepted</SelectItem>
-              <SelectItem value="Allow">Allowed: every other address is blocked</SelectItem>
-            </SelectContent>
-          </Select>
-        </FormField>
+        <!-- The list on the left, what the API server makes of the address of a caller on the right. -->
+        <div :class="sectionClass" class="lg:grid-cols-2 lg:gap-x-8" role="group" aria-labelledby="ip-title">
+          <div class="grid content-start gap-4">
+            <h3 id="ip-title" class="text-sm font-semibold">IP list</h3>
 
-        <TextListInput
-          v-model="form.ClientIPs"
-          item-label="Address, network or range"
-          add-label="Add entry"
-          placeholder="192.168.0.0/24"
-          :errors="addressErrors"
-        />
+            <FormField v-slot="{ field }" label="Addresses in the list are" :error="errors.fields.ClientIPsLogic">
+              <Select v-model="form.ClientIPsLogic">
+                <SelectTrigger v-bind="field" class="w-full sm:w-auto">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Block">Blocked: every other address is accepted</SelectItem>
+                  <SelectItem value="Allow">Allowed: every other address is blocked</SelectItem>
+                </SelectContent>
+              </Select>
+            </FormField>
 
-        <div v-if="allowOnly" class="flex gap-2.5 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
-          <TriangleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <p>Only the addresses in the list can call the API. Check that the addresses you call it from are there.</p>
+            <TextListInput
+              v-model="form.ClientIPs"
+              item-label="Address, network or range"
+              add-label="Add entry"
+              placeholder="192.168.0.0/24"
+              :errors="addressErrors"
+            />
+
+            <div v-if="allowOnly" class="flex gap-2.5 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+              <TriangleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <p>Only the addresses in the list can call the API. Check that the addresses you call it from are there.</p>
+            </div>
+          </div>
+
+          <div class="grid content-start gap-4">
+            <h3 class="text-sm font-semibold">Is the address of a caller trustworthy?</h3>
+
+            <ClientAddressStatus
+              :server-url="application.Server.ServerUrl"
+              :app-token="appToken"
+              :logic="settings.ClientIPsLogic"
+              :entries="settings.ClientIPs"
+            />
+          </div>
         </div>
-
-        <ClientAddressStatus
-          :server-url="application.Server.ServerUrl"
-          :app-token="appToken"
-          :logic="settings.ClientIPsLogic"
-          :entries="settings.ClientIPs"
-        />
       </section>
 
-      <section :class="sectionClass" class="lg:col-span-2" aria-labelledby="forgot-title">
+      <section class="grid gap-3" aria-labelledby="recovery-region">
         <div>
-          <h2 id="forgot-title" class="text-sm font-semibold">Forgot password</h2>
-          <p class="mt-1" :class="noteClass">
-            Both send the password-reset email, which needs the
+          <h2 id="recovery-region" class="text-base font-semibold">Password recovery</h2>
+          <p :class="noteClass" class="mt-0.5">
+            Both ways send the password-reset email, which needs the
             <RouterLink :to="{ name: 'app-email', params: { appToken } }" :class="linkClass">SMTP settings</RouterLink>
             of this application.
           </p>
         </div>
 
-        <div class="grid gap-1.5">
-          <CopyField label="When a user has forgotten their password, send them to this page" :value="links.PageUrl" />
-          <a :href="links.PageUrl" target="_blank" rel="noopener" class="inline-flex w-fit items-center gap-1 text-xs" :class="linkClass">
-            Open the page
-            <ExternalLinkIcon class="size-3" aria-hidden="true" />
-            <span class="sr-only">(opens in a new tab)</span>
-          </a>
-        </div>
+        <div :class="sectionClass" class="lg:grid-cols-2 lg:gap-x-8" role="group" aria-labelledby="forgot-title">
+          <h3 id="forgot-title" class="sr-only">Links for a forgotten password</h3>
 
-        <CopyField label="Or call this API endpoint ({Email} is the user's address)" :value="links.ApiUrl" />
+          <div class="grid content-start gap-1.5">
+            <CopyField label="When a user has forgotten their password, send them to this page" :value="links.PageUrl" />
+            <a :href="links.PageUrl" target="_blank" rel="noopener" class="inline-flex w-fit items-center gap-1 text-xs" :class="linkClass">
+              Open the page
+              <ExternalLinkIcon class="size-3" aria-hidden="true" />
+              <span class="sr-only">(opens in a new tab)</span>
+            </a>
+          </div>
+
+          <div class="content-start">
+            <CopyField label="Or call this API endpoint ({Email} is the user's address)" :value="links.ApiUrl" />
+          </div>
+        </div>
       </section>
     </div>
 

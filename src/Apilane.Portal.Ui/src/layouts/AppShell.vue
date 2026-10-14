@@ -183,7 +183,7 @@ watch(isDesktop, (desktop) => {
     </header>
 
     <main id="main" ref="main" tabindex="-1" class="outline-none lg:pl-60">
-      <div class="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <div class="mx-auto w-full max-w-[100rem] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <ForbiddenState v-if="forbidden" />
         <RouterView v-else />
       </div>
