@@ -1,5 +1,8 @@
 # Changelog
 
+## 10.5.2 (2026-10-14)
+- feat(security): IP ranges and trusted proxies, security page in tabs and regions, animated loaders
+
 ## 10.5.1 (2026-10-12)
 - feat(security): IP ranges and trusted proxies for the client IP list, security page in tabs
 
