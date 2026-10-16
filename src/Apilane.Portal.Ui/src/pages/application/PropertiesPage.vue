@@ -9,6 +9,7 @@ import SwitchField from '@/components/SwitchField.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { provideAccessSummaries } from '@/composables/useAccessSummaries'
 import { useApplication } from '@/composables/useApplication'
 import { useEntity } from '@/composables/useEntity'
 import { useMutation } from '@/composables/useMutation'
@@ -27,6 +28,9 @@ const { entity, reload } = useEntity()
 const appToken = application.value.Token
 const entityName = entity.value.Name
 const entityPath = { appToken, entity: entityName }
+
+// Who may read or write each property: the table shows it as an icon next to the name.
+provideAccessSummaries()
 
 function propertyPath(property: Property) {
   return { params: { path: { ...entityPath, property: property.Name } } }

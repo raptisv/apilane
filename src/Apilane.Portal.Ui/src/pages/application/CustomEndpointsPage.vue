@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { BracesIcon, PencilIcon, PlayIcon, PlusIcon, SearchIcon, Trash2Icon } from '@lucide/vue'
 import { ref } from 'vue'
+import AccessBadge from '@/components/AccessBadge.vue'
 import ConfirmByNameDialog from '@/components/ConfirmByNameDialog.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
@@ -9,6 +10,7 @@ import StateMessage from '@/components/StateMessage.vue'
 import CustomEndpointsHelp from '@/components/help/CustomEndpointsHelp.vue'
 import { Button } from '@/components/ui/button'
 import { useApplication } from '@/composables/useApplication'
+import { provideAccessSummaries } from '@/composables/useAccessSummaries'
 import { useAsync } from '@/composables/useAsync'
 import { useMutation } from '@/composables/useMutation'
 import { api, unwrap } from '@/lib/api'
@@ -28,6 +30,9 @@ const appToken = application.value.Token
 const { data, error, loading, reload } = useAsync(() =>
   unwrap(api.GET('/api/v1/applications/{appToken}/custom-endpoints', { params: { path: { appToken } } })),
 )
+
+// Who may call each endpoint, as an icon next to its name.
+const access = provideAccessSummaries()
 
 const searchOpen = ref(false)
 
@@ -93,6 +98,14 @@ async function submitDelete(): Promise<boolean> {
 
   <ul v-else class="divide-y overflow-hidden rounded-lg border bg-card" aria-label="Custom endpoints">
     <li v-for="endpoint in data.Data" :key="endpoint.ID" class="flex items-center gap-3 px-4 py-2.5">
+      <!-- A column of its own, left of the names: one fixed width, also for an endpoint whose rules are not known. -->
+      <div class="flex w-5 shrink-0 self-start pt-0.5">
+        <AccessBadge
+          :summary="access.item('CustomEndpoint', endpoint.Name)"
+          :to="{ name: 'app-security', params: { appToken }, query: { item: `CustomEndpoint-${endpoint.Name}` } }"
+          :subject="endpoint.Name"
+        />
+      </div>
       <!-- min-w-0 lets the texts shrink and end in an ellipsis instead of pushing the buttons off a phone screen. -->
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-medium" :title="endpoint.Name">{{ endpoint.Name }}</p>

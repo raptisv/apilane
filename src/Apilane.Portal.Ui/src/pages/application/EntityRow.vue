@@ -12,6 +12,7 @@ import {
   Trash2Icon,
 } from '@lucide/vue'
 import { computed } from 'vue'
+import AccessBadge from '@/components/AccessBadge.vue'
 import ConstraintBadge from '@/components/ConstraintBadge.vue'
 import InlineAsync from '@/components/InlineAsync.vue'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { TableCell, TableRow } from '@/components/ui/table'
+import { useAccessSummaries } from '@/composables/useAccessSummaries'
 import { useApplication } from '@/composables/useApplication'
 import { useAsync } from '@/composables/useAsync'
 import { apiServer } from '@/lib/apiServer'
@@ -35,6 +37,7 @@ const props = defineProps<{ entity: Entity }>()
 defineEmits<{ edit: []; rename: []; delete: [] }>()
 
 const { application } = useApplication()
+const access = useAccessSummaries()
 
 // The counts come straight from the API server, one call per row. A failure stays inside the row.
 const counts = useAsync(() =>
@@ -66,7 +69,11 @@ const disabledItemClass = 'items-start data-disabled:opacity-100 data-disabled:t
 
 <template>
   <TableRow>
-    <TableCell class="pl-4 align-top whitespace-normal">
+    <TableCell class="pl-4 align-top">
+      <AccessBadge :summary="access.item('Entity', entity.Name)" :to="securityRoute" :subject="entity.Name" />
+    </TableCell>
+
+    <TableCell class="pl-2 align-top whitespace-normal">
       <RouterLink
         :to="propertiesRoute"
         class="rounded-sm font-medium wrap-anywhere text-link underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"

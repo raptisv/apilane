@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { CheckCheckIcon, EllipsisVerticalIcon, LinkIcon, PencilIcon, TextCursorInputIcon, Trash2Icon } from '@lucide/vue'
+import { computed } from 'vue'
+import AccessBadge from '@/components/AccessBadge.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,6 +12,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useAccessSummaries } from '@/composables/useAccessSummaries'
+import { useApplication } from '@/composables/useApplication'
+import { useEntity } from '@/composables/useEntity'
 import { propertyConstraints } from '@/lib/entities'
 import type { Constraint } from '@/lib/entities'
 import { propertyRules } from '@/lib/properties'
@@ -20,6 +25,17 @@ import type { Property } from '@/lib/properties'
 // key) shows it next to its name.
 defineProps<{ properties: Property[]; constraints?: readonly Constraint[] }>()
 defineEmits<{ edit: [property: Property]; rename: [property: Property]; delete: [property: Property] }>()
+
+// Who may read or write a property: an icon next to its name, leading to the rules of the entity.
+const { application } = useApplication()
+const { entity } = useEntity()
+const access = useAccessSummaries()
+
+const securityRoute = computed(() => ({
+  name: 'app-security',
+  params: { appToken: application.value.Token },
+  query: { item: `Entity-${entity.value.Name}` },
+}))
 </script>
 
 <template>
@@ -27,7 +43,8 @@ defineEmits<{ edit: [property: Property]; rename: [property: Property]; delete: 
     <Table class="table-fixed">
       <TableHeader>
         <TableRow>
-          <TableHead class="pl-4">Property</TableHead>
+          <TableHead class="w-12 pl-4"><span class="sr-only">Access</span></TableHead>
+          <TableHead class="pl-2">Property</TableHead>
           <TableHead class="hidden w-28 md:table-cell">Type</TableHead>
           <TableHead class="hidden w-2/5 md:table-cell">Rules</TableHead>
           <TableHead class="w-14 pr-4"><span class="sr-only">Actions</span></TableHead>
@@ -35,7 +52,10 @@ defineEmits<{ edit: [property: Property]; rename: [property: Property]; delete: 
       </TableHeader>
       <TableBody>
         <TableRow v-for="property in properties" :key="property.Name">
-          <TableCell class="pl-4 align-top whitespace-normal">
+          <TableCell class="pl-4 align-top">
+            <AccessBadge :summary="access.property(entity.Name, property.Name)" :to="securityRoute" :subject="property.Name" />
+          </TableCell>
+          <TableCell class="pl-2 align-top whitespace-normal">
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span class="font-medium wrap-anywhere">{{ property.Name }}</span>
               <Badge v-if="property.IsPrimaryKey" variant="outline" class="border-link/40 text-link">Primary key</Badge>

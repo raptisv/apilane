@@ -368,6 +368,15 @@ that hosts the application, and the browser calls that server directly:
 - The file size limit is 1 to 25600 KB.
 - A cell switched off and on again gets its properties and rate limit back, until the next save or discard.
 
+**Access icons**
+
+- The entity list (custom and system entities), the custom endpoint list and each property of an entity show an icon
+  with a tooltip of who may call it: red triangle (public, can write), amber globe (public), blue users (signed-in
+  users), green shield (some roles), gray lock (closed). The icon leads to the item in Security.
+- The screens read `GET {app}/security` once (`useAccessSummaries`) and `lib/accessSummary.ts` condenses the
+  rules with the same engine as the Security screen. If the rules cannot be read, no icon is shown.
+- A property is closed when no rule lists it; the ID is returned by every get.
+
 **Custom endpoints**
 
 - An endpoint is addressed by its numeric ID, so a rename keeps the address of its editor. An unknown ID is 404.

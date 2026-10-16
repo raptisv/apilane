@@ -20,7 +20,8 @@ const { application } = useApplication()
     <Table class="table-fixed">
       <TableHeader>
         <TableRow>
-          <TableHead class="pl-4">Entity</TableHead>
+          <TableHead class="w-12 pl-4"><span class="sr-only">Access</span></TableHead>
+          <TableHead class="pl-2">Entity</TableHead>
           <TableHead class="hidden w-40 text-right md:table-cell">Records</TableHead>
           <TableHead class="hidden w-36 md:table-cell">Change tracking</TableHead>
           <TableHead v-if="application.DifferentiationEntity" class="hidden w-32 md:table-cell" title="Differentiation property">

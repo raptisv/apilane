@@ -12,6 +12,7 @@ import SwitchField from '@/components/SwitchField.vue'
 import EntitiesHelp from '@/components/help/EntitiesHelp.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { provideAccessSummaries } from '@/composables/useAccessSummaries'
 import { useApplication } from '@/composables/useApplication'
 import { useAsync } from '@/composables/useAsync'
 import { useMutation } from '@/composables/useMutation'
@@ -23,6 +24,9 @@ import * as toast from '@/lib/toast'
 import EntityTable from './EntityTable.vue'
 
 const { application } = useApplication()
+
+// Who may call each entity: the rows show it as an icon next to the name.
+provideAccessSummaries()
 
 // AppLayout gives every application a fresh screen, so the token is fixed for the life of this one.
 const appToken = application.value.Token
