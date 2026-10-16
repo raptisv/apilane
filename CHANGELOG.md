@@ -1,5 +1,8 @@
 # Changelog
 
+## 10.5.4 (2026-10-17)
+- feat(portal-ui): show who may call an entity, custom endpoint or property as an access icon
+
 ## 10.5.3 (2026-10-16)
 - feat(portal-ui): show the constraints a property is part of in the properties list
 - feat(portal): say when the X-Forwarded-For header holds more addresses than the one in use
