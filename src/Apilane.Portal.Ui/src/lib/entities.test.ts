@@ -7,6 +7,7 @@ import {
   filterEntities,
   formatCount,
   onDeleteText,
+  propertyConstraints,
 } from './entities'
 import type { Constraint, Entity } from './entities'
 
@@ -111,5 +112,55 @@ describe('formatCount', () => {
     expect(formatCount(0)).toBe('0')
     expect(formatCount(999)).toBe('999')
     expect(formatCount(1234567)).toBe('1,234,567')
+  })
+})
+
+describe('propertyConstraints', () => {
+  const foreign = (property: string, to: string, onDelete?: string): Constraint => ({
+    Type: 'ForeignKey',
+    IsSystem: false,
+    Properties: [],
+    Property: property,
+    ForeignEntity: to,
+    OnDelete: onDelete ?? 'ON_DELETE_NO_ACTION',
+  })
+
+  it('finds nothing for a property that is in no constraint', () => {
+    expect(propertyConstraints('Notes', [unique('Email'), foreign('CustomerID', 'Customers')])).toEqual([])
+  })
+
+  it('shows a unique constraint of one property as Unique', () => {
+    const [found] = propertyConstraints('Email', [unique('Email')])
+
+    expect(found).toMatchObject({ type: 'Unique', label: 'Unique', isSystem: false })
+    expect(found.description).toBe('Unique: Email')
+  })
+
+  it('names the other properties of a combined unique constraint, for each of them', () => {
+    const constraints = [unique('Email', 'Phone')]
+
+    expect(propertyConstraints('Email', constraints)[0].label).toBe('Unique with Phone')
+    expect(propertyConstraints('Phone', constraints)[0].label).toBe('Unique with Email')
+  })
+
+  it('shows a foreign key with the entity it points to, and what a delete does unless it does nothing', () => {
+    expect(propertyConstraints('CustomerID', [foreign('CustomerID', 'Customers')])[0].label).toBe('→ Customers')
+    expect(propertyConstraints('CustomerID', [foreign('CustomerID', 'Customers', 'ON_DELETE_CASCADE')])[0].label).toBe(
+      '→ Customers (cascade)',
+    )
+    expect(propertyConstraints('CustomerID', [foreign('CustomerID', 'Customers', 'ON_DELETE_SET_NULL')])[0].label).toBe(
+      '→ Customers (set null)',
+    )
+  })
+
+  it('lists every constraint a property is in, in the order of the entity', () => {
+    const found = propertyConstraints('OrderID', [unique('OrderID', 'Line'), foreign('OrderID', 'Orders')])
+
+    expect(found.map((constraint) => constraint.type)).toEqual(['Unique', 'ForeignKey'])
+  })
+
+  it('compares names without regard to case, and passes on a constraint of the entity itself', () => {
+    expect(propertyConstraints('email', [unique('Email')])).toHaveLength(1)
+    expect(propertyConstraints('Owner', [{ ...foreign('Owner', 'Users'), IsSystem: true }])[0].isSystem).toBe(true)
   })
 })

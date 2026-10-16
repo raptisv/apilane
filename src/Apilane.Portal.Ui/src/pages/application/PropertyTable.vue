@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { EllipsisVerticalIcon, PencilIcon, TextCursorInputIcon, Trash2Icon } from '@lucide/vue'
+import { CheckCheckIcon, EllipsisVerticalIcon, LinkIcon, PencilIcon, TextCursorInputIcon, Trash2Icon } from '@lucide/vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,12 +10,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { propertyConstraints } from '@/lib/entities'
+import type { Constraint } from '@/lib/entities'
 import { propertyRules } from '@/lib/properties'
 import type { Property } from '@/lib/properties'
 
 // One of the two tables of the properties screen (custom properties, system properties), in the
-// order the API sends them.
-defineProps<{ properties: Property[] }>()
+// order the API sends them. A property that is part of a constraint of the entity (unique, or a foreign
+// key) shows it next to its name.
+defineProps<{ properties: Property[]; constraints?: readonly Constraint[] }>()
 defineEmits<{ edit: [property: Property]; rename: [property: Property]; delete: [property: Property] }>()
 </script>
 
@@ -38,6 +41,18 @@ defineEmits<{ edit: [property: Property]; rename: [property: Property]; delete: 
               <Badge v-if="property.IsPrimaryKey" variant="outline" class="border-link/40 text-link">Primary key</Badge>
               <Badge v-if="property.Required && !property.IsPrimaryKey" variant="secondary">Required</Badge>
               <Badge v-if="property.Encrypted" variant="outline" class="border-warning/40 text-warning">Encrypted</Badge>
+              <Badge
+                v-for="(constraint, index) in propertyConstraints(property.Name, constraints ?? [])"
+                :key="index"
+                variant="outline"
+                class="h-auto max-w-full shrink justify-start whitespace-normal"
+                :class="constraint.type === 'ForeignKey' ? 'border-warning/40 text-warning' : 'border-link/40 text-link'"
+                :title="constraint.description"
+              >
+                <component :is="constraint.type === 'ForeignKey' ? LinkIcon : CheckCheckIcon" aria-hidden="true" class="shrink-0" />
+                <span aria-hidden="true" class="wrap-anywhere">{{ constraint.label }}</span>
+                <span class="sr-only">{{ constraint.description }}</span>
+              </Badge>
             </div>
             <p v-if="property.Description" class="mt-0.5 text-xs wrap-anywhere text-muted-foreground">
               {{ property.Description }}

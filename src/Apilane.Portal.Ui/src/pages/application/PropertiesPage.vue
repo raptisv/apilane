@@ -260,12 +260,12 @@ const warningClass = 'flex gap-2.5 rounded-lg border border-warning/40 bg-warnin
         </Button>
       </StateMessage>
 
-      <PropertyTable v-else :properties="custom" @edit="openEdit" @rename="openRename" @delete="openDelete" />
+      <PropertyTable v-else :properties="custom" :constraints="entity.Constraints" @edit="openEdit" @rename="openRename" @delete="openDelete" />
     </section>
 
     <section v-if="system.length > 0" aria-labelledby="system-properties">
       <h2 id="system-properties" class="mb-3 text-sm font-semibold">System properties</h2>
-      <PropertyTable :properties="system" />
+      <PropertyTable :properties="system" :constraints="entity.Constraints" />
     </section>
   </div>
 

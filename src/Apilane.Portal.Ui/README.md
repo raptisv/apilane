@@ -1206,7 +1206,7 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 | File | Contents |
 |---|---|
 | `EntitiesPage` | `/apps/:appToken/entities`: the custom and system entities with the dialogs to create, edit, rename and delete one. `EntityTable` and `EntityRow` are its parts (a row loads its own record counts from the API server). |
-| `PropertiesPage` | `/apps/:appToken/entities/:entity`, inside `EntityLayout`: the custom and system properties of one entity with the dialogs to create, edit, rename and delete one. `PropertyTable` is its part. |
+| `PropertiesPage` | `/apps/:appToken/entities/:entity`, inside `EntityLayout`: the custom and system properties of one entity with the dialogs to create, edit, rename and delete one. `PropertyTable` is its part: a property that is in a unique constraint or a foreign key of the entity shows it next to its name (`propertyConstraints` in `lib/entities.ts`: 'Unique', 'Unique with Phone', '→ Customers (cascade)'). |
 | `ConstraintsPage` | `.../entities/:entity/constraints`: the unique and foreign key constraints of one entity, added (`AddConstraintDialog`, a two-step dialog: kind, then its fields) and removed in the list and saved together; read-only for a system entity unless the user is an administrator. |
 | `SortingPage` | `.../entities/:entity/sorting`: the default sorting of one entity as an ordered list. |
 | `DataPage` | `/apps/:appToken/data/:entity?page=&pageSize=&sort=`: the data browser of the application: the entities with properties loaded once, then `ApplicationDataBrowser`. |
