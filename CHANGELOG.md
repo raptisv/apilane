@@ -1,5 +1,9 @@
 # Changelog
 
+## 10.5.3 (2026-10-16)
+- feat(portal-ui): show the constraints a property is part of in the properties list
+- feat(portal): say when the X-Forwarded-For header holds more addresses than the one in use
+
 ## 10.5.2 (2026-10-14)
 - feat(security): IP ranges and trusted proxies, security page in tabs and regions, animated loaders
 
