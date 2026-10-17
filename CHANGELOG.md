@@ -1,5 +1,8 @@
 # Changelog
 
+## 10.5.5 (2026-10-17)
+- fix: SQLite rebuild data loss, value parsing and other issues from the E2E review
+
 ## 10.5.4 (2026-10-17)
 - feat(portal-ui): show who may call an entity, custom endpoint or property as an access icon
 
