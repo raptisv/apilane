@@ -226,17 +226,15 @@ namespace Apilane.Api.Core
 
             if (_apiConfiguration.InvalidFilesExtentions.Contains(new FileInfo(newFile.Name).Extension.ToLower()))
             {
-                throw new Exception($"The following extentions are not allowed: {string.Join(",", _apiConfiguration.InvalidFilesExtentions)}");
-            }
-
-            var currentRoot = appToken.GetFilesRootDirectoryInfo(_apiConfiguration.FilesPath);
-            if (!currentRoot.Exists)
-            {
-                currentRoot.Create();
+                throw new ApilaneException(
+                    AppErrors.VALIDATION,
+                    $"The following extensions are not allowed: {string.Join(",", _apiConfiguration.InvalidFilesExtentions)}",
+                    property: "FileUpload",
+                    entity: nameof(Files));
             }
 
             // Validate things like file size etc.
-            await ValidateFileObjectAsync(newFile.Size, newFile.UID, currentRoot, maxAllowedFileSizeInKB);
+            await ValidateFileObjectAsync(newFile.Size, newFile.UID, maxAllowedFileSizeInKB);
 
             // Create the file object with full property access (Files properties are system-managed, not user-provided)
             var result = await _appDataService.PostAsync(
@@ -279,7 +277,8 @@ namespace Apilane.Api.Core
 
             await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, filesEntity.Name, SecurityTypes.Entity, SecurityActionType.delete);
 
-            var listOfIds = Utils.GetString(ids).Split(',').Select(x => Utils.GetInt(x)).Where(x => x > 0).ToList();
+            // IDs are long, as everywhere else: an ID above int.MaxValue was dropped without notice
+            var listOfIds = Utils.GetString(ids).Split(',').Select(x => Utils.GetLong(x)).Where(x => x > 0).ToList();
 
             if (listOfIds.Count == 0)
             {
@@ -355,7 +354,6 @@ namespace Apilane.Api.Core
         private async Task ValidateFileObjectAsync(
             double fileSize,
             string UID,
-            DirectoryInfo currentRoot,
             int maxAllowedFileSizeInKB)
         {
             if (fileSize * 1024.0 > maxAllowedFileSizeInKB)
@@ -363,16 +361,10 @@ namespace Apilane.Api.Core
                 throw new ApilaneException(AppErrors.ERROR, $"Maximum file size {maxAllowedFileSizeInKB} KB");
             }
 
-            // Override existing files
+            // Override existing files (the stored file itself, and its folder, are the storage provider's)
             await _dataStore.DeleteDataAsync(
                 nameof(Files),
                 new FilterData(nameof(Files.UID), FilterData.FilterOperators.equal, UID, PropertyType.String));
-
-            IEnumerable<FileInfo> existingFiles = currentRoot.GetFiles().Where(x => x.Name.Equals(UID));
-            foreach (var f in existingFiles)
-            {
-                f.Delete();
-            }
         }
     }
 }

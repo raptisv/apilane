@@ -7,6 +7,7 @@ using Apilane.Common.Models;
 using Apilane.Common.Models.Dto;
 using Microsoft.AspNetCore.Mvc;
 using Orleans;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -126,32 +127,36 @@ namespace Apilane.Api.Controllers
             // Get folder that will be finally zipped
             var directoryToZip = Path.Combine(ApiConfiguration.FilesPath, Application.Token);
 
-            // Hide application specifics
-            Application.ID = 0;
-            Application.ServerID = 0;
-            Application.UserID = string.Empty;
-            Application.Server = new DBWS_Server();
-            Application.MailFromAddress = null;
-            Application.MailFromDisplayName = null;
-            Application.MailPassword = null;
-            Application.MailServer = null;
-            Application.MailServerPort = null;
-            Application.MailUserName = null;
-            Application.AdminEmail = null;
-            Application.Collaborates = new List<DBWS_Collaborate>();
-            Application.ConnectionString = null!;
-            Application.DatabaseType = 0;
-            Application.Entities?.ForEach(x => x.ID = 0);
-            Application.Entities?.ForEach(x => x.AppID = 0);
-            Application.CustomEndpoints?.ForEach(x => x.ID = 0);
-            Application.CustomEndpoints?.ForEach(x => x.AppID = 0);
-            Application.Reports?.ForEach(x => x.ID = 0);
-            Application.Reports?.ForEach(x => x.AppID = 0);
+            // Hide application specifics, on a copy: Application is the cached instance that every request
+            // of this application shares, and it must keep its connection string, database type and mail settings
+            var application = JsonSerializer.Deserialize<DBWS_Application>(JsonSerializer.Serialize(Application))
+                ?? throw new Exception("Could not copy the application");
+
+            application.ID = 0;
+            application.ServerID = 0;
+            application.UserID = string.Empty;
+            application.Server = new DBWS_Server();
+            application.MailFromAddress = null;
+            application.MailFromDisplayName = null;
+            application.MailPassword = null;
+            application.MailServer = null;
+            application.MailServerPort = null;
+            application.MailUserName = null;
+            application.AdminEmail = null;
+            application.Collaborates = new List<DBWS_Collaborate>();
+            application.ConnectionString = null;
+            application.DatabaseType = 0;
+            application.Entities?.ForEach(x => x.ID = 0);
+            application.Entities?.ForEach(x => x.AppID = 0);
+            application.CustomEndpoints?.ForEach(x => x.ID = 0);
+            application.CustomEndpoints?.ForEach(x => x.AppID = 0);
+            application.Reports?.ForEach(x => x.ID = 0);
+            application.Reports?.ForEach(x => x.AppID = 0);
 
             // !IMPORTANT! It is important to keep the same Encryption key since any encrypted data will not be able to be decrypted.
 
             // Serialize app info
-            var jsonApp = JsonSerializer.Serialize(Application, new JsonSerializerOptions() { WriteIndented = true });
+            var jsonApp = JsonSerializer.Serialize(application, new JsonSerializerOptions() { WriteIndented = true });
 
             // Write file to the to-be-zipped folder
             System.IO.File.WriteAllText(Path.Combine(directoryToZip, $"application.json"), jsonApp);

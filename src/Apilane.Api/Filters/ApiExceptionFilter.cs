@@ -9,6 +9,7 @@ using Apilane.Common.Utilities;
 using Apilane.Api.Extensions;
 using Apilane.Api.Models.ViewModels;
 using Apilane.Api.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Data.SqlClient;
@@ -29,6 +30,12 @@ namespace Apilane.Api.Filters
 {
     public class ApiExceptionFilter : ExceptionFilterAttribute
     {
+        /// <summary>
+        /// The key of <see cref="HttpContext.Items"/> that holds the Portal's answer to whether the caller owns the
+        /// application, once a request has asked for it.
+        /// </summary>
+        public const string UserHasFullAccessItemKey = "Apilane.UserHasFullAccess";
+
         private readonly ILogger<ApiExceptionFilter> _logger;
         private readonly ApiConfiguration _apiConfiguration;
 
@@ -40,14 +47,30 @@ namespace Apilane.Api.Filters
             _apiConfiguration = apiConfiguration;
         }
 
+        /// <summary>
+        /// The error body every endpoint answers with: 401 for UNAUTHORIZED, 400 for every other error.
+        /// </summary>
+        public static JsonResult ErrorResult(AppErrors error, string message, string? property, string? entity)
+        {
+            return new JsonResult(new ApiErrorVm()
+            {
+                Code = error.ToString(),
+                Property = property,
+                Entity = entity,
+                Message = message
+            })
+            {
+                StatusCode = error == AppErrors.UNAUTHORIZED
+                    ? (int)HttpStatusCode.Unauthorized
+                    : (int)HttpStatusCode.BadRequest
+            };
+        }
+
         public override async Task OnExceptionAsync(ExceptionContext context)
         {
             var queryDataService = context.HttpContext.RequestServices.GetService<IQueryDataService>()!;
-            var portalInfoService = context.HttpContext.RequestServices.GetService<IPortalInfoService>()!;
 
-            var userHasFullAccess = queryDataService.IsPortalRequest &&!string.IsNullOrWhiteSpace(queryDataService.AuthToken)
-                ? await portalInfoService.UserOwnsApplicationAsync(queryDataService.AuthToken, queryDataService.AppToken)
-                : false;
+            var userHasFullAccess = await UserHasFullAccessAsync(context.HttpContext, queryDataService);
 
             AppErrors error = AppErrors.ERROR;
             string message = EnumProvider<AppErrors>.GetDisplayValue(error);
@@ -127,23 +150,42 @@ namespace Apilane.Api.Filters
                 displayMessage = context.Exception.Message;
             }
 
-            var apiError = new ApiErrorVm()
-            {
-                Code = error.ToString(),
-                Property = property,
-                Entity = entity,
-                Message = displayMessage
-            };
-
-            context.HttpContext.Response.StatusCode = 
-                error == AppErrors.UNAUTHORIZED
-                ? (int)HttpStatusCode.Unauthorized
-                : (int)HttpStatusCode.BadRequest;
-
             // Always return a JSON result
-            context.Result = new JsonResult(apiError);
+            var result = ErrorResult(error, displayMessage, property, entity);
+            context.HttpContext.Response.StatusCode = result.StatusCode ?? (int)HttpStatusCode.BadRequest;
+            context.Result = result;
 
             await base.OnExceptionAsync(context);
+        }
+
+        /// <summary>
+        /// Whether the caller owns the application, which shows them the text of unexpected errors. The answer the
+        /// request already got is used again; when the Portal cannot be asked, the caller is treated as anyone else.
+        /// </summary>
+        private async Task<bool> UserHasFullAccessAsync(HttpContext httpContext, IQueryDataService queryDataService)
+        {
+            if (httpContext.Items.TryGetValue(UserHasFullAccessItemKey, out var answer) &&
+                answer is bool userHasFullAccess)
+            {
+                return userHasFullAccess;
+            }
+
+            if (!queryDataService.IsPortalRequest || string.IsNullOrWhiteSpace(queryDataService.AuthToken))
+            {
+                return false;
+            }
+
+            try
+            {
+                var portalInfoService = httpContext.RequestServices.GetRequiredService<IPortalInfoService>();
+                return await portalInfoService.UserOwnsApplicationAsync(queryDataService.AuthToken, queryDataService.AppToken);
+            }
+            catch (Exception ex)
+            {
+                // An exception thrown here would replace the error being answered with an empty 500
+                _logger.LogWarning(ex, $"Could not ask the Portal whether the caller owns the application | {ex.Message}");
+                return false;
+            }
         }
 
         private static string? GetExceptionFullMessage(Exception ex)

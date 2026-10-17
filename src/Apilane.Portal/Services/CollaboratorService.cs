@@ -4,6 +4,7 @@ using Apilane.Portal.Abstractions;
 using Apilane.Portal.Api;
 using Apilane.Portal.Api.V1.Contracts;
 using Apilane.Portal.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
@@ -20,6 +21,7 @@ namespace Apilane.Portal.Services
         public const string InvalidEmailMessage = "Invalid email address";
         public const string AlreadySharedMessage = "Already shared with that user";
         public const string SelfShareMessage = "You cannot share an application with yourself";
+        public const string NoAccountMessage = "No account uses this address. They must sign up first.";
 
         private const string EntityName = "Collaborator";
 
@@ -30,6 +32,7 @@ namespace Apilane.Portal.Services
         private readonly IPortalMailService _portalMailService;
         private readonly IPortalLinkBuilder _portalLinkBuilder;
         private readonly IAgentPermissionService _agentPermissionService;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<CollaboratorService> _logger;
 
         public CollaboratorService(
@@ -40,6 +43,7 @@ namespace Apilane.Portal.Services
             IPortalMailService portalMailService,
             IPortalLinkBuilder portalLinkBuilder,
             IAgentPermissionService agentPermissionService,
+            UserManager<ApplicationUser> userManager,
             ILogger<CollaboratorService> logger)
         {
             _dbContext = dbContext;
@@ -49,6 +53,7 @@ namespace Apilane.Portal.Services
             _portalMailService = portalMailService;
             _portalLinkBuilder = portalLinkBuilder;
             _agentPermissionService = agentPermissionService;
+            _userManager = userManager;
             _logger = logger;
         }
 
@@ -120,6 +125,17 @@ namespace Apilane.Portal.Services
             {
                 throw PortalException.Conflict(AlreadySharedMessage, EntityName);
             }
+
+            // Registration does not prove the mailbox, so a share must not wait for whoever signs up
+            // with the address first. The account's own address is stored: access needs an exact match.
+            var normalizedEmail = _userManager.NormalizeEmail(email);
+            email = await _dbContext.Users
+                .AsNoTracking()
+                .Where(x => x.NormalizedEmail == normalizedEmail && x.Email != null)
+                .OrderBy(x => x.DateRegistered)
+                .Select(x => x.Email)
+                .FirstOrDefaultAsync()
+                ?? throw PortalException.Validation(nameof(AddCollaboratorRequest.Email), NoAccountMessage);
 
             var isAgent = PortalAgent.IsAgent(email);
             if (!isAgent && request.Permissions is not null)

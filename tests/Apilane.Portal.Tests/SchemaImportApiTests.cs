@@ -378,9 +378,11 @@ namespace Apilane.Portal.Tests
                 "{\"Name\":\"TopOrders\",\"TypeID\":1,\"RoleID\":\"ANONYMOUS\",\"Action\":\"get\",\"Record\":0,\"Properties\":null,\"RateLimit\":null}]",
                 schema);
 
-            // One audit row per thing created or changed, in the order of the steps. (The rows of
-            // the system properties of a new entity carry no application, as with every new entity.)
-            Assert.Equal(AuditOfTheDiff(target, scene.OwnerEmail), await scene.AuditAsync(target));
+            // One audit row per thing created or changed, in the order of the steps, besides the rows of
+            // the system properties of each new entity (in the order the database stores them).
+            var audit = await scene.AuditAsync(target);
+            Assert.Equal(AuditOfTheDiff(target, scene.OwnerEmail), audit.Where(x => !IsSystemPropertyRow(x)));
+            Assert.Equal(6, audit.Count(IsSystemPropertyRow));
 
             // Nothing is missing any more, and the source was only read.
             Assert.Equal(
@@ -424,7 +426,9 @@ namespace Apilane.Portal.Tests
 
             // The calls and the audit rows are those of the diff alone...
             Assert.Equal(CallsOfTheDiff(scene.Server.ServerUrl), _portal.ApiServer.Requests.Select(x => $"{x.Method} {x.Url}"));
-            Assert.Equal(AuditOfTheDiff(target, scene.OwnerEmail), await scene.AuditAsync(target));
+            var audit = await scene.AuditAsync(target);
+            Assert.Equal(AuditOfTheDiff(target, scene.OwnerEmail), audit.Where(x => !IsSystemPropertyRow(x)));
+            Assert.Equal(6, audit.Count(IsSystemPropertyRow));
 
             // ...and what was skipped left no trace.
             var schema = await scene.StoredSchemaAsync(target);
@@ -1217,9 +1221,11 @@ namespace Apilane.Portal.Tests
             Assert.DoesNotContain("property Phone", schema);
             Assert.DoesNotContain("endpoint Totals", schema);
 
+            var audit = await scene.AuditAsync(target);
             Assert.Equal(
                 new[] { $"Entity | Suppliers | Created | {scene.OwnerEmail}" },
-                await scene.AuditAsync(target));
+                audit.Where(x => !IsSystemPropertyRow(x)));
+            Assert.Equal(3, audit.Count(IsSystemPropertyRow));
 
             Assert.Equal(
                 new[] { FakeApiServer.GetSystemPropertiesAndConstraintsPath, FakeApiServer.GenerateEntityPath, FakeApiServer.GeneratePropertyPath },
@@ -2129,9 +2135,21 @@ namespace Apilane.Portal.Tests
 
         /// <summary>
         /// The audit rows of that import: one per thing created or changed, in the order of the
-        /// steps. (The rows of the system properties of a new entity carry no application, as
-        /// with every new entity.)
+        /// steps, leaving out the rows of the system properties of the new entities
+        /// (<see cref="IsSystemPropertyRow"/>).
         /// </summary>
+        /// <summary>
+        /// The audit row of a system property (ID, Owner, Created) of a new entity. It belongs to the
+        /// application, and it is written in the same save as its entity, in the order the database
+        /// stores them, so the tests count these rows instead of placing them.
+        /// </summary>
+        private static bool IsSystemPropertyRow(string row)
+        {
+            return row.StartsWith("Property | ID | Created |", StringComparison.Ordinal)
+                || row.StartsWith("Property | Owner | Created |", StringComparison.Ordinal)
+                || row.StartsWith("Property | Created | Created |", StringComparison.Ordinal);
+        }
+
         private static IEnumerable<string> AuditOfTheDiff(DBWS_Application target, string ownerEmail)
         {
             return new[]

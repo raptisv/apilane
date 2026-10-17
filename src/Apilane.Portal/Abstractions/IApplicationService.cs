@@ -36,7 +36,8 @@ namespace Apilane.Portal.Abstractions
 
         /// <summary>
         /// Renames the application and, unless it is on SQLite, sets its connection string. The
-        /// stored database type decides; a null connection string keeps the stored one.
+        /// stored database type decides; a null connection string keeps the stored one. An agent
+        /// that sends a connection string gets a FORBIDDEN <see cref="Api.PortalException"/>.
         /// </summary>
         Task<ApplicationResponse> UpdateAsync(string appToken, UpdateApplicationRequest request);
 
@@ -46,7 +47,8 @@ namespace Apilane.Portal.Abstractions
         Task<ApplicationResponse> SetStatusAsync(string appToken, SetApplicationStatusRequest request);
 
         /// <summary>
-        /// Drops all data of the application on the API server and creates its tables again, empty.
+        /// Drops all data of the application on the API server and creates its tables again, empty,
+        /// then writes an audit row ('Rebuilt') to the application's log.
         /// </summary>
         Task RebuildAsync(string appToken);
 

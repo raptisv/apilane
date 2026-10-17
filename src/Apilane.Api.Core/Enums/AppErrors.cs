@@ -16,7 +16,7 @@ namespace Apilane.Api.Core.Enums
         [Display(Name = "Required", Description = "This type of error is caused when a property is required, but missing", AutoGenerateField = true)]
         REQUIRED,
 
-        [Display(Name = "Not found", Description = "This type of error is caused when the desired record is not found")]
+        [Display(Name = "Not found", Description = "This type of error is caused when the desired record is not found, or when the application token is unknown")]
         NOT_FOUND,
 
         [Display(Name = "Invalid filter parameter", Description = "This type of error is caused when the filter parameter is erroneous")]
@@ -61,7 +61,7 @@ namespace Apilane.Api.Core.Enums
         [Display(Name = "There is no conection between the two users", Description = "This type of error is caused when user tries to cancel a connection with a user, but they were not connected on the first place")]
         NOT_CONNECTED,
 
-        [Display(Name = "Service unavailable", Description = "This type of error is caused when the owner of the application marks the application as 'Offline'")]
+        [Display(Name = "Service unavailable", Description = "This type of error is caused when the owner of the application marks the application as 'Offline', or when the API server cannot reach the Portal")]
         SERVICE_UNAVAILABLE,
 
         [Display(Name = "User not found", Description = "This type of error is caused when the user requested was not found")]

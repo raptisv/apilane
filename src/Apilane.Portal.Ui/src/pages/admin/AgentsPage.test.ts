@@ -184,6 +184,26 @@ describe('separate agent management', () => {
     expect(calls.post).toHaveBeenCalledOnce()
   })
 
+  it('keeps the one-time key on screen when Escape is pressed', async () => {
+    await mountAgents()
+    await startCreating()
+    await submitCreation()
+    expect(readOnlyValues()).toContain(oneTimeKey)
+
+    const keyInput = body().findAll<HTMLInputElement>('input[readonly]').find((input) => input.element.value === oneTimeKey)
+    if (!keyInput) {
+      throw new Error('The key is not shown')
+    }
+    await keyInput.trigger('keydown', { key: 'Escape' })
+    await settle()
+    expect(dialog().text()).toContain('Agent added')
+    expect(readOnlyValues()).toContain(oneTimeKey)
+
+    await button('Done', dialog()).trigger('click')
+    await settle()
+    expect(body().find('[role="dialog"]').exists()).toBe(false)
+  })
+
   it('keeps the creation draft and list after rejection so the same form can be retried', async () => {
     calls.post.mockResolvedValueOnce(rejected('An agent with this name already exists.'))
     await mountAgents()

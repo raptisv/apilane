@@ -7,6 +7,7 @@ import ErrorState from '@/components/ErrorState.vue'
 import LoadingState from '@/components/LoadingState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StateMessage from '@/components/StateMessage.vue'
+import EntityHelp from '@/components/help/EntityHelp.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useApplication } from '@/composables/useApplication'
@@ -79,7 +80,9 @@ const inactiveTabClass = 'text-muted-foreground hover:bg-muted hover:text-foregr
       Entities
     </RouterLink>
 
+    <!-- One Help for every tab of the entity: the tabs share this header. -->
     <PageHeader :title="entity.Name" :description="entity.Description ?? undefined" class="wrap-anywhere">
+      <EntityHelp />
       <Badge v-if="entity.IsSystem" variant="secondary">System entity</Badge>
     </PageHeader>
 

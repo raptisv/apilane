@@ -5,9 +5,10 @@ using System.Transactions;
 namespace Apilane.Common.Utilities
 {
     /// <summary>
-    /// Remembers when the transactions that <see cref="Services.TransactionScopeService"/> opened time out, so a
-    /// data store can stop a command before the transaction does (see <c>TransactionEnlistment.GetCommandTimeout</c>
-    /// in Apilane.Data). A <see cref="Transaction"/> does not tell when it times out.
+    /// Remembers the time limit of the transactions that <see cref="Services.TransactionScopeService"/> opened, so
+    /// a data store can stop every command within it (see <c>TransactionEnlistment.GetCommandTimeout</c> in
+    /// Apilane.Data). The transaction itself times out only a backstop later
+    /// (<see cref="Services.TransactionScopeService.BackstopTimeout"/>).
     /// </summary>
     public static class TransactionTimeLimit
     {
@@ -29,7 +30,7 @@ namespace Apilane.Common.Utilities
         }
 
         /// <summary>
-        /// The time left before the current transaction times out, or null when there is no current
+        /// The time left before the time limit of the current transaction, or null when there is no current
         /// transaction or its time limit is not known (it was not opened by <see cref="Services.TransactionScopeService"/>).
         /// It is zero or negative once the limit has passed.
         /// </summary>

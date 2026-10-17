@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { provideApplication } from '@/composables/useApplication'
 import { ApiError } from '@/lib/api'
 import { swaggerUrl } from '@/lib/apiServer'
+import { applicationSections, sectionOf } from '@/lib/applications'
 
 // The frame around every screen of one application (the routes under apps/:appToken): it loads
 // the application once, shows the breadcrumb and the section navigation, and hands the
@@ -25,39 +26,20 @@ const { data: application, error, loading, reload } = provideApplication(() => S
 // The API answers 404 both for a token that does not exist and for an application of someone else.
 const notFound = computed(() => error.value instanceof ApiError && error.value.status === 404)
 
-// The sections of an application. `segment` is both the last part of the route name
-// ('app-entities') and the part of the address after the token (/apps/<token>/entities/...), which
-// decides whether the tab is the current one. `name` is for the one screen whose route cannot be
-// named after its segment ('app-import' is the page that creates an application from an export).
+// The sections of an application (applicationSections, shared with the sidebar switcher), less
+// the ones only the owner sees. The segment of the address decides which tab is the current one.
 const sections = computed(() => {
   const app = application.value
 
-  if (!app) {
-    return []
-  }
-
-  const all: { label: string; segment: string; name?: string; ownerOnly?: boolean }[] = [
-    { label: 'Entities', segment: 'entities' },
-    { label: 'Data', segment: 'data' },
-    { label: 'Security', segment: 'security' },
-    { label: 'Custom endpoints', segment: 'endpoints' },
-    { label: 'Email', segment: 'email' },
-    { label: 'Reports', segment: 'reports' },
-    { label: 'Sharing', segment: 'sharing', ownerOnly: true },
-    { label: 'Import', segment: 'import', name: 'app-schema-import' },
-    { label: 'Audit log', segment: 'audit-log' },
-    { label: 'Settings', segment: 'settings' },
-  ]
-
-  return all.filter((section) => !section.ownerOnly || app.IsOwner)
+  return app ? applicationSections.filter((section) => !section.ownerOnly || app.IsOwner) : []
 })
 
 // The one place that enforces meta.requiresOwner: a collaborator gets the Forbidden state instead of
 // the screen, and the address stays. The API refuses the same calls on its own.
 const forbidden = computed(() => route.meta.requiresOwner === true && application.value?.IsOwner !== true)
 
-// '/apps/<token>/entities/...' -> 'entities'. Lower case: the path keeps the case that was typed.
-const currentSegment = computed(() => route.path.split('/')[3]?.toLowerCase())
+// '/apps/<token>/entities/...' -> 'entities'. Undefined on a screen of no section (clone).
+const currentSegment = computed(() => sectionOf(route.path)?.segment)
 
 const infoOpen = ref(false)
 
@@ -148,7 +130,7 @@ const inactiveTabClass = 'border-transparent text-muted-foreground hover:text-fo
       <ul class="flex w-max sm:w-auto sm:flex-wrap">
         <li v-for="section in sections" :key="section.label">
           <RouterLink
-            :to="{ name: section.name ?? `app-${section.segment}`, params: { appToken: application.Token } }"
+            :to="{ name: section.name, params: { appToken: application.Token } }"
             :class="[tabClass, section.segment === currentSegment ? activeTabClass : inactiveTabClass]"
             :aria-current="section.segment === currentSegment ? 'page' : undefined"
           >

@@ -1,7 +1,8 @@
 ﻿using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Enums;
+using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Services;
-using Microsoft.AspNetCore.Http;
+using Apilane.Common;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,29 +36,27 @@ namespace Apilane.Api.Filters
 
         public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
         {
+            // Exception filters do not handle what an authorization filter throws, so the error body
+            // (the one ApiExceptionFilter writes for every other endpoint) is written here.
             try
             {
                 var portalInfoService = context.HttpContext.RequestServices.GetService<IPortalInfoService>()!;
                 var userOwnsApplication = _queryService.IsPortalRequest && await portalInfoService.UserOwnsApplicationAsync(_queryService.AuthToken, _queryService.AppToken);
                 if (!userOwnsApplication)
                 {
-                    context.Result = new CustomUnauthorizedResult(AppErrors.UNAUTHORIZED, "Unauthorized");
+                    context.Result = ApiExceptionFilter.ErrorResult(AppErrors.UNAUTHORIZED, "Unauthorized", null, null);
                     return;
                 }
+            }
+            catch (ApilaneException ex)
+            {
+                // For example the Portal could not be reached
+                context.Result = ApiExceptionFilter.ErrorResult(ex.Error, ex.CustomMessage ?? ex.Error.ToString(), ex.Property, ex.Entity);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Unauthorized | {ex.Message}");
-                context.Result = new CustomUnauthorizedResult(AppErrors.ERROR, "Error");
-            }
-        }
-
-        public class CustomUnauthorizedResult : JsonResult
-        {
-            public CustomUnauthorizedResult(AppErrors Error, string Message)
-                : base(new { Error = Error.ToString(), Message })
-            {
-                StatusCode = StatusCodes.Status401Unauthorized;
+                context.Result = ApiExceptionFilter.ErrorResult(AppErrors.ERROR, Globals.GeneralError, null, null);
             }
         }
     }

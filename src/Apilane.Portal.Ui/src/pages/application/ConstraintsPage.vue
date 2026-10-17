@@ -25,7 +25,7 @@ import AddConstraintDialog from './AddConstraintDialog.vue'
 // The constraints of one entity. Additions and removals collect in the list and are sent together
 // with one Save, which replaces every custom constraint. System constraints stay as they are.
 const { application } = useApplication()
-const { entity } = useEntity()
+const { entity, reload: reloadEntity } = useEntity()
 const session = useSession()
 
 // AppLayout and EntityLayout give every application and entity a fresh screen.
@@ -106,6 +106,8 @@ async function submit(): Promise<void> {
 
   edits.value = { removed: [], added: [] }
   toast.success('Constraints saved.')
+  // The entity carries its constraints too: the Properties tab marks the properties that are in one.
+  void reloadEntity()
 }
 
 const addOpen = ref(false)

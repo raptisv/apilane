@@ -72,6 +72,8 @@ These placeholders are available in **all** email templates:
 | `{Users.Username}` | The user's username |
 | `{Users.Email}` | The user's email address |
 
+The values come from the users themselves. In the body they are HTML-encoded, so a username cannot add a link or markup to the mail; in the subject they are inserted as they are.
+
 ### Event-specific placeholders
 
 Each email event has its own special placeholder:

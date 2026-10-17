@@ -9,6 +9,8 @@ defineProps<{
   entities: Entity[]
   /** The names a search keeps. The other rows are only hidden, so their counts are not loaded again. */
   matching: Set<string>
+  /** By entity name: the entity whose foreign key points to it, if any. */
+  referencedBy: ReadonlyMap<string, string | undefined>
 }>()
 defineEmits<{ edit: [entity: Entity]; rename: [entity: Entity]; delete: [entity: Entity] }>()
 
@@ -36,6 +38,7 @@ const { application } = useApplication()
           v-show="matching.has(entity.Name)"
           :key="entity.Name"
           :entity="entity"
+          :referenced-by="referencedBy.get(entity.Name)"
           @edit="$emit('edit', entity)"
           @rename="$emit('rename', entity)"
           @delete="$emit('delete', entity)"

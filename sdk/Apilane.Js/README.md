@@ -10,7 +10,9 @@ Copy `apilane.js` into your project, or reference it directly:
 import { createApilaneService } from './apilane.js';
 ```
 
-> Works in browsers and Node.js 18+ (requires native `fetch` and `FormData`).
+> Works in browsers and Node.js 19+ (requires native `fetch` and `FormData`). Signed requests use the
+> global Web Crypto API: Node.js 18 needs `--experimental-global-webcrypto` for them, and a browser
+> page must be a secure context (served over HTTPS or from `localhost`).
 
 ## Quick Start
 
@@ -57,8 +59,8 @@ HMAC signature locally and is never transmitted, protecting it from request logs
 limiting a captured request to a short time window.
 
 Login returns the token's id (`AuthTokenID`) — use it as the public key id and the token as the
-signing secret. Call `.withSigning(keyId, secret)` on any request builder (it takes precedence over
-`.withAuthToken`):
+signing secret. Call `.withSigning(keyId, secret)` on any request builder instead of `.withAuthToken`
+(a request uses one of the two: calling both throws an `Error`):
 
 ```javascript
 const login = (await apilane.accountLogin(
@@ -75,7 +77,8 @@ The SDK sends `x-auth-keyid`, `x-auth-timestamp`, and `x-auth-signature`, where 
 `keyId, METHOD, path+query, timestamp, base64(SHA-256(body))` (computed via the Web Crypto API).
 The server rejects requests outside a small clock-skew window (default ±2 min), so keep the client
 clock roughly in sync. File uploads cannot be signed — use `withAuthToken` for `postFile`
-(calling `withSigning` on a file upload throws).
+(calling `withSigning` on a file upload throws). Where the Web Crypto API is missing (see above),
+a signed request throws an `Error` that says so.
 
 ## Features
 
@@ -106,10 +109,11 @@ const userData = await apilane.getAccountUserData(
     AccountUserDataRequest.new().withAuthToken(authToken)
 );
 
-// Update account
+// Update account: only the custom properties of Users (here FirstName); Email, Username,
+// Password and Roles cannot be changed this way
 const updated = await apilane.accountUpdate(
     AccountUpdateRequest.new().withAuthToken(authToken),
-    { Username: 'newname' }
+    { FirstName: 'Ann' }
 );
 
 // Renew token: same response as login ({ AuthToken, AuthTokenID, User }); the old token stops working
@@ -266,7 +270,6 @@ const input = document.querySelector('input[type="file"]');
 const uploadResult = await apilane.postFile(
     FilePostRequest.new()
         .withFileName('photo.jpg')
-        .withPublicFlag(true)
         .withAuthToken(authToken),
     input.files[0]
 );
@@ -300,11 +303,11 @@ const stats = await apilane.getStatsAggregate(
         .withProperty('Price', DataAggregates.Avg)
         .withProperty('Price', DataAggregates.Max)
         .withGroupBy('Category')
-        .withSort(true)
+        .withSort(true) // smallest aggregate first; without it the largest come first
         .withAuthToken(authToken)
 );
 
-// Distinct values
+// Distinct values (at most 1000)
 const distinct = await apilane.getStatsDistinct(
     StatsDistinctRequest.new('Products', 'Category')
         .withAuthToken(authToken)
@@ -355,10 +358,16 @@ result.match(
 );
 
 // Option 3: Throw on error (configured per-request)
-const result = await apilane.getData(
-    DataGetListRequest.new('Products').onErrorThrowException()
-);
-// Throws an Error if the API returns an error response
+try {
+    const result = await apilane.getData(
+        DataGetListRequest.new('Products').onErrorThrowException()
+    );
+} catch (e) {
+    // The Error carries the ApilaneError as apilaneError and the HTTP status as status
+    if (e.apilaneError?.Code === ValidationError.UNAUTHORIZED) {
+        // sign in again
+    }
+}
 ```
 
 ### Request Cancellation
@@ -382,9 +391,10 @@ const result = await apilane.getData(
 ```javascript
 import { unixTimestampToDate, dateToUnixTimestampSeconds } from './apilane.js';
 
-// Convert API timestamps to Date objects
-const date = unixTimestampToDate(1700000000);     // seconds (10 digits)
-const date2 = unixTimestampToDate(1700000000000); // milliseconds (13 digits)
+// Convert API timestamps to Date objects, read the way the API reads them
+const date = unixTimestampToDate(1700000000);     // seconds: a positive number of exactly 10 digits
+const date2 = unixTimestampToDate(1700000000000); // milliseconds: any other whole number
+const date3 = unixTimestampToDate(-86400000);     // milliseconds before 1970: 1969-12-31
 
 // Convert Date to Unix timestamp
 const ts = dateToUnixTimestampSeconds(new Date());
@@ -426,8 +436,8 @@ const ts = dateToUnixTimestampSeconds(new Date());
 
 ## Requirements
 
-- Browsers: Any modern browser with `fetch` and `FormData` support
-- Node.js: 18.0+ (native `fetch`)
+- Browsers: Any modern browser with `fetch` and `FormData` support; signed requests also need a secure context (HTTPS or `localhost`)
+- Node.js: 19.0+ (native `fetch` and global Web Crypto), or 18 with `--experimental-global-webcrypto` for signed requests
 - An Apilane API instance
 
 ## Documentation

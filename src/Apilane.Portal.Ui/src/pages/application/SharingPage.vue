@@ -293,7 +293,7 @@ async function submitRemove(): Promise<boolean> {
     <FormField
       v-slot="{ field }"
       label="User email"
-      help="The address the person signs in with, written exactly as in their account, letter case included."
+      help="The address of the person's Portal account, in any letter case. They must have signed up first."
       :error="personEmailError ?? shareErrors.fields.Email"
     >
       <Input v-model="email" v-bind="field" type="email" autocomplete="off" spellcheck="false" />

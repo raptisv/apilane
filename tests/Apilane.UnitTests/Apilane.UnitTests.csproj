@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- MemoryCache, as the API server gets it from the shared framework (ApplicationServiceTests) -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\SDK\Apilane.Net\Apilane.Net.csproj" />
     <ProjectReference Include="..\..\src\Apilane.Common\Apilane.Common.csproj" />
     <ProjectReference Include="..\..\src\Apilane.Api.Core\Apilane.Api.Core.csproj" />

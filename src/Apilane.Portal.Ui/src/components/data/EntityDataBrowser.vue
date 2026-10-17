@@ -36,6 +36,7 @@ import { usePageQuery } from '@/composables/usePageQuery'
 import { apiServer } from '@/lib/apiServer'
 import { csvFileName, toCsv } from '@/lib/csv'
 import { saveBlob } from '@/lib/download'
+import { propertyConstraints } from '@/lib/entities'
 import type { Entity } from '@/lib/entities'
 import { propertyRules } from '@/lib/properties'
 import type { Property } from '@/lib/properties'
@@ -368,8 +369,10 @@ function about(property: Property): string[] {
     .filter(Boolean)
     .join(', ')
   const dates = property.Type === 'Date' ? [property.IsUtc ? 'Shown in your local time. Filter in UTC.' : 'Shown in UTC.'] : []
+  // A unique value or the ID of a record of another entity: a save that breaks it is refused.
+  const constraints = propertyConstraints(property.Name, props.entity.Constraints).map((constraint) => constraint.description)
 
-  return [kind, ...propertyRules(property), ...dates, ...(property.Description ? [property.Description] : [])]
+  return [kind, ...propertyRules(property), ...constraints, ...dates, ...(property.Description ? [property.Description] : [])]
 }
 
 function ariaSort(property: string): 'ascending' | 'descending' | undefined {

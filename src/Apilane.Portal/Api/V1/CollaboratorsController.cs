@@ -50,11 +50,12 @@ namespace Apilane.Portal.Api.V1
         /// it further; an agent gets the supplied permissions, or read-only access when omitted.
         /// The owner can edit an agent's permissions later. The address is trimmed and must be a valid e-mail
         /// address (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an
-        /// address the application is already shared with, in any letter case. When the instance
-        /// mail is configured the address gets a notification mail, unless it is an agent's
-        /// (@agent.local); NotificationSent says whether the mail was handed over for sending
-        /// (delivery is not reported). The share is matched to an account by exact address, as
-        /// typed. Owner only.
+        /// address the application is already shared with, in any letter case. The address must
+        /// belong to a Portal account, in any letter case (400 VALIDATION on Email otherwise: the
+        /// person must sign up first), and the share is saved with that account's address as it is
+        /// stored. When the instance mail is configured the address gets a notification mail, unless
+        /// it is an agent's (@agent.local); NotificationSent says whether the mail was handed over for
+        /// sending (delivery is not reported). Owner only.
         /// </summary>
         [HttpPost]
         [NoAgent]

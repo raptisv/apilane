@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { useMutation } from '@/composables/useMutation'
 import { apiServer } from '@/lib/apiServer'
+import { propertyConstraints } from '@/lib/entities'
 import type { Entity } from '@/lib/entities'
 import type { Property } from '@/lib/properties'
 import {
@@ -147,6 +148,11 @@ function help(property: Property): string | undefined {
     parts.push('Stored encrypted.')
   }
 
+  // A value that must be unique, or the ID of an existing record of another entity: the API server refuses a save that breaks it.
+  for (const constraint of propertyConstraints(property.Name, props.entity.Constraints)) {
+    parts.push(`${constraint.description}.`)
+  }
+
   return parts.length > 0 ? parts.join(' ') : undefined
 }
 
@@ -205,7 +211,14 @@ const title = computed(() =>
             </template>
           </dl>
 
-          <p v-if="fields.length === 0" class="text-sm text-muted-foreground">This entity has no properties that can be set.</p>
+          <p v-if="fields.length === 0" class="text-sm text-muted-foreground">
+            This entity has no properties that can be set.
+            <RouterLink
+              v-if="!foreign && entity.AllowAddProperties"
+              :to="{ name: 'app-entity-properties', params: { appToken: application.Token, entity: entity.Name } }"
+              class="font-medium text-link underline underline-offset-4"
+            >Add properties</RouterLink>
+          </p>
 
           <FormField
             v-for="property in fields"

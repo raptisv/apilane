@@ -11,12 +11,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useApplications } from '@/composables/useApplications'
-import { groupByServer } from '@/lib/applications'
+import { groupByServer, switcherTarget } from '@/lib/applications'
 
 // The quick way from anywhere to one application: a menu of the user's applications grouped by
 // server, under 'Applications' in the sidebar. It shares its list with the applications page
 // (useApplications). A user without applications sees nothing here. On a screen of one
-// application (/apps/:appToken/...) it shows that application's name and marks it in the menu.
+// application (/apps/:appToken/...) it shows that application's name and marks it in the menu,
+// and each item leads to the same section of the other application (switcherTarget).
 const { applications, error, reload } = useApplications()
 const route = useRoute()
 
@@ -58,7 +59,7 @@ const current = computed(() =>
         <DropdownMenuLabel class="truncate">{{ group.server.Name }}</DropdownMenuLabel>
         <DropdownMenuItem v-for="application in group.applications" :key="application.Token" as-child>
           <RouterLink
-            :to="{ name: 'app-entities', params: { appToken: application.Token } }"
+            :to="switcherTarget(route.path, application)"
             :aria-current="application === current ? 'page' : undefined"
           >
             <span class="min-w-0 flex-1 truncate">{{ application.Name }}</span>

@@ -1,4 +1,6 @@
 ﻿using Apilane.Api.Core.Abstractions;
+using Apilane.Api.Core.Enums;
+using Apilane.Api.Core.Exceptions;
 using Apilane.Common.Models;
 using Microsoft.Extensions.Logging;
 using Orleans;
@@ -10,8 +12,15 @@ namespace Apilane.Api.Core.Grains
 {
     public interface IApplicationGrain : IGrainWithGuidKey
     {
-        Task<DBWS_Application> GetAsync();
-        Task<DBWS_Application> SubscribeAndGetAsync(IApplicationService observer);
+        /// <summary>
+        /// The application, or null when the token is nobody's application.
+        /// </summary>
+        Task<DBWS_Application?> GetAsync();
+
+        /// <summary>
+        /// The application, or null when the token is nobody's application.
+        /// </summary>
+        Task<DBWS_Application?> SubscribeAndGetAsync(IApplicationService observer);
         Task ResetStateAsync();
     }
 
@@ -53,15 +62,28 @@ namespace Apilane.Api.Core.Grains
             }
         }
 
-        public async Task<DBWS_Application> GetAsync()
+        public async Task<DBWS_Application?> GetAsync()
         {
-            var appToken = this.GetPrimaryKey(out _).ToString();
-            _application ??= await _portalInfoService.GetApplicationAsync(appToken);
+            if (_application is null)
+            {
+                var appToken = this.GetPrimaryKey(out _).ToString();
+
+                try
+                {
+                    _application = await _portalInfoService.GetApplicationAsync(appToken);
+                }
+                catch (ApilaneException ex) when (ex.Error == AppErrors.NOT_FOUND)
+                {
+                    // An unknown token. Do not keep this activation: its timer would keep asking the Portal.
+                    DeactivateOnIdle();
+                    return null;
+                }
+            }
 
             return _application;
         }
 
-        public async Task<DBWS_Application> SubscribeAndGetAsync(IApplicationService observer)
+        public async Task<DBWS_Application?> SubscribeAndGetAsync(IApplicationService observer)
         {
             // Subscribe to changes (or renew subscription) to receive messages.
             _subsManager.Subscribe(observer, observer);

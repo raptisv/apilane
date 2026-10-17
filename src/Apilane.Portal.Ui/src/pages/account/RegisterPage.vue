@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AuthForm from '@/components/AuthForm.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import FormField from '@/components/FormField.vue'
@@ -12,9 +12,15 @@ import { useMutation } from '@/composables/useMutation'
 import { api, unwrapAnonymous } from '@/lib/api'
 import type { Schemas } from '@/lib/api'
 import { formErrors } from '@/lib/forms'
+import { safeReturnUrl } from '@/lib/returnUrl'
 import { setSession } from '@/lib/session'
+import { afterSignIn } from '@/router'
 
+const route = useRoute()
 const router = useRouter()
+
+// ?returnUrl= comes along from the sign-in screen: the new user lands where the link that brought them led.
+const returnQuery = computed(() => ({ returnUrl: safeReturnUrl(route.query.returnUrl) }))
 
 // Whether registration is open decides between the form and the 'switched off' state.
 const { data: instance, error, loading, reload } = useInstance()
@@ -33,7 +39,13 @@ async function submit(): Promise<boolean> {
     return false
   }
 
-  await router.replace({ name: 'apps' })
+  const target = afterSignIn(route.query.returnUrl)
+
+  // false: a full page load is under way, to an address the Portal answers itself (/swagger).
+  if (target) {
+    await router.replace(target)
+  }
+
   return true
 }
 
@@ -51,7 +63,7 @@ const linkClass = 'rounded-sm text-link underline-offset-4 hover:underline focus
       New users cannot sign up on this instance. Ask an administrator of this instance for an account.
     </p>
     <Button as-child class="mt-6 w-full">
-      <RouterLink :to="{ name: 'login' }">Sign in</RouterLink>
+      <RouterLink :to="{ name: 'login', query: returnQuery }">Sign in</RouterLink>
     </Button>
   </div>
 
@@ -84,7 +96,7 @@ const linkClass = 'rounded-sm text-link underline-offset-4 hover:underline focus
     <template #footer>
       <p class="text-center text-sm text-muted-foreground">
         Already have an account?
-        <RouterLink :to="{ name: 'login' }" :class="linkClass">Sign in</RouterLink>
+        <RouterLink :to="{ name: 'login', query: returnQuery }" :class="linkClass">Sign in</RouterLink>
       </p>
     </template>
   </AuthForm>

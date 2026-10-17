@@ -85,7 +85,7 @@ namespace Apilane.Portal.Tests
         public async Task Add_Should_Trim_The_Email_Store_It_And_Return_201_Without_A_Notification_When_Mail_Is_Not_Configured()
         {
             var scene = await CreateSceneAsync();
-            var email = NewEmail();
+            var (email, _) = await _portal.CreateUserAsync();
 
             var response = await scene.Owner.PostAsync(Url(scene), new { Email = $"  {email} " }.ToJsonContent());
 
@@ -109,7 +109,7 @@ namespace Apilane.Portal.Tests
         {
             await _portal.SetAccountSettingsAsync(allowRegister: true, mailConfigured: true);
             var scene = await CreateSceneAsync();
-            var email = NewEmail();
+            var (email, _) = await _portal.CreateUserAsync();
 
             var response = await scene.Owner.PostAsync(Url(scene), new { Email = email }.ToJsonContent());
 
@@ -132,7 +132,7 @@ namespace Apilane.Portal.Tests
             var server = await _portal.CreateServerAsync();
             var application = await _portal.CreateApplicationAsync(server.ID, ownerEmail, "<i>tagged</i>");
             var owner = await _portal.CreateSignedInClientAsync(ownerEmail, ownerPassword);
-            var email = NewEmail();
+            var (email, _) = await _portal.CreateUserAsync();
 
             // Access goes by user id, so only the mail sees this address.
             await _portal.WithDbContextAsync(async db =>
@@ -171,7 +171,7 @@ namespace Apilane.Portal.Tests
             var server = await _portal.CreateServerAsync();
             var application = await _portal.CreateApplicationAsync(server.ID, ownerEmail, "mail-fails");
             var session = await _portal.SignInAsync(ownerEmail, ownerPassword, host);
-            var email = NewEmail();
+            var (email, _) = await _portal.CreateUserAsync();
 
             var response = await session.Client.PostAsync(Url(application), new { Email = email }.ToJsonContent());
 
@@ -189,7 +189,7 @@ namespace Apilane.Portal.Tests
         public async Task Add_Should_Write_A_Created_Audit_Row()
         {
             var scene = await CreateSceneAsync();
-            var email = NewEmail();
+            var (email, _) = await _portal.CreateUserAsync();
 
             await scene.Owner.PostAsync(Url(scene), new { Email = email }.ToJsonContent());
 
@@ -198,6 +198,64 @@ namespace Apilane.Portal.Tests
             Assert.Equal("Created", row.Action);
             Assert.Equal(email, row.EntityIdentifier);
             Assert.Equal(scene.Application.Application.ID, row.AppID);
+        }
+
+        [Theory]
+        [InlineData("@portal.test")]
+        [InlineData("@agent.local")]
+        public async Task Add_With_An_Address_Without_An_Account_Should_Return_400_And_Leave_Nothing_For_A_Later_Sign_Up(string domain)
+        {
+            await _portal.SetAccountSettingsAsync(allowRegister: true, mailConfigured: true);
+            var scene = await CreateSceneAsync();
+            var email = $"nobody-{Guid.NewGuid():N}{domain}";
+
+            var response = await scene.Owner.PostAsync(Url(scene), new { Email = email }.ToJsonContent());
+
+            await AssertValidationAsync(response, "Email", CollaboratorService.NoAccountMessage);
+            Assert.Equal(3, (await StoredCollaboratorsAsync(scene.Application.Application.ID)).Count);
+            Assert.Empty(_portal.Mail.SentTo(email));
+            Assert.Empty(await AuditRowsAsync(scene.OwnerEmail));
+
+            if (domain == "@portal.test")
+            {
+                // Registration proves no mailbox: whoever signs up with the address now gets nothing.
+                var signUp = _portal.CreateAnonymousClient();
+                var registered = await signUp.PostAsync("/api/v1/account", new { Email = email, Password = "a-password", ConfirmPassword = "a-password" }.ToJsonContent());
+                Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+
+                var list = await (await signUp.GetAsync(ApplicationsUrl)).ReadJsonAsync<ListResponse<ApplicationResponse>>();
+                Assert.DoesNotContain(list.Data, x => x.Token == scene.Application.Application.Token);
+            }
+        }
+
+        [Fact]
+        public async Task Add_Of_An_Address_With_A_Share_Saved_Before_Accounts_Were_Required_Should_Still_Return_409()
+        {
+            var scene = await CreateSceneAsync();
+
+            // zz-first has no account; its share was saved before the rule and stays.
+            var response = await scene.Owner.PostAsync(Url(scene), new { Email = "ZZ-First@portal.test" }.ToJsonContent());
+
+            await AssertConflictAsync(response, CollaboratorService.AlreadySharedMessage);
+            Assert.Single(await StoredCollaboratorsAsync(scene.Application.Application.ID), x => x.UserEmail == "zz-first@portal.test");
+        }
+
+        [Fact]
+        public async Task Add_In_Another_Letter_Case_Should_Store_The_Accounts_Address_And_Give_Access()
+        {
+            var scene = await CreateSceneAsync();
+            var (email, password) = await _portal.CreateUserAsync();
+            var token = scene.Application.Application.Token;
+
+            var response = await scene.Owner.PostAsync(Url(scene), new { Email = email.ToUpperInvariant() }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            Assert.Equal(email, (await response.ReadJsonAsync<CollaboratorAddedResponse>()).Email);
+            Assert.Single(await StoredCollaboratorsAsync(scene.Application.Application.ID), x => x.UserEmail == email);
+
+            // Access needs an exact match, which the stored address of the account gives.
+            var collaborator = await _portal.CreateSignedInClientAsync(email, password);
+            Assert.Equal(HttpStatusCode.OK, (await collaborator.GetAsync($"{ApplicationsUrl}/{token}")).StatusCode);
         }
 
         [Theory]

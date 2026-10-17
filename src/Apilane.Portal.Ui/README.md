@@ -142,6 +142,8 @@ The user menu also has 'API reference', a link to `/swagger`.
   anything a browser could read as another site is ignored and the applications page opens.
 - A signed-in user who opens the sign-in or sign-up screen is sent on: to `returnUrl` when it is a
   path on this site, otherwise to the applications page.
+- The sign-in screen's 'Sign up' link and the sign-up screen's 'Sign in' links carry `returnUrl`,
+  and registering follows it as signing in does.
 - Administrator setup, sign in, sign up and the password-reset request share one rate limit: 30 calls per 60 seconds per
   IP address, then 429 (`AccountRateLimit__PermitLimit`, `AccountRateLimit__WindowSeconds`). Behind a
   reverse proxy read [Deploying](#deploying).
@@ -150,6 +152,9 @@ The user menu also has 'API reference', a link to `/swagger`.
 - A password has 8 to 100 characters.
 - The reset request answers the same whether or not the address has an account. Resetting with an
   address that has no account fails with 'Invalid token.', like a wrong code.
+- When the instance cannot send mail (`GET /instance` IsMailSetup false), the sign-in screen says so
+  instead of offering 'Forgot password?', and the forgot-password screen shows 'Password reset is
+  not available' instead of its form.
 - A successful password reset ends every session of that user.
 - After changing the password you stay signed in; other browsers are signed out. With a session that
   was ended elsewhere the change is refused (401).
@@ -170,6 +175,8 @@ The user menu also has 'API reference', a link to `/swagger`.
 - Deleting the agent on the Agents screen stops its key at once and removes the agent from every
   application shared with it. The Users screen lists people separately. A lost key cannot be
   shown or replaced: delete the agent, add it again and share again.
+- Adding and deleting an agent each write an entry to the instance audit log ('Agent', its
+  address, 'Created' or 'Deleted').
 - Nobody can sign up with an address at `@agent.local`, a password-reset request for one does
   nothing, and an agent cannot be made an administrator.
 
@@ -181,7 +188,7 @@ The user menu also has 'API reference', a link to `/swagger`.
 | Owner of an application | Everything about it, sharing included. |
 | Human collaborator | Everything the owner can do (delete, rebuild, clone, import schema, edit security, read the encryption key), except sharing. |
 | Administrator (role Admin) | The 'Instance' screens and `/api/v1/admin/...`: servers, users and agents, instance settings, backup, the instance audit log, the list of all applications and the data browser of any of them. |
-| Agent (calling with its key) | The shared applications, with the read/write/delete rights their owners grant per area. Defaults to read-only. Rebuild is a separate grant; deleting an application, sharing, creating/importing/cloning an application, encryption keys, API-server tokens and `/api/v1/admin` remain unavailable. See [Agents](#agents). |
+| Agent (calling with its key) | The shared applications, with the read/write/delete rights their owners grant per area. Defaults to read-only. Rebuild is a separate grant; deleting an application, changing its connection string, sharing, creating/importing/cloning an application, encryption keys, API-server tokens and `/api/v1/admin` remain unavailable. See [Agents](#agents). |
 
 - Under `/api/v1/applications/{appToken}` the Admin role opens nothing: an application the caller
   neither owns nor collaborates on is 404, administrator or not. The one exception is
@@ -200,6 +207,8 @@ The user menu also has 'API reference', a link to `/swagger`.
   key are write-only. No answer carries them; an answer says whether a value is stored. In the UI an
   empty box keeps the stored value.
 - A mail password is removed with 'Remove the stored value'. The installation key cannot be cleared.
+- A stored application mail password is never sent to a new place: a save that gives the mail
+  server or the user name a new value needs the password again (400 on MailPassword without it).
 - Three answers carry a secret, each from one endpoint only: the encryption key of an application
   (`GET {app}/connection-info`, shown masked in the Info dialog and dropped when it closes), the
   caller's own API-server token (`GET /session/api-token`) and the key of a new agent
@@ -258,8 +267,13 @@ that hosts the application, and the browser calls that server directly:
 - When the API server created the application and the Portal then could not save it, the answer says
   exactly that, and the application stays on the API server.
 - 'Import application' takes the `application.json` from the zip that 'Export' downloads. The file is
-  checked completely before anything is created, an existing token is 409, and the report-series IDs of
-  the file are reset. The application keeps the token and the encryption key of the file.
+  checked completely before anything is created, against the rules of the editors (settings ranges,
+  client addresses, entity/property/custom endpoint names and types, constraints, security rules): the
+  first problem is a 400 on File naming its place in the file. Flags no editor sets (IsSystem,
+  IsReadOnly, IsPrimaryKey of custom entities) are not read from the file, and rules or rule
+  properties for items the file lacks are dropped as the Security tab drops them. An existing token
+  is 409, and the report-series IDs of the file are reset. The application keeps the token and the
+  encryption key of the file.
 - No server is preselected unless the instance has exactly one. Without any server both forms show
   'No API server yet'.
 - The search box appears from 7 applications up. Server groups are ordered by server name.
@@ -298,15 +312,24 @@ that hosts the application, and the browser calls that server directly:
 
 **Application settings, status, rebuild, delete**
 
-- The stored database type decides whether a connection string is written.
+- The stored database type decides whether a connection string is written. Only a person may
+  change it: an agent that sends a ConnectionString gets 403, whatever its grants.
 - The status call takes an explicit Online value, so repeating it changes nothing.
 - The typed name and the 'I understand' box of rebuild and delete are guards of the browser only:
   the API has no confirm field.
+- A rebuild that the API server did writes an entry to the application's audit log
+  ('Application', its name, 'Rebuilt'); a rebuild that failed writes none.
 - When the API server deleted the application and the Portal then could not save, the answer says exactly that.
 
 **Sharing**
 
 - 'Share' accepts a person's e-mail address as free text. Sharing with your own address is 409.
+- The address must belong to an account of the Portal, in any letter case: one that nobody has
+  signed up with is 400 on Email ('No account uses this address. They must sign up first.').
+  Registration does not prove the mailbox, so a share that waited for the address would go to
+  whoever registered it first. The share is saved with the account's address as the account
+  stores it, so the letter case typed does not matter. Shares saved before this rule, for an
+  address without an account, stay as they are.
 - 'Share with agent' opens a separate dialog with an explicit agent picker. Only agents not
   already shared with this application are offered (`GET {app}/collaborators/available-agents`).
   The selected agent's other applications are shown by name, limited on the server to applications
@@ -330,12 +353,22 @@ that hosts the application, and the browser calls that server directly:
   The e-mail templates live on the API server and are read and saved there.
 - Only people may change these settings. Agents with email-settings Read may inspect them without
   the password; no grant permits an agent to change the transport, sender, credentials or redirect.
+- A new server or user name needs the password again while one is stored: a save without it is 400
+  on MailPassword ('Enter the password again when you change the mail server or user name'), so a
+  collaborator who does not know the password cannot send it to another host. Clearing the server
+  or the user name needs no password.
 - A template preview is drawn in a sandboxed frame in which no script runs.
 - Without a Redirect URL, a user who confirmed their e-mail lands on `/account/email-confirmed` of the Portal.
 
 **Audit log (instance and application)**
 
 - A page below 1 or a page size outside 1 to 200 is 400. The UI asks for 50 and reads a bad `?page=` as page 1.
+- Most entries come from the saved changes themselves. Three are written on purpose, because
+  nothing else in the Portal changes: a database backup download and an agent added or deleted
+  (instance log), and a rebuild (the application's log).
+- Rows of what is created together with an application (create, import, clone, a new entity's
+  system properties) are in that application's log. The instance log also shows who created and
+  who deleted each application.
 - Entries with the same timestamp are ordered by ID, so pages are stable.
 - Stored changes that cannot be read are shown with empty fields.
 
@@ -396,11 +429,17 @@ that hosts the application, and the browser calls that server directly:
 - 'Export page as CSV' exports the current page only; a null is an empty cell.
 - 'Delete selected' deletes several records in one call. Clearing the history of a record asks first.
 - Filters are sent 400 ms after typing stops, and a newer request cancels the one still running.
+- A Number or Date filter switches between equal, at least and at most (for a date: on, on or
+  after, on or before). A date typed as yyyy-MM-dd, yyyy-MM-dd HH:mm or yyyy-MM-dd HH:mm:ss stands
+  for that whole day, minute or second, in UTC, and is sent as a range (`dateSpan`); any other text
+  is sent as typed.
 - Page, page size and sort are in the address; filters are not, so switching entity starts fresh.
 - Custom entities are listed first, then system entities. Without an entity in the address the first
   custom entity opens.
 - The dates of a new record are pre-filled with the browser's local time, while the API server reads
   the text as UTC. The help line of the field says so.
+- The column tooltip and the help line of a form field name the unique constraints and foreign keys
+  of the property.
 
 **Reports**
 
@@ -457,6 +496,7 @@ that hosts the application, and the browser calls that server directly:
 **Administration**
 
 - A server address must be an http or https URL. A server that hosts applications cannot be deleted (409).
+  The Servers screen disables its Delete with the reason.
 - Users: changing your own role is 409, an unknown user 404, and asking for the role a user already
   has succeeds without change. A role change takes effect within 30 minutes or at the next sign-in.
 - Applications: 'Clear cache' goes through the Portal, so a failure reflects the Portal's connection
@@ -555,15 +595,17 @@ Sign-in and mail:
 - An agent has one key, without an expiry date, and wrong keys are not counted or slowed down
   (see [Open decisions](#open-decisions)).
 - An account that a person registered at `@agent.local` before agents existed keeps its password,
-  but counts as an agent: it cannot be made an administrator and it can be deleted on the Agents screen.
+  but counts as an agent: it cannot be made an administrator and it can be deleted on the Agents
+  screen once it owns no applications (409 names them until then).
 - Portal email links use `PublicUrl`; request headers cannot change their destination.
-- The shared mail service (`Apilane.Common/Services/EmailService.cs`) logs the full mail body, reset
-  link included, at Information level, and swallows SMTP failures. So a failed send looks like a
-  success, and 'mail sent' means handed to the sender, not delivered.
+- The shared mail service (`Apilane.Common/Services/EmailService.cs`) logs the recipients and the
+  subject with links and tokens masked, never the body, and swallows SMTP failures (it logs them at
+  Error). So a failed send looks like a success, and 'mail sent' means handed to the sender, not delivered.
 - The reset request answers the same for a known and an unknown address, but not equally fast: the
   mail is sent inside the request.
-- Collaborators are matched by the exact letter case of their e-mail address. 'Bob@x.com' for the
-  account 'bob@x.com' is accepted and gives no access.
+- Access goes by an exact match of the collaborator's address. A new share stores the account's own
+  address, but a share saved before sharing required an account keeps the address as it was typed:
+  'Bob@x.com' saved then for the account 'bob@x.com' gives no access. Remove it and share again.
 - A role change takes effect within 30 minutes or at the user's next sign-in.
 - The API server builds the e-mail-confirmation landing address from its `PortalUrl`, the
   server-to-server address. When that is not the public address of the Portal, set the application's Redirect URL.
@@ -580,8 +622,8 @@ Applications and schema:
 - When the API server accepted a create, import or clone and the Portal step then failed, the
   application stays on the API server.
 - Clone: the bar reaches 100% after the schema phase and drops to 50% when data starts; reports are
-  not cloned; the clone's name can pass 100 characters; operations are kept in memory only, so a
-  restart of the Portal loses the progress screen.
+  not cloned; the clone's name can pass 100 characters; operations are kept in memory only, for 30
+  minutes after they end, so a restart of the Portal or a later visit loses the progress screen.
 - Entity names are matched case-sensitively in Compare and case-insensitively in the schema import diff.
 - 'Load diff' rounds whole numbers above 9,007,199,254,740,991 before they reach the payload box.
 - A security rule stored with an unknown rate window (written by an older version) makes Compare
@@ -643,7 +685,6 @@ For the owner. The default is what the code does today; say nothing and it stays
 | Server address | http or https only. | Any scheme (`ServerService.ValidateUrl`). |
 | Rebuild and delete confirmation | Guards of the browser only. | Require the application name in the request. |
 | Collaborator rights | A human collaborator can delete, rebuild, clone, import schema, edit security and read the encryption key; only Sharing is owner-only. Agents have per-application read/write/delete policies and permanent restrictions described below. | Narrow them for people too. |
-| Collaborator e-mail letter case | Saved as typed; access needs an exact match. | Save the exact address of the matching account when sharing (`CollaboratorService.AddAsync`), or match without case everywhere. |
 | Rate limit | 30 calls per 60 seconds per IP address. | Other numbers. |
 | Agents | One key per agent, with per-application permissions starting read-only. Left out on purpose: an expiry date for raw keys, several keys per agent, re-issuing a key without deleting the agent, a rate limit on wrong keys. MCP connections have their own expiry and revocation. | Add the ones that turn out to be needed. |
 | Schema import: numbers in the payload | TypeID, Record and TimeWindowType are the stored numbers. | Names, like the rest of the API. |
@@ -716,9 +757,10 @@ block to append to the `AGENTS.md` of the project that holds the agent.
 2. **Give it access.** The owner opens 'Share with agent' on the Sharing screen and selects its name.
    `GET {app}/collaborators/available-agents` lists the available names and original addresses,
    plus `Applications` summaries (`Token`, `Name`) for other applications visible to the caller.
-   The UI sends the selected address unchanged, so exact account matching is preserved. The
-   agent is then a collaborator of that application with read-only access by default. Set its
-   rights in the share dialog or choose 'Edit rights' beside it later. No mail is sent to an agent.
+   The share is saved with the agent account's own address, whatever its letter case in the
+   request, and an address without an account is 400. The agent is then a collaborator of that
+   application with read-only access by default. Set its rights in the share dialog or choose
+   'Edit rights' beside it later. No mail is sent to an agent.
 3. **Call the API.** Send `Authorization: Bearer {key}` on every call. No sign-in, no cookie, no
    `X-Apilane-Portal` header.
 
@@ -748,7 +790,7 @@ records. A policy is checked on every request, so changing it takes effect on th
 
 | Resource | Read | Write | Delete |
 |---|---|---|---|
-| `application` | The common summary is always visible | General settings, status and cache reset | Never |
+| `application` | The common summary is always visible | Name, status and cache reset; never the connection string | Never |
 | `entities` | Entities, properties, constraints, sorting and report fields | Create, edit, constraints and sorting; never rename entities or properties | Entities and properties |
 | `security` | Settings, roles and rules | Settings and rules, including replacing or removing rules | — |
 | `custom-endpoints` | Definitions and preview | Create and edit SQL definitions | Custom endpoints |
@@ -762,10 +804,10 @@ Write and Delete require Read for areas that support reading; Delete does not re
 Application settings and rebuild are write-only capabilities and default to denied. All areas
 that support Read default to readable. Write access can have wide effects even without Delete:
 security can replace rules, entities can replace constraints, and custom endpoints can save SQL.
-Entity/property renames and all application mail-setting changes remain unavailable regardless
-of grants. Custom endpoint renames keep their existing custom-endpoint permissions. The former
-email-settings Write grant is retired: it is ignored when reading saved policies while unrelated
-grants remain in effect, and new policies cannot grant it.
+Entity/property renames, connection-string changes and all application mail-setting changes
+remain unavailable regardless of grants. Custom endpoint renames keep their existing
+custom-endpoint permissions. The former email-settings Write grant is retired: it is ignored when
+reading saved policies while unrelated grants remain in effect, and new policies cannot grant it.
 
 **Discovering rights.** `GET {app}/permissions` remains available even if all areas are denied.
 It answers `IsAgent`, effective `Permissions` (`Resource`, `Read`, `Write`, `Delete`), the resource
@@ -808,6 +850,12 @@ A person has to do it in the Portal.':
 Other operations require the corresponding grants above. Missing rights answer 403 FORBIDDEN.
 An application that is not shared with the agent is 404, as for any user.
 
+`PUT {app}` with a `ConnectionString` answers 403 FORBIDDEN for an agent too, whatever its grants:
+the connection string decides which database gets every record of the application, so, like the
+mail transport, only a person changes it. With `application` Write an agent renames the
+application by leaving `ConnectionString` out (or sending null). `Restrictions` in
+`GET {app}/permissions` lists this rule.
+
 Two things are not open to an agent although the list above does not name them, and answer an
 ordinary 403 FORBIDDEN: everything under `{app}/collaborators` (sharing is for the owner, and an
 agent is a collaborator), and `PUT .../constraints` or a schema import with constraints for a system
@@ -826,7 +874,10 @@ beyond the management endpoint itself. Give an agent only the rights needed for 
 
 **Revoking.** Delete the agent on Instance > Agents (`DELETE /api/v1/admin/agents/{userId}`). Its
 key stops working at once and the agent is removed from every application shared with it. A key
-cannot be replaced: delete the agent, add it again and share again.
+cannot be replaced: delete the agent, add it again and share again. A legacy account registered at
+`@agent.local` that owns applications is not deleted: the answer is 409 CONFLICT naming those
+applications, which nobody could open afterwards, so they are deleted first. Adding and deleting
+an agent write entries to the instance audit log.
 
 ## MCP connections
 
@@ -850,15 +901,21 @@ permanently refused calls and does not imply that a particular grant is enabled.
 **Connect a client.** In **MCP connections > MCP setup**, copy the server address and suggested
 unique server name. Add a remote Streamable HTTP server with OAuth browser authentication in
 your client's settings. Supported clients must implement OAuth discovery, dynamic registration,
-authorization-code flow with S256 PKCE and a loopback callback. Each client has its own
+authorization-code flow with S256 PKCE and a loopback callback, or use the fixed callback of a
+hosted client: the Claude connector's `https://claude.ai/api/mcp/auth_callback` or
+`https://claude.com/api/mcp/auth_callback`, the only two accepted. Each client has its own
 configuration syntax and sign-in controls; the Portal does not generate a client-specific file.
 For separate project connections, use a distinct server name per project, such as `apilane_shop`
 or `apilane_billing`, in project configuration when supported by the client.
 Authenticate the server in the client, then sign into the Portal in the browser. Pick an existing
-agent, review the listed applications, name the connection and approve it. No agent key,
+agent, review its listed applications (all ticked; untick those the connection must not reach, at
+least one stays), name the connection and approve it. With no eligible agent the page links to the
+applications (Sharing) and, for an administrator, to Instance > Agents, in a new tab. No agent key,
 profile name or chat ID is needed in the client's configuration.
-The Portal's approval page returns only to the registered loopback callback, with PKCE protecting
-the authorization code.
+The Portal's approval page returns only to the registered callback, a loopback one or one of the
+two hosted callbacks above, with PKCE protecting the authorization code. With a hosted callback
+the code goes to that service rather than to the approver's machine: approve only a request you
+started yourself, in that client.
 
 Chats using the same authenticated server share its connection. Clients may store credentials
 outside project configuration or reuse them across projects; follow the client's instructions
@@ -870,13 +927,14 @@ documentation for callback settings. Separate concurrent callback listeners need
 
 **Delegated access.** Any confirmed personal account can approve an agent already shared into
 at least one application it owns. Administrators have the same ownership boundary when approving.
-A connection snapshots only the application IDs reviewed on the approval page; approval refuses
+A connection snapshots only the application IDs ticked on the approval page; approval refuses
 applications no longer owned/shared and cannot silently include a new share. Each request intersects that snapshot
 with the authorizer's current ownership and the agent's current collaborations, then applies the
 agent's current resource grants. Future applications/shares cannot enlarge the connection. Lists,
 primary application calls and secondary application lookups (comparison/schema import) all
 respect this boundary. The existing agent restrictions, including entity/property renames,
-administration, sharing, application lifecycle, secrets and mail-setting writes, also apply.
+administration, sharing, application lifecycle, secrets, connection-string and mail-setting
+writes, also apply.
 MCP runs the existing management actions through MVC's validation and agent/session filters;
 its transport is stateless so no transport session retains an old identity or permission set.
 
@@ -888,14 +946,17 @@ deleting/locking its authorizer or changing the author's security stamp invalida
 Removing an application's share or transferring its ownership removes that application from
 the connection. Connections last 30 days, access tokens 15 minutes, browser approval requests
 10 minutes and authorization codes 2 minutes. Refresh tokens rotate; replay revokes the whole
-connection. Codes and tokens are stored only as hashes. Browser approval/revocation endpoints
+connection. Codes and tokens are stored only as hashes. A connection that expired or was revoked
+more than 30 days ago is deleted, with its codes and tokens, the next time any client starts an
+authorization. Browser approval/revocation endpoints
 are cookie-only, retain the CSRF header requirement and are marked `[NoAgent]`.
 
 OAuth registration, authorization and token endpoints have their own per-IP limit, configured
 by `McpOAuthRateLimit:PermitLimit` and `McpOAuthRateLimit:WindowSeconds` (60 requests per 60
-seconds by default). Dynamic registration accepts only public clients and exact HTTP loopback
-callbacks. OAuth is authorization-code flow with mandatory S256 PKCE, exact callbacks and a
-matching resource/audience. It does not authenticate a chat ID.
+seconds by default). Dynamic registration accepts only public clients, with exact HTTP loopback
+callbacks or the two hosted callbacks above, matched exactly. OAuth is authorization-code flow
+with mandatory S256 PKCE, exact callbacks and a matching resource/audience. It does not
+authenticate a chat ID.
 Unused client registrations expire after one hour when they have no live pending approval;
 the 10,000-client capacity limit applies to registrations without a connection, so unused
 registrations cannot permanently block new clients. Management tool requests are limited to
@@ -1140,7 +1201,8 @@ changes the contract too.
    - The first segment of a route must not be `api`, `swagger`, `health` or `metrics`, and no route
      may end in a segment with a dot: the Portal answers those addresses itself (`src/router.test.ts` checks the first).
 5. Add its navigation entry in `src/layouts/SidebarNav.vue` when it has one. For a section of an
-   application, the entry is its line in `sections` of `src/layouts/AppLayout.vue`.
+   application, the entry is its line in `applicationSections` of `src/lib/applications.ts` (its
+   label, segment and route name), which the tabs of `AppLayout` and the sidebar switcher both read.
 6. Add its line to the [Screens](#screens) table above.
 7. Write its Help in `src/components/help/` and put it in the `PageHeader` (see Conventions).
 
@@ -1167,18 +1229,18 @@ const appToken = application.value.Token
 - A tab is the current one when the address continues with its segment
   (`/apps/<token>/entities/...`), so the sub-screens of a section keep its tab lit.
 - One route is not named after its segment: the Import tab (`/apps/:appToken/import`) is `app-schema-import`, because
-  `app-import` is the page that creates an application from an export (`/apps/import`). Its line in `sections` carries
-  that `name`.
+  `app-import` is the page that creates an application from an export (`/apps/import`). Its line in
+  `applicationSections` names that route, as every line does.
 - A screen only the owner may open (sharing) carries `meta.requiresOwner` on its route and
-  `ownerOnly` on its line in `sections`: the tab is hidden from collaborators, and a collaborator
+  `ownerOnly` on its line in `applicationSections`: the tab is hidden from collaborators, and a collaborator
   who opens the address gets the Forbidden state from `AppLayout` instead of the screen.
 
 ### Screens of one entity
 
 `EntityLayout` sits inside `AppLayout`. It loads `GET /api/v1/applications/{appToken}/entities/{entity}`
 once for all screens under `/apps/:appToken/entities/:entity` and shows the back link to the entities
-list, the entity's name and description, and its tabs (Properties, Constraints, Sorting, Data,
-Security). An unknown entity (names are case-sensitive) shows 'Entity not found' instead of the screen.
+list, the entity's name and description, its Help (`EntityHelp`) and its tabs (Properties,
+Constraints, Sorting, Data, Security). An unknown entity (names are case-sensitive) shows 'Entity not found' instead of the screen.
 
 ```ts
 const { entity, reload } = useEntity()
@@ -1208,34 +1270,34 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 |---|---|
 | `ApplicationsPage` | `/apps`, also the home page: the user's applications as cards grouped by server. A card's menu opens the status, rebuild and delete dialogs, which the page holds. |
 | `CreateApplicationPage`, `ImportApplicationPage` | `/apps/new` and `/apps/import`: the two pages that make an application. Each has a Help; the questions that used to sit under the form are in `CreateApplicationHelp`. |
-| `CompareApplicationsDialog` | `/apps?compare=<application token>&with=<application token>`, opened by 'Compare with' of a card's menu: the other application is picked in the dialog, then Entities, Properties, Constraints, Custom endpoints and Security each list what was added, removed and changed, or 'Applications are identical'. `ComparedProperty` is its part. |
+| `CompareApplicationsDialog` | `/apps?compare=<application token>&with=<application token>`, opened by 'Compare with' of a card's menu: the other application is picked in the dialog, then Entities, Properties, Constraints, Custom endpoints and Security each list what was added, removed and changed, or 'Applications are identical'. `ComparedProperty` is its part. When the other application adds something (`hasAdditions`), `Import what <other> adds into <this>` opens the Import tab of this application with the other one picked (`?source=`). |
 
 **`pages/application`**: the screens of one application, inside `AppLayout`.
 
 | File | Contents |
 |---|---|
-| `EntitiesPage` | `/apps/:appToken/entities`: the custom and system entities with the dialogs to create, edit, rename and delete one. `EntityTable` and `EntityRow` are its parts (a row loads its own record counts from the API server). |
-| `PropertiesPage` | `/apps/:appToken/entities/:entity`, inside `EntityLayout`: the custom and system properties of one entity with the dialogs to create, edit, rename and delete one. `PropertyTable` is its part: a property that is in a unique constraint or a foreign key of the entity shows it next to its name (`propertyConstraints` in `lib/entities.ts`: 'Unique', 'Unique with Phone', '→ Customers (cascade)'). |
+| `EntitiesPage` | `/apps/:appToken/entities`: the custom and system entities with the dialogs to create, edit, rename and delete one. `EntityTable` and `EntityRow` are its parts (a row loads its own record counts from the API server). Creating an entity opens its Properties. Rename and Delete stay in the row menu, disabled with the reason, for an entity a foreign key points to. |
+| `PropertiesPage` | `/apps/:appToken/entities/:entity`, inside `EntityLayout`: the custom and system properties of one entity with the dialogs to create, edit, rename and delete one. `PropertyTable` is its part: a property that is in a unique constraint or a foreign key of the entity shows it next to its name (`propertyConstraints` in `lib/entities.ts`: 'Unique', 'Unique with Phone', '→ Customers (cascade)'). A custom entity no security rule gives access to says so at the top, with a link to its rules. Rename and Delete of a property that is in a constraint are disabled with the reason. |
 | `ConstraintsPage` | `.../entities/:entity/constraints`: the unique and foreign key constraints of one entity, added (`AddConstraintDialog`, a two-step dialog: kind, then its fields) and removed in the list and saved together; read-only for a system entity unless the user is an administrator. |
 | `SortingPage` | `.../entities/:entity/sorting`: the default sorting of one entity as an ordered list. |
-| `DataPage` | `/apps/:appToken/data/:entity?page=&pageSize=&sort=`: the data browser of the application: the entities with properties loaded once, then `ApplicationDataBrowser`. |
+| `DataPage` | `/apps/:appToken/data/:entity?page=&pageSize=&sort=`: the data browser of the application: the entities with properties loaded once, then `ApplicationDataBrowser`, with a Properties button for the entity shown. |
 | `SecurityPage` | `/apps/:appToken/security`, in two tabs that both stay mounted (the rules first, `?tab=settings` for the settings; a dot on a tab marks unsaved changes), with a Help for the screen (`SecurityHelp`) and one for the rules (`AccessRulesHelp`, in the header of `SecurityRulesEditor`): `SecuritySettingsForm` (sign-in, register, files, IP access with its own Save, 'Not saved yet' next to it and its own question before leaving; the forgot-password links read-only) and `SecurityRulesEditor` (the rules of every item edited locally and saved together: `SecurityItemPicker` lists the items, a searchable list (with the item being edited named above the search, and Enter editing the first match) or a select on a phone, the selected one in `?item=Entity-<name>`, `CustomEndpoint-<name>` or `Schema-Schema`; a role x action grid of `SecurityRuleCell`; `SecurityTreeDialog` and `SecurityMatrixDialog`, the saved rules read-only at `?view=tree` and `?view=matrix`, with `SecurityAccessBadge`). |
-| `CustomEndpointsPage` | `/apps/:appToken/endpoints`: the custom endpoints, one line each with the SQL cut to one line, the 'Call endpoint' link (opens `CallUrl` in a new tab), Edit and the delete confirm. `CustomEndpointSearchDialog` finds any text of the names, descriptions and whole SQL and marks it, with Edit opening the editor in a new tab. |
+| `CustomEndpointsPage` | `/apps/:appToken/endpoints`: the custom endpoints, one line each (the name links to the editor) with the SQL cut to one line, the 'Call endpoint' link (opens `CallUrl` in a new tab), Edit and the delete confirm. `CustomEndpointSearchDialog` finds any text of the names, descriptions and whole SQL and marks it, with Edit opening the editor in a new tab. |
 | `CustomEndpointEditorPage` | `/apps/:appToken/endpoints/new` and `/apps/:appToken/endpoints/<ID>`: name, description and the SQL in `SqlEditor`, saved with `UnsavedChangesBar`, the rename warning, its Help and, for an existing endpoint, a preview before the save (`CustomEndpointSavePreview`: the name and description that change and a line diff of the SQL, `LineDiff`) (`CustomEndpointEditorHelp`, which shows the SQL Server item only for a SQL Server application). `CustomEndpointTestPanel` is its right-hand part (the address and a box per parameter, worked out in the browser, and Test, which runs the SQL on the API server and shows the JSON or the database's error). |
 | `EmailPage` | `/apps/:appToken/email`: the SMTP settings and the confirmation landing page, one form saved to the Portal, and the e-mail templates read from and saved to the API server. `EmailTemplateDialog` edits one template (enabled, subject, HTML body with a live `HtmlPreview`, the placeholders). |
 | `ReportsPage`, `Report*.vue`, `TimeRangePicker` | `/apps/:appToken/reports`: the dashboard. On a wide screen (768px and up) the reports are panels on a 12-column grid (`ReportsGrid`, gridstack), dragged by their title and resized by their edges; the layout is saved 600 ms after the last change (`PUT reports/layout`, every panel), and a save that fails shows above the grid with 'Reload the dashboard'. On a phone the panels are one column in the same order and nothing moves. The page also holds the delete confirm, `ReportEndpointDialog` ('View API endpoint': the address of each series' call, with a copy button) and the editor. `ReportPanel`: one report: title, the time range or Top N badge, Refresh (which moves the time window to now), the menu, and the body: `ReportTable` for a Grid, `ReportChart` (Chart.js) for the other types. It loads each series itself from the API server (`/api/Stats/Aggregate`); a series that cannot run or whose call fails is named inside the panel and the others still show. `ReportEditorSheet` (`/apps/:appToken/reports/new` and `/apps/:appToken/reports/<ID>/edit`, a side sheet over the dashboard; the three routes share `ReportsPage`): title, visualization, time range (`TimeRangePicker`: the quick ranges or a custom number and unit), Top N and the series. `ReportSeriesEditor` is one series (label, entity, group-by, property, filter), with its choices from `GET entities/{entity}/report-fields?Type=` and the filter edited in a dialog with `FilterBuilder`. |
 | `SharingPage`, `AgentPermissionsEditor` | `/apps/:appToken/sharing`, owner only: collaborators and permission summaries, a free-text email sharing dialog for people, a separate agent picker with other visible applications, per-area rights when adding or editing an agent, and the remove confirm. People keep full collaborator access. |
-| `SchemaImportPage` | `/apps/:appToken/import`, the 'Import' tab (route `app-schema-import`): adds entities, properties, constraints, security rules and custom endpoints from a JSON payload. 'Load diff' asks the API what another application has that this one lacks, puts it into the payload box and shows its counts; the box stays editable. Import checks the text in the browser (`parsePayload`), asks first (not atomic, cannot be undone), then shows 'Imported' with the skipped items, or the failed step with its place in the payload. Its Help (`SchemaImportHelp`) holds how the import works, the payload reference and the example payload (`examplePayload`). |
+| `SchemaImportPage` | `/apps/:appToken/import`, the 'Import' tab (route `app-schema-import`): adds entities, properties, constraints, security rules and custom endpoints from a JSON payload. 'Load diff' asks the API what another application has that this one lacks, puts it into the payload box and shows its counts; the box stays editable. `?source=<application token>` (the compare dialog's import link) picks that application for 'Load diff' once the list is loaded. Import checks the text in the browser (`parsePayload`), asks first (not atomic, cannot be undone), then shows 'Imported' with the skipped items, or the failed step with its place in the payload. Its Help (`SchemaImportHelp`) holds how the import works, the payload reference and the example payload (`examplePayload`). |
 | `AuditLogPage` | `/apps/:appToken/audit-log?page=1`: the application's audit log, with `AuditLogTable` and `AppPagination`. |
-| `SettingsPage` | `/apps/:appToken/settings`: General (name, connection string; server and database type read-only), Status (online / offline) and Danger zone (rebuild, delete). |
-| `CloneApplicationPage`, `CloneProgressPage` | Opened from the card menu of the applications page (no tab in `AppLayout`). `/apps/:appToken/clone`: the server (it starts on the application's own), `DatabaseTypeFields`, 'Clone data' and, when it is on, the entities whose records are copied (all ticked, 'Select all' / 'Deselect all', Files left out; an empty selection is refused). Starting answers at once and leads to `/apps/:appToken/clone/:operationId`: the phase, the bar (`components/ui/progress`), the counters of the phase, the entity being worked on and the time remaining, asked every 2 seconds with `usePolling`; then 'Clone completed' with the link to the new application, or 'Clone failed' with the message and 'Back to clone'; an operation the Portal no longer knows (404) shows 'This clone can no longer be tracked'. |
+| `SettingsPage` | `/apps/:appToken/settings`: General (name, connection string; server and database type read-only), Status (online / offline), Export, compare and clone (Export downloads the zip with `useApplicationExport`, 'Compare with…' opens `/apps?compare=<token>`, Clone opens the clone screen) and Danger zone (rebuild, delete). |
+| `CloneApplicationPage`, `CloneProgressPage` | Opened from the card menu of the applications page and from Settings (no tab in `AppLayout`). `/apps/:appToken/clone`: the server (it starts on the application's own), `DatabaseTypeFields`, 'Clone data' and, when it is on, the entities whose records are copied (all ticked, 'Select all' / 'Deselect all', Files left out; an empty selection is refused). Starting answers at once and leads to `/apps/:appToken/clone/:operationId`: the phase, the bar (`components/ui/progress`), the counters of the phase, the entity being worked on and the time remaining, asked every 2 seconds with `usePolling`; then 'Clone completed' with the link to the new application, or 'Clone failed' with the message and 'Back to clone'; an operation the Portal no longer knows (404) shows 'This clone can no longer be tracked'. |
 
 **`pages/admin`**: the screens of the 'Instance' group, for administrators (`meta.requiresAdmin`).
 
 | File | Contents |
 |---|---|
-| `ServersPage`, `UsersPage`, `AuditLogPage` | `/admin/servers`, `/admin/users`, `/admin/audit-log`. |
-| `AgentsPage` | `/admin/agents`: agents only, shown by name, with creation, the key shown once, and deletion confirmed by typing the agent's name. UsersPage lists people and manages their roles. Both pages filter the existing `GET /admin/users` response. |
+| `ServersPage`, `UsersPage`, `AuditLogPage` | `/admin/servers` (Delete disabled, with the reason, for a server that hosts applications), `/admin/users` (people with a search on e-mail and the count, `lib/adminUsers.ts`), `/admin/audit-log`. |
+| `AgentsPage` | `/admin/agents`: agents only, shown by name, with creation, the key shown once (its dialog closes only with Done or X, not on Escape or a click outside), and deletion confirmed by typing the agent's name. UsersPage lists people and manages their roles. Both pages filter the existing `GET /admin/users` response. |
 | `SettingsPage` | `/admin/settings`, with the 'Backup database' card. |
 | `ApplicationsPage` | `/admin/applications`: every application of the instance in creation order, with a search by name, token or owner e-mail. The table shows name and token, owner, server, database and status; a Details button opens the other settings under the row (a secret only as 'Set' / 'Not set'); the row menu has 'Open data browser', 'Open application' (only for an application the administrator owns or collaborates on) and 'Clear cache'. |
 | `ApplicationDataPage` | `/admin/applications/:appToken/data/:entity?`: the data browser of any application, loaded from `GET /api/v1/admin/applications/{appToken}` and drawn by `ApplicationDataBrowser`, under the breadcrumb Instance / Applications / name / Data. |
@@ -1246,10 +1308,10 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 |---|---|
 | `AppShell` | The shell around every screen for a signed-in user: sidebar, phone drawer, user menu, the change-password dialog. |
 | `SidebarNav` | The navigation inside it. A link of the 'Instance' group stays lit on every address below its own (`/admin/applications/<token>/data`). |
-| `AppSwitcher` | The menu of the user's applications under 'Applications' in the sidebar; it marks the application being worked on. |
+| `AppSwitcher` | The menu of the user's applications under 'Applications' in the sidebar; it marks the application being worked on, and each item opens the same section of that application (`switcherTarget`: Security of one opens Security of the other, a screen inside a section opens the section, and Entities from a screen in no section or from Sharing of an application the user does not own). |
 | `UserMenu` | Change password, 'API reference' (`/swagger`), sign out. |
 | `AppLayout` | The frame around every screen of one application: loads it, breadcrumb, section tabs, Info and API buttons, the 'not found' state, and the Forbidden state for a `meta.requiresOwner` screen opened by a collaborator. |
-| `EntityLayout` | The frame around every screen of one entity, inside `AppLayout`: loads it, back link, name, description, tabs, the 'not found' state. |
+| `EntityLayout` | The frame around every screen of one entity, inside `AppLayout`: loads it, back link, name, description, its Help (`EntityHelp`, one for every tab), tabs, the 'not found' state. |
 | `AuthLayout` | The centred card around the public screens, with the instance name. |
 
 ### Components (`src/components`)
@@ -1258,7 +1320,7 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 |---|---|
 | `PageHeader`, `StateMessage`, `LoadingState`, `ErrorState` | The heading and the loading, empty and error states of a screen. |
 | `HelpSheet`, `HelpItem` | The Help of a screen: a button for the header (`PageHeader` actions) that opens a side sheet with a lead, which says what the screen is for, and a list of `HelpItem` accordions. `size="sm"` for a smaller header than a screen's. |
-| `help/` | The words of each screen, one component per screen (`EntitiesHelp`, `SecurityHelp`, `AccessRulesHelp`, ...), each wrapping `HelpSheet`. A page only places it: `<EntitiesHelp />`. |
+| `help/` | The words of each screen, one component per screen (`EntitiesHelp`, `EntityHelp`, `SecurityHelp`, `AccessRulesHelp`, ...), each wrapping `HelpSheet`. A page only places it: `<EntitiesHelp />`. |
 | `ForbiddenState` | A screen the user may not open; `description` says who may. |
 | `FormDialog`, `FormField`, `SwitchField` | A form in a dialog (`wide` for a large field with something next to it); a labelled field with its error message; the same for an on/off choice. |
 | `AuthForm` | A form that is a whole public screen, the counterpart of `FormDialog` inside `AuthLayout`. |
@@ -1285,7 +1347,7 @@ One component per screen. A part only that screen uses sits next to it (`pages/a
 | `SqlEditor` | SQL in CodeMirror 6 with the application's entity and property names offered while typing. CodeMirror is downloaded the first time an editor is shown, and a plain text box takes over if it cannot be. |
 | `FilterBuilder` | A filter of the data API as a list of conditions (property, operator, value) that must all hold, for every place a stored filter is edited. It edits `FilterRow`s; `src/lib/filterBuilder.ts` reads and writes the stored text. |
 | `diff/LineDiff` | Two texts compared line by line (`src/lib/lineDiff.ts`, no library): removed lines red, added lines green, unchanged runs folded. Used by the save preview of a custom endpoint. |
-| `data/` | The data browser, for every screen that shows the records of an entity (the application's, and the administrator's of any application). `ApplicationDataBrowser` is what such a screen mounts once it has the entities: it takes `application`, `entities` (with their `Properties`) and `to` (the route of one entity on that screen, whose path ends in `:entity?`), shows `EntitySwitcher` and the `EntityDataBrowser` of the entity in the address, and without an entity opens the first custom one; the screen keeps its own loading, error and 'no entities' states. `foreign` says the application is someone else's (an administrator in an application they neither own nor collaborate on): links to its screens under `/apps` are left out. `EntityDataBrowser` takes `application` (token, API server, largest file: `DataApplication` of `lib/records.ts`) and `entity` (with its `Properties`) and is given `:key` of the entity name: toolbar (Refresh, New record / Register user / Upload, Delete selected, Export page as CSV, Clear history), the grid (a sortable header with an info tooltip per property, a filter box per column, cells cut to one line that open on a click, row actions by the entity's flags), the paging bar; page, size and sort live in the address (`?page=`, `?pageSize=`, `?sort=Name` or `-Name`), the filters do not. Its parts: `RecordFilterInput` (the filter box of one column, by type), `RecordPaging` (size, first / previous / page x of y / next / last, total), `RecordFormSheet` (create and edit in a side sheet, one box per property a caller may set; Users registers), `RecordHistorySheet` (the newest 100 history entries of a record, changed values marked, 'Clear history'), `FileUploadDialog` (one file, size checked before it is sent). `EntitySwitcher`: the entities as links (a select on a phone), each a route given by `to`. |
+| `data/` | The data browser, for every screen that shows the records of an entity (the application's, and the administrator's of any application). `ApplicationDataBrowser` is what such a screen mounts once it has the entities: it takes `application`, `entities` (with their `Properties`) and `to` (the route of one entity on that screen, whose path ends in `:entity?`), shows `EntitySwitcher` and the `EntityDataBrowser` of the entity in the address, and without an entity opens the first custom one; the screen keeps its own loading, error and 'no entities' states. `foreign` says the application is someone else's (an administrator in an application they neither own nor collaborate on): links to its screens under `/apps` are left out. `EntityDataBrowser` takes `application` (token, API server, largest file: `DataApplication` of `lib/records.ts`) and `entity` (with its `Properties`) and is given `:key` of the entity name: toolbar (Refresh, New record / Register user / Upload, Delete selected, Export page as CSV, Clear history), the grid (a sortable header with an info tooltip per property, a filter box per column, cells cut to one line that open on a click, row actions by the entity's flags), the paging bar; page, size and sort live in the address (`?page=`, `?pageSize=`, `?sort=Name` or `-Name`), the filters do not. Its parts: `RecordFilterInput` (the filter box of one column, by type), `RecordPaging` (size, first / previous / page x of y / next / last, total; a link that leads nowhere stays in place, disabled, so the focus stays on it), `RecordFormSheet` (create and edit in a side sheet, one box per property a caller may set, and a link to the entity's Properties when there is none; Users registers), `RecordHistorySheet` (the newest 100 history entries of a record, changed values marked, 'Clear history'), `FileUploadDialog` (one file, size checked before it is sent). `EntitySwitcher`: the entities as links (a select on a phone), each a route given by `to`. |
 | `diff/` | What differs between two sides, for every screen that shows a comparison. `DiffSection`: one section (a title with its counts, then the Added, Removed and Changed lists; the `item` slot draws an added or removed thing, the `changed` slot one that differs; nothing is drawn when all three are empty). `FieldChange`: one value before and after (`code` for SQL: two blocks that wrap). `DiffCount`: a count as a badge ('2 added'), also used alone for a summary line. |
 | `ui` (a folder) | shadcn-vue components. They are source files owned by this project: add one with `npx shadcn-vue@2.8.2 add <name>` and edit it freely. |
 
@@ -1302,6 +1364,7 @@ under Dependencies) and tokens to `src/style.css`. When moving to a newer CLI ve
 | `useInstance` | What the Portal tells a visitor, for the public screens: the instance name and whether registration is open. |
 | `useApplications` | The one shared list of the user's applications, read by the applications page and the sidebar switcher. |
 | `useApplication`, `useEntity` | Give a screen under `AppLayout` (or `EntityLayout`) the application (or entity) it belongs to, already loaded, and a `reload()`. |
+| `useApplicationExport` | Downloads the export of an application (the zip its API server builds, saved as `<token>.zip`), for the card menu of the applications page and the settings screen; a failure is an error toast. |
 | `useServerHealth` | Asks an API server whether it is up, every 5 seconds. |
 | `useServerChoice` | Loads the servers an application can be put on and holds the one picked (the only one is picked automatically). |
 | `useLeaveGuard` | Asks before leaving a screen with unsaved changes (`UnsavedChangesBar` already uses it). |
@@ -1325,14 +1388,15 @@ Rules that need neither Vue nor the browser, as pure functions, each with a `*.t
 | `download.ts` | `saveBlob`: saves a fetched file under a file name. |
 | `toast.ts` | Toast helpers that report the result of a write: `success`, `error`, `warning`. |
 | `format.ts` | Date formats: `formatDateTime` (local time) and `formatUtc` (`yyyy-MM-dd HH:mm:ss` in UTC, for logs). |
-| `applications.ts` | How the applications list is grouped, ordered, filtered and labelled (`groupByServer`, `filterByName`, `formatStorage`, `databaseTypeLabel`), plus the database types a form offers (`databaseTypes`, `needsConnectionString`). |
+| `applications.ts` | How the applications list is grouped, ordered, filtered and labelled (`groupByServer`, `filterByName`, `formatStorage`, `databaseTypeLabel`), plus the database types a form offers (`databaseTypes`, `needsConnectionString`), the sections of an application (`applicationSections`, `sectionOf`) and where the sidebar switcher leads (`switcherTarget`). |
 | `applicationActions.ts` | The texts and rules shared by the application settings screen and the card dialogs: `statusChange` (what the status button offers and says), `offlineWarning`, `rebuildConsequences`, `deleteConsequences`, `understandText`, and `connectionStringToSend` (the edit request's ConnectionString: an empty box is null, which keeps the stored value). |
 | `adminApplications.ts` | The rules of the administrator's applications list: `searchApplications` (name, token or owner e-mail), `countText` ('3 of 12 applications') and `applicationDetails` (the settings a row opens, a secret as `stored` only). |
-| `entities.ts` | How entities are filtered and described: `filterEntities`, the texts of a constraint (`constraintTypeText`, `constraintLabel`, `constraintDescription`, `onDeleteText`), `formatCount`, and the order of the data browser's entity list (`dataEntityOrder`). |
+| `adminUsers.ts` | The rules of the administrator's Users list: `searchUsers` (by e-mail) and `userCountText` ('3 of 240 users'). |
+| `entities.ts` | How entities are filtered and described: `filterEntities`, the texts of a constraint (`constraintTypeText`, `constraintLabel`, `constraintDescription`, `onDeleteText`), `referencingEntity` (the entity whose foreign key points to one, which blocks its rename and delete), `formatCount`, and the order of the data browser's entity list (`dataEntityOrder`). |
 | `properties.ts` | How properties are described and which fields a property form shows: `propertyRules` (the rules of a property in plain words), `typeFields` (the fields a type uses), `limitNoun`, `decimalPlacesText`, `maxLengthNote` (the string limits of MySQL and SQL Server), `numberOrNull` (a number box as the API takes it), `propertyTypes`. |
 | `constraints.ts` | The editing rules of the constraints screen: `constraintRows` (saved, added and removed constraints and their place in the request), `addConstraint`, `constraintRequests` (the body of the save), `isDuplicate`, `changesText`, `onDeleteHelp`. |
 | `defaultOrder.ts` | The editing rules of the default sorting screen: `moveItem`, `toggleDirection`, `remainingCandidates`, `sameOrder`, `directionText`. |
-| `records.ts` | The rules of the data browser: the shapes of the API server's answers (`RecordPage`, `HistoryEntry`), `recordActions` (what the entity's flags allow), paging (`pageSizes`, `pageSizeFrom`, `pageCount`), sorting (`sortFrom`, `sortQuery`, `nextSort`, `sortParam`), filtering (`filterOperators`, `emptyFilters`, `hasFilters`, `filterParam`), values (`formatRecordDate`, `cellText`: system UTC dates in local time, other dates in UTC, `yyyy-MM-dd HH:mm:ss.SSS`), the record form (`formProperties`, `initialForm`, `createBody`, `updateBody`: only the changed boxes, `recordErrors`: an API server Property may name several, comma-separated), `fileTooLarge`, `historyRows`. |
+| `records.ts` | The rules of the data browser: the shapes of the API server's answers (`RecordPage`, `HistoryEntry`), `recordActions` (what the entity's flags allow), paging (`pageSizes`, `pageSizeFrom`, `pageCount`), sorting (`sortFrom`, `sortQuery`, `nextSort`, `sortParam`), filtering (`filterOperators`, `nextFilterOperator`, `filterOperatorText`, `dateSpan`: a date typed to the day, minute or second is sent as that span, `emptyFilters`, `hasFilters`, `filterParam`), values (`formatRecordDate`, `cellText`: system UTC dates in local time, other dates in UTC, `yyyy-MM-dd HH:mm:ss.SSS`), the record form (`formProperties`, `initialForm`, `createBody`, `updateBody`: only the changed boxes, `recordErrors`: an API server Property may name several, comma-separated), `fileTooLarge`, `historyRows`. |
 | `csv.ts` | `toCsv` (every field quoted, quotes doubled, CRLF) and `csvFileName`, for a CSV export. |
 | `security.ts` | The editing rules of the security screen: `toEditable`, `newRule` (a switched-on cell), `restoreRule` (a cell switched off and on again gets its properties and rate limit back), `setRule`, `rulesRequest` (the body of the save), `changedItems` (which items hold unsaved changes), `changesText`. |
 | `securityAccess.ts` | What a security rule grants, worked out as the API server enforces it: the items' actions and properties (`itemActions`, `offeredProperties`), `ownedApplies`, `inheritance` (the editor's 'Inherits from' notes), `propertyAccess` (an empty list is 'no properties', never full access), `endpointRateLimit`, `effectiveAccess` (Anonymous and Authenticated inherited by every role), `describeAccess`, `rateLimitShort` / `rateLimitText`. The editor, the tree and the matrix all read access through it. |
@@ -1344,7 +1408,7 @@ Rules that need neither Vue nor the browser, as pure functions, each with a `*.t
 | `reportChart.ts` | `createReportChart` and `reportPalette`: Chart.js with only the chart kinds a report has, and the texts, lines and tooltips in the colours of the design tokens. Only `ReportChart.vue` loads it, through a dynamic import, so it is a chunk of its own. |
 | `filterBuilder.ts` | The rules of `FilterBuilder`: every operator of the data API (`allFilterOperators`), `parseFilter` (a stored filter as conditions, or as `raw` text when it has groups, OR or anything else a flat list cannot show), `filterText` (the JSON to store), `filterSummary`, `newFilterRow`. |
 | `schemaImport.ts` | The rules of the schema import screen: `parsePayload` (the text of the payload box: JSON, an object, its three lists are lists), `payloadSummary` (the counts shown after 'Load diff'), `importFailure` (the message, the places in the payload and the trace of a failed import), `examplePayload`. |
-| `comparison.ts` | How the answer of `GET /applications/{appToken}/comparison` is laid out for the compare dialog: `comparisonView` (the five sections; the properties and constraints of a changed entity move to their own sections, named 'Entity.Property'), `isIdentical`, `ruleText`, `propertyFacts`, `constraintTypeName`. |
+| `comparison.ts` | How the answer of `GET /applications/{appToken}/comparison` is laid out for the compare dialog: `comparisonView` (the five sections; the properties and constraints of a changed entity move to their own sections, named 'Entity.Property'), `isIdentical`, `hasAdditions` (whether the other application adds something a schema import could bring over), `ruleText`, `propertyFacts`, `constraintTypeName`. |
 | `clone.ts` | The rules of the clone screens: `cloneableEntities`, `entitiesToSend`, `isFinished`, `phaseText`, `clonePercent`, `cloneCounters`, `currentEntities`, `formatEta` / `etaText`, `failureText`. |
 | `auditDiff.ts` | The display rules of an audit log entry's changes. `AuditLogDetail` draws the result. |
 
@@ -1374,7 +1438,7 @@ Rules that need neither Vue nor the browser, as pure functions, each with a `*.t
 - Data of an application (a record value, a label or value of a report) is written with `{{ }}`, never with `v-html`.
 - A component that hands its elements to a library that moves them (the gridstack grid) sets what the library reads (the `gs-*` attributes) itself, once, when it is mounted, not in the template: a later render would write an old place over the one the library keeps. Its parent gives it a `key` that changes when the set of items does, so a new grid is built instead of the old one being patched.
 - Dragging is for the reports dashboard only, and only on a wide screen; the layout is saved on its own a moment after the last change, one save at a time. Everything a panel offers is also in its menu, so nothing needs a drag.
-- An editor that is a side sheet with an address of its own (`reports/new`, `reports/<ID>/edit`) is declared in `src/router.ts` as routes that show the same page as the list; the page opens the sheet from `route.name`, and closing it goes back to the list's route.
+- An editor that is a side sheet with an address of its own (`reports/new`, `reports/<ID>/edit`) is declared in `src/router.ts` as routes that show the same page as the list; the page opens the sheet from `route.name`, and closing or saving it steps back in the history when the editor was opened from the list (so Back does not open it again), and otherwise replaces the editor's address with the list's (`ReportsPage`, `closeEditor`).
 - A dialog that can be linked to keeps its state in the query (`/apps?info=<application token>`); closing it removes the parameter.
 - A dialog that works on two things keeps both in the query (`/apps?compare=<application token>&with=<application token>`): the first opens it, the second is picked inside it, and closing it removes both. A value that is not one of the choices counts as not picked.
 - A comparison is drawn with the components of `src/components/diff/`, and its layout is worked out in a module under `src/lib/` (`comparison.ts`). Added is green, removed red, changed amber, each also named in words.
@@ -1416,7 +1480,7 @@ Rules that need neither Vue nor the browser, as pure functions, each with a `*.t
 
 | Where | What it covers | Run |
 |---|---|---|
-| `src/**/*.test.ts` (this folder) | The pure modules under `src/lib`, `usePolling`, and the route table (`src/router.test.ts`: which address opens which screen, that no route sits under a server prefix, and `afterSignIn`). Sharing and agent-rights component tests mount the real page, dialogs and controls using Vue Test Utils and jsdom, with mocked API responses; they cover permission choices, saving/cancelling, failures, and delayed catalogue loading. Other tests keep Vitest's default Node environment. `npm run build` type-checks the tests but does not bundle them. | `npm test` |
+| `src/**/*.test.ts` (this folder) | The pure modules under `src/lib`, `usePolling`, and the route table (`src/router.test.ts`: which address opens which screen, that no route sits under a server prefix, and `afterSignIn`). Sharing and agent-rights component tests mount the real page, dialogs and controls using Vue Test Utils and jsdom, with mocked API responses; they cover permission choices, saving/cancelling, failures, and delayed catalogue loading. The paging bar of the data browser (`src/components/data/RecordPaging.test.ts`) is mounted with a real router: the Next link keeps the focus when it reaches the last page. Other tests keep Vitest's default Node environment. `npm run build` type-checks the tests but does not bundle them. | `npm test` |
 | `tests/Apilane.Portal.Tests` | The management API, endpoint by endpoint (`*ApiTests.cs`); the rules every endpoint must keep and the contract file (`ApiContractTests`); the error body, the write header and the cache headers (`ApiPipelineTests`); how the UI is served at the site root next to the Portal's own addresses (`UiServingTests`); the internal API (`InternalApiTests`). xUnit: the real Portal in memory (`Infrastructure/PortalFactory.cs`) on a throw-away SQLite database, with a scripted stand-in for the API servers (`FakeApiServer`). No Docker, no Node. | `dotnet test tests/Apilane.Portal.Tests` |
 | `tests/Apilane.UnitTests` | MSTest unit tests of the shared code, among them `PortalInfoServiceTests`: the addresses and headers the API server sends to `/api/internal`. | `dotnet test tests/Apilane.UnitTests` |
 | `tests/Apilane.Api.Component.Tests` | The API server against SQLite, SQL Server, MySQL and PostgreSQL. It fakes the Portal, so it does not exercise this API. Needs Docker. | `dotnet test tests/Apilane.Api.Component.Tests` |

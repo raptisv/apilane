@@ -21,7 +21,8 @@ namespace Apilane.Portal.Services
     public class SchemaImportService : ISchemaImportService
     {
         private const string StoppedNote = " The import stopped at this step; the steps before it stay applied.";
-        private const string PropertyTypeMessage = "Must be 1 (String), 2 (Number), 3 (Boolean) or 4 (Date)";
+        // Internal: the application import (ApplicationProvisioningService) checks a file with the same words.
+        internal const string PropertyTypeMessage = "Must be 1 (String), 2 (Number), 3 (Boolean) or 4 (Date)";
 
         private readonly ApplicationDbContext _dbContext;
         private readonly IApplicationAccessService _applicationAccessService;
@@ -949,7 +950,7 @@ namespace Apilane.Portal.Services
         }
 
         // What POST entities says about the name of a new entity; null when it is fine.
-        private static string? EntityNameError(string name)
+        internal static string? EntityNameError(string name)
         {
             if (!IsMatch(name, EntityNameRules.Pattern))
             {
@@ -965,7 +966,7 @@ namespace Apilane.Portal.Services
         }
 
         // What POST properties says about the name of a new property; null when it is fine.
-        private static string? PropertyNameError(string name)
+        internal static string? PropertyNameError(string name)
         {
             if (!IsMatch(name, PropertyRules.Pattern))
             {
@@ -1043,7 +1044,7 @@ namespace Apilane.Portal.Services
         }
 
         // The whole value must match, as with [RegularExpression] on a request contract.
-        private static bool IsMatch(string value, string pattern)
+        internal static bool IsMatch(string value, string pattern)
         {
             var match = Regex.Match(value, pattern);
 

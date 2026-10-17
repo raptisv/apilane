@@ -4,6 +4,7 @@ using Apilane.Portal.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -20,6 +21,9 @@ namespace Apilane.Portal.Models
 {
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
+        // SQLITE_CONSTRAINT: what a unique index answers for values that are already repeated.
+        private const int SqliteConstraintErrorCode = 19;
+
         private readonly ILogger<ApplicationDbContext> _logger;
         private readonly IHttpContextAccessor? _httpContextAccessor;
 
@@ -78,6 +82,13 @@ namespace Apilane.Portal.Models
 
             builder.Entity<DBWS_Application>().HasOne(p => p.Server).WithMany(b => b.Applications).HasForeignKey(p => p.ServerID).IsRequired();
 
+            // The API servers ask by these on every check they have not cached (Api/Internal): an
+            // application by its token, a user by the token it signs in with, and what the user owns
+            // or is shared. EnsureSchemaUpdated adds them to an existing database.
+            builder.Entity<DBWS_Application>().HasIndex(x => x.Token).IsUnique(true);
+            builder.Entity<DBWS_Application>().HasIndex(x => x.UserID);
+            builder.Entity<ApplicationUser>().HasIndex(x => x.AdminAuthToken);
+
             builder.Entity<DBWS_Entity>()
                 .Ignore(p => p.Constraints)
                 .Ignore(p => p.DefaultOrder)
@@ -95,6 +106,7 @@ namespace Apilane.Portal.Models
 
             builder.Entity<DBWS_Collaborate>().ToTable("Collaborations").HasKey(p => p.ID);
             builder.Entity<DBWS_Collaborate>().HasOne(p => p.Application).WithMany(b => b.Collaborates).HasForeignKey(p => p.AppID).IsRequired();
+            builder.Entity<DBWS_Collaborate>().HasIndex(x => x.UserEmail);
 
             // A complete agent policy belongs to one collaboration and disappears when it does.
             builder.Entity<PortalAgentPermission>().ToTable("AgentPermissions").HasKey(p => p.CollaborationId);
@@ -228,8 +240,16 @@ namespace Apilane.Portal.Models
                 }
                 else if (statement.StartsWith("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase))
                 {
-                    Database.ExecuteSqlRaw(
-                        statement.Replace("CREATE UNIQUE INDEX", "CREATE UNIQUE INDEX IF NOT EXISTS", StringComparison.OrdinalIgnoreCase));
+                    try
+                    {
+                        Database.ExecuteSqlRaw(
+                            statement.Replace("CREATE UNIQUE INDEX", "CREATE UNIQUE INDEX IF NOT EXISTS", StringComparison.OrdinalIgnoreCase));
+                    }
+                    catch (SqliteException exception) when (exception.SqliteErrorCode == SqliteConstraintErrorCode)
+                    {
+                        // Rows stored before the index existed repeat a value: the Portal still starts, without it.
+                        _logger.LogError(exception, "A unique index could not be added to the existing database | {Statement}", statement);
+                    }
                 }
                 else if (statement.StartsWith("CREATE INDEX", StringComparison.OrdinalIgnoreCase))
                 {
@@ -282,9 +302,11 @@ namespace Apilane.Portal.Models
 
         public override int SaveChanges()
         {
+            var unresolved = new List<UnresolvedAuditAppId>();
+
             try
             {
-                CollectAuditEntries();
+                unresolved = CollectAuditEntries();
             }
             catch (Exception ex)
             {
@@ -292,14 +314,31 @@ namespace Apilane.Portal.Models
                 _logger.LogError(ex, $"Error collecting audit entries");
             }
 
-            return base.SaveChanges();
+            var result = base.SaveChanges();
+
+            if (ResolveAuditAppIds(unresolved))
+            {
+                try
+                {
+                    result += base.SaveChanges();
+                }
+                catch (DbUpdateException ex)
+                {
+                    // The changes are saved; only their audit rows stay without an application.
+                    _logger.LogError(ex, "Error saving the application of audit entries");
+                }
+            }
+
+            return result;
         }
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            var unresolved = new List<UnresolvedAuditAppId>();
+
             try
             {
-                await CollectAuditEntriesAsync(cancellationToken);
+                unresolved = await CollectAuditEntriesAsync(cancellationToken);
             }
             catch (Exception ex)
             {
@@ -307,17 +346,34 @@ namespace Apilane.Portal.Models
                 _logger.LogError(ex, $"Error collecting audit entries");
             }
 
-            return await base.SaveChangesAsync(cancellationToken);
+            var result = await base.SaveChangesAsync(cancellationToken);
+
+            if (ResolveAuditAppIds(unresolved))
+            {
+                try
+                {
+                    result += await base.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateException ex)
+                {
+                    // The changes are saved; only their audit rows stay without an application.
+                    _logger.LogError(ex, "Error saving the application of audit entries");
+                }
+            }
+
+            return result;
         }
 
         /// <summary>
         /// Inspects the ChangeTracker for auditable entity changes and adds
         /// <see cref="PortalAuditLog"/> entries to the same unit-of-work,
-        /// ensuring they are persisted in the same transaction.
+        /// ensuring they are persisted in the same transaction. Returns the
+        /// entries of added rows whose application is not known before the save.
         /// </summary>
-        private void CollectAuditEntries()
+        private List<UnresolvedAuditAppId> CollectAuditEntries()
         {
             var auditEntries = BuildAuditEntries();
+            var unresolved = new List<UnresolvedAuditAppId>();
 
             foreach (var entry in auditEntries)
             {
@@ -328,13 +384,16 @@ namespace Apilane.Portal.Models
                     dbValues = entry.EfEntry.GetDatabaseValues();
                 }
 
-                AddAuditLog(entry, dbValues);
+                AddAuditLog(entry, dbValues, unresolved);
             }
+
+            return unresolved;
         }
 
-        private async Task CollectAuditEntriesAsync(CancellationToken cancellationToken)
+        private async Task<List<UnresolvedAuditAppId>> CollectAuditEntriesAsync(CancellationToken cancellationToken)
         {
             var auditEntries = BuildAuditEntries();
+            var unresolved = new List<UnresolvedAuditAppId>();
 
             foreach (var entry in auditEntries)
             {
@@ -345,8 +404,42 @@ namespace Apilane.Portal.Models
                     dbValues = await entry.EfEntry.GetDatabaseValuesAsync(cancellationToken);
                 }
 
-                AddAuditLog(entry, dbValues);
+                AddAuditLog(entry, dbValues, unresolved);
             }
+
+            return unresolved;
+        }
+
+        /// <summary>
+        /// A row added together with its application (a new, imported or cloned application, an
+        /// entity with its properties) has no application ID until the database gives the keys. Once
+        /// it has, its audit row gets it, so the row belongs to the application's log and not to the
+        /// instance log. True when there is something to save.
+        /// </summary>
+        private bool ResolveAuditAppIds(List<UnresolvedAuditAppId> unresolved)
+        {
+            var resolved = false;
+
+            try
+            {
+                foreach (var item in unresolved)
+                {
+                    var appId = GetAppId(item.EfEntry);
+
+                    if (appId is not null)
+                    {
+                        item.Log.AppID = appId;
+                        resolved = true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log and continue: the rows are saved, without an application.
+                _logger.LogError(ex, "Error resolving the application of audit entries");
+            }
+
+            return resolved;
         }
 
         /// <summary>
@@ -385,7 +478,7 @@ namespace Apilane.Portal.Models
                 .ToList();
         }
 
-        private void AddAuditLog(PendingAuditEntry pending, PropertyValues? dbValues)
+        private void AddAuditLog(PendingAuditEntry pending, PropertyValues? dbValues, List<UnresolvedAuditAppId> unresolved)
         {
             var entry = pending.EfEntry;
             var changes = BuildChanges(entry, dbValues);
@@ -396,7 +489,7 @@ namespace Apilane.Portal.Models
                 return;
             }
 
-            AuditLogs.Add(new PortalAuditLog
+            var log = new PortalAuditLog
             {
                 Timestamp = pending.Timestamp,
                 UserId = pending.UserId,
@@ -414,7 +507,15 @@ namespace Apilane.Portal.Models
                 Changes = changes != null && changes.Count > 0
                     ? JsonSerializer.Serialize(changes)
                     : null
-            });
+            };
+
+            AuditLogs.Add(log);
+
+            // Its keys, and so its application, come with the save (see ResolveAuditAppIds).
+            if (entry.State == EntityState.Added && log.AppID is null)
+            {
+                unresolved.Add(new UnresolvedAuditAppId(log, entry));
+            }
         }
 
         private static List<AuditPropertyChange>? BuildChanges(EntityEntry entry, PropertyValues? dbValues)
@@ -557,6 +658,11 @@ namespace Apilane.Portal.Models
         public string UserEmail { get; set; } = null!;
         public DateTime Timestamp { get; set; }
     }
+
+    /// <summary>
+    /// The audit row of an added row whose application is known only once the save gave the keys.
+    /// </summary>
+    internal sealed record UnresolvedAuditAppId(PortalAuditLog Log, EntityEntry EfEntry);
 
     public class ApplicationUser : IdentityUser
     {

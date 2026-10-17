@@ -591,8 +591,8 @@ namespace Apilane.Portal.Tests
                 new[] { "Created", "ID", "Owner" },
                 audit.Where(x => x.EntityType == "Property" && x.Action == "Created").Select(x => x.EntityIdentifier).OrderBy(x => x));
 
-            // The rows of the system properties of a new entity carry no application.
-            Assert.All(audit.Where(x => x.EntityType == "Property"), x => Assert.Null(x.AppID));
+            // The rows of the system properties of a new entity get its application once the save gave them their keys.
+            Assert.All(audit.Where(x => x.EntityType == "Property"), x => Assert.Equal(scene.AppId, x.AppID));
         }
 
         [Theory]

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { TablePropertiesIcon } from '@lucide/vue'
+import { ListIcon, TablePropertiesIcon } from '@lucide/vue'
 import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import ApplicationDataBrowser from '@/components/data/ApplicationDataBrowser.vue'
@@ -49,6 +49,13 @@ function entityRoute(entity: string) {
     class="wrap-anywhere"
   >
     <DataHelp />
+    <!-- The way back to the columns of the entity on screen, to add or change one. -->
+    <Button v-if="shown" as-child variant="outline">
+      <RouterLink :to="{ name: 'app-entity-properties', params: { appToken, entity: shown } }">
+        <ListIcon />
+        Properties<span class="sr-only"> of {{ shown }}</span>
+      </RouterLink>
+    </Button>
   </PageHeader>
 
   <LoadingState v-if="loading" label="Loading entities" />

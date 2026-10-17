@@ -38,7 +38,8 @@ namespace Apilane.Common.Extensions
 
         public static DirectoryInfo GetFilesRootDirectoryInfo(this string appToken, string filesPath)
         {
-            return new DirectoryInfo(Path.Combine(filesPath, appToken, "Files"));
+            // The folder the local storage provider writes to (StorageKey.BuildLocalPath); Linux names are case-sensitive
+            return new DirectoryInfo(Path.Combine(filesPath, appToken, "files"));
         }
 
         public static string GetDifferentiationPropertyName(this string differentiationEntity) => $"{differentiationEntity}_ID";

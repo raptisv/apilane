@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { comparisonView, constraintTypeName, isIdentical, propertyFacts, ruleText } from './comparison'
+import { comparisonView, constraintTypeName, hasAdditions, isIdentical, propertyFacts, ruleText } from './comparison'
 import type { ComparedProperty, ComparedRule, Comparison } from './comparison'
 
 function comparison(parts: Partial<Pick<Comparison, 'Entities' | 'CustomEndpoints' | 'Security'>> = {}): Comparison {
@@ -53,6 +53,15 @@ describe('comparisonView', () => {
     expect(isIdentical(view)).toBe(false)
   })
 
+  it('has additions when the other application has something this one lacks, and only then', () => {
+    const endpoint = { Name: 'GetOrders', Query: 'SELECT 1' }
+
+    expect(hasAdditions(comparisonView(comparison()))).toBe(false)
+    expect(hasAdditions(comparisonView(comparison({ CustomEndpoints: { Added: [], Removed: [endpoint], Changed: [] } })))).toBe(false)
+    expect(hasAdditions(comparisonView(comparison({ CustomEndpoints: { Added: [endpoint], Removed: [], Changed: [] } })))).toBe(true)
+    expect(hasAdditions(comparisonView(comparison({ Security: { Added: [rule()], Removed: [], Changed: [] } })))).toBe(true)
+  })
+
   it('moves the properties and constraints of a changed entity into their own sections', () => {
     const view = comparisonView(
       comparison({
@@ -84,6 +93,8 @@ describe('comparisonView', () => {
     expect(view.constraints.added).toEqual([{ entity: 'Orders', item: { TypeID: 1, Properties: 'Code' } }])
     expect(view.constraints.removed).toEqual([{ entity: 'Orders', item: { TypeID: 2, Properties: 'Customer_ID,Customers' } }])
     expect(isIdentical(view)).toBe(false)
+    // The property and the constraint the other application adds to the entity can be imported.
+    expect(hasAdditions(view)).toBe(true)
   })
 
   it('lists a changed entity under Entities when its own values differ', () => {

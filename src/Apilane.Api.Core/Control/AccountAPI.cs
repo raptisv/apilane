@@ -69,6 +69,7 @@ namespace Apilane.Api.Core
             }
 
             Dictionary<string, object?>? drUser = null;
+            string loginName;
 
             if (!string.IsNullOrWhiteSpace(email))
             {
@@ -77,10 +78,16 @@ namespace Apilane.Api.Core
                     throw new ApilaneException(AppErrors.VALIDATION, "Email is not valid", nameof(email));
                 }
 
+                loginName = GetLoginRateLimitName(email);
+                await EnforceLoginRateLimitAsync(application.Token, loginName);
+
                 drUser = await GetUserByEmailAndPasswordAsync(application, email, password);
             }
             else if (!string.IsNullOrWhiteSpace(username))
             {
+                loginName = GetLoginRateLimitName(username);
+                await EnforceLoginRateLimitAsync(application.Token, loginName);
+
                 drUser = await GetUserByNameAndPasswordAsync(application, username, password);
             }
             else // If both email and user name are missing
@@ -92,6 +99,9 @@ namespace Apilane.Api.Core
             {
                 throw new ApilaneException(AppErrors.ERROR, "Invalid login attempt");
             }
+
+            // The limit is on the attempts since the last success: a user who signs in often is never held up by it
+            ApplicationRateLimiter.GetOrCreate(application.Token).Reset(loginName, LoginRateLimitEndpoint, LoginRateLimitAction);
 
             if (!application.AllowLoginUnconfirmedEmail)
             {
@@ -139,6 +149,45 @@ namespace Apilane.Api.Core
                 AuthToken = authToken,
                 AuthTokenID = authTokenId
             };
+        }
+
+        // Login attempts per login name, and per application (any name), with the window of each
+        private const int LoginAttemptsPerName = 20;
+        private static readonly TimeSpan LoginAttemptsPerNameWindow = TimeSpan.FromMinutes(5);
+        private const int LoginAttemptsPerApplication = 600;
+        private static readonly TimeSpan LoginAttemptsPerApplicationWindow = TimeSpan.FromMinutes(1);
+        private const string LoginRateLimitEndpoint = "account:login";
+        private const string LoginRateLimitAction = "post";
+
+        /// <summary>
+        /// Login is limited per login name, so that passwords cannot be guessed against one account as fast as the
+        /// server answers, and per application. The application budget is taken first, as the e-mail endpoints do:
+        /// rotating names cannot get around it, and it bounds how many names the limiter keeps. Both are taken before
+        /// the user is looked up, so an unknown name is limited like a known one and a right password does not help.
+        /// </summary>
+        private static async Task EnforceLoginRateLimitAsync(string appToken, string loginName)
+        {
+            var limiter = ApplicationRateLimiter.GetOrCreate(appToken);
+
+            if (!await limiter.TryAcquireAsync(LoginAttemptsPerApplication, LoginAttemptsPerApplicationWindow, null, "account:login:application", LoginRateLimitAction, default)
+                || !await limiter.TryAcquireAsync(LoginAttemptsPerName, LoginAttemptsPerNameWindow, loginName, LoginRateLimitEndpoint, LoginRateLimitAction, default))
+            {
+                throw new ApilaneException(AppErrors.RATE_LIMIT_EXCEEDED);
+            }
+        }
+
+        /// <summary>
+        /// The name a login is counted under: lower-cased, as login matches it without regard to case. The limiter
+        /// keeps it in memory, so at most <see cref="Globals.MaxEmailLength"/> characters of it (longer names share
+        /// the count of their first characters).
+        /// </summary>
+        private static string GetLoginRateLimitName(string loginName)
+        {
+            var name = loginName.Trim().ToLowerInvariant();
+
+            return name.Length > Globals.MaxEmailLength
+                ? name[..Globals.MaxEmailLength]
+                : name;
         }
 
         private async Task DeleteExpiredAuthTokensAsync(
@@ -297,6 +346,9 @@ namespace Apilane.Api.Core
                 propertyValues[prop.Name] = value;
             }
 
+            // The unique index of the table ignores case only on some databases
+            await _appDataService.EnsureUniqueUserNameAndEmailAsync(usersEntity, propertyValues, null);
+
             var newUserID = await _dataStore.CreateDataAsync(
                 usersEntity.Name,
                 propertyValues,
@@ -309,13 +361,25 @@ namespace Apilane.Api.Core
 
             var drUserThatAcceptsTheEmail = await _appDataService.GetUserByIdAsync(appToken, newUserID.Value);
 
-            await _appEmailService.SendEmailFromApplication_FireAndForgetAsync(
-                appToken,
-                applicationServerUrl,
-                emailSettings,
-                EmailEventsCodes.UserRegisterConfirmation,
-                drUserThatAcceptsTheEmail!,
-                drUserThatAcceptsTheEmail!);
+            if (drUserThatAcceptsTheEmail is not null)
+            {
+                // The user exists from here on: a confirmation mail that cannot go out (e.g. incomplete SMTP settings)
+                // is logged, not answered as a failed registration that a retry would meet as a duplicate Email.
+                try
+                {
+                    await _appEmailService.SendEmailFromApplication_FireAndForgetAsync(
+                        appToken,
+                        applicationServerUrl,
+                        emailSettings,
+                        EmailEventsCodes.UserRegisterConfirmation,
+                        drUserThatAcceptsTheEmail,
+                        drUserThatAcceptsTheEmail);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Register | The confirmation mail of new user {UserId} was not sent: {Reason}", newUserID.Value, ex.Message);
+                }
+            }
 
             return newUserID.Value;
         }
@@ -561,6 +625,17 @@ namespace Apilane.Api.Core
                 new FilterData(nameof(AuthTokens.Owner), FilterData.FilterOperators.equal, userId, PropertyType.Number));
         }
 
+        public async Task<long> LogoutEverywhereAsync(string appToken, IReadOnlyCollection<long> userIds)
+        {
+            if (userIds.Count == 0)
+            {
+                return 0;
+            }
+
+            return await RevokeAuthTokensAsync(appToken,
+                new FilterData(nameof(AuthTokens.Owner), FilterData.FilterOperators.contains, string.Join(",", userIds), PropertyType.Number));
+        }
+
         private async Task<long> RevokeAuthTokensAsync(string appToken, FilterData filter)
         {
             // Capture all token identities before deleting their rows. A page limit would leave later
@@ -582,6 +657,46 @@ namespace Apilane.Api.Core
             });
             var count = await _dataStore.DeleteDataAsync(nameof(AuthTokens), capturedTokensFilter);
 
+            await ResetSessionCachesAsync(appToken, tokens);
+
+            return count;
+        }
+
+        public async Task<List<long>> DeleteUsersAndEndSessionsAsync(
+            string appToken,
+            IReadOnlyCollection<long> userIds,
+            Func<Task<List<long>>> deleteUsersAsync)
+        {
+            if (userIds.Count == 0)
+            {
+                return await deleteUsersAsync();
+            }
+
+            // Read before the delete, which takes the token rows with it (the foreign key cascades): the cached
+            // sessions could not be found afterwards. Nothing is revoked yet, so a delete that fails changes nothing.
+            var tokens = await _dataStore.GetPagedDataAsync(nameof(AuthTokens),
+                new List<string> { nameof(AuthTokens.ID), nameof(AuthTokens.Token), nameof(AuthTokens.Owner) },
+                new FilterData(nameof(AuthTokens.Owner), FilterData.FilterOperators.contains, string.Join(",", userIds), PropertyType.Number),
+                null, -1, -1);
+
+            var deletedUserIds = await deleteUsersAsync();
+
+            if (deletedUserIds.Count > 0)
+            {
+                // Usually gone already with their users; removed here too should the foreign key not cascade
+                await _dataStore.DeleteDataAsync(nameof(AuthTokens),
+                    new FilterData(nameof(AuthTokens.Owner), FilterData.FilterOperators.contains, string.Join(",", deletedUserIds), PropertyType.Number));
+
+                await ResetSessionCachesAsync(appToken, tokens.Where(x => deletedUserIds.Contains(Utils.GetLong(x[nameof(AuthTokens.Owner)]))));
+            }
+
+            return deletedUserIds;
+        }
+
+        // The tokens are gone from the database: their cached user and signing secret must go too, or a cache that is
+        // already warm keeps authenticating until it next checks the database
+        private async Task ResetSessionCachesAsync(string appToken, IEnumerable<Dictionary<string, object?>> tokens)
+        {
             foreach (var token in tokens)
             {
                 if (Guid.TryParse(Utils.GetString(token[nameof(AuthTokens.Token)]), out var guidToken))
@@ -591,8 +706,6 @@ namespace Apilane.Api.Core
 
                 await _clusterClient.GetAuthTokenByIdGrain(appToken, Utils.GetLong(token[nameof(AuthTokens.ID)])).ResetAsync();
             }
-
-            return count;
         }
 
         private async Task<Dictionary<string, object?>?> GetUserByEmailAndPasswordAsync(

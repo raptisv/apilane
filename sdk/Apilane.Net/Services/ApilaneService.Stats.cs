@@ -1,5 +1,4 @@
 ﻿using Apilane.Net.Abstractions;
-using Apilane.Net.Extensions;
 using Apilane.Net.Models.Data;
 using Apilane.Net.Request;
 using Apilane.Net.Utilities;
@@ -21,7 +20,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 await ApplyAuthAsync(httpRequest, request);
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
@@ -29,7 +28,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }
@@ -45,7 +44,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 await ApplyAuthAsync(httpRequest, request);
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
@@ -53,7 +52,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }
@@ -67,7 +66,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 await ApplyAuthAsync(httpRequest, request);
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
@@ -75,7 +74,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }
@@ -89,7 +88,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 await ApplyAuthAsync(httpRequest, request);
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
@@ -97,7 +96,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }

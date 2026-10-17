@@ -43,16 +43,22 @@ function to(p: number) {
 
 <template>
   <nav v-if="totalPages > 1" :aria-label="label" class="mt-4 flex flex-wrap items-center justify-center gap-1">
-    <Button v-if="previous >= 1" as-child variant="outline" size="sm">
-      <!-- RouterLink ignores the query, so it would mark every link here as the current page. -->
-      <RouterLink :to="to(previous)" aria-current-value="false">
+    <!--
+      RouterLink ignores the query, so it would mark every link here as the current page.
+      Previous and Next stay the same element at the ends, disabled in place: swapping one for a
+      button would drop the keyboard focus to the page when Next reaches the last page. It then
+      points at the page on screen, so even Enter on it goes nowhere.
+    -->
+    <Button as-child variant="outline" size="sm" class="aria-disabled:pointer-events-none aria-disabled:opacity-50">
+      <RouterLink
+        :to="to(previous >= 1 ? previous : page)"
+        aria-current-value="false"
+        :aria-disabled="previous >= 1 ? undefined : 'true'"
+        :tabindex="previous >= 1 ? undefined : -1"
+      >
         <ChevronLeftIcon />
         <span class="sr-only sm:not-sr-only">Previous</span>
       </RouterLink>
-    </Button>
-    <Button v-else variant="outline" size="sm" disabled>
-      <ChevronLeftIcon />
-      <span class="sr-only sm:not-sr-only">Previous</span>
     </Button>
 
     <Button v-for="p in pages" :key="p" as-child :variant="p === page ? 'default' : 'ghost'" size="sm" class="min-w-7 px-1.5">
@@ -62,15 +68,16 @@ function to(p: number) {
       </RouterLink>
     </Button>
 
-    <Button v-if="page < totalPages" as-child variant="outline" size="sm">
-      <RouterLink :to="to(page + 1)" aria-current-value="false">
+    <Button as-child variant="outline" size="sm" class="aria-disabled:pointer-events-none aria-disabled:opacity-50">
+      <RouterLink
+        :to="to(page < totalPages ? page + 1 : page)"
+        aria-current-value="false"
+        :aria-disabled="page < totalPages ? undefined : 'true'"
+        :tabindex="page < totalPages ? undefined : -1"
+      >
         <span class="sr-only sm:not-sr-only">Next</span>
         <ChevronRightIcon />
       </RouterLink>
-    </Button>
-    <Button v-else variant="outline" size="sm" disabled>
-      <span class="sr-only sm:not-sr-only">Next</span>
-      <ChevronRightIcon />
     </Button>
   </nav>
 </template>

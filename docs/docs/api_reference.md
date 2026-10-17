@@ -57,7 +57,7 @@ You can log in with `Email` or with `Username`. When both are sent, only the `Em
 
 `AuthTokenID` is the public id of the token. Keep it if the client [signs its requests](developer_guide/security.md#authenticating-requests).
 
-A wrong email, username or password answers `ERROR` ("Invalid login attempt"). An email that is not a valid address answers `VALIDATION`, and a missing password, or neither email nor username, answers `REQUIRED`. `UNCONFIRMED_EMAIL` is answered when the user has not confirmed the email and the application does not [allow that to sign in](developer_guide/security.md#allow-users-with-an-unconfirmed-email-to-sign-in).
+A wrong email, username or password answers `ERROR` ("Invalid login attempt"). An email that is not a valid address answers `VALIDATION`, and a missing password, or neither email nor username, answers `REQUIRED`. `UNCONFIRMED_EMAIL` is answered when the user has not confirmed the email and the application does not [allow that to sign in](developer_guide/security.md#allow-users-with-an-unconfirmed-email-to-sign-in). Each login name (the email or the username, in any case) has 20 attempts in 5 minutes, counted since its last successful login, and an application 600 logins a minute; over either the call answers `RATE_LIMIT_EXCEEDED`, even with the right password.
 
 ### Register
 
@@ -255,6 +255,8 @@ Content-Type: application/json
 { "Name": "Widget", "Price": 9.99 }
 ```
 
+A Number is a plain number (`9.99`, as a number or as text, never with a thousands separator), a Boolean `true`, `false`, `1` or `0`, and a Date a Unix timestamp or a date text: see [Property types](developer_guide/entities_properties.md#property-types). A value that is none of these is refused with `VALIDATION`. The same holds for [Update Records](#update-records).
+
 **Response:** Array of created record IDs — `[1]` or `[1, 2, 3]`
 
 ### Update Records
@@ -398,7 +400,7 @@ Send one of `fileID` or `fileUID`, not both. Returns the raw file binary, with t
 
 An `<img>` tag sends no headers, so put the tokens in the address: `/api/Files/Download?fileID={id}&appToken={appToken}`, and, for a file that `ANONYMOUS` may not read, also `&authToken={authToken}` (the auth token then shows in the address, so only do that when you must).
 
-Responses carry `Cache-Control: max-age=31536000`, so a browser may keep a downloaded file for a year.
+A downloaded file carries `Cache-Control: max-age=31536000`, so a browser may keep it for a year; an error answer does not carry it.
 
 ### List File Records
 
@@ -457,10 +459,10 @@ x-application-token: {appToken}
 | `pageIndex` | No | `1` | Page number |
 | `pageSize` | No | `20` | Records per page, 1 to 1000 (a value below 1 or above 1000 is replaced by 1000) |
 | `filter` | No | `null` | JSON filter expression |
-| `groupBy` | No | `null` | Comma-separated properties to group by. A date property may take a `.year`, `.month`, `.day`, `.hour`, `.minute` or `.second` suffix (e.g., `Created.year`), returned as `Created_year`. Any other suffix returns `INVALID_GROUPBY_PARAMETER` |
+| `groupBy` | No | `null` | Comma-separated properties to group by. A date property may take a `.year`, `.month`, `.day`, `.hour`, `.minute` or `.second` suffix (e.g., `Created.year`), returned as `Created_year`. Date parts come back as integers, computed in UTC on every database, and a record with no date falls in a `null` group. Any other suffix returns `INVALID_GROUPBY_PARAMETER` |
 | `orderDirection` | No | `DESC` | Sort direction: `ASC` or `DESC` |
 
-**Supported functions:** `Count`, `Min`, `Max`, `Sum`, `Avg`
+**Supported functions:** `Count`, `Min`, `Max`, `Sum`, `Avg`. `Sum` and `Avg` take a Number property only (`VALIDATION` otherwise); any other function answers `ERROR`.
 
 **Example:**
 
@@ -492,7 +494,7 @@ x-application-token: {appToken}
 | `property` | Yes | Property name |
 | `filter` | No | JSON filter expression |
 
-**Response:** An array with one object per distinct value, keyed by the property name:
+**Response:** An array with one object per distinct value, keyed by the property name, sorted ascending, at most 1000 of them:
 
 ```json
 [ { "Category": "Tools" }, { "Category": "Toys" } ]
@@ -600,10 +602,10 @@ A call that fails answers a JSON object. The HTTP status is 401 for `UNAUTHORIZE
 | `ERROR` | Anything else that went wrong, for example a wrong login. An unexpected server error answers "Something went wrong" |
 | `UNAUTHORIZED` | The caller may not do this, or the call needs a signed-in user |
 | `UNCONFIRMED_EMAIL` | The user must confirm the email before signing in |
-| `SERVICE_UNAVAILABLE` | The application is offline, or the caller's IP address is not allowed |
-| `RATE_LIMIT_EXCEEDED` | A rate limit rule or the email limit was hit |
+| `SERVICE_UNAVAILABLE` | The application is offline, the caller's IP address is not allowed, or (for calls from the Portal) the API server could not reach the Portal |
+| `RATE_LIMIT_EXCEEDED` | A rate limit rule, the login limit or the email limit was hit |
 | `REQUIRED`, `VALIDATION` | A property is missing or its value breaks a rule (`Property` names it) |
 | `UNIQUE_CONSTRAINT_VIOLATION`, `FOREIGN_KEY_CONSTRAINT_VIOLATION` | A unique or foreign key constraint refused the value |
-| `NOT_FOUND`, `FILE_NOT_FOUND` | The record, custom endpoint or file does not exist, or the caller may not see it |
+| `NOT_FOUND`, `FILE_NOT_FOUND` | The application token is not one of an application ("Application not found"), or the record, custom endpoint or file does not exist, or the caller may not see it |
 | `EMPTY_BODY`, `NO_PROPERTIES_PROVIDED`, `NO_ID_PROVIDED`, `NO_RECORDS_FOUND_TO_DELETE` | The body or the ids of a create, update or delete call are missing |
 | `INVALID_FILTER_PARAMETER`, `INVALID_SORT_PARAMETER`, `INVALID_GROUPBY_PARAMETER` | The `filter`, `sort` or `groupBy` value cannot be used |

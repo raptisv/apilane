@@ -27,7 +27,7 @@ It offers features such as database management, user authentication, file storag
 | **Change Tracking** | Optional [entity history](developer_guide/entities_properties.md#change-tracking) to audit record changes over time. |
 | **Schema API** | Retrieve your [application schema](api_reference.md#get-application-schema) programmatically at runtime. |
 | **.NET SDK** | Type-safe [.NET SDK](developer_guide/sdk.md) with builder pattern for the account, data, transaction, file, stats, custom endpoint and schema calls. |
-| **JavaScript SDK** | A single-file [JavaScript SDK](https://github.com/raptisv/apilane/tree/main/sdk/Apilane.Js) for browsers and Node.js 18+. |
+| **JavaScript SDK** | A single-file [JavaScript SDK](https://github.com/raptisv/apilane/tree/main/sdk/Apilane.Js) for browsers and Node.js 19+. |
 
 ## Why Apilane?
 

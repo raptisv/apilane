@@ -361,6 +361,34 @@ namespace Apilane.Portal.Tests
         }
 
         [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        [InlineData(65536)]
+        [InlineData(70000)]
+        public async Task Update_Port_Out_Of_Range_Should_Return_400_And_Change_Nothing(int port)
+        {
+            var client = await _portal.CreateAdminClientAsync();
+
+            var response = await client.PutAsync(Url, Valid(x => x.MailServerPort = port).ToJsonContent());
+
+            await AssertValidationAsync(response, "MailServerPort", "Must be between 1 and 65535");
+            await AssertUnchangedAsync();
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(65535)]
+        public async Task Update_Port_Of_1_To_65535_Should_Be_Saved(int port)
+        {
+            var client = await _portal.CreateAdminClientAsync();
+
+            var response = await client.PutAsync(Url, Valid(x => x.MailServerPort = port).ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(port, (await ReadStoredAsync()).MailServerPort);
+        }
+
+        [Theory]
         [InlineData("\"abc\"")]
         [InlineData("25.5")]
         public async Task Update_Port_That_Is_Not_A_Whole_Number_Should_Return_400_And_Change_Nothing(string port)

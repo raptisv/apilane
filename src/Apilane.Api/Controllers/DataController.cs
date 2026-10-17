@@ -68,11 +68,13 @@ namespace Apilane.Api.Controllers
             [BindRequired] string entity,
             string? properties = null)
         {
-            using var metricsTimer = _metricsService.RecordDataDuration("getbyid", entity, Application.Token);
+            // The metric is tagged with the name of an entity that exists, never with any text a request sends
+            var dbEntity = GetEntity(entity);
+            using var metricsTimer = _metricsService.RecordDataDuration("getbyid", dbEntity.Name, Application.Token);
 
             return await _dataAPI.GetByIDAsync(
                 Application.Token,
-                GetEntity(entity),
+                dbEntity,
                 UserHasFullAccess,
                 ApplicationUser,
                 Application.Security_List,
@@ -100,11 +102,12 @@ namespace Apilane.Api.Controllers
             int? pageIndex = 1,
             int? pageSize = 10)
         {
-            using var metricsTimer = _metricsService.RecordDataDuration("gethistorybyid", entity, Application.Token);
-            
+            var dbEntity = GetEntity(entity);
+            using var metricsTimer = _metricsService.RecordDataDuration("gethistorybyid", dbEntity.Name, Application.Token);
+
             return await _dataAPI.GetHistoryByIDAsync(
                 Application.Token,
-                GetEntity(entity),
+                dbEntity,
                 UserHasFullAccess,
                 ApplicationUser,
                 Application.Security_List,
@@ -140,11 +143,12 @@ namespace Apilane.Api.Controllers
             string? properties = null,
             bool getTotal = false)
         {
-            using var metricsTimer = _metricsService.RecordDataDuration("get", entity, Application.Token);
+            var dbEntity = GetEntity(entity);
+            using var metricsTimer = _metricsService.RecordDataDuration("get", dbEntity.Name, Application.Token);
 
             var result = await _dataAPI.GetAsync(
                 Application.Token,
-                GetEntity(entity),
+                dbEntity,
                 UserHasFullAccess,
                 ApplicationUser,
                 Application.Security_List,
@@ -175,11 +179,12 @@ namespace Apilane.Api.Controllers
             [BindRequired] [FromBody]object item,
             [BindRequired] string entity)
         {
-            using var metricsTimer = _metricsService.RecordDataDuration("post", entity, Application.Token);
+            var dbEntity = GetEntity(entity);
+            using var metricsTimer = _metricsService.RecordDataDuration("post", dbEntity.Name, Application.Token);
 
             var result = await _dataAPI.PostAsync(
                 Application.Token,
-                GetEntity(entity),
+                dbEntity,
                 UserHasFullAccess,
                 ApplicationUser,
                 Application.Security_List,
@@ -205,11 +210,12 @@ namespace Apilane.Api.Controllers
             [BindRequired][FromBody]object item,
             [BindRequired] string entity)
         {
-            using var metricsTimer = _metricsService.RecordDataDuration("put", entity, Application.Token);
-            
+            var dbEntity = GetEntity(entity);
+            using var metricsTimer = _metricsService.RecordDataDuration("put", dbEntity.Name, Application.Token);
+
             return await _dataAPI.PutAsync(
                 Application.Token,
-                GetEntity(entity),
+                dbEntity,
                 UserHasFullAccess,
                 ApplicationUser,
                 Application.Security_List,
@@ -233,11 +239,12 @@ namespace Apilane.Api.Controllers
             [BindRequired] string entity,
             [BindRequired] string ids)
         {
-            using var metricsTimer = _metricsService.RecordDataDuration("delete", entity, Application.Token);
+            var dbEntity = GetEntity(entity);
+            using var metricsTimer = _metricsService.RecordDataDuration("delete", dbEntity.Name, Application.Token);
 
             return await _dataAPI.DeleteAsync(
                 Application.Token,
-                GetEntity(entity),
+                dbEntity,
                 UserHasFullAccess,
                 ApplicationUser,
                 Application.Security_List,

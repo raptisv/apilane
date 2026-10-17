@@ -221,6 +221,8 @@ namespace Apilane.Api.Core
         {
             var entity = application.Entities.Single(x => x.Name.Equals(entityName));
 
+            // On SQLite a change of the foreign keys rebuilds the table in a transaction of its own, outside
+            // this scope: it needs foreign keys off, which a transaction cannot switch (SQLiteDataStorageRepository).
             using (var scope = _transactionScopeService.OpenTransactionScope())
             {
                 await _applicationBuilder.GenerateConstraintsAsync(entity, incomingConstraints, entity.Constraints);

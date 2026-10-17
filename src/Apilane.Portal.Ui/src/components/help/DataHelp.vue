@@ -18,6 +18,7 @@ defineProps<{ admin?: boolean }>()
     <HelpItem title="What you can do here" open>
       <ul>
         <li><strong>Pick an entity</strong> in the list to see its records.</li>
+        <li v-if="!admin"><strong>Properties</strong>, next to this Help, opens the columns of the entity on screen.</li>
         <li>
           <strong>Sort</strong> by a column by clicking its heading, and <strong>filter</strong> by typing in the boxes
           under the headings. Both work on all the records of the entity, not only the page on screen.
@@ -56,7 +57,15 @@ defineProps<{ admin?: boolean }>()
           property is stored encrypted and the filter is compared with that stored text, so a readable value does not match
           it.
         </li>
-        <li><strong>Numbers and dates</strong>: equal to. A date is typed as <code>yyyy-MM-dd HH:mm:ss</code> and read as UTC.</li>
+        <li>
+          <strong>Numbers</strong>: equal to. The button in the box switches it to <em>at least</em> (≥) and
+          <em>at most</em> (≤).
+        </li>
+        <li>
+          <strong>Dates</strong>: typed as <code>yyyy-MM-dd</code>, with <code>HH:mm</code> or <code>HH:mm:ss</code> after it
+          if you like, and read as UTC. A day alone matches the whole day, and a time the whole minute or second. The button
+          switches it to <em>on or after</em> (≥) and <em>on or before</em> (≤), which take in that day, minute or second too.
+        </li>
         <li><strong>True or false</strong>: choose Any, true or false.</li>
       </ul>
       <p>

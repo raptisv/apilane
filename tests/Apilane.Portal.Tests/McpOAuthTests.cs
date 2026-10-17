@@ -293,6 +293,43 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
+        public async Task Authorization_Should_Delete_Connections_That_Ended_Over_30_Days_Ago_With_Their_Codes_And_Tokens()
+        {
+            var scene = await CreateSceneAsync();
+            using var expired = await McpTestClient.AuthorizeAsync(_portal, scene.Owner, scene.Agent.ID);
+            using var revoked = await McpTestClient.AuthorizeAsync(_portal, scene.Owner, scene.Agent.ID);
+            using var recentlyRevoked = await McpTestClient.AuthorizeAsync(_portal, scene.Owner, scene.Agent.ID);
+            using var live = await McpTestClient.AuthorizeAsync(_portal, scene.Owner, scene.Agent.ID);
+            var ids = new List<string> { expired.ConnectionId, revoked.ConnectionId, recentlyRevoked.ConnectionId, live.ConnectionId };
+            var ended = new List<string> { expired.ConnectionId, revoked.ConnectionId };
+
+            await _portal.WithDbContextAsync(async db =>
+            {
+                var connections = await db.McpConnections.Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id);
+                connections[expired.ConnectionId].ExpiresAt = DateTime.UtcNow.AddDays(-31);
+                connections[revoked.ConnectionId].RevokedAt = DateTime.UtcNow.AddDays(-31);
+                connections[recentlyRevoked.ConnectionId].RevokedAt = DateTime.UtcNow.AddDays(-29);
+                return await db.SaveChangesAsync();
+            });
+
+            // Any client that starts an authorization clears them.
+            await BeginAsync();
+
+            var left = await _portal.WithDbContextAsync(db => db.McpConnections.AsNoTracking().Where(x => ids.Contains(x.Id)).Select(x => x.Id).ToListAsync());
+            Assert.Equal(new[] { recentlyRevoked.ConnectionId, live.ConnectionId }.OrderBy(x => x), left.OrderBy(x => x));
+            Assert.False(await _portal.WithDbContextAsync(db => db.McpTokens.AnyAsync(x => ended.Contains(x.ConnectionId))));
+            Assert.False(await _portal.WithDbContextAsync(db => db.McpAuthorizationCodes.AnyAsync(x => ended.Contains(x.ConnectionId))));
+
+            // What has not been over for 30 days stays, and a live connection keeps working.
+            Assert.True(await _portal.WithDbContextAsync(db => db.McpTokens.AnyAsync(x => x.ConnectionId == recentlyRevoked.ConnectionId)));
+            Assert.NotNull(await AuthenticateAsync(live.Tokens.AccessToken));
+
+            var listed = await (await scene.Owner.GetAsync("/api/v1/mcp/connections")).ReadJsonAsync<List<McpConnectionResponse>>();
+            Assert.DoesNotContain(listed, x => ended.Contains(x.Id));
+            Assert.Contains(listed, x => x.Id == recentlyRevoked.ConnectionId);
+        }
+
+        [Fact]
         public async Task Approval_Should_Snapshot_Only_Reviewed_Applications_And_Reject_Missing_Or_Invalid_Selection()
         {
             var scene = await CreateSceneAsync();

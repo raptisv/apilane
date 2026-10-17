@@ -44,7 +44,7 @@ namespace Apilane.Portal.Api.V1
         /// <summary>
         /// Returns one page of the application's audit log, newest first: the changes made in the
         /// Portal to the application and to its entities, properties, custom endpoints, reports and
-        /// collaborators. Secret values read '***'. The entry of the application's creation is in
+        /// collaborators, and its rebuilds. Secret values read '***'. The entry of the application's creation is in
         /// the instance audit log, not here. Total counts every entry, not only the page. For the
         /// owner and collaborators.
         /// </summary>
@@ -83,8 +83,9 @@ namespace Apilane.Portal.Api.V1
         /// be changed. ConnectionString is write-only: null or left out keeps the stored value, a value
         /// replaces it, and it is ignored for an SQLLite application. Answers 400 VALIDATION on
         /// ConnectionString when it is empty, or left out while none is stored, for an application
-        /// that is not on SQLLite. A 'Warning' response header means the change was saved and the API
-        /// server could not be refreshed afterwards.
+        /// that is not on SQLLite. An agent may rename the application but never send a
+        /// ConnectionString, whatever its grants: that is 403 FORBIDDEN. A 'Warning' response header
+        /// means the change was saved and the API server could not be refreshed afterwards.
         /// </summary>
         [HttpPut]
         [AgentPermission("application")]
@@ -118,10 +119,11 @@ namespace Apilane.Portal.Api.V1
         /// <summary>
         /// Rebuilds the application on its API server: all its data is dropped and its tables are
         /// created again, empty. The token, the entities and the properties stay. This cannot be
-        /// undone and there is no confirmation step. For the owner and collaborators. A refusal of
-        /// the API server is 400 VALIDATION with its own message, any other failure of it 502
-        /// UPSTREAM_ERROR. A 'Warning' response header means the rebuild was done and the API server
-        /// could not be refreshed afterwards.
+        /// undone and there is no confirmation step. For the owner and collaborators. A rebuild the
+        /// API server did writes an entry to the application's audit log ('Application', its name,
+        /// 'Rebuilt'). A refusal of the API server is 400 VALIDATION with its own message, any other
+        /// failure of it 502 UPSTREAM_ERROR. A 'Warning' response header means the rebuild was done
+        /// and the API server could not be refreshed afterwards.
         /// </summary>
         [HttpPost("rebuild")]
         [AgentPermission("rebuild")]

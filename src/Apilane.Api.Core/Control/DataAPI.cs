@@ -7,6 +7,7 @@ using Apilane.Api.Core.Services;
 using Apilane.Common;
 using Apilane.Common.Abstractions;
 using Apilane.Common.Enums;
+using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using System;
 using System.Collections.Generic;
@@ -24,15 +25,18 @@ namespace Apilane.Api.Core
         private readonly IApplicationDataService _appDataService;
         private readonly ITransactionScopeService _transactionScopeService;
         private readonly ICustomAPI _customAPI;
+        private readonly IAccountAPI _accountAPI;
 
         public DataAPI(
             IApplicationDataService appDataService,
             ITransactionScopeService transactionScopeService,
-            ICustomAPI customAPI)
+            ICustomAPI customAPI,
+            IAccountAPI accountAPI)
         {
             _appDataService = appDataService;
             _transactionScopeService = transactionScopeService;
             _customAPI = customAPI;
+            _accountAPI = accountAPI;
         }
 
         public async Task<Dictionary<string, object?>> GetByIDAsync(
@@ -153,7 +157,9 @@ namespace Apilane.Api.Core
                 pageIndex,
                 pageSize,
                 new FilterData(FilterData.FilterLogic.AND, systemFilters),
-                _appDataService.GetSortData(entity, string.IsNullOrWhiteSpace(sort) ? entity.EntDefaultOrder : sort, userSecurity),
+                string.IsNullOrWhiteSpace(sort)
+                    ? _appDataService.GetDefaultSortData(entity, userSecurity)
+                    : _appDataService.GetSortData(entity, sort, userSecurity),
                 properties,
                 (appUser, userSecurity),
                 getTotal);
@@ -213,7 +219,7 @@ namespace Apilane.Api.Core
 
             await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entity.Name, SecurityTypes.Entity, SecurityActionType.put);
 
-            return await _appDataService.PutAsync(
+            var affected = await _appDataService.PutAsync(
                 appToken,
                 entity,
                 userHasFullAccess,
@@ -222,6 +228,101 @@ namespace Apilane.Api.Core
                 applicationEncryptionKey,
                 item,
                 (appUser, userSecurity));
+
+            // A password set through the data API ends the sessions of the user, as Account/ChangePassword does:
+            // an owner who resets a compromised account must not leave the tokens already handed out working.
+            if (affected > 0 && entity.Name.Equals(nameof(Users)))
+            {
+                var userIds = GetUsersWithNewPassword(entity, differentiationEntity, userSecurity, item);
+
+                if (userIds.Count > 0)
+                {
+                    await _accountAPI.LogoutEverywhereAsync(
+                        appToken,
+                        await GetReachableIdsAsync(appToken, entity, userHasFullAccess, appUser, userSecurity, differentiationEntity, applicationEncryptionKey, userIds));
+                }
+            }
+
+            return affected;
+        }
+
+        /// <summary>
+        /// The users whose Password a put body sets: the objects that carry the property (in any case, as the put reads
+        /// it) and an ID. None when the caller may not write the Password, since the put then left it unchanged.
+        /// </summary>
+        private List<long> GetUsersWithNewPassword(
+            DBWS_Entity usersEntity,
+            string? differentiationEntity,
+            List<DBWS_Security> userSecurity,
+            object item)
+        {
+            var passwordProperty = usersEntity.Properties
+                .Where(x => x.Name.Equals(nameof(Users.Password)) && x.AllowEdit(differentiationEntity, usersEntity.HasDifferentiationProperty))
+                .ToList();
+
+            if (_appDataService.GetAllowedProperties(passwordProperty, usersEntity, userSecurity).Count == 0)
+            {
+                return new List<long>();
+            }
+
+            var objects = new List<JsonObject>();
+            CollectObjects(JsonNode.Parse(Utils.GetString(item)), objects);
+
+            return objects
+                .Where(x => x.Any(p => p.Key.Equals(nameof(Users.Password), StringComparison.OrdinalIgnoreCase)))
+                .Select(x => Utils.GetLong(x.GetObjectProperty(Globals.PrimaryKeyColumn)))
+                .Where(x => x > 0)
+                .Distinct()
+                .ToList();
+        }
+
+        // The objects of a put body: one object, or an array of them (arrays nest, as the put reads them)
+        private static void CollectObjects(JsonNode? node, List<JsonObject> objects)
+        {
+            if (node is JsonObject obj)
+            {
+                objects.Add(obj);
+            }
+            else if (node is JsonArray array)
+            {
+                foreach (var child in array)
+                {
+                    CollectObjects(child, objects);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Of the given record IDs, those the caller reaches: the records a put of theirs can change, after the
+        /// filters of the system (own records, the differentiation property).
+        /// </summary>
+        private async Task<List<long>> GetReachableIdsAsync(
+            string appToken,
+            DBWS_Entity entity,
+            bool userHasFullAccess,
+            Users? appUser,
+            List<DBWS_Security> userSecurity,
+            string? differentiationEntity,
+            string applicationEncryptionKey,
+            List<long> ids)
+        {
+            var filter = _appDataService.GetSystemFilters(userHasFullAccess, differentiationEntity, entity, (appUser, userSecurity));
+            filter.Add(new FilterData(Globals.PrimaryKeyColumn, FilterData.FilterOperators.contains, string.Join(",", ids), PropertyType.Number));
+
+            var records = await _appDataService.GetAsync(
+                appToken,
+                differentiationEntity,
+                applicationEncryptionKey,
+                entity,
+                -1,
+                -1,
+                new FilterData(FilterData.FilterLogic.AND, filter),
+                null,
+                Globals.PrimaryKeyColumn,
+                (appUser, userSecurity),
+                false);
+
+            return records.Data.Select(x => Utils.GetLong(x[Globals.PrimaryKeyColumn])).Where(x => x > 0).ToList();
         }
 
         public async Task<List<long>> DeleteAsync(
@@ -245,14 +346,27 @@ namespace Apilane.Api.Core
 
             await EntityAccess.EnforceRateLimitAsync(appToken, appUser, userSecurity, entity.Name, SecurityTypes.Entity, SecurityActionType.delete);
 
-            return await _appDataService.DeleteAsync(
-                appToken,
-                entity,
-                userHasFullAccess,
-                differentiationEntity,
-                applicationEncryptionKey,
-                ids,
-                (appUser, userSecurity));
+            Task<List<long>> DeleteRecordsAsync()
+            {
+                return _appDataService.DeleteAsync(
+                    appToken,
+                    entity,
+                    userHasFullAccess,
+                    differentiationEntity,
+                    applicationEncryptionKey,
+                    ids,
+                    (appUser, userSecurity));
+            }
+
+            // The sessions of a deleted user end with it, not when the token cache next checks the database
+            if (entity.Name.Equals(nameof(Users)))
+            {
+                var userIds = Utils.GetString(ids).Split(',').Select(x => Utils.GetLong(x)).Where(x => x > 0).Distinct().ToList();
+
+                return await _accountAPI.DeleteUsersAndEndSessionsAsync(appToken, userIds, DeleteRecordsAsync);
+            }
+
+            return await DeleteRecordsAsync();
         }
 
         // The entity of a transaction operation. File rows are created and removed only together with the

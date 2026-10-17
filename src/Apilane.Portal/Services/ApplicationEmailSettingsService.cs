@@ -1,12 +1,16 @@
 using Apilane.Common.Models;
 using Apilane.Portal.Abstractions;
+using Apilane.Portal.Api;
 using Apilane.Portal.Api.V1.Contracts;
+using System;
 using System.Threading.Tasks;
 
 namespace Apilane.Portal.Services
 {
     public class ApplicationEmailSettingsService : IApplicationEmailSettingsService
     {
+        public const string PasswordAgainMessage = "Enter the password again when you change the mail server or user name";
+
         private readonly IApplicationAccessService _applicationAccessService;
         private readonly IApplicationWriteScope _applicationWriteScope;
 
@@ -28,11 +32,24 @@ namespace Apilane.Portal.Services
             var application = await _applicationAccessService.GetApplicationAsync(appToken);
 
             // Empty text is stored as null.
-            application.MailServer = NullIfEmpty(request.MailServer);
+            var mailServer = NullIfEmpty(request.MailServer);
+            var mailUserName = NullIfEmpty(request.MailUserName);
+
+            // A collaborator who may not learn the stored password must not send it to a host or
+            // account of their choice. Clearing a value sends it nowhere, so only a new value counts.
+            if (request.MailPassword is null
+                && !string.IsNullOrWhiteSpace(application.MailPassword)
+                && ((mailServer is not null && !string.Equals(mailServer, application.MailServer, StringComparison.Ordinal))
+                    || (mailUserName is not null && !string.Equals(mailUserName, application.MailUserName, StringComparison.Ordinal))))
+            {
+                throw PortalException.Validation(nameof(EmailSettingsRequest.MailPassword), PasswordAgainMessage);
+            }
+
+            application.MailServer = mailServer;
             application.MailServerPort = request.MailServerPort;
             application.MailFromAddress = NullIfEmpty(request.MailFromAddress);
             application.MailFromDisplayName = NullIfEmpty(request.MailFromDisplayName);
-            application.MailUserName = NullIfEmpty(request.MailUserName);
+            application.MailUserName = mailUserName;
             application.EmailConfirmationRedirectUrl = NullIfEmpty(request.EmailConfirmationRedirectUrl);
 
             // The password is never sent to the client, so a client that does not change it sends null.

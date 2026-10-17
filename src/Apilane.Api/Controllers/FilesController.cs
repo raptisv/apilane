@@ -23,6 +23,14 @@ namespace Apilane.Api.Controllers
     [ServiceFilter(typeof(ApplicationLogActionFilter))]
     public class FilesController : BaseApplicationApiController
     {
+        // The largest file an application may allow (MaxAllowedFileSizeInKB, at most 25600 KB) plus room for the
+        // multipart boundaries and headers. A larger upload is refused while it is read, before the application,
+        // its rules or its own file size limit are checked, so it is never read in full or buffered to disk.
+        private const long MaxUploadRequestBytes = (25600L + 1024L) * 1024L;
+
+        // One year. Sent with the file only, never with an error a client would then keep.
+        private const string DownloadCacheControl = "max-age=31536000";
+
         private readonly IFileAPI _fileAPI;
         private readonly IMetricsService _metricsService;
         private readonly ICloudStorageProvider _storageProvider;
@@ -40,7 +48,7 @@ namespace Apilane.Api.Controllers
         }
 
         /// <summary>
-        /// Use this endpoint to get the actual file, provided the ID. Client cache is set to 60 minutes.
+        /// Use this endpoint to get the actual file, provided the ID. Client cache is set to one year (Cache-Control: max-age=31536000) on the file, not on an error.
         /// </summary>
         /// <param name="fileID">Required. The file's ID</param>
         /// <returns>Returns the actual file. You can use this endpoint on an HTML img tag</returns>
@@ -59,7 +67,7 @@ namespace Apilane.Api.Controllers
         }
 
         /// <summary>
-        /// Use this endpoint to get the actual file, provided the UID. Client cache is set to 60 minutes.
+        /// Use this endpoint to get the actual file, provided the UID. Client cache is set to one year (Cache-Control: max-age=31536000) on the file, not on an error.
         /// </summary>
         /// <param name="fileUID">Required. The file's UID</param>
         /// <returns>Returns the actual file. You can use this endpoint on an HTML img tag</returns>
@@ -163,6 +171,9 @@ namespace Apilane.Api.Controllers
 
             var stream = await _storageProvider.GetAsync(Application.Token, fileItem.UID);
             var contentType = MimeTypeDetector.GetMimeType(fileItem.Name);
+
+            Response.Headers.CacheControl = DownloadCacheControl;
+
             return new FileStreamResult(stream, contentType)
             {
                 FileDownloadName = fileItem.Name
@@ -178,14 +189,18 @@ namespace Apilane.Api.Controllers
         [Produces("application/json")]
         [ProducesResponseType(typeof(long), (int)HttpStatusCode.OK)]
         [ProducesResponseType(typeof(ApiErrorVm), (int)HttpStatusCode.Unauthorized)]
-        [DisableRequestSizeLimit]
+        [RequestSizeLimit(MaxUploadRequestBytes)]
+        [RequestFormLimits(MultipartBodyLengthLimit = MaxUploadRequestBytes)]
         public async Task<long> Post(IFormFile fileUpload)
         {
             using var metricsTimer = _metricsService.RecordDataDuration("post", "files", Application.Token);
 
             if (fileUpload == null || fileUpload.Length == 0)
             {
-                throw new ApilaneException(AppErrors.ERROR, "No file found to upload");
+                // A body over the limits above is not read, and leaves no file
+                throw new ApilaneException(AppErrors.ERROR, Request.ContentLength > MaxUploadRequestBytes
+                    ? $"Maximum file size {Application.MaxAllowedFileSizeInKB} KB"
+                    : "No file found to upload");
             }
 
             using var stream = fileUpload.OpenReadStream();

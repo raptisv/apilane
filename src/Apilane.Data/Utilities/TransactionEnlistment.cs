@@ -62,14 +62,16 @@ namespace Apilane.Data.Utilities
         /// <summary>
         /// The command timeout, in seconds, for a command that is about to run. Inside a transaction scope
         /// that <see cref="Apilane.Common.Services.TransactionScopeService"/> opened it is kept below the time
-        /// the scope has left, so the command fails before the scope times out. Outside such a scope it is
-        /// <paramref name="commandTimeoutSeconds"/> as it is (0 means no limit).
+        /// the scope has left, so the command fails within the scope's time limit. Outside such a scope it is
+        /// <paramref name="commandTimeoutSeconds"/> as it is (0 means no limit). Every repository sets it on
+        /// every command.
         /// </summary>
         /// <remarks>
-        /// MySqlConnector rolls a transaction back, when its scope times out, on the timer thread of
-        /// System.Transactions and on the connection that a running command is using. That throws, nobody
-        /// catches it, and the process ends, with every tenant it serves. SQL Server and PostgreSQL handle
-        /// the timeout of a running command themselves.
+        /// The commands keep the time limit, not the transaction: its own timeout comes a backstop later
+        /// (<see cref="Apilane.Common.Services.TransactionScopeService.BackstopTimeout"/>). When it fires,
+        /// MySqlConnector rolls the transaction back on the timer thread of System.Transactions and on the
+        /// connection a command may still be cancelling (for up to two seconds). That throws, nobody catches
+        /// it, and the process ends, with every tenant it serves.
         /// </remarks>
         /// <exception cref="TransactionAbortedException">
         /// The scope has too little time left for another command.
@@ -82,8 +84,8 @@ namespace Apilane.Data.Utilities
                 return commandTimeoutSeconds;
             }
 
-            // Whole seconds, as the providers take them, and a margin so that the provider has cancelled
-            // the command before the scope's own timer fires.
+            // Whole seconds, as the providers take them, and a margin so that the command has stopped by the
+            // time limit.
             var seconds = (int)Math.Floor(remaining.Value.TotalSeconds - CommandTimeoutMarginSeconds);
             if (seconds < 1)
             {

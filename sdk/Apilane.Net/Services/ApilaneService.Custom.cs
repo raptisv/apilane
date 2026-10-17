@@ -1,5 +1,4 @@
 ﻿using Apilane.Net.Abstractions;
-using Apilane.Net.Extensions;
 using Apilane.Net.Models.Data;
 using Apilane.Net.Request;
 using Apilane.Net.Utilities;
@@ -134,7 +133,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 await ApplyAuthAsync(httpRequest, request);
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 var jsonString = await response.Content.ReadAsStringAsync();
                 response.Dispose();
 
@@ -143,7 +142,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }
@@ -154,101 +153,77 @@ namespace Apilane.Net.Services
 
         private T Load<T>(string jsonResult)
         {
-            if (!string.IsNullOrWhiteSpace(jsonResult))
-            {
-                var jsonArray = JsonObject.Parse(jsonResult)!.AsArray();
+            var resultSets = ParseResultSets(jsonResult);
 
-                object temp = JsonSerializer.Deserialize(jsonArray[0]!.ToString(), GetListTypeForGivenGeneric<T>(), JsonDeserializerSettings)!;
-
-                return
-                    IsTypeOfList(typeof(T)) ? (T)temp : ((List<T>)temp).FirstOrDefault();
-            }
-
-            return default!;
+            return LoadResultSet<T>(resultSets, 0);
         }
 
         private (T1 Data1, T2 Data2) Load<T1, T2>(string jsonResult)
         {
-            if (!string.IsNullOrWhiteSpace(jsonResult))
-            {
-                var jsonArray = JsonObject.Parse(jsonResult)!.AsArray();
+            var resultSets = ParseResultSets(jsonResult);
 
-                (object, object) temp = (
-                        JsonSerializer.Deserialize(jsonArray[0]!.ToString(), GetListTypeForGivenGeneric<T1>(), JsonDeserializerSettings)!,
-                        JsonSerializer.Deserialize(jsonArray[1]!.ToString(), GetListTypeForGivenGeneric<T2>(), JsonDeserializerSettings)!);
-
-                return (
-                    IsTypeOfList(typeof(T1)) ? (T1)temp.Item1 : ((List<T1>)temp.Item1).FirstOrDefault()!,
-                    IsTypeOfList(typeof(T2)) ? (T2)temp.Item2 : ((List<T2>)temp.Item2).FirstOrDefault())!;
-            }
-
-            return (default!, default!);
+            return (
+                LoadResultSet<T1>(resultSets, 0),
+                LoadResultSet<T2>(resultSets, 1));
         }
 
         private (T1 Data1, T2 Data2, T3 Data3) Load<T1, T2, T3>(string jsonResult)
         {
-            if (!string.IsNullOrWhiteSpace(jsonResult))
-            {
-                var jsonArray = JsonObject.Parse(jsonResult)!.AsArray();
+            var resultSets = ParseResultSets(jsonResult);
 
-                (object, object, object) temp = (
-                        JsonSerializer.Deserialize(jsonArray[0]!.ToString(), GetListTypeForGivenGeneric<T1>(), JsonDeserializerSettings)!,
-                        JsonSerializer.Deserialize(jsonArray[1]!.ToString(), GetListTypeForGivenGeneric<T2>(), JsonDeserializerSettings)!,
-                        JsonSerializer.Deserialize(jsonArray[2]!.ToString(), GetListTypeForGivenGeneric<T3>(), JsonDeserializerSettings)!);
-
-                return (
-                    IsTypeOfList(typeof(T1)) ? (T1)temp.Item1 : ((List<T1>)temp.Item1).FirstOrDefault(),
-                    IsTypeOfList(typeof(T2)) ? (T2)temp.Item2 : ((List<T2>)temp.Item2).FirstOrDefault(),
-                    IsTypeOfList(typeof(T3)) ? (T3)temp.Item3 : ((List<T3>)temp.Item3).FirstOrDefault());
-            }
-
-            return (default!, default!, default!);
+            return (
+                LoadResultSet<T1>(resultSets, 0),
+                LoadResultSet<T2>(resultSets, 1),
+                LoadResultSet<T3>(resultSets, 2));
         }
 
         private (T1 Data1, T2 Data2, T3 Data3, T4 Data4) Load<T1, T2, T3, T4>(string jsonResult)
         {
-            if (!string.IsNullOrWhiteSpace(jsonResult))
-            {
-                var jsonArray = JsonObject.Parse(jsonResult)!.AsArray();
+            var resultSets = ParseResultSets(jsonResult);
 
-                (object, object, object, object) temp = (
-                        JsonSerializer.Deserialize(jsonArray[0]!.ToString(), GetListTypeForGivenGeneric<T1>(), JsonDeserializerSettings)!,
-                        JsonSerializer.Deserialize(jsonArray[1]!.ToString(), GetListTypeForGivenGeneric<T2>(), JsonDeserializerSettings)!,
-                        JsonSerializer.Deserialize(jsonArray[2]!.ToString(), GetListTypeForGivenGeneric<T3>(), JsonDeserializerSettings)!,
-                        JsonSerializer.Deserialize(jsonArray[3]!.ToString(), GetListTypeForGivenGeneric<T4>(), JsonDeserializerSettings)!);
-
-                return (
-                    IsTypeOfList(typeof(T1)) ? (T1)temp.Item1 : ((List<T1>)temp.Item1).FirstOrDefault(),
-                    IsTypeOfList(typeof(T2)) ? (T2)temp.Item2 : ((List<T2>)temp.Item2).FirstOrDefault(),
-                    IsTypeOfList(typeof(T3)) ? (T3)temp.Item3 : ((List<T3>)temp.Item3).FirstOrDefault(),
-                    IsTypeOfList(typeof(T4)) ? (T4)temp.Item4 : ((List<T4>)temp.Item4).FirstOrDefault());
-            }
-
-            return (default!, default!, default!, default!);
+            return (
+                LoadResultSet<T1>(resultSets, 0),
+                LoadResultSet<T2>(resultSets, 1),
+                LoadResultSet<T3>(resultSets, 2),
+                LoadResultSet<T4>(resultSets, 3));
         }
 
         private (T1 Data1, T2 Data2, T3 Data3, T4 Data4, T5 Data5) Load<T1, T2, T3, T4, T5>(string jsonResult)
         {
-            if (!string.IsNullOrWhiteSpace(jsonResult))
+            var resultSets = ParseResultSets(jsonResult);
+
+            return (
+                LoadResultSet<T1>(resultSets, 0),
+                LoadResultSet<T2>(resultSets, 1),
+                LoadResultSet<T3>(resultSets, 2),
+                LoadResultSet<T4>(resultSets, 3),
+                LoadResultSet<T5>(resultSets, 4));
+        }
+
+        private static JsonArray ParseResultSets(string jsonResult)
+        {
+            if (string.IsNullOrWhiteSpace(jsonResult))
             {
-                var jsonArray = JsonObject.Parse(jsonResult)!.AsArray();
-
-                (object, object, object, object, object) temp = (
-                        JsonSerializer.Deserialize(jsonArray[0]!.ToString(), GetListTypeForGivenGeneric<T1>(), JsonDeserializerSettings)!,
-                        JsonSerializer.Deserialize(jsonArray[1]!.ToString(), GetListTypeForGivenGeneric<T2>(), JsonDeserializerSettings)!,
-                        JsonSerializer.Deserialize(jsonArray[2]!.ToString(), GetListTypeForGivenGeneric<T3>(), JsonDeserializerSettings)!,
-                        JsonSerializer.Deserialize(jsonArray[3]!.ToString(), GetListTypeForGivenGeneric<T4>(), JsonDeserializerSettings)!,
-                        JsonSerializer.Deserialize(jsonArray[4]!.ToString(), GetListTypeForGivenGeneric<T5>(), JsonDeserializerSettings)!);
-
-                return (
-                    IsTypeOfList(typeof(T1)) ? (T1)temp.Item1 : ((List<T1>)temp.Item1).FirstOrDefault(),
-                    IsTypeOfList(typeof(T2)) ? (T2)temp.Item2 : ((List<T2>)temp.Item2).FirstOrDefault(),
-                    IsTypeOfList(typeof(T3)) ? (T3)temp.Item3 : ((List<T3>)temp.Item3).FirstOrDefault(),
-                    IsTypeOfList(typeof(T4)) ? (T4)temp.Item4 : ((List<T4>)temp.Item4).FirstOrDefault(),
-                    IsTypeOfList(typeof(T5)) ? (T5)temp.Item5 : ((List<T5>)temp.Item5).FirstOrDefault());
+                return new JsonArray();
             }
 
-            return (default!, default!, default!, default!, default!);
+            return JsonNode.Parse(jsonResult)?.AsArray() ?? new JsonArray();
+        }
+
+        /// <summary>
+        /// Reads the result set at the index: a list type gets all its rows, any other type its first row (or its default).
+        /// An endpoint can answer fewer result sets than asked for (an UPDATE answers none): a missing one reads as empty.
+        /// </summary>
+        private T LoadResultSet<T>(JsonArray resultSets, int index)
+        {
+            var json = index < resultSets.Count && resultSets[index] is JsonNode resultSet
+                ? resultSet.ToJsonString()
+                : "[]";
+
+            var rows = JsonSerializer.Deserialize(json, GetListTypeForGivenGeneric<T>(), JsonDeserializerSettings)
+                ?? throw new JsonException($"Result set {index} of the custom endpoint is not a list of rows");
+
+            return IsTypeOfList(typeof(T)) ? (T)rows : ((List<T>)rows).FirstOrDefault();
         }
 
         private Type GetListTypeForGivenGeneric<T>()

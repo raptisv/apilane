@@ -1,5 +1,4 @@
 ﻿using Apilane.Net.Abstractions;
-using Apilane.Net.Extensions;
 using Apilane.Net.Models.Account;
 using Apilane.Net.Models.Data;
 using Apilane.Net.Request;
@@ -24,7 +23,7 @@ namespace Apilane.Net.Services
             {
                 httpRequest.Content = new StringContent(JsonSerializer.Serialize(request.LoginItem), Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -33,7 +32,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }
@@ -55,7 +54,7 @@ namespace Apilane.Net.Services
             {
                 await ApplyAuthAsync(httpRequest, request);
 
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -64,7 +63,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }
@@ -84,7 +83,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 await ApplyAuthAsync(httpRequest, request);
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -93,7 +92,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }
@@ -114,7 +113,7 @@ namespace Apilane.Net.Services
             {
                 httpRequest.Content = new StringContent(JsonSerializer.Serialize((object)request.RegisterItem), Encoding.UTF8, "application/json");
                 await ApplyAuthAsync(httpRequest, request);
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -123,7 +122,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }
@@ -141,9 +140,10 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Put, request.GetUrl(_config.ApplicationApiUrl)))
             {
-                await ApplyAuthAsync(httpRequest, request);
+                // The body first: a signature covers the hash of the body
                 httpRequest.Content = new StringContent(JsonSerializer.Serialize(updateItem), Encoding.UTF8, "application/json");
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                await ApplyAuthAsync(httpRequest, request);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -152,7 +152,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }
@@ -168,7 +168,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 await ApplyAuthAsync(httpRequest, request);
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -177,7 +177,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }

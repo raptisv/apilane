@@ -174,11 +174,15 @@ async function submitDelete(): Promise<boolean> {
     </FormField>
   </FormDialog>
 
-  <!-- The key of the agent that was just added. A click outside does not close it: the key cannot be shown again. -->
+  <!--
+    The key of the agent that was just added. Neither a click outside nor Escape closes it: the key
+    cannot be shown again. Done and the X are the ways out.
+  -->
   <Dialog :open="created !== undefined" @update:open="(open: boolean) => !open && closeKey()">
     <DialogContent
       class="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"
       @interact-outside="(event: Event) => event.preventDefault()"
+      @escape-key-down="(event: KeyboardEvent) => event.preventDefault()"
     >
       <DialogHeader class="pr-8">
         <DialogTitle>Agent added</DialogTitle>

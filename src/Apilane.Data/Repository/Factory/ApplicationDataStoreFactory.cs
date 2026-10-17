@@ -65,11 +65,20 @@ namespace Apilane.Data.Repository.Factory
             return _dataStore;
         }
 
+        // Only a store that was created has anything to dispose. Creating one here would load the application
+        // (a grain call that may reach the Portal) for nothing, and Dispose would block a thread waiting for it.
         public async ValueTask DisposeAsync()
-            => await (await CurrentDataStoreAsync()).DisposeAsync();
+        {
+            if (_dataStore is not null)
+            {
+                await _dataStore.DisposeAsync();
+            }
+        }
 
         public void Dispose()
-            => CurrentDataStoreAsync().GetAwaiter().GetResult().Dispose();
+        {
+            _dataStore?.Dispose();
+        }
 
         #region Schema
 
@@ -96,10 +105,10 @@ namespace Apilane.Data.Repository.Factory
             return await (await CurrentDataStoreAsync()).ExistsColumnAsync(tableName, columnName);
         }
 
-        public async Task RenameTableAsync(string oldTableName, string newTableName)
+        public async Task RenameTableAsync(string oldTableName, string newTableName, List<EntityConstraint> constraints)
         {
             using var trace = _tracer?.StartActiveSpan("RenameTableAsync");
-            await (await CurrentDataStoreAsync()).RenameTableAsync(oldTableName, newTableName);
+            await (await CurrentDataStoreAsync()).RenameTableAsync(oldTableName, newTableName, constraints);
         }
 
         public async Task CreateColumnsAsync(string tableName, List<(string Name, PropertyType Type, bool NotNull, int? NumDecimalPlaces, long? StrMaxLength)> columns)

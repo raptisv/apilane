@@ -81,7 +81,7 @@ namespace Apilane.UnitTests
                 .Invokes(call => capturedPageSize = call.GetArgument<int>(5))
                 .Returns(Task.FromResult(new DataResponse { Data = new List<Dictionary<string, object?>>() }));
 
-            var dataAPI = new DataAPI(appDataService, A.Fake<ITransactionScopeService>(), A.Fake<ICustomAPI>());
+            var dataAPI = new DataAPI(appDataService, A.Fake<ITransactionScopeService>(), A.Fake<ICustomAPI>(), A.Fake<IAccountAPI>());
 
             await dataAPI.GetAsync(
                 AppToken,
@@ -177,7 +177,7 @@ namespace Apilane.UnitTests
                 .Invokes(call => capturedPageSize = call.GetArgument<int>(3))
                 .Returns(Task.FromResult((new List<Dictionary<string, object?>>(), 0L)));
 
-            var entityHistoryAPI = new EntityHistoryAPI(helperService);
+            var entityHistoryAPI = new EntityHistoryAPI(helperService, A.Fake<IApplicationService>());
 
             await entityHistoryAPI.GetPagedAsync(AppToken, 1, EntityName, 1, pageSize);
 

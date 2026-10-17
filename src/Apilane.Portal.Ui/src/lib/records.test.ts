@@ -5,8 +5,10 @@ import type { Property } from './properties'
 import {
   cellText,
   createBody,
+  dateSpan,
   emptyFilters,
   fileTooLarge,
+  filterOperatorText,
   filterOperators,
   filterParam,
   formatRecordDate,
@@ -14,6 +16,7 @@ import {
   hasFilters,
   historyRows,
   initialForm,
+  nextFilterOperator,
   nextSort,
   pageCount,
   pageSizeFrom,
@@ -163,12 +166,69 @@ describe('sorting', () => {
 })
 
 describe('filtering', () => {
-  it('offers contains and equal for strings, equal only for the rest', () => {
+  it('offers contains and equal for strings, a range for numbers and dates, equal only for the rest', () => {
     expect(filterOperators(name)).toEqual(['contains', 'equal'])
     expect(filterOperators(secret)).toEqual(['equal'])
-    expect(filterOperators(price)).toEqual(['equal'])
-    expect(filterOperators(due)).toEqual(['equal'])
+    expect(filterOperators(price)).toEqual(['equal', 'greaterorequal', 'lessorequal'])
+    expect(filterOperators(due)).toEqual(['equal', 'greaterorequal', 'lessorequal'])
     expect(filterOperators(paid)).toEqual(['equal'])
+  })
+
+  it('switches to the next operator, then back to the first', () => {
+    expect(nextFilterOperator(name, 'contains')).toBe('equal')
+    expect(nextFilterOperator(name, 'equal')).toBe('contains')
+    expect(nextFilterOperator(price, 'equal')).toBe('greaterorequal')
+    expect(nextFilterOperator(price, 'greaterorequal')).toBe('lessorequal')
+    expect(nextFilterOperator(price, 'lessorequal')).toBe('equal')
+    expect(nextFilterOperator(secret, 'equal')).toBe('equal')
+    // An operator the column does not offer starts again at its first.
+    expect(nextFilterOperator(name, 'lessorequal')).toBe('contains')
+  })
+
+  it('names the operators in words that fit the type', () => {
+    expect(filterOperatorText(name, 'contains')).toEqual({ symbol: '~', words: 'contains' })
+    expect(filterOperatorText(price, 'greaterorequal')).toEqual({ symbol: '≥', words: 'at least' })
+    expect(filterOperatorText(price, 'lessorequal')).toEqual({ symbol: '≤', words: 'at most' })
+    expect(filterOperatorText(due, 'equal')).toEqual({ symbol: '=', words: 'on' })
+    expect(filterOperatorText(due, 'greaterorequal').words).toBe('on or after')
+    expect(filterOperatorText(due, 'lessorequal').words).toBe('on or before')
+  })
+
+  it('sends a number range with the operator of the box', () => {
+    const filters = { Price: { operator: 'greaterorequal' as const, value: 100 } }
+
+    expect(JSON.parse(filterParam(properties, filters) ?? '').Filters).toEqual([
+      { Property: 'Price', Operator: 'greaterorequal', Value: '100' },
+    ])
+  })
+
+  it('sends a typed day as the whole day, in UTC', () => {
+    const filters = { Due: { operator: 'equal' as const, value: ' 2026-10-16 ' } }
+
+    expect(JSON.parse(filterParam(properties, filters) ?? '').Filters).toEqual([
+      { Property: 'Due', Operator: 'greaterorequal', Value: '2026-10-16 00:00:00.000' },
+      { Property: 'Due', Operator: 'less', Value: '2026-10-17 00:00:00.000' },
+    ])
+  })
+
+  it('takes in the whole span typed for on or after and on or before', () => {
+    const after = { Created: { operator: 'greaterorequal' as const, value: '2026-12-31' } }
+    const before = { Created: { operator: 'lessorequal' as const, value: '2026-12-31' } }
+
+    expect(JSON.parse(filterParam(properties, after) ?? '').Filters).toEqual([
+      { Property: 'Created', Operator: 'greaterorequal', Value: '2026-12-31 00:00:00.000' },
+    ])
+    expect(JSON.parse(filterParam(properties, before) ?? '').Filters).toEqual([
+      { Property: 'Created', Operator: 'less', Value: '2027-01-01 00:00:00.000' },
+    ])
+  })
+
+  it('sends a date with milliseconds, a timestamp or an unknown text as typed', () => {
+    for (const value of ['2026-10-16 10:20:30.456', '1760572800000', 'yesterday', '2026-02-30']) {
+      const filters = { Due: { operator: 'equal' as const, value } }
+
+      expect(JSON.parse(filterParam(properties, filters) ?? '').Filters).toEqual([{ Property: 'Due', Operator: 'equal', Value: value }])
+    }
   })
 
   it('starts every box empty with its default operator', () => {
@@ -202,6 +262,23 @@ describe('filtering', () => {
     const filters = { Secret: { operator: 'contains' as const, value: 'x' } }
 
     expect(JSON.parse(filterParam(properties, filters) ?? '').Filters[0].Operator).toBe('equal')
+  })
+})
+
+describe('dateSpan', () => {
+  it('is a day, a minute or a second, by what was typed', () => {
+    expect(dateSpan('2026-02-28')).toEqual({ start: '2026-02-28 00:00:00.000', end: '2026-03-01 00:00:00.000' })
+    expect(dateSpan('2026-10-16 23:59')).toEqual({ start: '2026-10-16 23:59:00.000', end: '2026-10-17 00:00:00.000' })
+    expect(dateSpan('2026-10-16 10:20:30')).toEqual({ start: '2026-10-16 10:20:30.000', end: '2026-10-16 10:20:31.000' })
+  })
+
+  it('has no span for a date that does not exist or a text it does not know', () => {
+    expect(dateSpan('2026-02-30')).toBeUndefined()
+    expect(dateSpan('2026-10-16 24:00')).toBeUndefined()
+    expect(dateSpan('0050-01-01')).toBeUndefined()
+    expect(dateSpan('2026-10-16 10:20:30.456')).toBeUndefined()
+    expect(dateSpan('16/10/2026')).toBeUndefined()
+    expect(dateSpan('1760572800000')).toBeUndefined()
   })
 })
 

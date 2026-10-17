@@ -196,14 +196,43 @@ watch(
   { immediate: true },
 )
 
+/**
+ * Back to the dashboard. An editor opened from it (New report, Edit in a panel's menu) is a step
+ * back in the history, so the browser's Back does not open the editor again; an editor opened from
+ * a link or a reload gives its place in the history to the dashboard.
+ */
+async function toDashboard(): Promise<void> {
+  if (router.options.history.state.back !== router.resolve(dashboard).fullPath) {
+    await router.replace(dashboard)
+    return
+  }
+
+  // router.back() returns before the navigation: wait for it, so what follows sees the dashboard.
+  await new Promise<void>((resolve) => {
+    const stop = router.afterEach(() => {
+      stop()
+      resolve()
+    })
+    router.back()
+  })
+}
+
+// One close at a time: a second Cancel before the first has landed must not step back twice.
+let closing: Promise<void> | undefined
+
+function closeEditor(): Promise<void> {
+  closing ??= toDashboard().finally(() => (closing = undefined))
+  return closing
+}
+
 function setEditorOpen(value: boolean): void {
   if (!value) {
-    void router.push(dashboard)
+    void closeEditor()
   }
 }
 
 async function onSaved(): Promise<void> {
-  await router.push(dashboard)
+  await closeEditor()
   await refresh()
 }
 

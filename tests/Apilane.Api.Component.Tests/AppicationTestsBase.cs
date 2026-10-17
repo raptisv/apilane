@@ -398,8 +398,13 @@ namespace Apilane.Api.Component.Tests
 
             using (new WithApplicationOwnerAccess(_appToken, PortalInfoServiceMock))
             {
-                // Create the property 
-                await HttpClient.RequestAsync(HttpMethod.Post, $"/api/Application/GenerateProperty?appToken={TestApplication.Token}&Entity={entityName}", property);
+                // Create the property. A failure must show here, not later as a missing column.
+                var responseMessage = await HttpClient.RequestAsync(HttpMethod.Post, $"/api/Application/GenerateProperty?appToken={TestApplication.Token}&Entity={entityName}", property);
+
+                if (!responseMessage.IsSuccessStatusCode)
+                {
+                    throw new Exception($"GenerateProperty {entityName}.{property.Name} failed: {await responseMessage.Content.ReadAsStringAsync()}");
+                }
             }
 
             TestApplication.Entities.Single(x => x.Name.Equals(entityName)).Properties.Add(property);

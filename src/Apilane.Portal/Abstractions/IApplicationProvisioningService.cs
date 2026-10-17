@@ -16,6 +16,8 @@ namespace Apilane.Portal.Abstractions
 
         /// <summary>
         /// Creates an application from an exported application.json, keeping its token and encryption key.
+        /// The file must pass the checks of the editors (settings ranges, client addresses, names, types,
+        /// constraints, security rules); the first problem refuses it.
         /// </summary>
         Task<ApplicationResponse> ImportAsync(ImportApplicationRequest request);
     }

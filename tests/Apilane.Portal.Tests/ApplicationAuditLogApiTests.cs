@@ -1,3 +1,5 @@
+using Apilane.Common.Enums;
+using Apilane.Common.Models;
 using Apilane.Portal.Api;
 using Apilane.Portal.Api.V1.Contracts;
 using Apilane.Portal.Models;
@@ -7,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -95,6 +98,42 @@ namespace Apilane.Portal.Tests
             Assert.Equal(
                 new[] { "MailPassword:  -> ***", "MailServer:  -> smtp.audit.test" },
                 entry.Changes.Select(x => $"{x.Property}: {x.OldValue} -> {x.NewValue}").OrderBy(x => x, StringComparer.Ordinal));
+        }
+
+        [Fact]
+        public async Task List_Should_Hold_The_Rows_Of_Creating_The_Application()
+        {
+            var (email, password) = await _portal.CreateUserAsync();
+            var client = await _portal.CreateSignedInClientAsync(email, password);
+            var server = await _portal.CreateServerAsync();
+
+            _portal.ApiServer.Respond(FakeApiServer.GetSystemEntitiesPath, HttpStatusCode.OK, JsonSerializer.Serialize(new[]
+            {
+                SystemEntity("Users", "ID", "Email"),
+                SystemEntity("Files", "ID")
+            }));
+            _portal.ApiServer.Respond(FakeApiServer.GeneratePath, HttpStatusCode.OK, "true");
+            _portal.ApiServer.Respond(FakeApiServer.ClearCachePath, HttpStatusCode.OK, "\"OK\"");
+
+            var created = await client.PostAsync("/api/v1/applications", new Dictionary<string, object?>
+            {
+                ["Name"] = $"app-{Guid.NewGuid():N}",
+                ["ServerID"] = server.ID,
+                ["DatabaseType"] = "SQLLite"
+            }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+            var token = (await created.ReadJsonAsync<ApplicationResponse>()).Token;
+            var log = await (await client.GetAsync(Url(token))).ReadJsonAsync<ListResponse<AuditLogEntryResponse>>();
+
+            // The application, its entities with their properties and its first report were saved
+            // before the database gave them their IDs; their rows are in the application's log all the same.
+            Assert.Equal(
+                new[] { "Application", "Entity", "Entity", "Property", "Property", "Property", "Report" },
+                log.Data.Select(x => x.EntityType).OrderBy(x => x, StringComparer.Ordinal));
+            Assert.All(log.Data, x => Assert.Equal($"Created | {email}", $"{x.Action} | {x.UserEmail}"));
+            Assert.False(await _portal.WithDbContextAsync(db => db.AuditLogs.AnyAsync(x => x.UserEmail == email && x.AppID == null)));
         }
 
         [Fact]
@@ -210,6 +249,30 @@ namespace Apilane.Portal.Tests
         private static string Url(string token)
         {
             return $"/api/v1/applications/{token}/audit-log";
+        }
+
+        // As the API server returns a system entity: numbered -1, its first property the primary key.
+        private static DBWS_Entity SystemEntity(string name, params string[] properties)
+        {
+            return new DBWS_Entity
+            {
+                ID = -1,
+                AppID = -1,
+                Name = name,
+                IsSystem = true,
+                Properties = properties
+                    .Select((x, i) => new DBWS_EntityProperty
+                    {
+                        ID = -1,
+                        EntityID = -1,
+                        Name = x,
+                        IsSystem = true,
+                        IsPrimaryKey = i == 0,
+                        Required = true,
+                        TypeID = i == 0 ? (int)PropertyType.Number : (int)PropertyType.String
+                    })
+                    .ToList()
+            };
         }
 
         private async Task<PortalAuditLog> AddAsync(

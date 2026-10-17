@@ -54,6 +54,10 @@ namespace Apilane.Net.Request
             return this;
         }
 
+        /// <summary>
+        /// Orders the rows by their aggregate values: smallest first when <paramref name="ascending"/> is true,
+        /// largest first otherwise (the default).
+        /// </summary>
         public StatsAggregateRequest WithSort(bool ascending)
         {
             _ascending = ascending;
@@ -73,7 +77,7 @@ namespace Apilane.Net.Request
                 { "groupBy", _groupBy },
                 { "pageIndex", _pageIndex.ToString() },
                 { "pageSize", _pageSize.ToString() },
-                { "orderDirection", _ascending.ToString().ToLower() }
+                { "orderDirection", _ascending ? "asc" : "desc" }
             };
 
             if (_filter != null)

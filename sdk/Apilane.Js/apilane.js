@@ -2,7 +2,9 @@
  * Apilane JavaScript SDK
  *
  * The official JavaScript SDK for the Apilane backend-as-a-service platform.
- * Works in browsers and Node.js 18+ (requires native fetch).
+ * Works in browsers and Node.js 19+ (requires native fetch; Node.js 18 also needs
+ * --experimental-global-webcrypto for signed requests). In a browser, signed requests need a
+ * secure context: a page served over HTTPS or from localhost.
  *
  * @module apilane
  * @version 1.0.0
@@ -369,22 +371,21 @@ export class SortItem {
 // ============================================================================
 
 /**
- * Converts a Unix timestamp (seconds or milliseconds) to a Date.
+ * Converts a Unix timestamp to a Date, read the way the API reads it: a positive whole number of exactly
+ * 10 digits is seconds, every other whole number (a negative one too, a date before 1970) is milliseconds.
  * @param {number} value
- * @returns {Date|null}
+ * @returns {Date|null} null when the value is not a whole number or not a date a Date can hold.
  */
 export function unixTimestampToDate(value) {
-    if (value == null) {
+    if (value == null || String(value).trim() === '') {
         return null;
     }
-    const str = String(value);
-    if (str.length === 10) {
-        return new Date(value * 1000);
+    const number = Number(value);
+    if (!Number.isInteger(number)) {
+        return null;
     }
-    if (str.length === 13) {
-        return new Date(value);
-    }
-    return null;
+    const date = new Date(number >= 1e9 && number <= 9999999999 ? number * 1000 : number);
+    return Number.isNaN(date.getTime()) ? null : date;
 }
 
 /**
@@ -442,7 +443,10 @@ function _bufferToBase64(buffer) {
  * @returns {Promise<{ timestamp: string, signature: string }>}
  */
 async function _signRequest(keyId, secret, method, pathAndQuery, bodyString) {
-    const subtle = globalThis.crypto.subtle;
+    const subtle = globalThis.crypto?.subtle;
+    if (subtle == null) {
+        throw new Error('Request signing needs the Web Crypto API (crypto.subtle): Node.js 19+ (or 18 with --experimental-global-webcrypto), or a browser page served over HTTPS or from localhost. Use withAuthToken instead.');
+    }
     const encoder = new TextEncoder();
 
     const timestamp = String(Date.now());
@@ -539,6 +543,7 @@ class ApilaneRequestBase {
 
     /**
      * When enabled, the service will throw an Error instead of returning an ApilaneResult with an error.
+     * The Error carries the ApilaneError as `apilaneError` and the HTTP status as `status`.
      * @param {boolean} [throwOnError=true]
      * @returns {this}
      */
@@ -1292,6 +1297,8 @@ export class StatsAggregateRequest extends ApilaneRequestBase {
     }
 
     /**
+     * Orders the rows by their aggregate values: smallest first when `ascending` is true, largest first
+     * otherwise (the default).
      * @param {boolean} ascending
      * @returns {this}
      */
@@ -1319,7 +1326,7 @@ export class StatsAggregateRequest extends ApilaneRequestBase {
         }
         params.set('pageIndex', String(this.#pageIndex));
         params.set('pageSize', String(this.#pageSize));
-        params.set('orderDirection', String(this.#ascending).toLowerCase());
+        params.set('orderDirection', this.#ascending ? 'asc' : 'desc');
 
         if (this.#filter != null) {
             params.set('filter', JSON.stringify(this.#filter));
@@ -1606,7 +1613,11 @@ export class FilePostRequest extends ApilaneRequestBase {
     /** @returns {string} */
     getFileName() {
         if (this.#fileName == null || this.#fileName.trim() === '') {
-            return crypto.randomUUID().replace(/-/g, '');
+            // The global Web Crypto API is missing on Node 18 without a flag and on a page served over plain HTTP
+            if (typeof globalThis.crypto?.randomUUID === 'function') {
+                return globalThis.crypto.randomUUID().replace(/-/g, '');
+            }
+            return Date.now().toString(36) + Math.random().toString(36).slice(2);
         }
         return this.#fileName;
     }
@@ -1947,7 +1958,8 @@ export class ApilaneService {
             }
 
             if (request._shouldThrowOnError()) {
-                throw new Error(error.buildErrorMessage());
+                // The error object and the HTTP status travel with the Error, so a catch can branch on apilaneError.Code
+                throw Object.assign(new Error(error.buildErrorMessage()), { apilaneError: error, status: response.status });
             }
             return ApilaneResult.error(error);
         }

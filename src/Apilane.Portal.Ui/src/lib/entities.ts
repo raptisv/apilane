@@ -93,6 +93,17 @@ export function propertyConstraints(propertyName: string, constraints: readonly 
   return found
 }
 
+/**
+ * The first entity with a foreign key that points to `entityName` (the entity itself included), or undefined.
+ * While there is one the API refuses to rename or delete the entity. Names are compared as the API does
+ * there: case-sensitive.
+ */
+export function referencingEntity(entityName: string, entities: readonly Entity[]): string | undefined {
+  return entities.find((entity) =>
+    entity.Constraints.some((constraint) => constraint.Type === 'ForeignKey' && constraint.ForeignEntity === entityName),
+  )?.Name
+}
+
 /** The entities in the order of the data browser: the custom ones first, then the system ones, each group in the given order. */
 export function dataEntityOrder(entities: readonly Entity[]): Entity[] {
   return [...entities.filter((entity) => !entity.IsSystem), ...entities.filter((entity) => entity.IsSystem)]

@@ -47,7 +47,7 @@ GET https://my.api.server/api/Files/Download?fileUID={uid}
 x-application-token: {appToken}
 ```
 
-Downloading needs the same `get` access to `Files` as listing. The response is the raw file binary with a `Content-Type` header based on the file's name, sent as an attachment named after the file. It carries `Cache-Control: max-age=31536000` (one year), so browsers keep a downloaded file for that long.
+Downloading needs the same `get` access to `Files` as listing. The response is the raw file binary with a `Content-Type` header based on the file's name, sent as an attachment named after the file. The file carries `Cache-Control: max-age=31536000` (one year), so browsers keep a downloaded file for that long; an error answer does not carry it.
 
 A browser navigation (`<img src>`, `<a href>`) cannot send headers, so give the application token as the query parameter `appToken` and, when anonymous callers may not read the file, the user's token as `authToken`:
 

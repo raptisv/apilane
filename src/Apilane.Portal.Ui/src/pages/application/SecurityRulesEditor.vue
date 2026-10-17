@@ -268,6 +268,16 @@ const typeNames: Record<string, string> = { Schema: 'The application schema', En
           </h3>
           <p class="text-xs text-muted-foreground">
             {{ typeNames[selected.Type] ?? selected.Type }}{{ selected.IsSystem ? ' (system)' : '' }}
+            <!-- The names the rules list are its properties: a way to look them up. -->
+            <template v-if="selected.Type === 'Entity'">
+              ·
+              <RouterLink
+                :to="{ name: 'app-entity-properties', params: { appToken, entity: selected.Name } }"
+                class="font-medium text-link underline-offset-4 hover:underline"
+              >
+                Properties<span class="sr-only"> of {{ selected.Name }}</span>
+              </RouterLink>
+            </template>
           </p>
         </div>
 

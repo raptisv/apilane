@@ -1,5 +1,7 @@
 ﻿using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
+using Apilane.Api.Core.Enums;
+using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Core.Grains;
 using Apilane.Common.Extensions;
 using Apilane.Common.Models;
@@ -8,7 +10,8 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Orleans;
 using System;
-using System.Threading;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Apilane.Api.Core.Services
@@ -19,7 +22,7 @@ namespace Apilane.Api.Core.Services
         private readonly ApiConfiguration _apiConfiguration;
         private readonly IClusterClient _clusterClient;
         private readonly IMemoryCache _memoryCache;
-        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
+        private readonly ConcurrentDictionary<string, Lazy<Task<DBWS_Application>>> _loads = new();
 
         private IApplicationService _selfObserverReference;
 
@@ -47,30 +50,57 @@ namespace Apilane.Api.Core.Services
         {
             var cacheKey = appToken;
 
-            if (!_memoryCache.TryGetValue(cacheKey, out DBWS_Application? application) ||
-                application is null)
+            if (_memoryCache.TryGetValue(cacheKey, out DBWS_Application? application) &&
+                application is not null)
             {
-                _semaphore.Wait();
-
-                try
-                {
-                    if (!_memoryCache.TryGetValue(cacheKey, out application) ||
-                        application is null)
-                    {
-                        var grainRef = _clusterClient.GetGrain<IApplicationGrain>(new Guid(appToken));
-                        application = await grainRef.SubscribeAndGetAsync(_selfObserverReference);
-
-                        _memoryCache.Set(cacheKey, application, new MemoryCacheEntryOptions()
-                            .SetAbsoluteExpiration(DateTimeOffset.UtcNow.AddSeconds(30)));
-                    }
-                }
-                finally
-                {
-                    _semaphore.Release();
-                }
+                return application;
             }
 
+            // An application token is a GUID, and a token found to be nobody's a moment ago is not asked again
+            if (!Guid.TryParse(appToken, out var applicationId) ||
+                _memoryCache.TryGetValue(GetNotFoundCacheKey(appToken), out _))
+            {
+                throw new ApilaneException(AppErrors.NOT_FOUND, "Application not found");
+            }
+
+            // The requests for an application that is loading wait for that one load, without blocking a thread.
+            // Loads of different applications do not wait for each other.
+            var load = _loads.GetOrAdd(cacheKey, _ => new Lazy<Task<DBWS_Application>>(() => LoadAsync(cacheKey, applicationId)));
+
+            try
+            {
+                return await load.Value;
+            }
+            finally
+            {
+                // The answer is cached by now: the next request reads it, or starts a new load
+                _loads.TryRemove(new KeyValuePair<string, Lazy<Task<DBWS_Application>>>(cacheKey, load));
+            }
+        }
+
+        private async Task<DBWS_Application> LoadAsync(string appToken, Guid applicationId)
+        {
+            var grainRef = _clusterClient.GetGrain<IApplicationGrain>(applicationId);
+            var application = await grainRef.SubscribeAndGetAsync(_selfObserverReference);
+
+            if (application is null)
+            {
+                // Without this, every request with an unknown token would reach the Portal
+                _memoryCache.Set(GetNotFoundCacheKey(appToken), true, new MemoryCacheEntryOptions()
+                    .SetAbsoluteExpiration(DateTimeOffset.UtcNow.AddSeconds(30)));
+
+                throw new ApilaneException(AppErrors.NOT_FOUND, "Application not found");
+            }
+
+            _memoryCache.Set(appToken, application, new MemoryCacheEntryOptions()
+                .SetAbsoluteExpiration(DateTimeOffset.UtcNow.AddSeconds(30)));
+
             return application;
+        }
+
+        private static string GetNotFoundCacheKey(string appToken)
+        {
+            return $"{appToken}|not-found";
         }
 
         public Task ApplicationChangedAsync(string appToken)
@@ -80,6 +110,7 @@ namespace Apilane.Api.Core.Services
             // Clear memory cache
             var cacheKey = appToken;
             _memoryCache.Remove(cacheKey);
+            _memoryCache.Remove(GetNotFoundCacheKey(appToken));
             return Task.CompletedTask;
         }
     }

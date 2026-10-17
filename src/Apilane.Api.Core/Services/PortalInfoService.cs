@@ -1,5 +1,7 @@
 ﻿using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
+using Apilane.Api.Core.Enums;
+using Apilane.Api.Core.Exceptions;
 using Apilane.Common;
 using Apilane.Common.Models;
 using Microsoft.Extensions.Logging;
@@ -73,15 +75,39 @@ namespace Apilane.Api.Core.Services
 
             using var client = _clientFactory.CreateClient(HttpClientName);
 
-            using var response = await client.SendAsync(request);
+            HttpResponseMessage response;
 
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                throw new Exception($"Error UserOwnsApplication from Portal | StatusCode {response.StatusCode} | ReasonPhrase {response.ReasonPhrase}");
+                response = await client.SendAsync(request);
+            }
+            catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)
+            {
+                // Down, or slower than the client's timeout
+                _logger.LogError(ex, $"Error UserOwnsApplication from Portal | {ex.Message}");
+                throw PortalUnreachable();
             }
 
-            var strReponse = await response.Content.ReadAsStringAsync();
-            return JsonSerializer.Deserialize<bool>(strReponse);
+            using (response)
+            {
+                if (!response.IsSuccessStatusCode)
+                {
+                    // For example a 401 after the installation key was changed in the Portal only
+                    _logger.LogError($"Error UserOwnsApplication from Portal | StatusCode {response.StatusCode} | ReasonPhrase {response.ReasonPhrase}");
+                    throw PortalUnreachable();
+                }
+
+                var strReponse = await response.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<bool>(strReponse);
+            }
+        }
+
+        /// <summary>
+        /// The answer when the Portal cannot be asked: the usual error body, saying why, instead of a general error.
+        /// </summary>
+        private static ApilaneException PortalUnreachable()
+        {
+            return new ApilaneException(AppErrors.SERVICE_UNAVAILABLE, "The API server could not reach the Portal");
         }
 
         public async Task<DBWS_Application> GetApplicationAsync(string appToken)
@@ -102,13 +128,13 @@ namespace Apilane.Api.Core.Services
 
             var strReponse = await response.Content.ReadAsStringAsync();
 
-            if (string.IsNullOrWhiteSpace(strReponse))
-            {
-                throw new Exception($"Application with token '{appToken}' not found");
-            }
+            // The Portal answers 'null' for a token that is nobody's application
+            var application = string.IsNullOrWhiteSpace(strReponse)
+                ? null
+                : JsonSerializer.Deserialize<DBWS_Application>(strReponse);
 
-            return JsonSerializer.Deserialize<DBWS_Application>(strReponse)
-                ?? throw new Exception($"Application with token '{appToken}' response was empty");
+            return application
+                ?? throw new ApilaneException(AppErrors.NOT_FOUND, "Application not found");
         }
     }
 }

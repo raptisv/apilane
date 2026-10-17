@@ -165,7 +165,21 @@ namespace Apilane.Api.Core
                 }
 
                 var property = ValidateAccessToProperty(userHasFullAccess, entity, temp[0], User_Security);
+
+                // An unknown function used to count, so a typo ('Total.sun') showed counts as sums
+                if (!Enum.GetNames<AggregateData.DataAggregates>().Any(x => x.Equals(temp[1].Trim(), StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new ApilaneException(AppErrors.ERROR, $"Unknown aggregate '{temp[1]}'. Use Count, Min, Max, Sum or Avg", entity: entity.Name);
+                }
+
                 var aggregate = AggregateData.ConvertToType(temp[1]);
+
+                // A sum or an average of text, a date or a boolean means nothing (text answered 0)
+                if ((aggregate == AggregateData.DataAggregates.Sum || aggregate == AggregateData.DataAggregates.Avg) &&
+                    property.TypeID_Enum != PropertyType.Number)
+                {
+                    throw new ApilaneException(AppErrors.VALIDATION, $"{aggregate} applies to Number properties only", property.Name, entity.Name);
+                }
 
                 result.Add(new AggregateData.AggregateProperty()
                 {
@@ -238,7 +252,7 @@ namespace Apilane.Api.Core
                 }
 
                 var entityProperty = entity.Properties.FirstOrDefault(x => x.Name.Equals(parts[0], StringComparison.OrdinalIgnoreCase))
-                    ?? throw new FormatException($"Property '{parts[0]}' does not exist");
+                    ?? throw new ApilaneException(AppErrors.INVALID_GROUPBY_PARAMETER, $"Property '{parts[0]}' does not exist", parts[0], entity: entity.Name);
 
                 if (notallowedProperties.Any(x => x.Equals(entityProperty.Name, StringComparison.OrdinalIgnoreCase)))
                 {

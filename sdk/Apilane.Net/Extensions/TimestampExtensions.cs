@@ -25,21 +25,29 @@ namespace Apilane.Net.Extensions
         }
 
         /// <summary>
-        /// Returns the DateTime object given a unix timestamp given in seconds (10 digits) or milliseconds (13 digits) else null
+        /// Returns the DateTime of a unix timestamp, read the way the API reads it: a positive number of exactly
+        /// 10 digits is seconds, every other value (a negative one too, a date before 1970) is milliseconds.
+        /// Null when the value is outside the dates a DateTime can hold.
         /// </summary>
         public static DateTime? UnixTimestampToDatetime(this long value)
         {
             var epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-            switch (value.ToString().Length)
+            if (value >= 1_000_000_000L && value <= 9_999_999_999L)
             {
-                case 10:
-                    return epoch.AddSeconds(value);
-                case 13:
-                    return epoch.AddMilliseconds(value);
-                default:
-                    return null;
+                return epoch.AddSeconds(value);
             }
+
+            // In ticks: a double would round the largest value up, past the end of DateTime
+            var minMilliseconds = (DateTime.MinValue.Ticks - epoch.Ticks) / TimeSpan.TicksPerMillisecond;
+            var maxMilliseconds = (DateTime.MaxValue.Ticks - epoch.Ticks) / TimeSpan.TicksPerMillisecond;
+
+            if (value < minMilliseconds || value > maxMilliseconds)
+            {
+                return null;
+            }
+
+            return epoch.AddTicks(value * TimeSpan.TicksPerMillisecond);
         }
     }
 }

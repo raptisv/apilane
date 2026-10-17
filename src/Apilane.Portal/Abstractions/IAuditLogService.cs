@@ -10,7 +10,8 @@ namespace Apilane.Portal.Abstractions
     {
         /// <summary>
         /// One page of the audit log, newest first: the entries of one application, or the
-        /// instance-level entries (servers, settings, user roles) when <paramref name="appId"/> is null.
+        /// instance-level entries (servers, settings, user roles) and the creation and deletion of
+        /// every application when <paramref name="appId"/> is null.
         /// </summary>
         Task<ListResponse<AuditLogEntryResponse>> QueryAsync(long? appId, PageQuery page);
     }

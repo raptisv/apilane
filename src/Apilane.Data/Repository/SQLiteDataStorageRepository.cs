@@ -9,11 +9,13 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Transactions;
 
 namespace Apilane.Data.Repository
 {
@@ -215,6 +217,7 @@ namespace Apilane.Data.Repository
 
             using (SQLiteCommand command = new SQLiteCommand(_databaseConnection))
             {
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(command.CommandTimeout);
                 command.CommandType = CommandType.Text;
                 command.CommandText = $"PRAGMA foreign_keys=on;{cmd}";
                 return await command.ExecuteScalarAsync();
@@ -229,6 +232,7 @@ namespace Apilane.Data.Repository
             {
                 using (SQLiteCommand command = new SQLiteCommand(_databaseConnection))
                 {
+                    command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(command.CommandTimeout);
                     command.CommandType = CommandType.Text;
                     command.CommandText = $"PRAGMA foreign_keys=on;{cmd}";
                     return await command.ExecuteNonQueryAsync();
@@ -251,6 +255,7 @@ namespace Apilane.Data.Repository
             var datatable = new DataTable();
             using (SQLiteCommand command = new SQLiteCommand(_databaseConnection))
             {
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(command.CommandTimeout);
                 command.CommandType = CommandType.Text;
                 command.CommandText = $"PRAGMA foreign_keys=on;{cmd}";
                 adapter.SelectCommand = command;
@@ -269,6 +274,7 @@ namespace Apilane.Data.Repository
             DataTable result = new DataTable();
             using (SQLiteCommand command = new SQLiteCommand(_databaseConnection))
             {
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(command.CommandTimeout);
                 command.CommandText = $"PRAGMA foreign_keys=on;{cmd}";
                 adapter.SelectCommand = command;
                 adapter.Fill(dataSet);
@@ -294,11 +300,12 @@ namespace Apilane.Data.Repository
                 tables,
                 (string.IsNullOrWhiteSpace(filter) ? string.Empty : $"WHERE {filter} COLLATE NOCASE"),
                 string.IsNullOrWhiteSpace(group) ? string.Empty : $"GROUP BY {group}",
-                string.IsNullOrWhiteSpace(sort) ? $"ORDER BY [{primaryKey}]" : $"ORDER BY {sort}",
-                (pageSize <= 0 || pageIndex <= 0) ? string.Empty : string.Format("LIMIT {1} OFFSET (({0} - 1) * {1}) ", pageIndex, pageSize));
+                SqlUtilis.GetPagingOrderBy(sort, $"[{primaryKey}]"),
+                (pageSize <= 0 || pageIndex <= 0) ? string.Empty : $"LIMIT {pageSize} OFFSET {SqlUtilis.GetPagingOffset(pageIndex, pageSize)} ");
 
             using (var command = new SQLiteCommand(_databaseConnection))
             {
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(command.CommandTimeout);
                 var adapter = GetLiteAdapter();
                 command.CommandText = cmdData;
                 adapter.SelectCommand = command;
@@ -321,6 +328,7 @@ namespace Apilane.Data.Repository
 
             using (var command = new SQLiteCommand(_databaseConnection))
             {
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(command.CommandTimeout);
                 command.CommandType = CommandType.Text;
                 command.CommandText = cmdTotal;
                 using (var reader = command.ExecuteReader())
@@ -357,9 +365,40 @@ namespace Apilane.Data.Repository
                                 );");
         }
 
-        public Task RenameTableAsync(string oldTableName, string newTableName)
+        public async Task RenameTableAsync(string oldTableName, string newTableName, List<EntityConstraint> constraints)
         {
-            return ExecNQAsync($@"ALTER TABLE [{oldTableName}] RENAME TO [{newTableName}];");
+            var cmd = $@"ALTER TABLE [{oldTableName}] RENAME TO [{newTableName}];";
+
+            // The names of the unique indexes carry the entity name, and a later save of the constraints
+            // drops and creates them by that name: rename them with the table. SQLite has no RENAME INDEX.
+            // An index is renamed only when it exists and its new name is free (names are database-wide).
+            // Foreign keys need nothing: SQLite never looks a foreign key up by its name.
+            var indexes = (await ExecTableAsync("SELECT name, tbl_name FROM sqlite_master WHERE type = 'index';")).Rows.Cast<DataRow>()
+                .Select(row => (Name: Convert.ToString(row["name"]) ?? string.Empty, Table: Convert.ToString(row["tbl_name"]) ?? string.Empty))
+                .ToList();
+
+            foreach (var constraint in constraints.Where(x => x.TypeID == (int)ConstraintType.Unique))
+            {
+                var properties = constraint.GetUniqueProperties();
+                if (properties.Count == 0)
+                {
+                    continue;
+                }
+
+                var oldName = GetUniqueConstraintName(oldTableName, properties);
+                var newName = GetUniqueConstraintName(newTableName, properties);
+
+                if (indexes.Any(x => x.Name.Equals(oldName, StringComparison.OrdinalIgnoreCase) && x.Table.Equals(oldTableName, StringComparison.OrdinalIgnoreCase)) &&
+                    !indexes.Any(x => x.Name.Equals(newName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    cmd += $"DROP INDEX {oldName};CREATE UNIQUE INDEX {newName} ON [{newTableName}]({string.Join(",", properties.Select(x => $"[{x}]"))});";
+
+                    indexes.RemoveAll(x => x.Name.Equals(oldName, StringComparison.OrdinalIgnoreCase));
+                    indexes.Add((newName, newTableName));
+                }
+            }
+
+            await ExecNQAsync(cmd);
         }
 
         public Task DropTableAsync(string tableName)
@@ -436,31 +475,163 @@ namespace Apilane.Data.Repository
             return ExecNQAsync($"ALTER TABLE [{tableName}] RENAME COLUMN [{oldColumnName}] TO [{newColumnName}];");
         }
 
-        public Task SetConstraintsAsync(
+        public async Task SetConstraintsAsync(
             string tableName,
             List<(string Name, bool IsPrimaryKey, PropertyType Type, bool NotNull, int? NumDecimalPlaces)> tableColumns,
             List<EntityConstraint> incomingConstraints,
             List<EntityConstraint> currentConstraints)
         {
-            // IMPORTANT! Get FK first, then Unique, because SQLite might require drop/recreate the table so any constraints before would be dropped.
-
-            var finalCmd = GetForeignKeyConstraintsCommand(
+            // SQLite cannot add or drop a foreign key: when they change, the table is rebuilt with the new ones
+            var rebuildCmd = GetForeignKeyConstraintsCommand(
                 tableName,
                 tableColumns,
                 incomingConstraints.Where(x => x.TypeID == (int)ConstraintType.ForeignKey),
                 currentConstraints.Where(x => x.TypeID == (int)ConstraintType.ForeignKey));
 
-            finalCmd += GetUniqueConstraintsCommand(
+            var uniqueCmd = GetUniqueConstraintsCommand(
                 tableName,
                 incomingConstraints.Where(x => x.TypeID == (int)ConstraintType.Unique),
                 currentConstraints.Where(x => x.TypeID == (int)ConstraintType.Unique));
 
-            if (!string.IsNullOrWhiteSpace(finalCmd))
+            if (!string.IsNullOrWhiteSpace(rebuildCmd))
             {
-                return ExecNQAsync(finalCmd);
+                await RebuildTableAsync(tableName, rebuildCmd, uniqueCmd);
+            }
+            else if (!string.IsNullOrWhiteSpace(uniqueCmd))
+            {
+                await ExecNQAsync(uniqueCmd);
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds a table to change its foreign keys, the way SQLite documents it
+        /// (https://www.sqlite.org/lang_altertable.html#otheralter): foreign keys off, then in one transaction
+        /// copy the rows to a new table, drop the old one, give the new one its name, re-create the indexes
+        /// (the unique constraints) and triggers the drop removed, carry the AUTOINCREMENT high-water mark
+        /// over, apply <paramref name="uniqueCmd"/> and check the foreign keys of the table; foreign keys back on.
+        /// </summary>
+        /// <remarks>
+        /// With foreign keys on, DROP TABLE first deletes every row of the table. That runs the ON DELETE
+        /// action of every table that references it (and of the copy, for a self-reference): their rows are
+        /// deleted or set to NULL, or the drop fails. Foreign keys cannot be switched off inside a
+        /// transaction, so the rebuild runs outside the ambient transaction scope, in a transaction of its own.
+        /// <para>
+        /// A connection that already takes part in a transaction (the table was created in it a moment ago:
+        /// a new entity, a new or rebuilt application) rebuilds within it with foreign keys on. That is
+        /// safe only while the table has no rows, so it is refused otherwise.
+        /// </para>
+        /// </remarks>
+        private async Task RebuildTableAsync(string tableName, string rebuildCmd, string uniqueCmd)
+        {
+            using (var suppressScope = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled))
+            {
+                TryOpenConnection();
+
+                var tableLiteral = tableName.Replace("'", "''");
+                var ownTransaction = _databaseConnection.AutoCommit;
+
+                if (!ownTransaction &&
+                    (await ExecUnprefixedTableAsync($"SELECT 1 FROM [{tableName}] LIMIT 1;")).Rows.Count > 0)
+                {
+                    throw new InvalidOperationException($"The foreign keys of '{tableName}' cannot be changed in a transaction while it has records");
+                }
+
+                if (ownTransaction)
+                {
+                    await ExecUnprefixedNQAsync("PRAGMA foreign_keys=OFF;");
+                }
+
+                try
+                {
+                    if (ownTransaction)
+                    {
+                        await ExecUnprefixedNQAsync("BEGIN IMMEDIATE;");
+                    }
+
+                    // DROP TABLE removes the indexes and triggers of the table: keep their definitions
+                    var schema = await ExecUnprefixedTableAsync($@"SELECT sql FROM sqlite_master
+                                                                   WHERE tbl_name = '{tableLiteral}' COLLATE NOCASE
+                                                                   AND type IN ('index', 'trigger') AND sql IS NOT NULL;");
+
+                    var recreateCmd = string.Concat(schema.Rows.Cast<DataRow>().Select(row => $"{Convert.ToString(row["sql"])};"));
+
+                    // The copy's AUTOINCREMENT starts after its largest ID: without the old high-water mark the
+                    // IDs of deleted records, whose history is kept, would be handed out again.
+                    var sequence = await ExecUnprefixedTableAsync($"SELECT seq FROM sqlite_sequence WHERE name = '{tableLiteral}' COLLATE NOCASE;");
+                    var highWaterMark = sequence.Rows.Count > 0 ? Utils.GetNullLong(sequence.Rows[0]["seq"]) : null;
+
+                    var sequenceCmd = highWaterMark is null
+                        ? string.Empty
+                        : $@"UPDATE sqlite_sequence SET seq = {highWaterMark.Value} WHERE name = '{tableLiteral}' AND seq < {highWaterMark.Value};
+                             INSERT INTO sqlite_sequence (name, seq) SELECT '{tableLiteral}', {highWaterMark.Value}
+                             WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = '{tableLiteral}');";
+
+                    await ExecUnprefixedNQAsync(rebuildCmd + recreateCmd + sequenceCmd + uniqueCmd);
+
+                    // With foreign keys off nothing checked the rows against a foreign key just added
+                    var violations = await ExecUnprefixedTableAsync($"PRAGMA foreign_key_check('{tableLiteral}');");
+                    if (violations.Rows.Count > 0)
+                    {
+                        // What adding the foreign key answers with foreign keys on, and on the other databases
+                        throw new SQLiteException(SQLiteErrorCode.Constraint, "FOREIGN KEY constraint failed");
+                    }
+
+                    if (ownTransaction)
+                    {
+                        await ExecUnprefixedNQAsync("COMMIT;");
+                    }
+                }
+                catch
+                {
+                    if (ownTransaction && !_databaseConnection.AutoCommit)
+                    {
+                        await ExecUnprefixedNQAsync("ROLLBACK;");
+                    }
+
+                    throw;
+                }
+                finally
+                {
+                    if (ownTransaction)
+                    {
+                        await ExecUnprefixedNQAsync("PRAGMA foreign_keys=ON;");
+                    }
+                }
+
+                suppressScope.Complete();
+            }
+        }
+
+        /// <summary>
+        /// Runs a command as it is, on the open connection: without the <c>PRAGMA foreign_keys=on</c> every
+        /// other command of this repository starts with, and without joining the ambient transaction.
+        /// </summary>
+        private async Task ExecUnprefixedNQAsync(string cmd)
+        {
+            using (var command = new SQLiteCommand(_databaseConnection))
+            {
+                command.CommandType = CommandType.Text;
+                command.CommandText = cmd;
+                await command.ExecuteNonQueryAsync();
+            }
+        }
+
+        /// <summary>
+        /// The rows of a query run as it is: see <see cref="ExecUnprefixedNQAsync"/>.
+        /// </summary>
+        private Task<DataTable> ExecUnprefixedTableAsync(string cmd)
+        {
+            var adapter = GetLiteAdapter();
+            var datatable = new DataTable();
+            using (var command = new SQLiteCommand(_databaseConnection))
+            {
+                command.CommandType = CommandType.Text;
+                command.CommandText = cmd;
+                adapter.SelectCommand = command;
+                adapter.Fill(datatable);
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(datatable);
         }
 
         private static string GetForeignKeyConstraintsCommand(
@@ -525,9 +696,12 @@ namespace Apilane.Data.Repository
                 var propertiesString = tableColumns.Where(x => !x.IsPrimaryKey).Select(x => x.Name).ToList();
                 var propertiesStringCreate = tableColumns.Where(x => !x.IsPrimaryKey).Select(x => GetCreate(x.Name, x.Type, x.NotNull, x.NumDecimalPlaces)).ToList();
                 var fksCmd = sqliteForeighKeysStringCreate.Any() ? $",{string.Join(",", sqliteForeighKeysStringCreate)}" : string.Empty;
+                var columnsCmd = $"[ID],{string.Join(",", propertiesString.Select(x => $"[{x}]"))}";
+
+                // Run by RebuildTableAsync, which also re-creates what the DROP removes
                 finalCmd += $@"DROP TABLE IF EXISTS [{tableName}__backup__];
                                 CREATE TABLE [{tableName}__backup__]([ID] INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,{string.Join(",", propertiesStringCreate)}{fksCmd});
-                                INSERT INTO [{tableName}__backup__] SELECT [ID],{string.Join(",", propertiesString.Select(x => $"[{x}]"))} FROM [{tableName}];
+                                INSERT INTO [{tableName}__backup__] ({columnsCmd}) SELECT {columnsCmd} FROM [{tableName}];
                                 DROP TABLE [{tableName}];
                                 ALTER TABLE [{tableName}__backup__] RENAME TO [{tableName}];";
             }
@@ -549,7 +723,7 @@ namespace Apilane.Data.Repository
                 if (!incomingUniqueConstraints.Any(x => string.Join(",", x.GetUniqueProperties()).Equals(string.Join(",", currentConstraint.GetUniqueProperties()))))
                 {
                     // The constraint is deleted, remove it from database
-                    var constrainName = $"UNIQUE_{entityName}_{string.Join("_", currentConstraint.GetUniqueProperties())}";
+                    var constrainName = GetUniqueConstraintName(entityName, currentConstraint.GetUniqueProperties());
 
                     finalCmd += $"DROP INDEX IF EXISTS {constrainName};";
                 }
@@ -560,7 +734,7 @@ namespace Apilane.Data.Repository
                 if (!currentUniqueConstraints.Any(x => string.Join(",", x.GetUniqueProperties()).Equals(string.Join(",", incomingConstraint.GetUniqueProperties()))))
                 {
                     // The constraint does not exist, create it
-                    var constrainName = $"UNIQUE_{entityName}_{string.Join("_", incomingConstraint.GetUniqueProperties())}";
+                    var constrainName = GetUniqueConstraintName(entityName, incomingConstraint.GetUniqueProperties());
                     var properties = string.Join(",", incomingConstraint.GetUniqueProperties().Select(x => $"[{x}]"));
 
                     finalCmd += $"CREATE UNIQUE INDEX IF NOT EXISTS {constrainName} ON [{entityName}]({properties});";
@@ -568,6 +742,11 @@ namespace Apilane.Data.Repository
             }
 
             return finalCmd;
+        }
+
+        private static string GetUniqueConstraintName(string entityName, List<string> properties)
+        {
+            return $"UNIQUE_{entityName}_{string.Join("_", properties)}";
         }
 
         private static string GetFKLogic(ForeignKeyLogic logic) => logic switch
@@ -689,8 +868,11 @@ namespace Apilane.Data.Repository
         {
             string? strFilter = filter?.ToSqlExpression(entityName, DatabaseType.SQLLite);
 
-            var result = await ExecTableAsync($@"SELECT DISTINCT [{propertyName}] 
-                                                 FROM [{entityName}] {(string.IsNullOrWhiteSpace(strFilter) ? string.Empty : $"WHERE {strFilter}")}");
+            // At most one page of values, like every other read, in a fixed order
+            var result = await ExecTableAsync($@"SELECT DISTINCT [{propertyName}]
+                                                 FROM [{entityName}] {(string.IsNullOrWhiteSpace(strFilter) ? string.Empty : $"WHERE {strFilter}")}
+                                                 ORDER BY [{propertyName}]
+                                                 LIMIT {Globals.MaxPageSize}");
 
             return result.ToDictionary();
         }
@@ -711,27 +893,32 @@ namespace Apilane.Data.Repository
             var groupByProps = (group?.Properties?.Any() ?? false) ? $", + {string.Join(",", group.Properties.Select(x => $"{GetGroupExpression(x)} AS {SqlUtilis.QuoteIdentifier(x.Alias, DatabaseType.SQLLite)}"))}" : string.Empty;
             var groupByGroup = (group?.Properties?.Any() ?? false) ? $"GROUP BY {string.Join(",", group.Properties.Select(x => GetGroupExpression(x)))}" : string.Empty;
 
+            // Groups with equal aggregates are ordered by the group values, so that the pages do not overlap
+            var groupByOrder = (group?.Properties?.Any() ?? false) ? $", {string.Join(",", group.Properties.Select(x => GetGroupExpression(x)))}" : string.Empty;
+
             var dtResult = await ExecTableAsync($@"SELECT {sqlAggProps}
-                                        {groupByProps} 
-                                        FROM [{entityName}] 
-                                        {(string.IsNullOrWhiteSpace(strFilter) ? string.Empty : $"WHERE {strFilter} COLLATE NOCASE")} 
-                                        {groupByGroup} 
-                                        ORDER BY {sqlAggPropsOrder}
-                                        LIMIT {pageSize} OFFSET (({pageIndex} - 1) * {pageSize})");
+                                        {groupByProps}
+                                        FROM [{entityName}]
+                                        {(string.IsNullOrWhiteSpace(strFilter) ? string.Empty : $"WHERE {strFilter} COLLATE NOCASE")}
+                                        {groupByGroup}
+                                        ORDER BY {sqlAggPropsOrder}{groupByOrder}
+                                        LIMIT {pageSize} OFFSET {SqlUtilis.GetPagingOffset(pageIndex, pageSize)}");
 
             return dtResult.ToDictionary();
         }
 
         private static string GetGroupExpression(GroupData.GroupProperty property)
         {
+            // In UTC ('unixepoch' without 'localtime') and as integers, like the other databases: strftime
+            // answers text with leading zeros ('03').
             return property.Type switch
             {
-                GroupData.GroupByType.Date_Year => $"strftime('%Y', datetime([{property.Name}]/1000, 'unixepoch'))",
-                GroupData.GroupByType.Date_Month => $"strftime('%m', datetime([{property.Name}]/1000, 'unixepoch'))",
-                GroupData.GroupByType.Date_Day => $"strftime('%d', datetime([{property.Name}]/1000, 'unixepoch'))",
-                GroupData.GroupByType.Date_Hour => $"strftime('%H', datetime([{property.Name}]/1000, 'unixepoch'))",
-                GroupData.GroupByType.Date_Minute => $"strftime('%M', datetime([{property.Name}]/1000, 'unixepoch'))",
-                GroupData.GroupByType.Date_Second => $"strftime('%S', datetime([{property.Name}]/1000, 'unixepoch'))",
+                GroupData.GroupByType.Date_Year => $"CAST(strftime('%Y', datetime([{property.Name}]/1000, 'unixepoch')) AS INTEGER)",
+                GroupData.GroupByType.Date_Month => $"CAST(strftime('%m', datetime([{property.Name}]/1000, 'unixepoch')) AS INTEGER)",
+                GroupData.GroupByType.Date_Day => $"CAST(strftime('%d', datetime([{property.Name}]/1000, 'unixepoch')) AS INTEGER)",
+                GroupData.GroupByType.Date_Hour => $"CAST(strftime('%H', datetime([{property.Name}]/1000, 'unixepoch')) AS INTEGER)",
+                GroupData.GroupByType.Date_Minute => $"CAST(strftime('%M', datetime([{property.Name}]/1000, 'unixepoch')) AS INTEGER)",
+                GroupData.GroupByType.Date_Second => $"CAST(strftime('%S', datetime([{property.Name}]/1000, 'unixepoch')) AS INTEGER)",
                 _ => $"[{property.Name}]",
             };
         }
@@ -745,7 +932,7 @@ namespace Apilane.Data.Repository
 
             if (val is long longVal)
             {
-                return longVal.ToString();
+                return longVal.ToString(CultureInfo.InvariantCulture);
             }
 
             if (val is bool boolVal)
@@ -761,7 +948,7 @@ namespace Apilane.Data.Repository
 
             if (val is decimal decimalVal)
             {
-                return decimalVal.ToString().Replace(",", ".");
+                return decimalVal.ToString(CultureInfo.InvariantCulture);
             }
 
             // All the rest

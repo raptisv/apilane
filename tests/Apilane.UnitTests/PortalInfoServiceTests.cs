@@ -1,4 +1,6 @@
 using Apilane.Api.Core.Configuration;
+using Apilane.Api.Core.Enums;
+using Apilane.Api.Core.Exceptions;
 using Apilane.Api.Core.Services;
 using Apilane.Common;
 using Microsoft.Extensions.Configuration;
@@ -38,6 +40,22 @@ namespace Apilane.UnitTests
 
             Assert.AreEqual(AppToken, application.Token);
             Assert.AreEqual("Shop", application.Name);
+        }
+
+        [TestMethod]
+        [DataRow("null")]
+        [DataRow("")]
+        public async Task GetApplicationAsync_UnknownToken_Should_Be_NotFound(string answer)
+        {
+            // Arrange: the Portal answers 'null' for a token that is nobody's application
+            var portal = new RecordingHandler(answer);
+
+            // Act
+            var ex = await Assert.ThrowsExactlyAsync<ApilaneException>(() => CreateService(portal).GetApplicationAsync(AppToken));
+
+            // Assert: a clear error, which the API server caches briefly, instead of 'Something went wrong'
+            Assert.AreEqual(AppErrors.NOT_FOUND, ex.Error);
+            Assert.AreEqual("Application not found", ex.CustomMessage);
         }
 
         [TestMethod]
@@ -110,8 +128,26 @@ namespace Apilane.UnitTests
             Assert.IsTrue(await service.UserOwnsApplicationAsync("user-token", AppToken));
             portal.StatusCode = HttpStatusCode.ServiceUnavailable;
 
-            await Assert.ThrowsAsync<Exception>(() => service.UserOwnsApplicationAsync("user-token", AppToken));
+            var ex = await Assert.ThrowsExactlyAsync<ApilaneException>(() => service.UserOwnsApplicationAsync("user-token", AppToken));
+            Assert.AreEqual(AppErrors.SERVICE_UNAVAILABLE, ex.Error);
             Assert.HasCount(2, portal.Requests);
+        }
+
+        [TestMethod]
+        public async Task UserOwnsApplicationAsync_PortalUnreachable_Should_Say_So()
+        {
+            // Arrange: the Portal is down
+            var portal = new RecordingHandler("true")
+            {
+                Failure = new HttpRequestException("No connection could be made")
+            };
+
+            // Act
+            var ex = await Assert.ThrowsExactlyAsync<ApilaneException>(() => CreateService(portal).UserOwnsApplicationAsync("user-token", AppToken));
+
+            // Assert: the usual error body, with a reason, instead of 'Something went wrong'
+            Assert.AreEqual(AppErrors.SERVICE_UNAVAILABLE, ex.Error);
+            Assert.AreEqual("The API server could not reach the Portal", ex.CustomMessage);
         }
 
         [TestMethod]
@@ -149,13 +185,14 @@ namespace Apilane.UnitTests
         }
 
         /// <summary>
-        /// Stands in for the Portal: answers every request with 200 and the given JSON, and keeps
-        /// the requests it got.
+        /// Stands in for the Portal: answers every request with 200 and the given JSON (or fails
+        /// with <see cref="Failure"/>), and keeps the requests it got.
         /// </summary>
         private sealed class RecordingHandler : HttpMessageHandler
         {
             public string Json { get; set; }
             public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
+            public Exception? Failure { get; set; }
 
             public RecordingHandler(string json)
             {
@@ -167,6 +204,11 @@ namespace Apilane.UnitTests
             protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
             {
                 Requests.Add(request);
+
+                if (Failure is not null)
+                {
+                    return Task.FromException<HttpResponseMessage>(Failure);
+                }
 
                 return Task.FromResult(new HttpResponseMessage(StatusCode)
                 {

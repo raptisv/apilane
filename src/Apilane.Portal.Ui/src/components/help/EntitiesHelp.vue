@@ -10,7 +10,7 @@ import HelpSheet from '@/components/HelpSheet.vue'
   >
     <HelpItem title="What you can do here" open>
       <ul>
-        <li><strong>New entity</strong> adds a table for a new kind of record.</li>
+        <li><strong>New entity</strong> adds a table for a new kind of record and opens its properties, to add its columns.</li>
         <li>
           The menu of each row opens its <strong>Properties</strong> (the columns), <strong>Constraints</strong> (unique
           values and links to other entities) and <strong>Default sorting</strong>.

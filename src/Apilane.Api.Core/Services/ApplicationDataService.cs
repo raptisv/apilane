@@ -9,6 +9,7 @@ using Apilane.Common.Extensions;
 using Apilane.Common.Models;
 using Apilane.Common.Utilities;
 using Apilane.Data.Abstractions;
+using Apilane.Data.Extensions;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -369,6 +370,11 @@ namespace Apilane.Api.Core.Services
                     propertyValues[prop.Name] = GetPropertyValue(differentiationEntity, applicationEncryptionKey, entity, prop, newObject, Data_UserSecurity.User);
                 }
 
+                if (entity.Name.Equals(nameof(Users)))
+                {
+                    await EnsureUniqueUserNameAndEmailAsync(entity, propertyValues, ID);
+                }
+
                 var filter = GetSystemFilters(userHasFullAccess, differentiationEntity, entity, Data_UserSecurity);
                 filter.Add(new FilterData(Globals.PrimaryKeyColumn, FilterData.FilterOperators.equal, ID, PropertyType.Number));
 
@@ -424,7 +430,8 @@ namespace Apilane.Api.Core.Services
                 throw new ApilaneException(AppErrors.NO_RECORDS_FOUND_TO_DELETE, entity: entity.Name);
             }
 
-            List<int> IDS = Ids.Split(',').Select(x => Utils.GetInt(x)).Where(x => x > 0).ToList();
+            // IDs are long, as in GetByID and Put: an ID above int.MaxValue was dropped without notice
+            List<long> IDS = Ids.Split(',').Select(x => Utils.GetLong(x)).Where(x => x > 0).ToList();
 
             if (IDS.Count == 0)
             {
@@ -597,16 +604,12 @@ namespace Apilane.Api.Core.Services
                             {
                                 var strValue = Utils.GetString(item.Value);
 
-                                // Validate
-                                if (!decimal.TryParse(strValue, out decimal n))
+                                // One reading for the check and for the value stored. They used to differ: '1,000' was
+                                // checked as 1000 in the server's culture and stored as 1, and '1,234,567.89' as 0.
+                                if (!TryParseNumber(strValue, out decimal number))
                                 {
-                                    if (!decimal.TryParse(strValue, NumberStyles.Float, null, out n))
-                                    {
-                                        throw new ApilaneException(AppErrors.VALIDATION, $"Invalid number", property: property.Name, entity: entity.Name);
-                                    }
+                                    throw new ApilaneException(AppErrors.VALIDATION, $"Invalid number", property: property.Name, entity: entity.Name);
                                 }
-
-                                decimal number = Utils.GetDecimal(strValue, 0);
 
                                 if (property.Minimum.HasValue && number < property.Minimum.Value)
                                 {
@@ -622,9 +625,14 @@ namespace Apilane.Api.Core.Services
                             }
                         case PropertyType.Boolean:
                             {
-                                var strValue = Utils.GetString(item.Value);
-
-                                return Utils.GetBool(strValue);
+                                // true or false (the JSON literal or text, in any case), or 1 or 0. Anything else
+                                // ('yes', 2, 'abc') used to be stored as false.
+                                return Utils.GetString(item.Value).ToLowerInvariant() switch
+                                {
+                                    "true" or "1" => true,
+                                    "false" or "0" => false,
+                                    _ => throw new ApilaneException(AppErrors.VALIDATION, "Invalid boolean", property: property.Name, entity: entity.Name)
+                                };
                             }
                         case PropertyType.Date:
                             {
@@ -634,7 +642,7 @@ namespace Apilane.Api.Core.Services
 
                                 if (!dateResult.HasValue)
                                 {
-                                    throw new ApilaneException(AppErrors.VALIDATION, $"The value provided is not a valid unix timestamp or date in format {Globals.DateTimeMsFormat}", property: property.Name, entity: entity.Name);
+                                    throw new ApilaneException(AppErrors.VALIDATION, $"The value provided is not a valid unix timestamp, a date in format {Globals.DateTimeMsFormat} or an ISO 8601 date (2026-01-02T03:04:05Z)", property: property.Name, entity: entity.Name);
                                 }
 
                                 return Utils.GetUnixTimestampMilliseconds(dateResult.Value);
@@ -646,6 +654,78 @@ namespace Apilane.Api.Core.Services
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// A Number of a request, read the same on every server: '.' is the decimal separator, with an optional sign
+        /// and exponent and no group separators. A single comma is still read as the decimal separator ('12,5'), but
+        /// only where it cannot be a group separator: the value has no other comma and no dot, and the comma is not
+        /// followed by exactly three digits ('1,000' is one thousand in English and one in German, so it is refused).
+        /// </summary>
+        private static bool TryParseNumber(string value, out decimal number)
+        {
+            var comma = value.IndexOf(',');
+
+            if (comma >= 0 &&
+                value.IndexOf(',', comma + 1) < 0 &&
+                !value.Contains('.'))
+            {
+                var decimals = value[(comma + 1)..];
+
+                if (!(decimals.Length == 3 && decimals.All(char.IsAsciiDigit)))
+                {
+                    value = value.Replace(',', '.');
+                }
+            }
+
+            return decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out number);
+        }
+
+        /// <summary>
+        /// Login and the e-mail endpoints find a user by Email or Username without regard to case, while the unique
+        /// index of the column ignores case only on some databases (SQL Server and MySQL, not SQLite and PostgreSQL).
+        /// A value another user already has, in any case, is refused the way the index refuses an exact duplicate.
+        /// <paramref name="userId"/> is the user being changed, null for a new one.
+        /// </summary>
+        public async Task EnsureUniqueUserNameAndEmailAsync(DBWS_Entity usersEntity, Dictionary<string, object?> userValues, long? userId)
+        {
+            // A required value that is missing fails the write (REQUIRED), and the database reported it before a
+            // duplicate: that order is kept
+            if (usersEntity.Properties.Any(x => x.Required && userValues.TryGetValue(x.Name, out var requiredValue) && requiredValue is null))
+            {
+                return;
+            }
+
+            foreach (var propertyName in new[] { nameof(Users.Email), nameof(Users.Username) })
+            {
+                if (!userValues.TryGetValue(propertyName, out var value) ||
+                    value is not string text ||
+                    string.IsNullOrEmpty(text))
+                {
+                    continue;
+                }
+
+                var filters = new List<FilterData>()
+                {
+                    new(propertyName, FilterData.FilterOperators.equal, text, PropertyType.String)
+                };
+
+                if (userId.HasValue)
+                {
+                    filters.Add(new(nameof(Users.ID), FilterData.FilterOperators.notequal, userId.Value, PropertyType.Number));
+                }
+
+                var existing = await _dataStore.GetPagedDataAsync(
+                    nameof(Users),
+                    new List<string>() { nameof(Users.ID) },
+                    new FilterData(FilterData.FilterLogic.AND, filters),
+                    null, 1, 1);
+
+                if (existing.Count > 0)
+                {
+                    throw new ApilaneException(AppErrors.UNIQUE_CONSTRAINT_VIOLATION, "Value already exists", property: propertyName, entity: nameof(Users));
+                }
+            }
         }
 
         // A body with a property under two spellings ({"Price":1,"price":2}) has no single value to write: one of the
@@ -715,6 +795,12 @@ namespace Apilane.Api.Core.Services
 
                         // Fill filter with properties types
                         FillFilterPropertiesTypeRecursively(entity, result);
+
+                        // The values are checked where the data layer writes the SQL, long after this catch. Write it
+                        // once here (and throw it away), so that a value that does not fit its property ('abc' for a
+                        // Number, a date in an unknown format, null with 'greater') answers INVALID_FILTER_PARAMETER
+                        // with the reason, not a general error. Every database type checks the values the same way.
+                        _ = result.ToSqlExpression(entity.Name, DatabaseType.SQLLite);
                     }
 
                     return result;
@@ -766,6 +852,26 @@ namespace Apilane.Api.Core.Services
             string? sortString,
             List<DBWS_Security> security)
         {
+            return ParseSortData(entity, sortString, security, ignoreUnknownProperties: false);
+        }
+
+        /// <summary>
+        /// The default order of the entity, for a request that names none. It was saved with the entity and can still
+        /// name a property that was renamed or deleted since: such a property is left out, as before, not refused.
+        /// </summary>
+        public List<SortData>? GetDefaultSortData(
+            DBWS_Entity entity,
+            List<DBWS_Security> security)
+        {
+            return ParseSortData(entity, entity.EntDefaultOrder, security, ignoreUnknownProperties: true);
+        }
+
+        private List<SortData>? ParseSortData(
+            DBWS_Entity entity,
+            string? sortString,
+            List<DBWS_Security> security,
+            bool ignoreUnknownProperties)
+        {
             try
             {
                 if (!string.IsNullOrWhiteSpace(sortString))
@@ -787,8 +893,14 @@ namespace Apilane.Api.Core.Services
 
                             if (entityProperty is null)
                             {
-                                // Unknown properties were silently ignored before; keep that behaviour.
-                                continue;
+                                // A request that sorts by a property that does not exist is refused like one it may not
+                                // use: ignoring it answered records in another order than asked, without a word.
+                                if (ignoreUnknownProperties)
+                                {
+                                    continue;
+                                }
+
+                                throw new FormatException($"Invalid sort parameter. Property '{item.Property}' does not exist");
                             }
 
                             // Compare case-insensitively: the property match above is case-insensitive too,
@@ -811,6 +923,11 @@ namespace Apilane.Api.Core.Services
 
                         var entityProperty = entity.Properties
                             .FirstOrDefault(p => p.Name.Equals(Utils.GetString(sortDataItem.Property), StringComparison.OrdinalIgnoreCase));
+
+                        if (entityProperty is null && !ignoreUnknownProperties)
+                        {
+                            throw new FormatException($"Invalid sort parameter. Property '{sortDataItem.Property}' does not exist");
+                        }
 
                         if (entityProperty is not null)
                         {

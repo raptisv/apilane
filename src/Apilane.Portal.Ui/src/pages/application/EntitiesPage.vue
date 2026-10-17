@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { PlusIcon, SearchIcon, SearchXIcon, TablePropertiesIcon, TriangleAlertIcon } from '@lucide/vue'
 import { computed, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import ConfirmByNameDialog from '@/components/ConfirmByNameDialog.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import FormDialog from '@/components/FormDialog.vue'
@@ -17,13 +18,14 @@ import { useApplication } from '@/composables/useApplication'
 import { useAsync } from '@/composables/useAsync'
 import { useMutation } from '@/composables/useMutation'
 import { api, unwrap } from '@/lib/api'
-import { filterEntities } from '@/lib/entities'
+import { filterEntities, referencingEntity } from '@/lib/entities'
 import type { Entity } from '@/lib/entities'
 import { formErrors } from '@/lib/forms'
 import * as toast from '@/lib/toast'
 import EntityTable from './EntityTable.vue'
 
 const { application } = useApplication()
+const router = useRouter()
 
 // Who may call each entity: the rows show it as an icon next to the name.
 provideAccessSummaries()
@@ -56,15 +58,21 @@ function anyMatches(list: Entity[]): boolean {
   return list.some((entity) => matching.value.has(entity.Name))
 }
 
+// The entity whose foreign key points to each entity: the API refuses to rename or delete one while it is referenced.
+const referencedBy = computed(
+  () => new Map(entities.value.map((entity) => [entity.Name, referencingEntity(entity.Name, entities.value)] as const)),
+)
+
 const changeTrackingHelp =
   'Keeps a history record of every update of a record. History can be browsed and deleted in the data browser. It slows updates down noticeably: use it only for entities that are not updated often.'
 
-// New entity
+// New entity. The answer is the entity as stored, for its name in the address of its properties.
 const createOpen = ref(false)
 const createForm = reactive({ Name: '', Description: '', RequireChangeTracking: false, HasDifferentiationProperty: false })
+let created: Entity | undefined
 
-const create = useMutation(() =>
-  unwrap(
+const create = useMutation(async () => {
+  created = await unwrap(
     api.POST('/api/v1/applications/{appToken}/entities', {
       params: { path: { appToken } },
       body: {
@@ -75,8 +83,8 @@ const create = useMutation(() =>
         HasDifferentiationProperty: Boolean(application.value.DifferentiationEntity) && createForm.HasDifferentiationProperty,
       },
     }),
-  ),
-)
+  )
+})
 const createErrors = computed(() =>
   formErrors(create.error.value, ['Name', 'Description', 'RequireChangeTracking', 'HasDifferentiationProperty']),
 )
@@ -88,12 +96,13 @@ function openCreate(): void {
 }
 
 async function submitCreate(): Promise<boolean> {
-  if (!(await create.run())) {
+  if (!(await create.run()) || !created) {
     return false
   }
 
-  toast.success(`Entity ${createForm.Name.trim()} created.`)
-  void reload()
+  toast.success(`Entity ${created.Name} created.`)
+  // A new entity has only its system properties: adding its own is always the next step.
+  void router.push({ name: 'app-entity-properties', params: { appToken, entity: created.Name } })
   return true
 }
 
@@ -232,12 +241,27 @@ async function submitDelete(): Promise<boolean> {
           </Button>
         </StateMessage>
 
-        <EntityTable v-else :entities="custom" :matching="matching" @edit="openEdit" @rename="openRename" @delete="openDelete" />
+        <EntityTable
+          v-else
+          :entities="custom"
+          :matching="matching"
+          :referenced-by="referencedBy"
+          @edit="openEdit"
+          @rename="openRename"
+          @delete="openDelete"
+        />
       </section>
 
       <section v-if="system.length > 0" v-show="anyMatches(system)" aria-labelledby="system-entities">
         <h2 id="system-entities" class="mb-3 text-sm font-semibold">System entities</h2>
-        <EntityTable :entities="system" :matching="matching" @edit="openEdit" @rename="openRename" @delete="openDelete" />
+        <EntityTable
+          :entities="system"
+          :matching="matching"
+          :referenced-by="referencedBy"
+          @edit="openEdit"
+          @rename="openRename"
+          @delete="openDelete"
+        />
       </section>
     </div>
   </template>

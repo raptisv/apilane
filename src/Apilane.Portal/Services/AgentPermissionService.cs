@@ -20,7 +20,7 @@ namespace Apilane.Portal.Services
     {
         private static readonly AgentPermissionResource[] Resources =
         {
-            new() { Resource = AgentPermissionResources.Application, Name = "Application settings", Description = "Change general settings, application status and reset the cache. Basic application information is always visible; agents cannot delete applications.", CanWrite = true },
+            new() { Resource = AgentPermissionResources.Application, Name = "Application settings", Description = "Rename the application, change its status and reset the cache. Basic application information is always visible; agents cannot change the connection string or delete applications.", CanWrite = true },
             new() { Resource = AgentPermissionResources.Entities, Name = "Entities and properties", Description = "Entities, properties, constraints and default sorting. Agents cannot rename entities or properties. Delete can remove entities and properties with their data.", CanRead = true, CanWrite = true, CanDelete = true },
             new() { Resource = AgentPermissionResources.Security, Name = "Security", Description = "Authentication settings and access rules, including referenced entity, property and endpoint names and types.", CanRead = true, CanWrite = true },
             new() { Resource = AgentPermissionResources.CustomEndpoints, Name = "Custom endpoints", Description = "Custom endpoint definitions and query preview.", CanRead = true, CanWrite = true, CanDelete = true },
@@ -67,6 +67,7 @@ namespace Apilane.Portal.Services
                     "Agents cannot access administration endpoints or change constraints of system entities.",
                     "Agents cannot rename entities or properties, regardless of their grants.",
                     "Agents cannot change application mail settings, including SMTP and the email confirmation redirect.",
+                    "Agents cannot change the connection string of an application; leave ConnectionString out to rename it.",
                     "Agents cannot obtain application encryption keys or Portal API-server tokens.",
                     "Application permissions do not grant API-server access to records, files, record history, statistics, email templates or SQL execution."
                 } : new List<string>()

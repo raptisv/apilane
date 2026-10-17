@@ -4,7 +4,8 @@
  * they can be unit-tested (filterBuilder.test.ts).
  *
  * The data browser's column filters (filterOperators and filterParam of lib/records.ts) write the
- * same JSON shape but offer only 'contains' and 'equal'; the builder offers every operator.
+ * same JSON shape but offer only 'contains', 'equal', 'greaterorequal' and 'lessorequal' (and send a
+ * typed date as a span with 'less'); the builder offers every operator.
  */
 
 /** Every operator of the data API, by its first name, in the order the builder offers them (FilterData.FilterOperators). */

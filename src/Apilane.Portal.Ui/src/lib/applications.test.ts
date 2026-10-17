@@ -1,6 +1,24 @@
-import { describe, expect, it } from 'vitest'
-import { databaseTypeLabel, databaseTypes, filterByName, formatStorage, groupByServer, needsConnectionString } from './applications'
+import { describe, expect, it, vi } from 'vitest'
+import { router } from '@/router'
+import {
+  applicationSections,
+  databaseTypeLabel,
+  databaseTypes,
+  filterByName,
+  formatStorage,
+  groupByServer,
+  needsConnectionString,
+  sectionOf,
+  switcherTarget,
+} from './applications'
 import type { Application, ApplicationServer } from './applications'
+
+// The sections are checked against the route table, which keeps its history in memory without a browser.
+vi.mock('vue-router', async (original) => {
+  const module = await original<typeof import('vue-router')>()
+
+  return { ...module, createWebHistory: module.createMemoryHistory }
+})
 
 const alpha: ApplicationServer = { ID: 2, Name: 'Alpha', ServerUrl: 'https://alpha.example.com' }
 const beta: ApplicationServer = { ID: 1, Name: 'beta', ServerUrl: 'https://beta.example.com' }
@@ -114,5 +132,61 @@ describe('databaseTypeLabel', () => {
 describe('needsConnectionString', () => {
   it('is false for SQLite only', () => {
     expect(databaseTypes.filter((type) => !needsConnectionString(type))).toEqual(['SQLLite'])
+  })
+})
+
+describe('applicationSections', () => {
+  it('names the route of each section, which opens at /apps/<token>/<segment>', () => {
+    for (const section of applicationSections) {
+      const target = router.resolve({ name: section.name, params: { appToken: 'A1' } })
+
+      expect(target.path).toBe(`/apps/A1/${section.segment}`)
+      expect(target.meta.requiresOwner === true).toBe(section.ownerOnly === true)
+    }
+  })
+})
+
+describe('sectionOf', () => {
+  it('finds the section of an address and of the screens below it, whatever the letter case', () => {
+    expect(sectionOf('/apps/A1/security')?.name).toBe('app-security')
+    expect(sectionOf('/apps/A1/entities/Orders/constraints')?.name).toBe('app-entities')
+    expect(sectionOf('/apps/A1/endpoints/12')?.name).toBe('app-endpoints')
+    expect(sectionOf('/apps/A1/reports/3/edit')?.name).toBe('app-reports')
+    expect(sectionOf('/apps/A1/import')?.name).toBe('app-schema-import')
+    expect(sectionOf('/Apps/A1/Audit-Log')?.name).toBe('app-audit-log')
+  })
+
+  it('finds none outside the sections of an application', () => {
+    expect(sectionOf('/apps/A1/clone')).toBeUndefined()
+    expect(sectionOf('/apps/A1')).toBeUndefined()
+    expect(sectionOf('/apps')).toBeUndefined()
+    expect(sectionOf('/apps/import')).toBeUndefined()
+    expect(sectionOf('/admin/applications/A1/data')).toBeUndefined()
+  })
+})
+
+describe('switcherTarget', () => {
+  const owned = { Token: 'B2', IsOwner: true }
+  const shared = { Token: 'B2', IsOwner: false }
+
+  it('opens the section the user is on, with nothing of the application being left', () => {
+    expect(switcherTarget('/apps/A1/security', owned)).toEqual({ name: 'app-security', params: { appToken: 'B2' } })
+    expect(switcherTarget('/apps/A1/data/Orders', owned)).toEqual({ name: 'app-data', params: { appToken: 'B2' } })
+    expect(switcherTarget('/apps/A1/entities/Orders/sorting', owned)).toEqual({ name: 'app-entities', params: { appToken: 'B2' } })
+    expect(switcherTarget('/apps/A1/endpoints/12', owned)).toEqual({ name: 'app-endpoints', params: { appToken: 'B2' } })
+    expect(switcherTarget('/apps/A1/reports/new', owned)).toEqual({ name: 'app-reports', params: { appToken: 'B2' } })
+    expect(switcherTarget('/apps/A1/import', shared)).toEqual({ name: 'app-schema-import', params: { appToken: 'B2' } })
+  })
+
+  it('opens Sharing only for an application the user owns', () => {
+    expect(switcherTarget('/apps/A1/sharing', owned).name).toBe('app-sharing')
+    expect(switcherTarget('/apps/A1/sharing', shared).name).toBe('app-entities')
+  })
+
+  it('opens Entities from an address in no section', () => {
+    expect(switcherTarget('/apps/A1/clone/abc', owned).name).toBe('app-entities')
+    expect(switcherTarget('/apps', owned).name).toBe('app-entities')
+    expect(switcherTarget('/admin/applications/A1/data/Orders', owned).name).toBe('app-entities')
+    expect(switcherTarget('/mcp/connections', owned).name).toBe('app-entities')
   })
 })

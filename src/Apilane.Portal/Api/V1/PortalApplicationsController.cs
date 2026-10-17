@@ -61,7 +61,11 @@ namespace Apilane.Portal.Api.V1
         /// Creates an application from the application.json of an export, on the chosen API server
         /// and database, owned by the caller. Sent as multipart/form-data. The application keeps the
         /// token and the encryption key of the file; IDs, owner, collaborators and server in the file
-        /// are ignored. Answers 400 VALIDATION on File for a missing, empty or unreadable file, 409
+        /// are ignored. Entities other than the system ones (Users, AuthTokens, Files, the
+        /// differentiation entity) are stored as custom entities whatever flags the file gives them.
+        /// Answers 400 VALIDATION on File for a missing, empty or unreadable file, and for a file with
+        /// a value the Portal's editors refuse (a setting out of range, a client address, a name or a
+        /// property type, a constraint, a security rule), naming its place in the file, 409
         /// CONFLICT when an application with that token exists on this instance, 404 for an unknown
         /// ServerID, 400 VALIDATION on ConnectionString with the API server's own message when it
         /// refuses the database, and 502 UPSTREAM_ERROR when the API server cannot be reached or fails.

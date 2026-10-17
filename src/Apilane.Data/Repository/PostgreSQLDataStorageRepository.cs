@@ -10,7 +10,10 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -18,6 +21,9 @@ namespace Apilane.Data.Repository
 {
     public class PostgreSQLDataStorageRepository : IDataStorageRepository
     {
+        // The longest identifier PostgreSQL keeps (NAMEDATALEN - 1): it cuts longer ones
+        private const int MaxIdentifierLength = 63;
+
         private string _connectionString;
         private NpgsqlConnection _databaseConnection = null!;
 
@@ -84,7 +90,7 @@ namespace Apilane.Data.Repository
 
             using (var command = _databaseConnection.CreateCommand())
             {
-                command.CommandTimeout = 0;
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(0);
                 command.CommandType = CommandType.Text;
                 command.CommandText = cmdTotal;
                 using (var reader = command.ExecuteReader())
@@ -105,7 +111,7 @@ namespace Apilane.Data.Repository
 
             using (DbCommand command = _databaseConnection.CreateCommand())
             {
-                command.CommandTimeout = 0;
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(0);
                 command.CommandType = CommandType.Text;
                 command.CommandText = cmd;
                 return await command.ExecuteScalarAsync();
@@ -118,7 +124,7 @@ namespace Apilane.Data.Repository
 
             using (DbCommand command = _databaseConnection.CreateCommand())
             {
-                command.CommandTimeout = 0;
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(0);
                 command.CommandType = CommandType.Text;
                 command.CommandText = cmd;
                 return await command.ExecuteNonQueryAsync();
@@ -133,7 +139,7 @@ namespace Apilane.Data.Repository
             DataTable datatable = new DataTable();
             using (DbCommand command = _databaseConnection.CreateCommand())
             {
-                command.CommandTimeout = 0;
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(0);
                 command.CommandType = CommandType.Text;
                 command.CommandText = cmd;
                 adapter.SelectCommand = command;
@@ -151,6 +157,7 @@ namespace Apilane.Data.Repository
             DataSet dataSet = new DataSet();
             using (DbCommand command = _databaseConnection.CreateCommand())
             {
+                command.CommandTimeout = TransactionEnlistment.GetCommandTimeout(command.CommandTimeout);
                 command.CommandText = cmd;
                 adapter.SelectCommand = command;
                 adapter.Fill(dataSet);
@@ -176,8 +183,8 @@ namespace Apilane.Data.Repository
                 tables,
                 string.IsNullOrWhiteSpace(filter) ? string.Empty : $"WHERE {filter}",
                 string.IsNullOrWhiteSpace(group) ? string.Empty : $"GROUP BY {group}",
-                string.IsNullOrWhiteSpace(sort) ? $"ORDER BY \"{primaryKey}\"" : $"ORDER BY {sort}",
-                (pageSize <= 0 || pageIndex <= 0) ? string.Empty : $"LIMIT {pageSize} OFFSET (({pageIndex} - 1) * {pageSize})");
+                SqlUtilis.GetPagingOrderBy(sort, $"\"{primaryKey}\""),
+                (pageSize <= 0 || pageIndex <= 0) ? string.Empty : $"LIMIT {pageSize} OFFSET {SqlUtilis.GetPagingOffset(pageIndex, pageSize)}");
 
             return await ExecTableAsync(cmdData);
         }
@@ -201,9 +208,49 @@ namespace Apilane.Data.Repository
                                 );");
         }
 
-        public Task RenameTableAsync(string oldTableName, string newTableName)
+        public Task RenameTableAsync(string oldTableName, string newTableName, List<EntityConstraint> constraints)
         {
-            return ExecNQAsync($@"ALTER TABLE ""{oldTableName}"" RENAME TO ""{newTableName}"";");
+            var cmd = $@"ALTER TABLE ""{oldTableName}"" RENAME TO ""{newTableName}"";";
+
+            // The constraint names carry the entity name, and a later save of the constraints drops and
+            // creates them by that name: rename them with the table. A constraint is renamed only when it
+            // exists and its new name is free (the index of a unique constraint is named per schema), so
+            // the errors for those two cases are ignored. A long name can be in the database as it was cut
+            // before names got a hash: the hashed name is tried first, then the cut one.
+            foreach (var constraint in constraints)
+            {
+                string oldFullName;
+                string newFullName;
+
+                if (constraint.TypeID == (int)ConstraintType.ForeignKey)
+                {
+                    oldFullName = GetForeignKeyConstraintFullName(oldTableName, constraint);
+                    newFullName = GetForeignKeyConstraintFullName(newTableName, constraint);
+                }
+                else if (constraint.TypeID == (int)ConstraintType.Unique && constraint.GetUniqueProperties().Count > 0)
+                {
+                    oldFullName = GetUniqueConstraintFullName(oldTableName, constraint);
+                    newFullName = GetUniqueConstraintFullName(newTableName, constraint);
+                }
+                else
+                {
+                    continue;
+                }
+
+                var newName = GetConstraintName(newFullName);
+
+                foreach (var oldName in new[] { GetConstraintName(oldFullName), GetLegacyConstraintName(oldFullName) }.Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    cmd += $@"DO $$
+                              BEGIN
+                                  ALTER TABLE ""{newTableName}"" RENAME CONSTRAINT {oldName} TO {newName};
+                              EXCEPTION WHEN undefined_object OR duplicate_object OR duplicate_table THEN
+                                  NULL;
+                              END $$;";
+                }
+            }
+
+            return ExecNQAsync(cmd);
         }
 
         public Task DropTableAsync(string tableName)
@@ -331,15 +378,20 @@ namespace Apilane.Data.Repository
 
             incomingForeignKeyConstraints = incomingForeignKeyConstraints.DistinctBy(x => string.Join("_", x.GetForeignKeyPropertiesAsList())).ToList();
 
+            var keptFullNames = currentForeignKeyConstraints
+                .Where(c => incomingForeignKeyConstraints.Any(x => string.Join(",", x.GetForeignKeyPropertiesAsList()).Equals(string.Join(",", c.GetForeignKeyPropertiesAsList()))))
+                .Select(c => GetForeignKeyConstraintFullName(entityName, c))
+                .ToList();
+
             foreach (var currentConstraint in currentForeignKeyConstraints)
             {
                 if (!incomingForeignKeyConstraints.Any(x => string.Join(",", x.GetForeignKeyPropertiesAsList()).Equals(string.Join(",", currentConstraint.GetForeignKeyPropertiesAsList()))))
                 {
                     // The constraint is deleted, remove it from database
-                    var constrainName = $"FOREIGN_KEY_{entityName}_{string.Join("_", currentConstraint.GetForeignKeyPropertiesAsList())}";
-                    constrainName = constrainName.Length > 63 ? constrainName.Substring(0, 63) : constrainName;
-
-                    finalCmd += $@"ALTER TABLE ""{entityName}"" DROP CONSTRAINT IF EXISTS {constrainName};";
+                    foreach (var constrainName in GetConstraintNamesToDrop(GetForeignKeyConstraintFullName(entityName, currentConstraint), keptFullNames))
+                    {
+                        finalCmd += $@"ALTER TABLE ""{entityName}"" DROP CONSTRAINT IF EXISTS {constrainName};";
+                    }
                 }
             }
 
@@ -348,8 +400,7 @@ namespace Apilane.Data.Repository
                 if (!currentForeignKeyConstraints.Any(x => string.Join(",", x.GetForeignKeyPropertiesAsList()).Equals(string.Join(",", incomingConstraint.GetForeignKeyPropertiesAsList()))))
                 {
                     // The constraint does not exist, create it
-                    var constrainName = $"FOREIGN_KEY_{entityName}_{string.Join("_", incomingConstraint.GetForeignKeyPropertiesAsList())}";
-                    constrainName = constrainName.Length > 63 ? constrainName.Substring(0, 63) : constrainName;
+                    var constrainName = GetConstraintName(GetForeignKeyConstraintFullName(entityName, incomingConstraint));
 
                     var properties = incomingConstraint.GetForeignKeyProperties();
 
@@ -371,15 +422,20 @@ namespace Apilane.Data.Repository
 
             incomingUniqueConstraints = incomingUniqueConstraints.DistinctBy(x => string.Join("_", x.GetUniqueProperties())).ToList();
 
+            var keptFullNames = currentUniqueConstraints
+                .Where(c => incomingUniqueConstraints.Any(x => string.Join(",", x.GetUniqueProperties()).Equals(string.Join(",", c.GetUniqueProperties()))))
+                .Select(c => GetUniqueConstraintFullName(entityName, c))
+                .ToList();
+
             foreach (var currentConstraint in currentUniqueConstraints)
             {
                 if (!incomingUniqueConstraints.Any(x => string.Join(",", x.GetUniqueProperties()).Equals(string.Join(",", currentConstraint.GetUniqueProperties()))))
                 {
                     // The constraint is deleted, remove it from database
-                    var constrainName = $"UNIQUE_{entityName}_{string.Join("_", currentConstraint.GetUniqueProperties())}";
-                    constrainName = constrainName.Length > 63 ? constrainName.Substring(0, 63) : constrainName;
-
-                    finalCmd += $@"ALTER TABLE ""{entityName}"" DROP CONSTRAINT IF EXISTS {constrainName};";
+                    foreach (var constrainName in GetConstraintNamesToDrop(GetUniqueConstraintFullName(entityName, currentConstraint), keptFullNames))
+                    {
+                        finalCmd += $@"ALTER TABLE ""{entityName}"" DROP CONSTRAINT IF EXISTS {constrainName};";
+                    }
                 }
             }
 
@@ -388,8 +444,7 @@ namespace Apilane.Data.Repository
                 if (!currentUniqueConstraints.Any(x => string.Join(",", x.GetUniqueProperties()).Equals(string.Join(",", incomingConstraint.GetUniqueProperties()))))
                 {
                     // The constraint does not exist, create it
-                    var constrainName = $"UNIQUE_{entityName}_{string.Join("_", incomingConstraint.GetUniqueProperties())}";
-                    constrainName = constrainName.Length > 63 ? constrainName.Substring(0, 63) : constrainName;
+                    var constrainName = GetConstraintName(GetUniqueConstraintFullName(entityName, incomingConstraint));
 
                     var properties = string.Join(",", incomingConstraint.GetUniqueProperties().Select(x => $"\"{x}\""));
 
@@ -398,6 +453,60 @@ namespace Apilane.Data.Repository
             }
 
             return finalCmd;
+        }
+
+        private static string GetForeignKeyConstraintFullName(string entityName, EntityConstraint constraint)
+        {
+            return $"FOREIGN_KEY_{entityName}_{string.Join("_", constraint.GetForeignKeyPropertiesAsList())}";
+        }
+
+        private static string GetUniqueConstraintFullName(string entityName, EntityConstraint constraint)
+        {
+            return $"UNIQUE_{entityName}_{string.Join("_", constraint.GetUniqueProperties())}";
+        }
+
+        /// <summary>
+        /// The name of a constraint in the database: names are limited to 63 bytes, so a longer one keeps its
+        /// start and ends with a hash of the full name. Only cut, two long names that start alike would be one
+        /// name: the second constraint could not be added, and removing either would drop the other.
+        /// </summary>
+        private static string GetConstraintName(string fullName)
+        {
+            if (fullName.Length <= MaxIdentifierLength)
+            {
+                return fullName;
+            }
+
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fullName))).Substring(0, 8).ToLowerInvariant();
+
+            return $"{fullName.Substring(0, MaxIdentifierLength - hash.Length - 1)}_{hash}";
+        }
+
+        /// <summary>
+        /// A long name as it was cut before names got a hash: existing databases still have such constraints.
+        /// </summary>
+        private static string GetLegacyConstraintName(string fullName)
+        {
+            return fullName.Length > MaxIdentifierLength ? fullName.Substring(0, MaxIdentifierLength) : fullName;
+        }
+
+        /// <summary>
+        /// The names to drop a constraint by: its name and, for a long name, the cut name it had before names
+        /// got a hash. The cut name is left alone when a constraint that stays has the same one: the
+        /// constraint in the database under it may be that one.
+        /// </summary>
+        private static IEnumerable<string> GetConstraintNamesToDrop(string fullName, List<string> keptFullNames)
+        {
+            var name = GetConstraintName(fullName);
+            var legacyName = GetLegacyConstraintName(fullName);
+
+            yield return name;
+
+            if (!legacyName.Equals(name, StringComparison.OrdinalIgnoreCase) &&
+                !keptFullNames.Any(x => GetLegacyConstraintName(x).Equals(legacyName, StringComparison.OrdinalIgnoreCase)))
+            {
+                yield return legacyName;
+            }
         }
 
         private static string GetFKLogic(ForeignKeyLogic logic) => logic switch
@@ -527,8 +636,11 @@ namespace Apilane.Data.Repository
         {
             string? strFilter = filter?.ToSqlExpression(entityName, DatabaseType.PostgreSQL);
 
+            // At most one page of values, like every other read, in a fixed order
             return (await ExecTableAsync($@"SELECT DISTINCT ""{propertyName}""
-                                         FROM ""{entityName}"" {(string.IsNullOrWhiteSpace(strFilter) ? string.Empty : $"WHERE {strFilter}")}")).ToDictionary();
+                                         FROM ""{entityName}"" {(string.IsNullOrWhiteSpace(strFilter) ? string.Empty : $"WHERE {strFilter}")}
+                                         ORDER BY ""{propertyName}""
+                                         LIMIT {Globals.MaxPageSize}")).ToDictionary();
         }
 
         public async Task<List<Dictionary<string, object?>>> AggregateDataAsync(
@@ -547,27 +659,34 @@ namespace Apilane.Data.Repository
             var groupByProps = (group?.Properties?.Any() ?? false) ? $", {string.Join(",", group.Properties.Select(x => $"{GetGroupExpression(x)} AS {SqlUtilis.QuoteIdentifier(x.Alias, DatabaseType.PostgreSQL)}"))}" : string.Empty;
             var groupByGroup = (group?.Properties?.Any() ?? false) ? $"GROUP BY {string.Join(",", group.Properties.Select(x => GetGroupExpression(x)))}" : string.Empty;
 
+            // Groups with equal aggregates are ordered by the group values, so that the pages do not overlap
+            var groupByOrder = (group?.Properties?.Any() ?? false) ? $", {string.Join(",", group.Properties.Select(x => GetGroupExpression(x)))}" : string.Empty;
+
             var dtResult = await ExecTableAsync($@"SELECT {sqlAggProps}
                                         {groupByProps}
                                         FROM ""{entityName}""
                                         {(string.IsNullOrWhiteSpace(strFilter) ? string.Empty : $"WHERE {strFilter}")}
                                         {groupByGroup}
-                                        ORDER BY {sqlAggPropsOrder}
-                                        LIMIT {pageSize} OFFSET (({pageIndex} - 1) * {pageSize})");
+                                        ORDER BY {sqlAggPropsOrder}{groupByOrder}
+                                        LIMIT {pageSize} OFFSET {SqlUtilis.GetPagingOffset(pageIndex, pageSize)}");
 
             return dtResult.ToDictionary();
         }
 
         private static string GetGroupExpression(GroupData.GroupProperty property)
         {
+            // In UTC and as integers, like the other databases: to_timestamp answers a timestamp with time zone,
+            // whose parts are read in the session time zone (the server's), and the seconds have a fraction.
+            var utcDate = $"(to_timestamp(\"{property.Name}\" / 1000.0) AT TIME ZONE 'UTC')";
+
             return property.Type switch
             {
-                GroupData.GroupByType.Date_Year => $" EXTRACT(YEAR FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
-                GroupData.GroupByType.Date_Month => $" EXTRACT(MONTH FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
-                GroupData.GroupByType.Date_Day => $" EXTRACT(DAY FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
-                GroupData.GroupByType.Date_Hour => $" EXTRACT(HOUR FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
-                GroupData.GroupByType.Date_Minute => $" EXTRACT(MINUTE FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
-                GroupData.GroupByType.Date_Second => $" EXTRACT(SECOND FROM to_timestamp(\"{property.Name}\" / 1000.0)) ",
+                GroupData.GroupByType.Date_Year => $" CAST(EXTRACT(YEAR FROM {utcDate}) AS INTEGER) ",
+                GroupData.GroupByType.Date_Month => $" CAST(EXTRACT(MONTH FROM {utcDate}) AS INTEGER) ",
+                GroupData.GroupByType.Date_Day => $" CAST(EXTRACT(DAY FROM {utcDate}) AS INTEGER) ",
+                GroupData.GroupByType.Date_Hour => $" CAST(EXTRACT(HOUR FROM {utcDate}) AS INTEGER) ",
+                GroupData.GroupByType.Date_Minute => $" CAST(EXTRACT(MINUTE FROM {utcDate}) AS INTEGER) ",
+                GroupData.GroupByType.Date_Second => $" CAST(FLOOR(EXTRACT(SECOND FROM {utcDate})) AS INTEGER) ",
                 _ => $"\"{property.Name}\"",
             };
         }
@@ -581,7 +700,7 @@ namespace Apilane.Data.Repository
 
             if (val is long longVal)
             {
-                return longVal.ToString();
+                return longVal.ToString(CultureInfo.InvariantCulture);
             }
 
             if (val is bool boolVal)
@@ -597,7 +716,7 @@ namespace Apilane.Data.Repository
 
             if (val is decimal decimalVal)
             {
-                return decimalVal.ToString().Replace(",", ".");
+                return decimalVal.ToString(CultureInfo.InvariantCulture);
             }
 
             // All the rest

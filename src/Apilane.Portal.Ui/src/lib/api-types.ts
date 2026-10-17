@@ -17,8 +17,9 @@ export interface paths {
          * Creates an agent: a portal user with the address {Name}@agent.local and no password,
          *     and a key for it. The agent sends the key as 'Authorization: Bearer {Key}' and is then
          *     that user: it reaches the applications that are shared with its address. The key is in
-         *     this answer only; the Portal stores a hash of it. Answers 400 VALIDATION on Name for a
-         *     name that is not acceptable or already taken. Admin only.
+         *     this answer only; the Portal stores a hash of it. The instance audit log gets an entry
+         *     ('Agent', its address, 'Created'). Answers 400 VALIDATION on Name for a name that is not
+         *     acceptable or already taken. Admin only.
          */
         post: operations["AdminAgents_Create"];
         delete?: never;
@@ -40,8 +41,11 @@ export interface paths {
         /**
          * Deletes an agent: its user and its key, which stops working at once, and its entries
          *     in the collaborator lists of the applications shared with it. This cannot be undone.
-         *     Answers 404 NOT_FOUND for an unknown id and for a user that is not an agent: people
-         *     cannot be deleted. Admin only.
+         *     The instance audit log gets an entry ('Agent', its address, 'Deleted'). Answers 404
+         *     NOT_FOUND for an unknown id and for a user that is not an agent: people cannot be
+         *     deleted. Answers 409 CONFLICT, naming them, when the agent owns applications (only a
+         *     legacy account registered at @agent.local can): they would be left without an owner,
+         *     so they are deleted first. Admin only.
          */
         delete: operations["AdminAgents_Delete"];
         options?: never;
@@ -102,8 +106,9 @@ export interface paths {
         };
         /**
          * Returns one page of the instance audit log, newest first: changes to servers, instance
-         *     settings and user roles, new applications and database backup downloads. Total counts
-         *     every entry, not only the page. Admin only.
+         *     settings and user roles, agents added or deleted, the creation and the deletion of every
+         *     application, and database backup downloads. Total counts every entry, not only the page.
+         *     Admin only.
          */
         get: operations["AdminAuditLog_List"];
         put?: never;
@@ -414,8 +419,11 @@ export interface paths {
         /**
          * Saves the SMTP settings and the e-mail confirmation redirect URL, all together. Every
          *     value is written (null or empty clears it) except MailPassword, which null keeps and an
-         *     empty string clears. For human owners and collaborators only: agents cannot change
-         *     mail transport or confirmation redirects, regardless of their application grants.
+         *     empty string clears. A new MailServer or MailUserName while a password is stored needs
+         *     the password again: without a MailPassword it is 400 VALIDATION on MailPassword, so the
+         *     stored password never goes to another host or account. For human owners and
+         *     collaborators only: agents cannot change mail transport or confirmation redirects,
+         *     regardless of their application grants.
          *     A 'Warning' response header means the settings were saved and the API server could not
          *     be refreshed: it keeps sending with the old settings until its cache expires.
          */
@@ -642,11 +650,12 @@ export interface paths {
          *     it further; an agent gets the supplied permissions, or read-only access when omitted.
          *     The owner can edit an agent's permissions later. The address is trimmed and must be a valid e-mail
          *     address (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an
-         *     address the application is already shared with, in any letter case. When the instance
-         *     mail is configured the address gets a notification mail, unless it is an agent's
-         *     (@agent.local); NotificationSent says whether the mail was handed over for sending
-         *     (delivery is not reported). The share is matched to an account by exact address, as
-         *     typed. Owner only.
+         *     address the application is already shared with, in any letter case. The address must
+         *     belong to a Portal account, in any letter case (400 VALIDATION on Email otherwise: the
+         *     person must sign up first), and the share is saved with that account's address as it is
+         *     stored. When the instance mail is configured the address gets a notification mail, unless
+         *     it is an agent's (@agent.local); NotificationSent says whether the mail was handed over for
+         *     sending (delivery is not reported). Owner only.
          */
         post: operations["Collaborators_Add"];
         delete?: never;
@@ -1099,8 +1108,9 @@ export interface paths {
          *     be changed. ConnectionString is write-only: null or left out keeps the stored value, a value
          *     replaces it, and it is ignored for an SQLLite application. Answers 400 VALIDATION on
          *     ConnectionString when it is empty, or left out while none is stored, for an application
-         *     that is not on SQLLite. A 'Warning' response header means the change was saved and the API
-         *     server could not be refreshed afterwards.
+         *     that is not on SQLLite. An agent may rename the application but never send a
+         *     ConnectionString, whatever its grants: that is 403 FORBIDDEN. A 'Warning' response header
+         *     means the change was saved and the API server could not be refreshed afterwards.
          */
         put: operations["PortalApplication_Update"];
         post?: never;
@@ -1148,7 +1158,7 @@ export interface paths {
         /**
          * Returns one page of the application's audit log, newest first: the changes made in the
          *     Portal to the application and to its entities, properties, custom endpoints, reports and
-         *     collaborators. Secret values read '***'. The entry of the application's creation is in
+         *     collaborators, and its rebuilds. Secret values read '***'. The entry of the application's creation is in
          *     the instance audit log, not here. Total counts every entry, not only the page. For the
          *     owner and collaborators.
          */
@@ -1218,10 +1228,11 @@ export interface paths {
         /**
          * Rebuilds the application on its API server: all its data is dropped and its tables are
          *     created again, empty. The token, the entities and the properties stay. This cannot be
-         *     undone and there is no confirmation step. For the owner and collaborators. A refusal of
-         *     the API server is 400 VALIDATION with its own message, any other failure of it 502
-         *     UPSTREAM_ERROR. A 'Warning' response header means the rebuild was done and the API server
-         *     could not be refreshed afterwards.
+         *     undone and there is no confirmation step. For the owner and collaborators. A rebuild the
+         *     API server did writes an entry to the application's audit log ('Application', its name,
+         *     'Rebuilt'). A refusal of the API server is 400 VALIDATION with its own message, any other
+         *     failure of it 502 UPSTREAM_ERROR. A 'Warning' response header means the rebuild was done
+         *     and the API server could not be refreshed afterwards.
          */
         post: operations["PortalApplication_Rebuild"];
         delete?: never;
@@ -1273,7 +1284,11 @@ export interface paths {
          * Creates an application from the application.json of an export, on the chosen API server
          *     and database, owned by the caller. Sent as multipart/form-data. The application keeps the
          *     token and the encryption key of the file; IDs, owner, collaborators and server in the file
-         *     are ignored. Answers 400 VALIDATION on File for a missing, empty or unreadable file, 409
+         *     are ignored. Entities other than the system ones (Users, AuthTokens, Files, the
+         *     differentiation entity) are stored as custom entities whatever flags the file gives them.
+         *     Answers 400 VALIDATION on File for a missing, empty or unreadable file, and for a file with
+         *     a value the Portal's editors refuse (a setting out of range, a client address, a name or a
+         *     property type, a constraint, a security rule), naming its place in the file, 409
          *     CONFLICT when an application with that token exists on this instance, 404 for an unknown
          *     ServerID, 400 VALIDATION on ConnectionString with the API server's own message when it
          *     refuses the database, and 502 UPSTREAM_ERROR when the API server cannot be reached or fails.
@@ -1563,8 +1578,8 @@ export interface components {
         /** @description Shares an application with another user. */
         AddCollaboratorRequest: {
             /**
-             * @description The e-mail address of a user of this instance. Spaces around it are removed. The share
-             *     takes effect only for an account with exactly this address.
+             * @description The e-mail address of a user of this instance, in any letter case. Spaces around it are
+             *     removed. An address that no account uses is refused: the person must sign up first.
              */
             Email: string;
             /**
@@ -1947,7 +1962,7 @@ export interface components {
         CollaboratorAddedResponse: {
             /** Format: int64 */
             ID: number;
-            /** @description The e-mail address the application is shared with, trimmed. */
+            /** @description The address of the account the application is shared with, as the account stores it. */
             Email: string;
             /** @description The resolved access for an agent, including denied resources; null for a person. */
             Permissions?: components["schemas"]["AgentPermissionGrant"][] | null;
@@ -1964,7 +1979,10 @@ export interface components {
         CollaboratorResponse: {
             /** Format: int64 */
             ID: number;
-            /** @description The e-mail address the application is shared with, as it was entered. */
+            /**
+             * @description The e-mail address the application is shared with: the account's own address. A share
+             *     saved before sharing required an account keeps the address as it was entered.
+             */
             Email: string;
             /** @description The resolved access for an agent, including denied resources; null for a person. */
             Permissions?: components["schemas"]["AgentPermissionGrant"][] | null;
@@ -2371,7 +2389,10 @@ export interface components {
             MailFromAddress?: string | null;
             MailFromDisplayName?: string | null;
             MailUserName?: string | null;
-            /** @description Write-only. Null keeps the stored password, an empty string clears it, a value replaces it. */
+            /**
+             * @description Write-only. Null keeps the stored password, an empty string clears it, a value replaces it.
+             *     Null is refused while a password is stored and MailServer or MailUserName gets a new value.
+             */
             MailPassword?: string | null;
             /** @description Up to 10000 characters. It is not checked to be a URL. */
             EmailConfirmationRedirectUrl?: string | null;
@@ -2515,7 +2536,10 @@ export interface components {
             InstallationKey?: string | null;
             /** @description Null or empty clears the value. The same goes for the other mail settings, except MailPassword. */
             MailServer?: string | null;
-            /** Format: int32 */
+            /**
+             * Format: int32
+             * @description 1 to 65535. Null clears it.
+             */
             MailServerPort?: number | null;
             MailUserName?: string | null;
             /** @description Null keeps the stored password, an empty string clears it. */
@@ -3398,6 +3422,7 @@ export interface components {
              * @description Write-only. Null or left out keeps the stored connection string; a value replaces it.
              *     Required when the application has none stored yet. Ignored for an SQLLite application.
              *     The API server does not check it: a wrong value shows when the application is next called.
+             *     People only: an agent must leave it out or send null (403 otherwise).
              */
             ConnectionString?: string | null;
         };
@@ -3557,6 +3582,15 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

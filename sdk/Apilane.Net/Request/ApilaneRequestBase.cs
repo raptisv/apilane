@@ -54,6 +54,7 @@ namespace Apilane.Net.Request
 
         /// <summary>
         /// Use this method to directly throw exception instead of checking for error on each request.
+        /// The exception is an <see cref="Models.Data.ApilaneErrorException"/>, with the error and the HTTP status.
         /// </summary>
         public TBuilder OnErrorThrowException(bool throwOnError = false)
         {

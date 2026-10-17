@@ -50,10 +50,11 @@ namespace Apilane.Api.Controllers
         public async Task<JsonResult> Get(
             [BindRequired] string name)
         {
-            using var metricsTimer = _metricsService.RecordDataDuration("custom", name, Application.Token);
-
             var customEndpoint = Application.CustomEndpoints.SingleOrDefault(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
                 ?? throw new ApilaneException(AppErrors.NOT_FOUND, "Custom endpoint not found");
+
+            // The metric is tagged with the name of an endpoint that exists, never with any text a request sends
+            using var metricsTimer = _metricsService.RecordDataDuration("custom", customEndpoint.Name, Application.Token);
 
             var result = await _customAPI.GetAsync(
                 Application.Token,

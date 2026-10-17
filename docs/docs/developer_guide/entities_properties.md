@@ -28,7 +28,7 @@ System entities cannot be renamed or deleted. You can add custom properties to `
 
 ### Renaming and deleting
 
-Rename and Delete are in the entity's menu (properties have the same actions on their page); deleting asks you to type the name and removes all its data. Neither is possible for a system entity or property, for an entity that a foreign key of any entity points to, or for a property that is part of a constraint: remove the constraint first. Security rules, reports, custom endpoint SQL and the default sorting that name the old name are not updated, and deleting does not remove them, so change them yourself. On PostgreSQL do not rename a property only by changing its letter case.
+Rename and Delete are in the entity's menu (properties have the same actions on their page); deleting asks you to type the name and removes all its data. Neither is possible for a system entity or property, for an entity that a foreign key of any entity points to, or for a property that is part of a constraint: remove the constraint first. The Portal shows Rename and Delete disabled, with the reason, in these cases. Security rules, reports, custom endpoint SQL and the default sorting that name the old name are not updated, and deleting does not remove them, so change them yourself. On PostgreSQL do not rename a property only by changing its letter case.
 
 Renaming an entity or property requires a person. Portal agents are always refused these rename operations, regardless of their grants; their Delete grants remain separate. Custom endpoint renames have their own unchanged permissions.
 
@@ -56,7 +56,7 @@ Open the **Sorting** tab of an entity (**Default sorting** in its menu) to set t
 
 ### Data browser
 
-The **Data** tab of the application (and **Data** in an entity's menu) opens the records of an entity as a grid. Sort by a column, filter under the headings, add, edit and delete records, export the rows on screen as CSV, upload files, register users, and open the **History** of a record when the entity tracks changes. The browser calls the same API as your client app, but the people who manage the application are held back by neither the [security rules](security.md) nor the rate limits that apply to users. The checks on the data itself (required values, limits, unique values and foreign keys) still run.
+The **Data** tab of the application (and **Data** in an entity's menu) opens the records of an entity as a grid. Sort by a column, filter under the headings (a number or a date also at least or at most; a date typed without a time matches the whole day, in UTC), add, edit and delete records, export the rows on screen as CSV, upload files, register users, and open the **History** of a record when the entity tracks changes. The browser calls the same API as your client app, but the people who manage the application are held back by neither the [security rules](security.md) nor the rate limits that apply to users. The checks on the data itself (required values, limits, unique values and foreign keys) still run.
 
 ## Properties
 
@@ -80,7 +80,9 @@ The columns are created as follows:
 | **Boolean** | `BOOLEAN` | `BIT` | `BOOL` | `BOOLEAN` |
 | **Date** | `BIGINT` | `BIGINT` | `BIGINT` | `BIGINT` |
 
-`n` is the maximum length you set when you create a String property (leave it empty for no limit), or the decimal places of a Number. A Date is stored as a Unix timestamp in milliseconds (UTC). To write or filter one, send a Unix timestamp (10 digits for seconds, 13 for milliseconds) or text as `yyyy-MM-dd`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd HH:mm:ss` or `yyyy-MM-dd HH:mm:ss.fff`, read as UTC. Reading returns the number of milliseconds.
+`n` is the maximum length you set when you create a String property (leave it empty for no limit), or the decimal places of a Number. A Date is stored as a Unix timestamp in milliseconds (UTC). To write or filter one, send a Unix timestamp or text. A positive number of exactly 10 digits is read as seconds; any other whole number as milliseconds, and a negative one is a date before 1970. Text is `yyyy-MM-dd`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd HH:mm:ss.fff`, or ISO 8601 with a `T` (`2025-01-15T10:30`, `2025-01-15T10:30:00`, also with a fraction of a second), optionally followed by `Z` or an offset such as `+02:00`; text without a zone is read as UTC. Reading returns the number of milliseconds, which can be sent back as it is.
+
+A Number is a plain number, as a JSON number or as text, with `.` for decimals: text with a thousands separator (`1,234`) is refused. A single comma that cannot be a thousands separator (no other comma or dot, and not followed by exactly three digits) is read as the decimal point too: `12,5` is 12.5. A Boolean is `true`, `false`, `1` or `0`; any other value is refused.
 
 ### System Properties
 

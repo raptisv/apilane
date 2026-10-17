@@ -23,8 +23,17 @@ import type { Property } from '@/lib/properties'
 // One of the two tables of the properties screen (custom properties, system properties), in the
 // order the API sends them. A property that is part of a constraint of the entity (unique, or a foreign
 // key) shows it next to its name.
-defineProps<{ properties: Property[]; constraints?: readonly Constraint[] }>()
+const props = defineProps<{ properties: Property[]; constraints?: readonly Constraint[] }>()
 defineEmits<{ edit: [property: Property]; rename: [property: Property]; delete: [property: Property] }>()
+
+function inConstraint(property: Property): boolean {
+  return propertyConstraints(property.Name, props.constraints ?? []).length > 0
+}
+
+const constraintReason = 'Part of a constraint: remove it first'
+
+// A disabled item stays readable, because it carries the reason under its label.
+const disabledItemClass = 'items-start data-disabled:opacity-100 data-disabled:text-muted-foreground'
 
 // Who may read or write a property: an icon next to its name, leading to the rules of the entity.
 const { application } = useApplication()
@@ -119,21 +128,31 @@ const securityRoute = computed(() => ({
                 </Button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end">
+              <!-- The API refuses to rename or delete a property a constraint names: the items say so instead. -->
+              <DropdownMenuContent align="end" class="w-60">
                 <DropdownMenuItem @select="$emit('edit', property)">
                   <PencilIcon />
                   Edit
                 </DropdownMenuItem>
-                <DropdownMenuItem @select="$emit('rename', property)">
-                  <TextCursorInputIcon />
-                  Rename
+                <DropdownMenuItem
+                  :disabled="inConstraint(property)"
+                  :class="inConstraint(property) && disabledItemClass"
+                  @select="$emit('rename', property)"
+                >
+                  <TextCursorInputIcon :class="inConstraint(property) && 'mt-0.5'" />
+                  <span>Rename<span v-if="inConstraint(property)" class="block text-xs">{{ constraintReason }}</span></span>
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
 
-                <DropdownMenuItem variant="destructive" @select="$emit('delete', property)">
-                  <Trash2Icon />
-                  Delete
+                <DropdownMenuItem
+                  :variant="inConstraint(property) ? 'default' : 'destructive'"
+                  :disabled="inConstraint(property)"
+                  :class="inConstraint(property) && disabledItemClass"
+                  @select="$emit('delete', property)"
+                >
+                  <Trash2Icon :class="inConstraint(property) && 'mt-0.5'" />
+                  <span>Delete<span v-if="inConstraint(property)" class="block text-xs">{{ constraintReason }}</span></span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

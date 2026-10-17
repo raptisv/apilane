@@ -64,35 +64,54 @@ const size = computed({
       <span class="whitespace-nowrap">{{ formatCount(total) }} {{ total === 1 ? 'record' : 'records' }}</span>
     </div>
 
-    <!-- Also on a page past the end (an old link, records deleted elsewhere), so there is a way back. -->
+    <!--
+      Also on a page past the end (an old link, records deleted elsewhere), so there is a way back.
+      A link that leads nowhere stays the same element, disabled in place: swapping it for a button
+      would drop the keyboard focus to the page when Next reaches the last page. It then points at
+      the page on screen, so even Enter on it goes nowhere.
+    -->
     <nav v-if="pages > 1 || page > 1" aria-label="Record pages" class="flex items-center gap-1">
-      <template v-for="link in before" :key="link.text">
-        <Button v-if="link.enabled" as-child variant="outline" size="icon-sm" :title="link.text">
-          <RouterLink :to="to(link.page)" aria-current-value="false">
-            <component :is="link.icon" />
-            <span class="sr-only">{{ link.text }}</span>
-          </RouterLink>
-        </Button>
-        <Button v-else variant="outline" size="icon-sm" disabled :title="link.text">
+      <Button
+        v-for="link in before"
+        :key="link.text"
+        as-child
+        variant="outline"
+        size="icon-sm"
+        class="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+        :title="link.text"
+      >
+        <RouterLink
+          :to="to(link.enabled ? link.page : page)"
+          aria-current-value="false"
+          :aria-disabled="link.enabled ? undefined : 'true'"
+          :tabindex="link.enabled ? undefined : -1"
+        >
           <component :is="link.icon" />
           <span class="sr-only">{{ link.text }}</span>
-        </Button>
-      </template>
+        </RouterLink>
+      </Button>
 
       <span class="px-2 whitespace-nowrap" aria-live="polite">Page {{ page }} of {{ pages }}</span>
 
-      <template v-for="link in after" :key="link.text">
-        <Button v-if="link.enabled" as-child variant="outline" size="icon-sm" :title="link.text">
-          <RouterLink :to="to(link.page)" aria-current-value="false">
-            <component :is="link.icon" />
-            <span class="sr-only">{{ link.text }}</span>
-          </RouterLink>
-        </Button>
-        <Button v-else variant="outline" size="icon-sm" disabled :title="link.text">
+      <Button
+        v-for="link in after"
+        :key="link.text"
+        as-child
+        variant="outline"
+        size="icon-sm"
+        class="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+        :title="link.text"
+      >
+        <RouterLink
+          :to="to(link.enabled ? link.page : page)"
+          aria-current-value="false"
+          :aria-disabled="link.enabled ? undefined : 'true'"
+          :tabindex="link.enabled ? undefined : -1"
+        >
           <component :is="link.icon" />
           <span class="sr-only">{{ link.text }}</span>
-        </Button>
-      </template>
+        </RouterLink>
+      </Button>
     </nav>
   </div>
 </template>

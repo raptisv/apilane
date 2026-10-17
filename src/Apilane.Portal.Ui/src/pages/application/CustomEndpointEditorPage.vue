@@ -214,7 +214,12 @@ const linkClass = 'font-medium underline underline-offset-4'
           <p>
             Renaming changes the address of the endpoint, and the security rules written for {{ saved.Name }} no longer
             apply to it. After saving, give access again in the
-            <RouterLink :to="{ name: 'app-security', params: { appToken } }" target="_blank" :class="linkClass">
+            <!-- Opens the rules of the saved name, the ones to give again. -->
+            <RouterLink
+              :to="{ name: 'app-security', params: { appToken }, query: { item: `CustomEndpoint-${saved.Name}` } }"
+              target="_blank"
+              :class="linkClass"
+            >
               security section<span class="sr-only"> (opens in a new tab)</span></RouterLink
             >.
           </p>

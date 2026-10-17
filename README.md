@@ -58,7 +58,7 @@ See the [SDK documentation](https://docs.apilane.com/developer_guide/sdk/) for u
 
 # JavaScript SDK
 
-[Apilane.Js](sdk/Apilane.Js) is a single file, `apilane.js`, that works in browsers and Node.js 18+: copy it into your project. See its [README](sdk/Apilane.Js/README.md) for usage.
+[Apilane.Js](sdk/Apilane.Js) is a single file, `apilane.js`, that works in browsers and Node.js 19+ (Node.js 18 needs `--experimental-global-webcrypto` for signed requests): copy it into your project. See its [README](sdk/Apilane.Js/README.md) for usage.
 
 # Documentation
 

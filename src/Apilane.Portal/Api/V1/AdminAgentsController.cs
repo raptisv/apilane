@@ -24,8 +24,9 @@ namespace Apilane.Portal.Api.V1
         /// Creates an agent: a portal user with the address {Name}@agent.local and no password,
         /// and a key for it. The agent sends the key as 'Authorization: Bearer {Key}' and is then
         /// that user: it reaches the applications that are shared with its address. The key is in
-        /// this answer only; the Portal stores a hash of it. Answers 400 VALIDATION on Name for a
-        /// name that is not acceptable or already taken. Admin only.
+        /// this answer only; the Portal stores a hash of it. The instance audit log gets an entry
+        /// ('Agent', its address, 'Created'). Answers 400 VALIDATION on Name for a name that is not
+        /// acceptable or already taken. Admin only.
         /// </summary>
         [HttpPost]
         [ProducesResponseType(typeof(AgentCreatedResponse), StatusCodes.Status201Created)]
@@ -40,12 +41,16 @@ namespace Apilane.Portal.Api.V1
         /// <summary>
         /// Deletes an agent: its user and its key, which stops working at once, and its entries
         /// in the collaborator lists of the applications shared with it. This cannot be undone.
-        /// Answers 404 NOT_FOUND for an unknown id and for a user that is not an agent: people
-        /// cannot be deleted. Admin only.
+        /// The instance audit log gets an entry ('Agent', its address, 'Deleted'). Answers 404
+        /// NOT_FOUND for an unknown id and for a user that is not an agent: people cannot be
+        /// deleted. Answers 409 CONFLICT, naming them, when the agent owns applications (only a
+        /// legacy account registered at @agent.local can): they would be left without an owner,
+        /// so they are deleted first. Admin only.
         /// </summary>
         [HttpDelete("{userId}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
         public async Task<IActionResult> Delete(string userId)
         {
             await _userService.DeleteAgentAsync(userId);

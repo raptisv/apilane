@@ -3,6 +3,8 @@ using Apilane.Common.Enums;
 using Apilane.Common.Models;
 using Apilane.Data.Utilities;
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using static Apilane.Common.Models.FilterData;
@@ -39,8 +41,11 @@ namespace Apilane.Data.Extensions
 
                 if (filterData.Value is not null)
                 {
-                    // Do not write back to filterData.Value, the same filter can be converted more than once (e.g. data and total count)
-                    var value = SqlUtilis.GetString(filterData.Value);
+                    // Do not write back to filterData.Value, the same filter can be converted more than once (e.g. data and total count).
+                    // Numbers passed in as such are written invariantly, never in the server's culture (e.g. '5,5' or '−5').
+                    var value = filterData.Value is IFormattable formattable
+                        ? SqlUtilis.GetString(formattable.ToString(null, CultureInfo.InvariantCulture))
+                        : SqlUtilis.GetString(filterData.Value);
 
                     var propertySql = databaseType switch
                     {
@@ -93,30 +98,36 @@ namespace Apilane.Data.Extensions
             {
                 case PropertyType.Number:
                     {
-                        //validate numeric values
+                        // Validate numeric values. They are read with the invariant culture ('.' for decimals, no group separators,
+                        // a leading sign only) and the parsed number is written, so that e.g. '3,5' or '5-' never reaches the SQL.
                         if (filterData.Operator == FilterOperators.contains ||
                             filterData.Operator == FilterOperators.notcontains)
                         {
                             // Numeric contains && notcontains can be comma separated decimals (e.g. 1,2,3,4) so validate this way
                             var decimalParts = value.Trim().Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim());
+                            var numbers = new List<string>();
                             foreach (var decimalPart in decimalParts)
                             {
-                                if (!decimal.TryParse(decimalPart, out decimal number))
+                                if (!decimal.TryParse(decimalPart, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal number))
                                 {
                                     throw new FormatException($"'{value}' is not a valid number or group of numbers (e.g. 1,2,3,4)");
                                 }
+
+                                numbers.Add(number.ToString(CultureInfo.InvariantCulture));
                             }
 
                             // Reconstruct to the clean value just to be sure
-                            value = string.Join(",", decimalParts);
+                            value = string.Join(",", numbers);
                         }
                         else
                         {
                             // All other filter operators accept only decimals so validate this way
-                            if (!decimal.TryParse(value, out decimal number))
+                            if (!decimal.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out decimal number))
                             {
                                 throw new FormatException($"'{value}' is not a valid number");
                             }
+
+                            value = number.ToString(CultureInfo.InvariantCulture);
                         }
 
                         sqlfilter += filterData.Operator switch
@@ -142,7 +153,7 @@ namespace Apilane.Data.Extensions
                             throw new FormatException($"Unsupported date format for property '{propertyName}'");
                         }
 
-                        string dateTimeValue = Utils.GetUnixTimestampMilliseconds(result.Value).ToString();
+                        string dateTimeValue = Utils.GetUnixTimestampMilliseconds(result.Value).ToString(CultureInfo.InvariantCulture);
 
                         sqlfilter += filterData.Operator switch
                         {

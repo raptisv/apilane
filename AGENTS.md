@@ -266,7 +266,9 @@ both: addresses, behaviour, known limits, open decisions, commands, layout and c
   denies unclassified actions. Grants live in the separate `AgentPermissions` table; missing policies mean read-only,
   and owners edit them through Sharing. GET `{app}/permissions` exposes effective grants and operation requirements.
   Agents can never rename entities or properties, or update application mail settings (SMTP and confirmation redirects),
-  regardless of grants: those actions stay `[NoAgent]`. `email-settings` supports Read only. On reading saved policies,
+  regardless of grants: those actions stay `[NoAgent]`. Nor can they change an application's connection string:
+  `ApplicationService.UpdateAsync` refuses a non-null `ConnectionString` from an agent with 403, and the permissions
+  Restrictions list says so. `email-settings` supports Read only. On reading saved policies,
   retire only its former Write flag and retain unrelated grants; reject that Write flag in new policies.
   Custom endpoint renames retain their existing permission rules.
   Check every affected application/resource for bulk and cross-application operations before side effects. Add a marked

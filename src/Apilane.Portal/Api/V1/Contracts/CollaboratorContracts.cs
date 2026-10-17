@@ -13,7 +13,8 @@ namespace Apilane.Portal.Api.V1.Contracts
         public long ID { get; set; }
 
         /// <summary>
-        /// The e-mail address the application is shared with, as it was entered.
+        /// The e-mail address the application is shared with: the account's own address. A share
+        /// saved before sharing required an account keeps the address as it was entered.
         /// </summary>
         [Required]
         public string Email { get; set; } = string.Empty;
@@ -33,7 +34,7 @@ namespace Apilane.Portal.Api.V1.Contracts
         public long ID { get; set; }
 
         /// <summary>
-        /// The e-mail address the application is shared with, trimmed.
+        /// The address of the account the application is shared with, as the account stores it.
         /// </summary>
         [Required]
         public string Email { get; set; } = string.Empty;
@@ -94,8 +95,8 @@ namespace Apilane.Portal.Api.V1.Contracts
     public class AddCollaboratorRequest
     {
         /// <summary>
-        /// The e-mail address of a user of this instance. Spaces around it are removed. The share
-        /// takes effect only for an account with exactly this address.
+        /// The e-mail address of a user of this instance, in any letter case. Spaces around it are
+        /// removed. An address that no account uses is refused: the person must sign up first.
         /// </summary>
         [Required(ErrorMessage = "Required")]
         public string Email { get; set; } = string.Empty;

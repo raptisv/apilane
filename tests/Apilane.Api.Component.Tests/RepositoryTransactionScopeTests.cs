@@ -2,6 +2,7 @@
 using Apilane.Common.Enums;
 using Apilane.Common.Models;
 using Apilane.Common.Services;
+using Apilane.Common.Utilities;
 using Apilane.Data.Abstractions;
 using Apilane.Data.Repository;
 using Apilane.Data.Utilities;
@@ -10,7 +11,9 @@ using MySqlConnector;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Data.SQLite;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -531,16 +534,16 @@ namespace Apilane.Api.Component.Tests
                 {
                     await table.InsertAsync(repository, "a");
 
-                    // Wait for the scope to time out, between commands
-                    var transaction = Transaction.Current ?? throw new InvalidOperationException("No ambient transaction");
+                    // Wait for the scope's time limit to pass, between commands. The transaction itself times out
+                    // only a backstop later (TransactionScopeService.BackstopTimeout): the commands keep the limit.
                     var deadline = DateTime.UtcNow.AddSeconds(15);
 
-                    while (transaction.TransactionInformation.Status == TransactionStatus.Active && DateTime.UtcNow < deadline)
+                    while (TransactionTimeLimit.GetRemaining() > TimeSpan.Zero && DateTime.UtcNow < deadline)
                     {
                         await Task.Delay(100);
                     }
 
-                    Assert.NotEqual(TransactionStatus.Active, transaction.TransactionInformation.Status);
+                    Assert.True(TransactionTimeLimit.GetRemaining() <= TimeSpan.Zero, "The time limit of the scope did not pass");
 
                     await Assert.ThrowsAsync<TransactionAbortedException>(() => table.InsertAsync(repository, "b"));
                 }
@@ -550,35 +553,51 @@ namespace Apilane.Api.Component.Tests
         }
 
         /// <summary>
-        /// When a scope times out while a command is still running, MySqlConnector rolls the transaction back on
-        /// the timer thread of System.Transactions, on the very connection the command is using, and the
-        /// exception that this throws is not caught: it ends the whole API process. The MySQL repository must
-        /// therefore stop a command before the scope times out, so the request fails with an error instead.
-        /// Here the command waits for a row lock that another session holds, as a slow write would.
+        /// A command that is still running when the time limit of its scope passes must fail by itself, within
+        /// the limit. The transaction's own timeout comes a backstop later: when it fires, MySqlConnector rolls
+        /// the transaction back on the timer thread of System.Transactions, on the very connection a command
+        /// may still be cancelling, and the exception that this throws is not caught: it ends the whole API
+        /// process. Here the command waits for a lock that another session holds, as a slow write would.
         /// </summary>
-        [Fact]
-        public async Task Command_Waiting_On_A_Lock_When_The_Scope_Times_Out_Should_Fail_On_MySql()
+        [Theory]
+        [ClassData(typeof(AllDatabasesTestData))]
+        public async Task Command_Waiting_On_A_Lock_When_The_Time_Limit_Passes_Should_Fail(DatabaseType dbType)
         {
-            await using var table = await NewTableAsync(DatabaseType.MySQL);
+            await using var table = await NewTableAsync(dbType);
 
             using var blocker = table.NewRepository();
             var id = await table.InsertAsync(blocker, "locked");
 
-            // Another session holds the lock of the row until it ends
-            await blocker.ExecuteCustomAsync("START TRANSACTION;");
-            await blocker.ExecuteCustomAsync(table.UpdateSql(id, "held"));
+            var (begin, rollback) = dbType switch
+            {
+                DatabaseType.SQLServer => ("BEGIN TRANSACTION;", "ROLLBACK TRANSACTION;"),
+                DatabaseType.MySQL => ("START TRANSACTION;", "ROLLBACK;"),
+                DatabaseType.PostgreSQL => ("BEGIN;", "ROLLBACK;"),
+                _ => ("BEGIN IMMEDIATE;", "ROLLBACK;")
+            };
 
             using (var repository = table.NewRepository())
             {
+                // Opened before the scope, as a request's connection may be. Before the lock is taken: on SQL
+                // Server a read waits for the lock of a row, and outside a scope a command has no time limit.
                 await table.CountAsync(repository);
+
+                // Another session holds the lock of the row (of the whole database on SQLite) until it ends
+                await blocker.ExecuteCustomAsync(begin);
+                await blocker.ExecuteCustomAsync(table.UpdateSql(id, "held"));
+
+                var waited = Stopwatch.StartNew();
 
                 using (NewScope(TimeSpan.FromSeconds(4)))
                 {
-                    await Assert.ThrowsAsync<MySqlException>(() => repository.ExecuteCustomAsync(table.UpdateSql(id, "waiting")));
+                    await Assert.ThrowsAnyAsync<DbException>(() => repository.ExecuteCustomAsync(table.UpdateSql(id, "waiting")));
                 }
+
+                // Stopped by the time limit, not by the transaction's own timeout after the backstop
+                Assert.True(waited.Elapsed < TimeSpan.FromSeconds(4) + TransactionScopeService.BackstopTimeout / 2, $"The command waited {waited.Elapsed}");
             }
 
-            await blocker.ExecuteCustomAsync("ROLLBACK;");
+            await blocker.ExecuteCustomAsync(rollback);
 
             Assert.Equal(new[] { "locked" }, await table.CommittedNamesAsync());
         }

@@ -214,11 +214,6 @@ namespace Apilane.Api
 
                 app.Use(async (ctx, next) =>
                 {
-                    if (ctx.Request.Path.ToString().Contains("files/download", StringComparison.OrdinalIgnoreCase))
-                    {
-                        ctx.Response.Headers["Cache-Control"] = "max-age=31536000";
-                    }
-
                     if (ctx.Request.Headers.ContainsKey(Globals.AuthSignatureHeaderName))
                     {
                         // Signing requires hashing the request body. Multipart (file) uploads are not

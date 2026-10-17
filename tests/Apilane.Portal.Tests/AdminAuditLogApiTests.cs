@@ -1,3 +1,5 @@
+using Apilane.Common.Enums;
+using Apilane.Common.Models;
 using Apilane.Portal.Api;
 using Apilane.Portal.Api.V1.Contracts;
 using Apilane.Portal.Models;
@@ -7,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -21,6 +24,7 @@ namespace Apilane.Portal.Tests
     public class AdminAuditLogApiTests
     {
         private const string Url = "/api/v1/admin/audit-log";
+        private const string DegeneratePath = "/api/Application/Degenerate";
 
         private readonly PortalFactory _portal;
 
@@ -204,6 +208,57 @@ namespace Apilane.Portal.Tests
             Assert.Equal(afterInstance, log.Total);
             Assert.Contains(log.Data, x => x.EntityIdentifier == instanceEntry);
             Assert.DoesNotContain(log.Data, x => x.EntityIdentifier == applicationEntry);
+        }
+
+        [Fact]
+        public async Task List_Should_Show_Who_Created_And_Who_Deleted_An_Application_But_Not_What_It_Held()
+        {
+            var (email, password) = await _portal.CreateAdminUserAsync();
+            var client = await _portal.CreateSignedInClientAsync(email, password);
+            var server = await _portal.CreateServerAsync();
+            var name = $"app-{Guid.NewGuid():N}";
+
+            _portal.ApiServer.Respond(FakeApiServer.GetSystemEntitiesPath, HttpStatusCode.OK, JsonSerializer.Serialize(new[]
+            {
+                new DBWS_Entity
+                {
+                    ID = -1,
+                    AppID = -1,
+                    Name = "Users",
+                    IsSystem = true,
+                    Properties = new List<DBWS_EntityProperty>
+                    {
+                        new DBWS_EntityProperty { ID = -1, EntityID = -1, Name = "ID", IsSystem = true, IsPrimaryKey = true, Required = true, TypeID = (int)PropertyType.Number }
+                    }
+                }
+            }));
+            _portal.ApiServer.Respond(FakeApiServer.GeneratePath, HttpStatusCode.OK, "true");
+            _portal.ApiServer.Respond(FakeApiServer.ClearCachePath, HttpStatusCode.OK, "\"OK\"");
+            _portal.ApiServer.Respond(DegeneratePath, HttpStatusCode.OK, string.Empty);
+
+            var created = await client.PostAsync("/api/v1/applications", new Dictionary<string, object?>
+            {
+                ["Name"] = name,
+                ["ServerID"] = server.ID,
+                ["DatabaseType"] = "SQLLite"
+            }.ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+
+            var token = (await created.ReadJsonAsync<ApplicationResponse>()).Token;
+
+            Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/v1/applications/{token}")).StatusCode);
+
+            var log = await (await client.GetAsync($"{Url}?PageSize=200")).ReadJsonAsync<ListResponse<AuditLogEntryResponse>>();
+            var mine = log.Data.Where(x => x.UserEmail == email).ToList();
+
+            // Both rows carry the application, whose own log goes with it: the instance log shows them.
+            Assert.Equal(
+                new[] { "Deleted", "Created" },
+                mine.Where(x => x.EntityType == "Application" && x.EntityIdentifier == name).Select(x => x.Action));
+
+            // What the application held was created in its own log, and deleted from it.
+            Assert.DoesNotContain(mine, x => x.EntityType is "Entity" or "Report");
         }
 
         [Theory]

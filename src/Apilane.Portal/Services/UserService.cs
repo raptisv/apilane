@@ -14,6 +14,8 @@ namespace Apilane.Portal.Services
 {
     public class UserService : IUserService
     {
+        public const string AgentAuditEntityType = "Agent";
+
         private const string EntityName = "User";
         private const string AgentEntityName = "Agent";
 
@@ -146,6 +148,10 @@ namespace Apilane.Portal.Services
             }
 
             _dbContext.AgentKeys.Add(new PortalAgentKey { UserId = user.Id, KeyId = keyId, SecretHash = secretHash });
+
+            // A new credential for the instance: users and keys are not audited on their own.
+            await AddAgentAuditRowAsync(email, "Created");
+
             await _dbContext.SaveChangesAsync();
 
             await transaction.CommitAsync();
@@ -163,6 +169,21 @@ namespace Apilane.Portal.Services
                 throw PortalException.NotFound(AgentEntityName);
             }
 
+            // Only a legacy account that a person registered at @agent.local can own applications.
+            // Nobody could open, share or delete them afterwards, so they have to go first.
+            var owned = await _dbContext.Applications
+                .AsNoTracking()
+                .Where(x => x.UserID == user.Id)
+                .Select(x => x.Name)
+                .ToListAsync();
+
+            if (owned.Count > 0)
+            {
+                throw PortalException.Conflict(
+                    $"The agent owns applications that would be left without an owner: {string.Join(", ", owned.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))}. Delete them first.",
+                    AgentEntityName);
+            }
+
             // What was shared with the agent must not wait for a later agent of the same name.
             // The address is matched whatever its letter case. Tracked, so each removal is audited.
             var email = (user.Email ?? string.Empty).ToLowerInvariant();
@@ -176,7 +197,29 @@ namespace Apilane.Portal.Services
             // The key goes with the user (cascade), and with it the agent's access.
             _dbContext.Users.Remove(user);
 
+            await AddAgentAuditRowAsync(user.Email ?? string.Empty, "Deleted");
+
             await _dbContext.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// An instance audit row for an agent, saved with the next SaveChanges, as BackupService writes one.
+        /// </summary>
+        private async Task AddAgentAuditRowAsync(string agentEmail, string action)
+        {
+            var currentUser = await _portalAccessService.GetCurrentUserAsync();
+
+            _dbContext.AuditLogs.Add(new PortalAuditLog
+            {
+                Timestamp = DateTime.UtcNow,
+                UserId = currentUser.Id,
+                UserEmail = currentUser.Email ?? string.Empty,
+                AppID = null,
+                EntityType = AgentAuditEntityType,
+                EntityIdentifier = agentEmail,
+                Action = action,
+                Changes = null
+            });
         }
 
         private async Task<string> GetAdminRoleIdAsync()

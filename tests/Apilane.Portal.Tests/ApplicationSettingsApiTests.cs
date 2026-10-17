@@ -401,12 +401,12 @@ namespace Apilane.Portal.Tests
         // ---------- Rebuild ----------
 
         [Fact]
-        public async Task Rebuild_Should_Call_Rebuild_Then_Reset_The_Cache_And_Change_Nothing_In_The_Portal()
+        public async Task Rebuild_Should_Call_Rebuild_Then_Reset_The_Cache_And_Change_Nothing_In_The_Portal_But_The_Audit_Log()
         {
             var scene = await CreateSceneAsync();
             ScriptApiServer();
 
-            var response = await scene.Owner.PostAsync(scene.RebuildUrl, null);
+            var response = await scene.Collaborator.PostAsync(scene.RebuildUrl, null);
 
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
             Assert.False(response.Headers.Contains(ApiServerCacheReset.WarningHeaderName));
@@ -418,10 +418,22 @@ namespace Apilane.Portal.Tests
 
             foreach (var request in requests)
             {
-                await AssertPortalHeadersAsync(request, scene.Token, scene.OwnerEmail);
+                await AssertPortalHeadersAsync(request, scene.Token, scene.CollaboratorEmail);
             }
 
-            await AssertUnchangedAsync(scene, expectedRequests: 2);
+            // Every record is gone, so who did it and when is in the application's audit log.
+            var row = Assert.Single(await _portal.WithDbContextAsync(db => db.AuditLogs.AsNoTracking().Where(x => x.AppID == scene.AppId).ToListAsync()));
+            Assert.Equal($"Application | {scene.Name} | Rebuilt | {scene.CollaboratorEmail}", $"{row.EntityType} | {row.EntityIdentifier} | {row.Action} | {row.UserEmail}");
+            Assert.Null(row.Changes);
+
+            var log = await (await scene.Owner.GetAsync($"{scene.AppUrl}/audit-log")).ReadJsonAsync<ListResponse<AuditLogEntryResponse>>();
+            Assert.Equal("Rebuilt", Assert.Single(log.Data).Action);
+
+            // Nothing else changed in the Portal.
+            var stored = await LoadAsync(scene.AppId);
+            Assert.Equal(scene.Name, stored.Name);
+            Assert.Equal(scene.ConnectionString, stored.ConnectionString);
+            Assert.True(stored.Online);
         }
 
         [Theory]

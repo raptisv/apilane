@@ -128,7 +128,10 @@ namespace Apilane.Portal.Tests
             var scene = await CreateSceneAsync();
             ScriptApiServer();
 
+            // The stored server and user name: a new one of either needs the password again.
             var body = FullBody(null);
+            body["MailServer"] = "smtp.example.test";
+            body["MailUserName"] = "mailer";
 
             if (!sendNull)
             {
@@ -145,7 +148,72 @@ namespace Apilane.Portal.Tests
 
             var stored = await LoadAsync(scene.AppId);
             Assert.Equal(StoredPassword, stored.MailPassword);
+            Assert.Equal("smtp.example.test", stored.MailServer);
+            Assert.Equal(465, stored.MailServerPort);
+            Assert.Equal("sender@new.test", stored.MailFromAddress);
+        }
+
+        [Theory]
+        [InlineData("MailServer", "smtp.attacker.test", false)]
+        [InlineData("MailServer", "smtp.attacker.test", true)]
+        [InlineData("MailUserName", "attacker", false)]
+        [InlineData("MailUserName", "attacker", true)]
+        public async Task Update_Of_The_Server_Or_User_Name_Without_The_Password_Should_Return_400_And_Change_Nothing(string property, string value, bool sendNull)
+        {
+            var scene = await CreateSceneAsync();
+
+            // Everything as it is stored but the one value, and no password.
+            var body = new Dictionary<string, object?>
+            {
+                ["MailServer"] = "smtp.example.test",
+                ["MailServerPort"] = 587,
+                ["MailFromAddress"] = "noreply@example.test",
+                ["MailFromDisplayName"] = "Example",
+                ["MailUserName"] = "mailer",
+                ["MailPassword"] = null,
+                ["EmailConfirmationRedirectUrl"] = "https://example.test/confirmed"
+            };
+            body[property] = value;
+
+            if (!sendNull)
+            {
+                body.Remove("MailPassword");
+            }
+
+            // A collaborator, who never learns the stored password, the same as the owner.
+            foreach (var client in new[] { scene.Owner, scene.Collaborator })
+            {
+                var response = await client.PutAsync(scene.Url, body.ToJsonContent());
+
+                await EntityScene.AssertValidationAsync(response, $"MailPassword: {Services.ApplicationEmailSettingsService.PasswordAgainMessage}");
+                await AssertUnchangedAsync(scene);
+            }
+        }
+
+        [Fact]
+        public async Task Update_Of_The_Server_Should_Be_Saved_With_The_Password_Or_When_None_Is_Stored()
+        {
+            var scene = await CreateSceneAsync();
+            ScriptApiServer();
+
+            // The password again: saved together with the new server and user name.
+            var withPassword = await scene.Collaborator.PutAsync(scene.Url, FullBody("the-password-again").ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, withPassword.StatusCode);
+
+            var stored = await LoadAsync(scene.AppId);
             Assert.Equal("smtp.new.test", stored.MailServer);
+            Assert.Equal("new-user", stored.MailUserName);
+            Assert.Equal("the-password-again", stored.MailPassword);
+
+            // Nothing stored, so nothing to send elsewhere.
+            var empty = await CreateSceneAsync(withMailSettings: false);
+
+            var withoutPassword = await empty.Owner.PutAsync(empty.Url, FullBody(null).ToJsonContent());
+
+            Assert.Equal(HttpStatusCode.OK, withoutPassword.StatusCode);
+            Assert.Equal("smtp.new.test", (await LoadAsync(empty.AppId)).MailServer);
+            Assert.Null((await LoadAsync(empty.AppId)).MailPassword);
         }
 
         [Theory]
@@ -248,7 +316,7 @@ namespace Apilane.Portal.Tests
             var scene = await CreateSceneAsync();
             ScriptApiServer();
 
-            var body = FullBody(null);
+            var body = FullBody("a-new-password");
             body["MailServerPort"] = port;
 
             var response = await scene.Owner.PutAsync(scene.Url, body.ToJsonContent());
@@ -294,7 +362,7 @@ namespace Apilane.Portal.Tests
             ScriptApiServer();
 
             var longest = "https://example.test/" + new string('a', 10000 - 21);
-            var body = FullBody(null);
+            var body = FullBody("a-new-password");
             body["EmailConfirmationRedirectUrl"] = longest;
 
             var saved = await scene.Owner.PutAsync(scene.Url, body.ToJsonContent());
@@ -320,7 +388,7 @@ namespace Apilane.Portal.Tests
             var scene = await CreateSceneAsync();
             ScriptApiServer();
 
-            var body = FullBody(null);
+            var body = FullBody("a-new-password");
             body["EmailConfirmationRedirectUrl"] = "not a url";
             body["MailFromAddress"] = "not an address";
 
@@ -377,7 +445,7 @@ namespace Apilane.Portal.Tests
             var scene = await CreateSceneAsync();
             _portal.ApiServer.Respond(FakeApiServer.ClearCachePath, HttpStatusCode.InternalServerError, EntityScene.ApiError("Down"));
 
-            var response = await scene.Owner.PutAsync(scene.Url, FullBody(null).ToJsonContent());
+            var response = await scene.Owner.PutAsync(scene.Url, FullBody("a-new-password").ToJsonContent());
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             EntityScene.AssertWarning(response);
@@ -518,7 +586,7 @@ namespace Apilane.Portal.Tests
             Assert.Equal(HttpStatusCode.OK, read.StatusCode);
             Assert.True((await read.ReadJsonAsync<EmailSettingsResponse>()).IsMailSetup);
 
-            var updated = await scene.Collaborator.PutAsync(scene.Url, FullBody(null).ToJsonContent());
+            var updated = await scene.Collaborator.PutAsync(scene.Url, FullBody("a-new-password").ToJsonContent());
 
             Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
             Assert.Equal("smtp.new.test", (await LoadAsync(scene.AppId)).MailServer);

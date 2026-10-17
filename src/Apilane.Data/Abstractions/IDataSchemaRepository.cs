@@ -9,7 +9,10 @@ namespace Apilane.Data.Abstractions
     public interface IDataSchemaRepository : IAsyncDisposable
     {
         Task CreateTableWithPrimaryKeyAsync(string tableName);
-        Task RenameTableAsync(string oldTableName, string newTableName);
+        /// <summary>
+        /// Renames a table, and the given constraints of it with it: their names carry the table name.
+        /// </summary>
+        Task RenameTableAsync(string oldTableName, string newTableName, List<EntityConstraint> constraints);
         Task DropTableAsync(string tableName);
         Task<bool> ExistsTableAsync(string tableName);
         Task<bool> ExistsColumnAsync(string tableName, string columnName);

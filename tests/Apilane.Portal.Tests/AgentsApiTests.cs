@@ -369,6 +369,57 @@ namespace Apilane.Portal.Tests
         }
 
         [Fact]
+        public async Task Key_With_Application_Write_Should_Rename_But_Never_Change_The_Connection_String()
+        {
+            var scene = await CreateSceneAsync();
+            await _portal.WithDbContextAsync(async db =>
+            {
+                var collaborator = await db.Collaborations.SingleAsync(x => x.AppID == scene.Shared.ID && x.UserEmail == scene.Created.Email);
+                db.AgentPermissions.Add(new PortalAgentPermission
+                {
+                    Collaboration = collaborator,
+                    PermissionsJson = JsonSerializer.Serialize(new[]
+                    {
+                        new AgentPermissionGrant { Resource = AgentPermissionResources.Application, Write = true }
+                    })
+                });
+                return await db.SaveChangesAsync();
+            });
+            _portal.ApiServer.Respond(FakeApiServer.ClearCachePath, HttpStatusCode.OK, "\"OK\"");
+
+            var before = await _portal.WithDbContextAsync(db => db.Applications.AsNoTracking().SingleAsync(x => x.ID == scene.Shared.ID));
+
+            // Any value, an empty one included: the database of every record is for a person to choose.
+            foreach (var connectionString in new[] { "Server=agent-chosen;Database=app", "" })
+            {
+                var refused = await scene.Agent.PutAsync(scene.SharedUrl, new { Name = "Renamed by agent", ConnectionString = connectionString }.ToJsonContent());
+
+                Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+
+                var error = await refused.ReadJsonAsync<ErrorResponse>();
+                Assert.Equal(PortalErrorCode.Forbidden, error.Code);
+                Assert.Equal(Services.ApplicationService.AgentConnectionStringMessage, error.Message);
+            }
+
+            var unchanged = await _portal.WithDbContextAsync(db => db.Applications.AsNoTracking().SingleAsync(x => x.ID == scene.Shared.ID));
+            Assert.Equal(before.Name, unchanged.Name);
+            Assert.Equal(before.ConnectionString, unchanged.ConnectionString);
+            Assert.Empty(_portal.ApiServer.Requests);
+
+            // Left out, or null, it renames the application and keeps the connection string.
+            var renamed = await scene.Agent.PutAsync(scene.SharedUrl, new Dictionary<string, object?> { ["Name"] = "Renamed by agent", ["ConnectionString"] = null }.ToJsonContent());
+            Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
+
+            var stored = await _portal.WithDbContextAsync(db => db.Applications.AsNoTracking().SingleAsync(x => x.ID == scene.Shared.ID));
+            Assert.Equal("Renamed by agent", stored.Name);
+            Assert.Equal(before.ConnectionString, stored.ConnectionString);
+
+            // The permissions endpoint says so.
+            var permissions = await (await scene.Agent.GetAsync($"{scene.SharedUrl}/permissions")).ReadJsonAsync<ApplicationPermissionsResponse>();
+            Assert.Contains(permissions.Restrictions, x => x.Contains("connection string", StringComparison.Ordinal));
+        }
+
+        [Fact]
         public async Task SetRole_Should_Refuse_To_Make_An_Agent_An_Administrator()
         {
             var admin = await _portal.CreateAdminClientAsync();
@@ -623,6 +674,62 @@ namespace Apilane.Portal.Tests
             var again = await CreateAgentAsync(admin, created.Email.Split('@')[0]);
             Assert.NotEqual(created.Key, again.Key);
             Assert.Empty((await (await KeyClient(again.Key).GetAsync(ApplicationsUrl)).ReadJsonAsync<ListResponse<ApplicationResponse>>()).Data);
+        }
+
+        [Fact]
+        public async Task Delete_Of_A_Legacy_Account_That_Owns_Applications_Should_Return_409_Naming_Them_And_Keep_Everything()
+        {
+            var admin = await _portal.CreateAdminClientAsync();
+            var created = await CreateAgentAsync(admin);
+            var (otherEmail, _) = await _portal.CreateUserAsync();
+            var server = await _portal.CreateServerAsync();
+
+            // Only an account a person registered at @agent.local before agents existed owns applications.
+            var second = (await _portal.CreateApplicationAsync(server.ID, created.Email, $"owned-b-{Guid.NewGuid():N}")).Application;
+            var first = (await _portal.CreateApplicationAsync(server.ID, created.Email, $"owned-a-{Guid.NewGuid():N}")).Application;
+            var shared = (await _portal.CreateApplicationAsync(server.ID, otherEmail, $"shared-{Guid.NewGuid():N}", created.Email)).Application;
+
+            var response = await admin.DeleteAsync($"{AgentsUrl}/{created.ID}");
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+            var error = await response.ReadJsonAsync<ErrorResponse>();
+            Assert.Equal(PortalErrorCode.Conflict, error.Code);
+            Assert.Equal("Agent", error.Entity);
+            Assert.Equal($"The agent owns applications that would be left without an owner: {first.Name}, {second.Name}. Delete them first.", error.Message);
+
+            // The user, its key, its share and its applications are all still there.
+            Assert.True(await _portal.WithDbContextAsync(db => db.Users.AnyAsync(x => x.Id == created.ID)));
+            Assert.Equal(2, await _portal.WithDbContextAsync(db => db.Applications.CountAsync(x => x.UserID == created.ID)));
+            Assert.True(await _portal.WithDbContextAsync(db => db.Collaborations.AnyAsync(x => x.AppID == shared.ID && x.UserEmail == created.Email)));
+            Assert.Equal(HttpStatusCode.OK, (await KeyClient(created.Key).GetAsync($"{ApplicationsUrl}/{shared.Token}")).StatusCode);
+            Assert.False(await _portal.WithDbContextAsync(db => db.AuditLogs.AnyAsync(x => x.EntityType == "Agent" && x.EntityIdentifier == created.Email && x.Action == "Deleted")));
+        }
+
+        [Fact]
+        public async Task Create_And_Delete_Should_Each_Write_An_Instance_Audit_Row_Without_The_Key()
+        {
+            var (adminEmail, adminPassword) = await _portal.CreateAdminUserAsync();
+            var admin = await _portal.CreateSignedInClientAsync(adminEmail, adminPassword);
+            var adminId = await GetUserIdAsync(adminEmail);
+
+            var created = await CreateAgentAsync(admin);
+            Assert.Equal(HttpStatusCode.NoContent, (await admin.DeleteAsync($"{AgentsUrl}/{created.ID}")).StatusCode);
+
+            var rows = await _portal.WithDbContextAsync(db => db.AuditLogs
+                .AsNoTracking()
+                .Where(x => x.UserEmail == adminEmail)
+                .OrderBy(x => x.ID)
+                .ToListAsync());
+
+            Assert.Equal(
+                new[] { $"Agent | {created.Email} | Created", $"Agent | {created.Email} | Deleted" },
+                rows.Select(x => $"{x.EntityType} | {x.EntityIdentifier} | {x.Action}"));
+            Assert.All(rows, x => Assert.Equal(adminId, x.UserId));
+
+            // Instance rows, with nothing of the key.
+            Assert.All(rows, x => Assert.Null(x.AppID));
+            Assert.All(rows, x => Assert.Null(x.Changes));
         }
 
         [Fact]

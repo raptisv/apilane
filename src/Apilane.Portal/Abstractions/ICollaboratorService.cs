@@ -21,8 +21,9 @@ namespace Apilane.Portal.Abstractions
         Task<List<AvailableAgentResponse>> GetAvailableAgentsAsync(string appToken);
 
         /// <summary>
-        /// Shares the application with an e-mail address and, when the instance mail is configured,
-        /// tells that address by mail. An agent's address is never mailed.
+        /// Shares the application with the account that uses an e-mail address, saved with that
+        /// account's own address, and, when the instance mail is configured, tells it by mail. An
+        /// address without an account is a VALIDATION error on Email. An agent's address is never mailed.
         /// </summary>
         Task<CollaboratorAddedResponse> AddAsync(string appToken, AddCollaboratorRequest request);
 

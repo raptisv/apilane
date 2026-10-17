@@ -9,14 +9,18 @@ import { useMutation } from '@/composables/useMutation'
 import { api, unwrapAnonymous } from '@/lib/api'
 import type { Schemas } from '@/lib/api'
 import { formErrors } from '@/lib/forms'
+import { safeReturnUrl } from '@/lib/returnUrl'
 import { setSession } from '@/lib/session'
 import { afterSignIn } from '@/router'
 
 const route = useRoute()
 const router = useRouter()
 
-// Only for the 'Sign up' link: when it cannot be loaded, signing in still works.
+// Only for the 'Sign up' and 'Forgot password?' links: when it cannot be loaded, signing in still works.
 const { data: instance } = useInstance()
+
+// Someone sent here by a link who signs up instead still arrives there: 'Sign up' carries the address on.
+const returnQuery = computed(() => ({ returnUrl: safeReturnUrl(route.query.returnUrl) }))
 
 const form = reactive<Schemas['SignInRequest']>({ Email: '', Password: '' })
 
@@ -63,12 +67,16 @@ const linkClass = 'rounded-sm text-link underline-offset-4 hover:underline focus
     </FormField>
 
     <template #footer>
-      <p class="text-center text-sm">
+      <!-- Without mail no reset link can be sent: the API refuses the request (409). -->
+      <p v-if="instance?.IsMailSetup === false" class="text-center text-sm text-muted-foreground">
+        Forgot your password? This instance cannot send email: ask an administrator of this instance.
+      </p>
+      <p v-else class="text-center text-sm">
         <RouterLink :to="{ name: 'forgot-password' }" :class="linkClass">Forgot password?</RouterLink>
       </p>
       <p v-if="instance?.AllowRegister" class="text-center text-sm text-muted-foreground">
         Do not have an account?
-        <RouterLink :to="{ name: 'register' }" :class="linkClass">Sign up</RouterLink>
+        <RouterLink :to="{ name: 'register', query: returnQuery }" :class="linkClass">Sign up</RouterLink>
       </p>
     </template>
   </AuthForm>

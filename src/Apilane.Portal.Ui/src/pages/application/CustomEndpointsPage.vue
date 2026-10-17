@@ -108,7 +108,15 @@ async function submitDelete(): Promise<boolean> {
       </div>
       <!-- min-w-0 lets the texts shrink and end in an ellipsis instead of pushing the buttons off a phone screen. -->
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-medium" :title="endpoint.Name">{{ endpoint.Name }}</p>
+        <p class="truncate text-sm">
+          <RouterLink
+            :to="{ name: 'app-endpoint-edit', params: { appToken, id: endpoint.ID } }"
+            :title="endpoint.Name"
+            class="rounded-sm font-medium text-link underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {{ endpoint.Name }}
+          </RouterLink>
+        </p>
         <p v-if="endpoint.Description" class="truncate text-xs text-muted-foreground" :title="endpoint.Description">
           {{ endpoint.Description }}
         </p>

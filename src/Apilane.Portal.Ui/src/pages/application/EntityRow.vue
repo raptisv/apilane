@@ -33,7 +33,11 @@ import { formatCount } from '@/lib/entities'
 import type { Entity } from '@/lib/entities'
 
 // One entity in the entities list (EntityTable). The row loads its own record and history counts.
-const props = defineProps<{ entity: Entity }>()
+const props = defineProps<{
+  entity: Entity
+  /** The entity whose foreign key points to this one: while there is one, the API refuses a rename and a delete. */
+  referencedBy?: string
+}>()
 defineEmits<{ edit: []; rename: []; delete: [] }>()
 
 const { application } = useApplication()
@@ -62,6 +66,11 @@ const securityRoute = computed(() => ({
   params: { appToken: application.value.Token },
   query: { item: `Entity-${props.entity.Name}` },
 }))
+
+// Why Rename and Delete are not offered, or undefined when they are.
+const referenced = computed(() => (props.referencedBy ? `Referenced by ${props.referencedBy}: remove its foreign key first` : undefined))
+const renameBlocked = computed(() => (props.entity.IsSystem ? 'Cannot rename a system entity' : referenced.value))
+const deleteBlocked = computed(() => (props.entity.IsSystem ? 'Cannot delete a system entity' : referenced.value))
 
 // A disabled item stays readable, because it carries the reason under its label.
 const disabledItemClass = 'items-start data-disabled:opacity-100 data-disabled:text-muted-foreground'
@@ -176,21 +185,21 @@ const disabledItemClass = 'items-start data-disabled:opacity-100 data-disabled:t
             <PencilIcon />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem :disabled="entity.IsSystem" :class="entity.IsSystem && disabledItemClass" @select="$emit('rename')">
-            <TextCursorInputIcon :class="entity.IsSystem && 'mt-0.5'" />
-            <span>Rename<span v-if="entity.IsSystem" class="block text-xs">Cannot rename a system entity</span></span>
+          <DropdownMenuItem :disabled="!!renameBlocked" :class="renameBlocked && disabledItemClass" @select="$emit('rename')">
+            <TextCursorInputIcon :class="renameBlocked && 'mt-0.5'" />
+            <span>Rename<span v-if="renameBlocked" class="block text-xs">{{ renameBlocked }}</span></span>
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
-            :variant="entity.IsSystem ? 'default' : 'destructive'"
-            :disabled="entity.IsSystem"
-            :class="entity.IsSystem && disabledItemClass"
+            :variant="deleteBlocked ? 'default' : 'destructive'"
+            :disabled="!!deleteBlocked"
+            :class="deleteBlocked && disabledItemClass"
             @select="$emit('delete')"
           >
-            <Trash2Icon :class="entity.IsSystem && 'mt-0.5'" />
-            <span>Delete<span v-if="entity.IsSystem" class="block text-xs">Cannot delete a system entity</span></span>
+            <Trash2Icon :class="deleteBlocked && 'mt-0.5'" />
+            <span>Delete<span v-if="deleteBlocked" class="block text-xs">{{ deleteBlocked }}</span></span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

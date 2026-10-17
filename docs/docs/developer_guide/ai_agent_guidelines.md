@@ -27,13 +27,13 @@ This project uses the Apilane SDK for backend operations. Apilane is a backend-a
 | SDK | Package | Import |
 |---|---|---|
 | .NET | `Apilane.Net` (NuGet: `dotnet add package Apilane.Net`) | the `using` lines below |
-| JavaScript | `apilane.js`: one ES module (browsers and Node.js 18+), copied into the project from `sdk/Apilane.Js/apilane.js` in the Apilane repository | `import { createApilaneService, DataGetListRequest, FilterItem, FilterOperator } from './apilane.js';` — import every class and enum you use |
+| JavaScript | `apilane.js`: one ES module (browsers and Node.js 19+; signed requests need the global Web Crypto API, which Node.js 18 has only with `--experimental-global-webcrypto` and a browser only on an HTTPS or `localhost` page), copied into the project from `sdk/Apilane.Js/apilane.js` in the Apilane repository | `import { createApilaneService, DataGetListRequest, FilterItem, FilterOperator } from './apilane.js';` — import every class and enum you use |
 
 ```csharp
 using Apilane.Net.Abstractions;   // IApilaneService
 using Apilane.Net.Request;        // every request builder, e.g. DataGetListRequest
-using Apilane.Net.Models.Data;    // FilterItem, SortItem, TransactionBuilder
-using Apilane.Net.Models.Enums;   // FilterOperator, FilterLogic
+using Apilane.Net.Models.Data;    // FilterItem, SortItem, TransactionBuilder, ApilaneErrorException
+using Apilane.Net.Models.Enums;   // FilterOperator, FilterLogic, ValidationError
 using Apilane.Net.Models.Account; // LoginItem, RegisterItem, ApiUser
 using Apilane.Net.Extensions;     // BuildErrorMessage, ToUnixTimestampMilliseconds
 // UseApilane is in the namespace Microsoft.Extensions.DependencyInjection
@@ -44,7 +44,7 @@ Both SDKs offer the same operations on the same API, but the calling style diffe
 | | .NET | JavaScript |
 |---|---|---|
 | Result | `Either<T, ApilaneError>`: `HasError(out var error)`, `.Value` (throws on an error), `Match` | `ApilaneResult`: `isError`, `error`, `value` (throws on an error), `match` |
-| Throw instead of returning the error | `.OnErrorThrowException(true)` (without the argument it does NOT throw: the default is `false`) | `.onErrorThrowException()` (the default is `true`) |
+| Throw instead of returning the error | `.OnErrorThrowException(true)` (without the argument it does NOT throw: the default is `false`); throws `ApilaneErrorException` with `.Error` and `.StatusCode` | `.onErrorThrowException()` (the default is `true`); throws an `Error` with `.apilaneError` and `.status` |
 | Records | typed: `GetDataAsync<Product>` | plain objects: `result.value.Data` |
 | Filters | `new FilterItem(...)` | `FilterItem.condition / and / or / group` |
 | Sort | `new SortItem { Property = "Price", Direction = "ASC" }` | `new SortItem('Price', 'asc')`, `SortItem.asc(p)`, `SortItem.desc(p)` |
@@ -101,9 +101,17 @@ if (response.HasError(out var error))
 }
 var products = response.Value.Data;
 
-// Alternative: throw automatically on error (pass true: without the argument it does NOT throw)
-var responseOrThrow = await apilane.GetDataAsync<Product>(
-    DataGetListRequest.New("Products").OnErrorThrowException(true));
+// Alternative: throw automatically on error (pass true: without the argument it does NOT throw).
+// It throws ApilaneErrorException (Apilane.Net.Models.Data), an Exception with .Error and .StatusCode
+try
+{
+    var responseOrThrow = await apilane.GetDataAsync<Product>(
+        DataGetListRequest.New("Products").OnErrorThrowException(true));
+}
+catch (ApilaneErrorException ex) when (ex.Error.Code == ValidationError.UNAUTHORIZED)
+{
+    // sign in again
+}
 ```
 
 **JavaScript** — returns `ApilaneResult`:
@@ -123,9 +131,13 @@ result.match(
     error => console.error(error.Code, error.Message)
 );
 
-// ✅ Option 3: Throw automatically
-const resultOrThrow = await apilane.getData(
-    DataGetListRequest.new('Products').onErrorThrowException());
+// ✅ Option 3: Throw automatically: the Error carries .apilaneError (the ApilaneError) and .status
+try {
+    const resultOrThrow = await apilane.getData(
+        DataGetListRequest.new('Products').onErrorThrowException());
+} catch (e) {
+    if (e.apilaneError?.Code === ValidationError.UNAUTHORIZED) { /* sign in again */ }
+}
 ```
 
 Every error has `Code`, `Message`, `Property` and `Entity` (`Property` names the offending property for `REQUIRED`, `VALIDATION`, `UNIQUE_CONSTRAINT_VIOLATION` and `FOREIGN_KEY_CONSTRAINT_VIOLATION`). The HTTP status is 401 for `UNAUTHORIZED` and 400 for every other code (also `NOT_FOUND` and `RATE_LIMIT_EXCEEDED`): branch on `Code`, never on the status.
@@ -136,13 +148,13 @@ Every error has `Code`, `Message`, `Property` and `Entity` (`Property` names the
 | `UNAUTHORIZED` | The caller's roles have no rule for this entity, property, endpoint or action, or the call needs a signed-in user. An expired or unknown token counts as anonymous and ends here |
 | `UNCONFIRMED_EMAIL` | Sign-in with an unconfirmed email while the application does not allow it |
 | `REQUIRED`, `VALIDATION`, `UNIQUE_CONSTRAINT_VIOLATION`, `FOREIGN_KEY_CONSTRAINT_VIOLATION` | A property value is rejected: see `Property` |
-| `NOT_FOUND` | The record or custom endpoint does not exist, or is not visible to the caller |
+| `NOT_FOUND` | The record or custom endpoint does not exist, or is not visible to the caller, or the application token is not one of an application ('Application not found') |
 | `EMPTY_BODY`, `NO_PROPERTIES_PROVIDED`, `NO_ID_PROVIDED` | POST/PUT without a body, without a writable property, or PUT without `ID` |
 | `NO_RECORDS_FOUND_TO_DELETE` | The `ids` list holds no valid ID |
 | `INVALID_FILTER_PARAMETER`, `INVALID_SORT_PARAMETER`, `INVALID_GROUPBY_PARAMETER` | A malformed filter, sort or groupBy, or a filter or sort on a property the caller may not read |
 | `FILE_NOT_FOUND` | Download of an unknown file |
-| `RATE_LIMIT_EXCEEDED` | The rate limit of the matching rule is used up; also one confirmation or password email per address per 5 minutes. Back off instead of retrying in a loop |
-| `SERVICE_UNAVAILABLE` | The application is offline, or the caller's IP address is not allowed |
+| `RATE_LIMIT_EXCEEDED` | The rate limit of the matching rule is used up; also one confirmation or password email per address per 5 minutes, and too many sign-in attempts for one login name. Back off instead of retrying in a loop |
+| `SERVICE_UNAVAILABLE` | The application is offline, or the caller's IP address is not allowed, or the API server could not reach the Portal (calls from the Portal) |
 
 ---
 
@@ -211,7 +223,8 @@ await apilane.AccountUpdateAsync<AppUser>(
 - Use anonymous objects (.NET) or plain objects (JS) for POST operations
 - System properties (`ID`, `Owner`, `Created`) are set by the server — do NOT include them. If they are sent they are ignored without an error. `Created` is a Unix timestamp in milliseconds (UTC); `Owner` is the ID of the caller (empty for an anonymous caller)
 - Property names are matched without regard to case, and a name that is not a property of the entity is ignored (not stored, no error): copy the names from the schema, and send each property once (`Title` and `title` together are refused with `VALIDATION`)
-- Date properties take a Unix timestamp (seconds or milliseconds) or `yyyy-MM-dd`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd HH:mm:ss.fff`, and are returned as Unix milliseconds (`ToUnixTimestampMilliseconds()` / `UnixTimestampToDatetime()` in .NET, `dateToUnixTimestampMilliseconds()` / `unixTimestampToDate()` in JS)
+- Date properties take a Unix timestamp (a positive number of exactly 10 digits is seconds; any other whole number is milliseconds, a negative one a date before 1970), `yyyy-MM-dd`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd HH:mm:ss.fff`, or ISO 8601 with a `T` (`2026-01-02T03:04:05`, also with a fraction and with `Z` or an offset such as `+02:00`, so `toISOString()` works). Text without a zone is read as UTC. They are returned as Unix milliseconds, which can be sent back unchanged (`ToUnixTimestampMilliseconds()` / `UnixTimestampToDatetime()` in .NET, `dateToUnixTimestampMilliseconds()` / `unixTimestampToDate()` in JS)
+- Number properties take a plain number, as a JSON number or text, with `.` for decimals (`1234.5`): a thousands separator (`1,234`) is refused with `VALIDATION`. Boolean properties take only `true`, `false`, `1` or `0`; any other value is refused with `VALIDATION`
 - The response returns an array of created IDs
 - The body can be an array of objects to create several records; the answer lists all new IDs. The records are created one by one and NOT atomically (those created before a failing one stay): use a transaction when it must be all or nothing
 - `Users` cannot be created with the data endpoints (`ERROR`, 'Not allowed'): register users with `AccountRegisterAsync`. Read-only entities refuse POST, PUT and DELETE
@@ -396,7 +409,7 @@ const filter = FilterItem.condition('ID', FilterOperator.contains, ids.join(',')
 
 On a **string** property `contains` is a substring match (`LIKE`), not set membership. String values are matched literally: `%`, `_`, `[` and `\` in the value are not wildcards or escapes, so never escape them.
 
-**Filter value rules:** `equal` / `notequal` with a `null` value test for NULL / NOT NULL (`FilterItem.condition('Price', FilterOperator.equal, null)`); no other operator accepts null. Boolean properties accept only `equal` and `notequal`; Date properties accept `equal`, `notequal`, `greater`, `greaterorequal`, `less` and `lessorequal`, with a Unix timestamp or the date formats listed under Data Creation; Number properties do not accept `startswith` / `endswith`. String matching ignores case (on SQLite only for A–Z; elsewhere the database collation decides, case-insensitive by default). Property names in a filter are not case-sensitive, but an unknown property, or one the caller may not read, fails the whole call with `INVALID_FILTER_PARAMETER`. The filter is part of the URL: keep an ID list for the IN idiom to a few hundred IDs per call (the request line is limited to 8 KB) and split longer lists.
+**Filter value rules:** `equal` / `notequal` with a `null` value test for NULL / NOT NULL (`FilterItem.condition('Price', FilterOperator.equal, null)`); no other operator accepts null. Boolean properties accept only `equal` and `notequal`; Date properties accept `equal`, `notequal`, `greater`, `greaterorequal`, `less` and `lessorequal`, with a Unix timestamp or the date formats listed under Data Creation; Number properties take plain numbers (`.` for decimals, no thousands separator) and do not accept `startswith` / `endswith`. String matching ignores case (on SQLite only for A–Z; elsewhere the database collation decides, case-insensitive by default). Property names in a filter are not case-sensitive, but an unknown property, or one the caller may not read, fails the whole call with `INVALID_FILTER_PARAMETER`. The filter is part of the URL: keep an ID list for the IN idiom to a few hundred IDs per call (the request line is limited to 8 KB) and split longer lists.
 
 ---
 
@@ -572,7 +585,7 @@ const result = await apilane.getCustomEndpoint(
 - Endpoint names are letters only (`GetUserSummary`); parameter names are letters and `_` only. The endpoint name in the call is not case-sensitive, the parameter names are
 - Parameters are `{Name}` placeholders in the SQL and take big integer (long) values only — no strings or other types. A parameter that is not sent, or is not a number, becomes `null` in the SQL
 - `{Owner}` is not a parameter: it is replaced by the ID of the signed-in caller. For an anonymous caller it stays the text `{Owner}` and the query fails with `ERROR`
-- All custom endpoints are GET requests. The answer is an array of result sets, each an array of rows (`[[row, row], [row]]`). `GetCustomEndpointAsync<T>` returns the first set (`T` is a list, or one row type), `<T1, T2, ...>` up to five. The row keys are the column labels the database returns: alias columns so that they equal your model's property names exactly
+- All custom endpoints are GET requests. The answer is an array of result sets, each an array of rows (`[[row, row], [row]]`). `GetCustomEndpointAsync<T>` returns the first set (`T` is a list, or one row type), `<T1, T2, ...>` up to five. A set the endpoint does not return reads as empty (an endpoint that only runs an `UPDATE` returns none). The row keys are the column labels the database returns: alias columns so that they equal your model's property names exactly
 - The endpoint name must match a custom endpoint configured in the Apilane Portal. The role rules of the endpoint (Portal: Security) decide who may call it. The SQL itself is not restricted by the entity or property rules, so it returns whatever it selects: use `{Owner}` or the needed IDs to limit the rows to what the caller may see
 - A call has a time limit of 20 seconds
 
@@ -612,11 +625,11 @@ const stats = await apilane.getStatsAggregate(
 // stats.value is the array of rows
 ```
 
-**Available aggregates:** `Count`, `Min`, `Max`, `Sum`, `Avg`. The answer is an array with one row per group. The result columns are named `{Property}_{aggregate in lower case}` (`Total_sum`, `ID_count`) and a group column keeps the property name. `WithGroupBy` takes a comma separated list; a date property accepts a part: `Created.year`, `.month`, `.day`, `.hour`, `.minute`, `.second` (column `Created_year`). The rows come back ordered by the aggregates, largest first; `WithSort(true)` is meant to reverse that but does not (the server reads only `asc` and `desc`, the SDKs send `true` / `false`), so sort the rows yourself. The default page size is 20 and the maximum 1000.
+**Available aggregates:** `Count`, `Min`, `Max`, `Sum`, `Avg`. The answer is an array with one row per group. The result columns are named `{Property}_{aggregate in lower case}` (`Total_sum`, `ID_count`) and a group column keeps the property name. `WithGroupBy` takes a comma separated list; a date property accepts a part: `Created.year`, `.month`, `.day`, `.hour`, `.minute`, `.second` (column `Created_year`). The rows come back ordered by the aggregates, largest first; `WithSort(true)` / `withSort(true)` puts the smallest first. The default page size is 20 and the maximum 1000.
 
 Reports in the Portal are saved Stats/Aggregate calls: the 'View API endpoint' menu of a report panel shows the call behind each series, so you can read the same numbers from code.
 
-For distinct values use `GetStatsDistinctAsync<T>(StatsDistinctRequest.New("Orders", "Status"))` / `getStatsDistinct(StatsDistinctRequest.new('Orders', 'Status'))`; the answer is an array of rows such as `{ "Status": "Open" }`.
+For distinct values use `GetStatsDistinctAsync<T>(StatsDistinctRequest.New("Orders", "Status"))` / `getStatsDistinct(StatsDistinctRequest.new('Orders', 'Status'))`; the answer is an array of rows such as `{ "Status": "Open" }`, at most 1000 of them.
 
 ---
 

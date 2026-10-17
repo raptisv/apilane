@@ -15,6 +15,11 @@ namespace Apilane.Portal.Services
 {
     public class CloneService : ICloneService
     {
+        private const int PageSize = 1000;
+
+        // How long the status of a finished or failed operation can still be read.
+        private static readonly TimeSpan ProgressRetention = TimeSpan.FromMinutes(30);
+
         private readonly ConcurrentDictionary<string, CloneProgressInfo> _operations = new();
         private readonly IApiHttpService _apiHttpService;
         private readonly ILogger<CloneService> _logger;
@@ -72,6 +77,11 @@ namespace Apilane.Portal.Services
                     // The status last: whoever reads a final status finds its details set.
                     progress.ErrorMessage = ex.Message;
                     progress.Status = CloneStatus.Failed;
+                }
+                finally
+                {
+                    // Completed or failed, the entry is forgotten after a while: the singleton keeps no operation for good.
+                    _ = Task.Delay(ProgressRetention).ContinueWith(t => _operations.TryRemove(operationId, out _), TaskScheduler.Default);
                 }
             });
 
@@ -172,9 +182,6 @@ namespace Apilane.Portal.Services
 
             _logger.LogInformation("Clone {OperationId} completed successfully. {EntitiesCreated} entities created, {TotalRecords} records imported.",
                 progress.OperationId, progress.EntitiesCreated, progress.TotalRecordsImported);
-
-            // Schedule cleanup of the progress entry after 30 minutes
-            _ = Task.Delay(TimeSpan.FromMinutes(30)).ContinueWith(t => _operations.TryRemove(progress.OperationId, out _));
         }
 
         private async Task ExecuteCloneDataAsync(
@@ -202,25 +209,30 @@ namespace Apilane.Portal.Services
 
             progress.TotalEntitiesToCloneData = entitiesToProcess.Count;
 
-            // First pass: count total records for ETA calculation
+            // First pass: count total records for ETA calculation, from the total that a page of one
+            // record answers with.
             var entityRecordCounts = new Dictionary<string, int>();
             foreach (var entity in entitiesToProcess)
             {
                 try
                 {
-                    var entityData = await _apiHttpService.GetAllDataAsync(
+                    var firstPage = await _apiHttpService.GetDataPageAsync(
                         sourceApplication.Server.ServerUrl,
                         sourceApplication.Token,
                         entity.Name,
+                        1,
+                        1,
                         portalUserAuthToken);
 
-                    if (entityData.IsError(out var error))
+                    if (firstPage.IsError(out var error))
                     {
                         throw new Exception(error.ToString());
                     }
 
-                    entityRecordCounts[entity.Name] = entityData.Value.Data.Count;
-                    progress.TotalRecordsAllEntities += entityData.Value.Data.Count;
+                    var count = (int)Math.Min(firstPage.Value.Total, int.MaxValue);
+
+                    entityRecordCounts[entity.Name] = count;
+                    progress.TotalRecordsAllEntities += count;
                 }
                 catch (Exception ex)
                 {
@@ -229,53 +241,56 @@ namespace Apilane.Portal.Services
                 }
             }
 
-            // Second pass: import data entity by entity
+            // Second pass: import data entity by entity, page by page, so only one page is in memory
+            // and each record is read once.
             foreach (var entity in entitiesToProcess)
             {
                 progress.CurrentEntityCloningDataName = entity.Name;
                 progress.CurrentEntityTotalRecords = entityRecordCounts.GetValueOrDefault(entity.Name, 0);
                 progress.CurrentEntityImportedRecords = 0;
 
-                var entityData = await _apiHttpService.GetAllDataAsync(
-                    sourceApplication.Server.ServerUrl,
-                    sourceApplication.Token,
-                    entity.Name,
-                    portalUserAuthToken);
-
-                if (entityData.IsError(out var error))
+                for (var pageIndex = 1; ; pageIndex++)
                 {
-                    throw new Exception(error.ToString());
-                }
+                    var page = await _apiHttpService.GetDataPageAsync(
+                        sourceApplication.Server.ServerUrl,
+                        sourceApplication.Token,
+                        entity.Name,
+                        pageIndex,
+                        PageSize,
+                        portalUserAuthToken);
 
-                int pageIndex = 0;
-                int pageSize = 1000;
-                var currentPage = entityData.Value.Data.Skip(pageIndex * pageSize).Take(pageSize).ToList();
+                    if (page.IsError(out var error))
+                    {
+                        throw new Exception(error.ToString());
+                    }
 
-                while (currentPage.Count > 0)
-                {
-                    var recordStart = pageIndex * pageSize;
-                    var recordEnd = (pageIndex * pageSize) + pageSize;
-                    var recordCount = entityData.Value.Data.Count;
-                    recordEnd = recordCount >= recordEnd ? recordEnd : recordCount;
+                    var records = page.Value.Data;
+
+                    if (records.Count == 0)
+                    {
+                        break;
+                    }
 
                     _logger.LogInformation("Clone {OperationId} | Importing '{EntityName}' records {Start}-{End}/{Total}",
-                        progress.OperationId, entity.Name, recordStart, recordEnd, recordCount);
+                        progress.OperationId, entity.Name, progress.CurrentEntityImportedRecords, progress.CurrentEntityImportedRecords + records.Count, page.Value.Total);
 
                     // Insert current page
                     await _apiHttpService.ImportDataAsync(
                         targetServer.ServerUrl,
                         clonedAppToken,
                         entity.Name,
-                        currentPage,
+                        records,
                         portalUserAuthToken);
 
                     // Update progress
-                    progress.CurrentEntityImportedRecords += currentPage.Count;
-                    progress.TotalRecordsImported += currentPage.Count;
+                    progress.CurrentEntityImportedRecords += records.Count;
+                    progress.TotalRecordsImported += records.Count;
 
-                    // Go to next page
-                    pageIndex++;
-                    currentPage = entityData.Value.Data.Skip(pageIndex * pageSize).Take(pageSize).ToList();
+                    // A page that is not full is the last one.
+                    if (records.Count < PageSize)
+                    {
+                        break;
+                    }
                 }
 
                 progress.EntitiesDataCloned++;

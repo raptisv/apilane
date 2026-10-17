@@ -11,9 +11,11 @@ using Apilane.Data.Abstractions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
+using Npgsql;
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -60,7 +62,7 @@ namespace Apilane.Api.Core
             // If authorized, replace owner
             if (appUser is not null)
             {
-                query = query.Replace("{Owner}", appUser.ID.ToString());
+                query = query.Replace("{Owner}", appUser.ID.ToString(CultureInfo.InvariantCulture));
             }
 
             try
@@ -77,17 +79,12 @@ namespace Apilane.Api.Core
                     return result;
                 }
             }
-            catch (SqlException ex)
+            catch (Exception ex) when (ex is SqlException || ex is SQLiteException || ex is MySqlException || ex is PostgresException)
             {
-                throw new ApilaneException(AppErrors.ERROR, ex.Message);
-            }
-            catch (SQLiteException ex)
-            {
-                throw new ApilaneException(AppErrors.ERROR, ex.Message);
-            }
-            catch (MySqlException ex)
-            {
-                throw new ApilaneException(AppErrors.ERROR, ex.Message);
+                // The text of the database can show the endpoint's SQL or stored values (e.g. the duplicate key of a
+                // unique violation): only a caller with full access gets it, everyone else the general message.
+                _logger.LogWarning(ex, "Custom endpoint '{Endpoint}' failed: {Reason}", customEndpoint.Name, ex.Message);
+                throw new ApilaneException(AppErrors.ERROR, userHasFullAccess ? ex.Message : Globals.GeneralError);
             }
             catch (Exception)
             {
@@ -142,8 +139,13 @@ namespace Apilane.Api.Core
             foreach (string param in item.GetParameters())
             {
                 var uriParam = uriParams.ContainsKey(param) ? uriParams[param] : null;
-                long? UriParamForSql = Utils.GetNullLong(uriParam, null);
-                result = result.Replace($"{{{param}}}", UriParamForSql?.ToString() ?? "null");
+
+                // Read and written with the invariant culture: on a server whose culture writes a negative number
+                // with another minus sign ('−5', U+2212), '-5' would not be read and the SQL would break.
+                long? UriParamForSql = long.TryParse(Utils.GetString(uriParam), NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)
+                    ? number
+                    : null;
+                result = result.Replace($"{{{param}}}", UriParamForSql?.ToString(CultureInfo.InvariantCulture) ?? "null");
             }
 
             return result.ToString();

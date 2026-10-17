@@ -179,14 +179,17 @@ namespace Apilane.Portal.Tests
             var started = await StartAsync(scene.Owner, scene.Token, Body(target.ID, cloneData: true, entities: new[] { "Orders", "Files" }));
             await WaitForEndAsync(started.OperationId);
 
-            // Read from the source, twice (to count, then to copy), as the source application.
+            // Read from the source as the source application: a page of one record for the count,
+            // then page by page to copy, each record once.
             var reads = _portal.ApiServer.RequestsTo(DataPath);
-            Assert.Equal(2, reads.Count);
-            Assert.All(reads, x =>
-            {
-                Assert.Equal($"{scene.ServerUrl}/api/data/get?entity=Orders&pageIndex=1&pageSize=1000&getTotal=true", x.Url);
-                Assert.Equal(scene.Token, x.Headers["x-application-token"]);
-            });
+            Assert.Equal(
+                new[]
+                {
+                    $"{scene.ServerUrl}/api/data/get?entity=Orders&pageIndex=1&pageSize=1&getTotal=true",
+                    $"{scene.ServerUrl}/api/data/get?entity=Orders&pageIndex=1&pageSize=1000&getTotal=true"
+                },
+                reads.Select(x => x.Url));
+            Assert.All(reads, x => Assert.Equal(scene.Token, x.Headers["x-application-token"]));
 
             // Written to the clone.
             var import = Assert.Single(_portal.ApiServer.RequestsTo(ImportDataPath));
@@ -226,8 +229,8 @@ namespace Apilane.Portal.Tests
                     $"POST {target.ServerUrl}/api/Application/GenerateEntity",
                     $"POST {target.ServerUrl}/api/Application/GenerateEntity",
                     $"POST {target.ServerUrl}/api/Application/GenerateEntity",
-                    $"GET {scene.ServerUrl}/api/data/get?entity=Customers&pageIndex=1&pageSize=1000&getTotal=true",
-                    $"GET {scene.ServerUrl}/api/data/get?entity=Orders&pageIndex=1&pageSize=1000&getTotal=true",
+                    $"GET {scene.ServerUrl}/api/data/get?entity=Customers&pageIndex=1&pageSize=1&getTotal=true",
+                    $"GET {scene.ServerUrl}/api/data/get?entity=Orders&pageIndex=1&pageSize=1&getTotal=true",
                     $"GET {scene.ServerUrl}/api/data/get?entity=Customers&pageIndex=1&pageSize=1000&getTotal=true",
                     $"POST {target.ServerUrl}/api/Application/ImportData?Entity=Customers",
                     $"GET {scene.ServerUrl}/api/data/get?entity=Orders&pageIndex=1&pageSize=1000&getTotal=true",
@@ -252,14 +255,15 @@ namespace Apilane.Portal.Tests
             Assert.All(_portal.ApiServer.RequestsTo(ImportDataPath), x => Assert.Equal(2, JsonNode.Parse(x.Body)?.AsArray().Count));
 
             // One audit row for the application, its custom endpoint, each of its 5 entities and
-            // each of their 16 properties, all caused by the caller. None carries an application.
+            // each of their 16 properties, all caused by the caller, all in the log of the clone.
             var owner = await _portal.WithDbContextAsync(db => db.Users.AsNoTracking().SingleAsync(x => x.Email == scene.OwnerEmail));
+            var clone = await LoadAsync(started.ClonedApplicationToken);
             var audit = await scene.AuditRowsAsync(scene.OwnerEmail);
 
             Assert.Equal(
                 new[] { "Application 1", "Custom Endpoint 1", "Entity 5", "Property 16" },
                 audit.GroupBy(x => x.EntityType).Select(x => $"{x.Key} {x.Count()}").OrderBy(x => x));
-            Assert.All(audit, x => Assert.Equal($"Created | {owner.Id} | ", $"{x.Action} | {x.UserId} | {x.AppID}"));
+            Assert.All(audit, x => Assert.Equal($"Created | {owner.Id} | {clone.ID}", $"{x.Action} | {x.UserId} | {x.AppID}"));
         }
 
         [Theory]

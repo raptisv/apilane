@@ -8,6 +8,7 @@ import {
   formatCount,
   onDeleteText,
   propertyConstraints,
+  referencingEntity,
 } from './entities'
 import type { Constraint, Entity } from './entities'
 
@@ -162,5 +163,27 @@ describe('propertyConstraints', () => {
   it('compares names without regard to case, and passes on a constraint of the entity itself', () => {
     expect(propertyConstraints('email', [unique('Email')])).toHaveLength(1)
     expect(propertyConstraints('Owner', [{ ...foreign('Owner', 'Users'), IsSystem: true }])[0].isSystem).toBe(true)
+  })
+})
+
+describe('referencingEntity', () => {
+  const pointing = (name: string, to: string): Entity => ({
+    ...entity(name),
+    Constraints: [unique('Code'), { ...foreignKey(null), ForeignEntity: to }],
+  })
+
+  it('finds the entity whose foreign key points to it', () => {
+    const entities = [entity('Customers'), pointing('Orders', 'Customers')]
+
+    expect(referencingEntity('Customers', entities)).toBe('Orders')
+    expect(referencingEntity('Orders', entities)).toBeUndefined()
+  })
+
+  it('counts a foreign key of the entity to itself', () => {
+    expect(referencingEntity('Categories', [pointing('Categories', 'Categories')])).toBe('Categories')
+  })
+
+  it('compares the names with regard to case, as the API does', () => {
+    expect(referencingEntity('customers', [pointing('Orders', 'Customers')])).toBeUndefined()
   })
 })

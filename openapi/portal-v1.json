@@ -11,7 +11,7 @@
         "tags": [
           "AdminAgents"
         ],
-        "summary": "Creates an agent: a portal user with the address {Name}@agent.local and no password,\nand a key for it. The agent sends the key as 'Authorization: Bearer {Key}' and is then\nthat user: it reaches the applications that are shared with its address. The key is in\nthis answer only; the Portal stores a hash of it. Answers 400 VALIDATION on Name for a\nname that is not acceptable or already taken. Admin only.",
+        "summary": "Creates an agent: a portal user with the address {Name}@agent.local and no password,\nand a key for it. The agent sends the key as 'Authorization: Bearer {Key}' and is then\nthat user: it reaches the applications that are shared with its address. The key is in\nthis answer only; the Portal stores a hash of it. The instance audit log gets an entry\n('Agent', its address, 'Created'). Answers 400 VALIDATION on Name for a name that is not\nacceptable or already taken. Admin only.",
         "operationId": "AdminAgents_Create",
         "requestBody": {
           "content": {
@@ -81,7 +81,7 @@
         "tags": [
           "AdminAgents"
         ],
-        "summary": "Deletes an agent: its user and its key, which stops working at once, and its entries\nin the collaborator lists of the applications shared with it. This cannot be undone.\nAnswers 404 NOT_FOUND for an unknown id and for a user that is not an agent: people\ncannot be deleted. Admin only.",
+        "summary": "Deletes an agent: its user and its key, which stops working at once, and its entries\nin the collaborator lists of the applications shared with it. This cannot be undone.\nThe instance audit log gets an entry ('Agent', its address, 'Deleted'). Answers 404\nNOT_FOUND for an unknown id and for a user that is not an agent: people cannot be\ndeleted. Answers 409 CONFLICT, naming them, when the agent owns applications (only a\nlegacy account registered at @agent.local can): they would be left without an owner,\nso they are deleted first. Admin only.",
         "operationId": "AdminAgents_Delete",
         "parameters": [
           {
@@ -119,6 +119,16 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -237,7 +247,7 @@
         "tags": [
           "AdminAuditLog"
         ],
-        "summary": "Returns one page of the instance audit log, newest first: changes to servers, instance\nsettings and user roles, new applications and database backup downloads. Total counts\nevery entry, not only the page. Admin only.",
+        "summary": "Returns one page of the instance audit log, newest first: changes to servers, instance\nsettings and user roles, agents added or deleted, the creation and the deletion of every\napplication, and database backup downloads. Total counts every entry, not only the page.\nAdmin only.",
         "operationId": "AdminAuditLog_List",
         "parameters": [
           {
@@ -1747,7 +1757,7 @@
         "tags": [
           "ApplicationEmailSettings"
         ],
-        "summary": "Saves the SMTP settings and the e-mail confirmation redirect URL, all together. Every\nvalue is written (null or empty clears it) except MailPassword, which null keeps and an\nempty string clears. For human owners and collaborators only: agents cannot change\nmail transport or confirmation redirects, regardless of their application grants.\nA 'Warning' response header means the settings were saved and the API server could not\nbe refreshed: it keeps sending with the old settings until its cache expires.",
+        "summary": "Saves the SMTP settings and the e-mail confirmation redirect URL, all together. Every\nvalue is written (null or empty clears it) except MailPassword, which null keeps and an\nempty string clears. A new MailServer or MailUserName while a password is stored needs\nthe password again: without a MailPassword it is 400 VALIDATION on MailPassword, so the\nstored password never goes to another host or account. For human owners and\ncollaborators only: agents cannot change mail transport or confirmation redirects,\nregardless of their application grants.\nA 'Warning' response header means the settings were saved and the API server could not\nbe refreshed: it keeps sending with the old settings until its cache expires.",
         "operationId": "ApplicationEmailSettings_Update",
         "parameters": [
           {
@@ -2801,7 +2811,7 @@
         "tags": [
           "Collaborators"
         ],
-        "summary": "Shares the application with an e-mail address. A person gets everything except sharing\nit further; an agent gets the supplied permissions, or read-only access when omitted.\nThe owner can edit an agent's permissions later. The address is trimmed and must be a valid e-mail\naddress (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an\naddress the application is already shared with, in any letter case. When the instance\nmail is configured the address gets a notification mail, unless it is an agent's\n(@agent.local); NotificationSent says whether the mail was handed over for sending\n(delivery is not reported). The share is matched to an account by exact address, as\ntyped. Owner only.",
+        "summary": "Shares the application with an e-mail address. A person gets everything except sharing\nit further; an agent gets the supplied permissions, or read-only access when omitted.\nThe owner can edit an agent's permissions later. The address is trimmed and must be a valid e-mail\naddress (400 VALIDATION). Answers 409 CONFLICT for the caller's own address and for an\naddress the application is already shared with, in any letter case. The address must\nbelong to a Portal account, in any letter case (400 VALIDATION on Email otherwise: the\nperson must sign up first), and the share is saved with that account's address as it is\nstored. When the instance mail is configured the address gets a notification mail, unless\nit is an agent's (@agent.local); NotificationSent says whether the mail was handed over for\nsending (delivery is not reported). Owner only.",
         "operationId": "Collaborators_Add",
         "parameters": [
           {
@@ -4883,7 +4893,7 @@
         "tags": [
           "PortalApplication"
         ],
-        "summary": "Renames the application and sets its connection string. For the owner and collaborators.\nThe stored database type decides what is written; the database type and the server cannot\nbe changed. ConnectionString is write-only: null or left out keeps the stored value, a value\nreplaces it, and it is ignored for an SQLLite application. Answers 400 VALIDATION on\nConnectionString when it is empty, or left out while none is stored, for an application\nthat is not on SQLLite. A 'Warning' response header means the change was saved and the API\nserver could not be refreshed afterwards.",
+        "summary": "Renames the application and sets its connection string. For the owner and collaborators.\nThe stored database type decides what is written; the database type and the server cannot\nbe changed. ConnectionString is write-only: null or left out keeps the stored value, a value\nreplaces it, and it is ignored for an SQLLite application. Answers 400 VALIDATION on\nConnectionString when it is empty, or left out while none is stored, for an application\nthat is not on SQLLite. An agent may rename the application but never send a\nConnectionString, whatever its grants: that is 403 FORBIDDEN. A 'Warning' response header\nmeans the change was saved and the API server could not be refreshed afterwards.",
         "operationId": "PortalApplication_Update",
         "parameters": [
           {
@@ -5114,7 +5124,7 @@
         "tags": [
           "PortalApplication"
         ],
-        "summary": "Returns one page of the application's audit log, newest first: the changes made in the\nPortal to the application and to its entities, properties, custom endpoints, reports and\ncollaborators. Secret values read '***'. The entry of the application's creation is in\nthe instance audit log, not here. Total counts every entry, not only the page. For the\nowner and collaborators.",
+        "summary": "Returns one page of the application's audit log, newest first: the changes made in the\nPortal to the application and to its entities, properties, custom endpoints, reports and\ncollaborators, and its rebuilds. Secret values read '***'. The entry of the application's creation is in\nthe instance audit log, not here. Total counts every entry, not only the page. For the\nowner and collaborators.",
         "operationId": "PortalApplication_GetAuditLog",
         "parameters": [
           {
@@ -5381,7 +5391,7 @@
         "tags": [
           "PortalApplication"
         ],
-        "summary": "Rebuilds the application on its API server: all its data is dropped and its tables are\ncreated again, empty. The token, the entities and the properties stay. This cannot be\nundone and there is no confirmation step. For the owner and collaborators. A refusal of\nthe API server is 400 VALIDATION with its own message, any other failure of it 502\nUPSTREAM_ERROR. A 'Warning' response header means the rebuild was done and the API server\ncould not be refreshed afterwards.",
+        "summary": "Rebuilds the application on its API server: all its data is dropped and its tables are\ncreated again, empty. The token, the entities and the properties stay. This cannot be\nundone and there is no confirmation step. For the owner and collaborators. A rebuild the\nAPI server did writes an entry to the application's audit log ('Application', its name,\n'Rebuilt'). A refusal of the API server is 400 VALIDATION with its own message, any other\nfailure of it 502 UPSTREAM_ERROR. A 'Warning' response header means the rebuild was done\nand the API server could not be refreshed afterwards.",
         "operationId": "PortalApplication_Rebuild",
         "parameters": [
           {
@@ -5590,7 +5600,7 @@
         "tags": [
           "PortalApplications"
         ],
-        "summary": "Creates an application from the application.json of an export, on the chosen API server\nand database, owned by the caller. Sent as multipart/form-data. The application keeps the\ntoken and the encryption key of the file; IDs, owner, collaborators and server in the file\nare ignored. Answers 400 VALIDATION on File for a missing, empty or unreadable file, 409\nCONFLICT when an application with that token exists on this instance, 404 for an unknown\nServerID, 400 VALIDATION on ConnectionString with the API server's own message when it\nrefuses the database, and 502 UPSTREAM_ERROR when the API server cannot be reached or fails.",
+        "summary": "Creates an application from the application.json of an export, on the chosen API server\nand database, owned by the caller. Sent as multipart/form-data. The application keeps the\ntoken and the encryption key of the file; IDs, owner, collaborators and server in the file\nare ignored. Entities other than the system ones (Users, AuthTokens, Files, the\ndifferentiation entity) are stored as custom entities whatever flags the file gives them.\nAnswers 400 VALIDATION on File for a missing, empty or unreadable file, and for a file with\na value the Portal's editors refuse (a setting out of range, a client address, a name or a\nproperty type, a constraint, a security rule), naming its place in the file, 409\nCONFLICT when an application with that token exists on this instance, 404 for an unknown\nServerID, 400 VALIDATION on ConnectionString with the API server's own message when it\nrefuses the database, and 502 UPSTREAM_ERROR when the API server cannot be reached or fails.",
         "operationId": "PortalApplications_Import",
         "requestBody": {
           "content": {
@@ -6768,7 +6778,7 @@
           "Email": {
             "minLength": 1,
             "type": "string",
-            "description": "The e-mail address of a user of this instance. Spaces around it are removed. The share\ntakes effect only for an account with exactly this address."
+            "description": "The e-mail address of a user of this instance, in any letter case. Spaces around it are\nremoved. An address that no account uses is refused: the person must sign up first."
           },
           "Permissions": {
             "type": "array",
@@ -7672,7 +7682,7 @@
           "Email": {
             "minLength": 1,
             "type": "string",
-            "description": "The e-mail address the application is shared with, trimmed."
+            "description": "The address of the account the application is shared with, as the account stores it."
           },
           "Permissions": {
             "type": "array",
@@ -7704,7 +7714,7 @@
           "Email": {
             "minLength": 1,
             "type": "string",
-            "description": "The e-mail address the application is shared with, as it was entered."
+            "description": "The e-mail address the application is shared with: the account's own address. A share\nsaved before sharing required an account keeps the address as it was entered."
           },
           "Permissions": {
             "type": "array",
@@ -8721,7 +8731,7 @@
           },
           "MailPassword": {
             "type": "string",
-            "description": "Write-only. Null keeps the stored password, an empty string clears it, a value replaces it.",
+            "description": "Write-only. Null keeps the stored password, an empty string clears it, a value replaces it.\nNull is refused while a password is stored and MailServer or MailUserName gets a new value.",
             "nullable": true
           },
           "EmailConfirmationRedirectUrl": {
@@ -9052,7 +9062,10 @@
             "nullable": true
           },
           "MailServerPort": {
+            "maximum": 65535,
+            "minimum": 1,
             "type": "integer",
+            "description": "1 to 65535. Null clears it.",
             "format": "int32",
             "nullable": true
           },
@@ -10866,7 +10879,7 @@
           },
           "ConnectionString": {
             "type": "string",
-            "description": "Write-only. Null or left out keeps the stored connection string; a value replaces it.\nRequired when the application has none stored yet. Ignored for an SQLLite application.\nThe API server does not check it: a wrong value shows when the application is next called.",
+            "description": "Write-only. Null or left out keeps the stored connection string; a value replaces it.\nRequired when the application has none stored yet. Ignored for an SQLLite application.\nThe API server does not check it: a wrong value shows when the application is next called.\nPeople only: an agent must leave it out or send null (403 otherwise).",
             "nullable": true
           }
         },

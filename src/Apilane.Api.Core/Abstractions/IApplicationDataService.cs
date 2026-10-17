@@ -19,6 +19,8 @@ namespace Apilane.Api.Core.Abstractions
         Task<DataTotalResponse> GetHistoryByIdAsync(string appToken, bool userHasFullAccess, string? differentiationEntity, string applicationEncryptionKey, DBWS_Entity entity, long id, int? pageIndex, int? pageSize, (Users? User, List<DBWS_Security> Security) Data_UserSecurity);
         object? GetPropertyValue(string? differentiationEntity, string applicationEncryptionKey, DBWS_Entity entity, DBWS_EntityProperty property, JsonObject Object, Users? user);
         List<SortData>? GetSortData(DBWS_Entity entity, string? sortString, List<DBWS_Security> security);
+        List<SortData>? GetDefaultSortData(DBWS_Entity entity, List<DBWS_Security> security);
+        Task EnsureUniqueUserNameAndEmailAsync(DBWS_Entity usersEntity, Dictionary<string, object?> userValues, long? userId);
         Task<Dictionary<string, object?>?> GetUserByIdAsync(string? appToken, long userID);
         Task<List<long>> PostAsync(string appToken, DBWS_Entity entity, DatabaseType databaseType, string? differentiationEntity, string applicationEncryptionKey, object item, (Users? User, List<DBWS_Security> Security) Data_UserSecurity);
         Task<long> PutAsync(string appToken, DBWS_Entity entity, bool userHasFullAccess, DatabaseType databaseType, string? differentiationEntity, string applicationEncryptionKey, object item, (Users? User, List<DBWS_Security> Security) Data_UserSecurity);

@@ -8,11 +8,12 @@ using Apilane.Net.Models.Data;
 using Apilane.Net.Models.Enums;
 using Apilane.Net.Request;
 using Apilane.Net.Services;
+using Apilane.Net.Utilities;
 using CasinoService.ComponentTests.Infrastructure;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -156,9 +157,6 @@ namespace Apilane.Api.Component.Tests
 
         private async Task GetCustomEndpoint_ShouldSucceed<T>(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken)
         {
-            // Reset limits before next test
-            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), EntityAccess.GetRateLimitName("test", SecurityTypes.CustomEndpoint), SecurityActionType.get.ToString());
-
             var request = CustomEndpointRequest.New("test");
 
             if (!string.IsNullOrWhiteSpace(authToken))
@@ -166,50 +164,64 @@ namespace Apilane.Api.Component.Tests
                 request = request.WithAuthToken(authToken);
             }
 
-            // First wave should succeed
-
-            for (int i = 0; i < rateLimit.MaxRequests; i++)
+            for (var attempt = 1; ; attempt++)
             {
-                var getData_First = await ApilaneService.GetCustomEndpointAsync(request);
+                // Reset limits before next test
+                ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), EntityAccess.GetRateLimitName("test", SecurityTypes.CustomEndpoint), SecurityActionType.get.ToString());
+                var wave = Stopwatch.StartNew();
 
-                getData_First.Match(response =>
+                // First wave should succeed
+
+                for (int i = 0; i < rateLimit.MaxRequests; i++)
                 {
-                    Assert.NotNull(response);
-                    return response;
+                    var getData_First = await ApilaneService.GetCustomEndpointAsync(request);
+
+                    getData_First.Match(response =>
+                    {
+                        Assert.NotNull(response);
+                        return response;
+                    },
+                    error =>
+                    {
+                        throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}");
+                    });
+                }
+
+                // Second wave should fail
+
+                var getData_Second = await ApilaneService.GetCustomEndpointAsync(request);
+                if (IsInconclusive(rateLimit, wave, getData_Second, attempt))
+                {
+                    continue;
+                }
+
+                getData_Second.Match(response =>
+                {
+                    if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
+                    {
+                        throw new Exception($"We should not be here");
+                    }
+
+                    return 0;
                 },
                 error =>
                 {
-                    throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}");
+                    if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
+                    {
+                        Assert.Equal(ValidationError.RATE_LIMIT_EXCEEDED, error.Code);
+                    }
+
+                    return 0;
                 });
+
+                break;
             }
-
-            // Second wave should fail
-
-            var getData_Second = await ApilaneService.GetCustomEndpointAsync(request);
-            getData_Second.Match(response =>
-            {
-                if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
-                {
-                    throw new Exception($"We should not be here");
-                }
-
-                return 0;
-            },
-            error =>
-            {
-                if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
-                {
-                    Assert.Equal(ValidationError.RATE_LIMIT_EXCEEDED, error.Code);
-                }
-
-                return 0;
-            });
 
             if (rateLimit.TimeWindowType == (int)EndpointRateLimit.Per_Second)
             {
                 // Third wave should succeed if we wait for 1 second
 
-                Thread.Sleep(1000);
+                await Task.Delay(1000);
 
                 var getData_Third = await ApilaneService.GetCustomEndpointAsync(request);
 
@@ -224,9 +236,6 @@ namespace Apilane.Api.Component.Tests
 
         private async Task GetData_ShouldSucceed<T>(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken)
         {
-            // Reset limits before next test
-            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.get.ToString());
-
             var request = DataGetListRequest.New(CustomEntityLight.EntityName);
 
             if (!string.IsNullOrWhiteSpace(authToken))
@@ -234,48 +243,62 @@ namespace Apilane.Api.Component.Tests
                 request = request.WithAuthToken(authToken);
             }
 
-            // First wave should succeed
-
-            for(int i=0;i< rateLimit.MaxRequests; i++)
+            for (var attempt = 1; ; attempt++)
             {
-                var getData_First = await ApilaneService.GetDataAsync<T>(request);
+                // Reset limits before next test
+                ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.get.ToString());
+                var wave = Stopwatch.StartNew();
 
-                getData_First.Match(response =>
+                // First wave should succeed
+
+                for(int i=0;i< rateLimit.MaxRequests; i++)
                 {
-                    Assert.NotNull(response);
-                    Assert.NotNull(response.Data);
-                    return response.Data;
+                    var getData_First = await ApilaneService.GetDataAsync<T>(request);
+
+                    getData_First.Match(response =>
+                    {
+                        Assert.NotNull(response);
+                        Assert.NotNull(response.Data);
+                        return response.Data;
+                    },
+                    error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+                }
+
+                // Second wave should fail
+
+                var getData_Second = await ApilaneService.GetDataAsync<T>(request);
+                if (IsInconclusive(rateLimit, wave, getData_Second, attempt))
+                {
+                    continue;
+                }
+
+                getData_Second.Match(response =>
+                {
+                    if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
+                    {
+                        throw new Exception($"We should not be here");
+                    }
+
+                    return 0;
                 },
-                error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+                error =>
+                {
+                    if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
+                    {
+                        Assert.Equal(ValidationError.RATE_LIMIT_EXCEEDED, error.Code);
+                    }
+
+                    return 0;
+                });
+
+                break;
             }
-
-            // Second wave should fail
-
-            var getData_Second = await ApilaneService.GetDataAsync<T>(request);
-            getData_Second.Match(response =>
-            {
-                if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
-                {
-                    throw new Exception($"We should not be here");
-                }
-
-                return 0;
-            },
-            error =>
-            {
-                if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
-                {
-                    Assert.Equal(ValidationError.RATE_LIMIT_EXCEEDED, error.Code);
-                }
-
-                return 0;
-            });
 
             if (rateLimit.TimeWindowType == (int)EndpointRateLimit.Per_Second)
             {
                 // Third wave should succeed if we wait for 1 second
 
-                Thread.Sleep(1000);
+                await Task.Delay(1000);
 
                 var getData_Third = await ApilaneService.GetDataAsync<T>(request);
 
@@ -291,9 +314,6 @@ namespace Apilane.Api.Component.Tests
 
         private async Task<long> PostData_ShouldSucceed(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken, object data)
         {
-            // Reset limits before next test
-            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.post.ToString());
-
             var request = DataPostRequest.New(CustomEntityLight.EntityName);
 
             if (!string.IsNullOrWhiteSpace(authToken))
@@ -303,49 +323,63 @@ namespace Apilane.Api.Component.Tests
 
             long postItemId = 0;
 
-            // First wave should succeed
-
-            for (int i = 0; i < rateLimit.MaxRequests; i++)
+            for (var attempt = 1; ; attempt++)
             {
-                var postDataFirst = await ApilaneService.PostDataAsync(request, data);
+                // Reset limits before next test
+                ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.post.ToString());
+                var wave = Stopwatch.StartNew();
 
-                postItemId = postDataFirst.Match(response =>
+                // First wave should succeed
+
+                for (int i = 0; i < rateLimit.MaxRequests; i++)
                 {
-                    Assert.NotNull(response);
-                    Assert.Single(response);
-                    return response.Single();
+                    var postDataFirst = await ApilaneService.PostDataAsync(request, data);
+
+                    postItemId = postDataFirst.Match(response =>
+                    {
+                        Assert.NotNull(response);
+                        Assert.Single(response);
+                        return response.Single();
+                    },
+                    error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+                }
+
+                // Second wave should fail
+
+                var postDataSecond = await ApilaneService.PostDataAsync(request, data);
+                if (IsInconclusive(rateLimit, wave, postDataSecond, attempt))
+                {
+                    continue;
+                }
+
+
+                postDataSecond.Match(response =>
+                {
+                    if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
+                    {
+                        throw new Exception($"We should not be here");
+                    }
+
+                    return 0;
                 },
-                error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+                error =>
+                {
+                    if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
+                    {
+                        Assert.Equal(ValidationError.RATE_LIMIT_EXCEEDED, error.Code);
+                    }
+
+                    return 0;
+                });
+
+                break;
             }
-
-            // Second wave should fail
-
-            var postDataSecond = await ApilaneService.PostDataAsync(request, data);
-
-            postDataSecond.Match(response =>
-            {
-                if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
-                {
-                    throw new Exception($"We should not be here");
-                }
-
-                return 0;
-            },
-            error =>
-            {
-                if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
-                {
-                    Assert.Equal(ValidationError.RATE_LIMIT_EXCEEDED, error.Code);
-                }
-
-                return 0;
-            });
 
             if (rateLimit.TimeWindowType == (int)EndpointRateLimit.Per_Second)
             {
                 // Third wave should succeed if we wait for 1 second
 
-                Thread.Sleep(1000);
+                await Task.Delay(1000);
 
                 var postDataThird = await ApilaneService.PostDataAsync(request, data);
 
@@ -365,9 +399,6 @@ namespace Apilane.Api.Component.Tests
 
         private async Task PutData_ShouldSucceed(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken, object data)
         {
-            // Reset limits before next test
-            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.put.ToString());
-
             var request = DataPutRequest.New(CustomEntityLight.EntityName);
 
             if (!string.IsNullOrWhiteSpace(authToken))
@@ -375,42 +406,56 @@ namespace Apilane.Api.Component.Tests
                 request = request.WithAuthToken(authToken);
             }
 
-            // First wave should succeed
-
-            for (int i = 0; i < rateLimit.MaxRequests; i++)
+            for (var attempt = 1; ; attempt++)
             {
-                var putDataFirst = await ApilaneService.PutDataAsync(request, data);
-                putDataFirst.Match(response => response,
-                error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+                // Reset limits before next test
+                ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.put.ToString());
+                var wave = Stopwatch.StartNew();
+
+                // First wave should succeed
+
+                for (int i = 0; i < rateLimit.MaxRequests; i++)
+                {
+                    var putDataFirst = await ApilaneService.PutDataAsync(request, data);
+                    putDataFirst.Match(response => response,
+                    error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+                }
+
+                // Second wave should fail
+
+                var putDataSecond = await ApilaneService.PutDataAsync(request, data);
+                if (IsInconclusive(rateLimit, wave, putDataSecond, attempt))
+                {
+                    continue;
+                }
+
+                putDataSecond.Match(response =>
+                {
+                    if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
+                    {
+                        throw new Exception($"We should not be here");
+                    }
+
+                    return 0;
+                },
+                error =>
+                {
+                    if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
+                    {
+                        Assert.Equal(ValidationError.RATE_LIMIT_EXCEEDED, error.Code);
+                    }
+
+                    return 0;
+                });
+
+                break;
             }
-
-            // Second wave should fail
-
-            var putDataSecond = await ApilaneService.PutDataAsync(request, data);
-            putDataSecond.Match(response =>
-            {
-                if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
-                {
-                    throw new Exception($"We should not be here");
-                }
-
-                return 0;
-            },
-            error =>
-            {
-                if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
-                {
-                    Assert.Equal(ValidationError.RATE_LIMIT_EXCEEDED, error.Code);
-                }
-
-                return 0;
-            });
 
             if (rateLimit.TimeWindowType == (int)EndpointRateLimit.Per_Second)
             {
                 // Third wave should succeed if we wait for 1 second
 
-                Thread.Sleep(1000);
+                await Task.Delay(1000);
 
                 var putDataThird = await ApilaneService.PutDataAsync(request, data);
                 putDataThird.Match(response => response,
@@ -420,9 +465,6 @@ namespace Apilane.Api.Component.Tests
 
         private async Task DeleteData_ShouldSucceed(DBWS_Security.RateLimitItem rateLimit, long? userId, string? authToken, List<long> Ids)
         {
-            // Reset limits before next test
-            ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.delete.ToString());
-
             var request = DataDeleteRequest.New(CustomEntityLight.EntityName, Ids);
 
             if (!string.IsNullOrWhiteSpace(authToken))
@@ -430,47 +472,74 @@ namespace Apilane.Api.Component.Tests
                 request = request.WithAuthToken(authToken);
             }
 
-            // First wave should succeed
-
-            for (int i = 0; i < rateLimit.MaxRequests; i++)
+            for (var attempt = 1; ; attempt++)
             {
-                var deleteDataFirst = await ApilaneService.DeleteDataAsync(request);
-                deleteDataFirst.Match(response => response,
-                error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+                // Reset limits before next test
+                ApplicationRateLimiter.GetOrCreate(TestApplication.Token).Reset(userId?.ToString(), CustomEntityLight.EntityName, SecurityActionType.delete.ToString());
+                var wave = Stopwatch.StartNew();
+
+                // First wave should succeed
+
+                for (int i = 0; i < rateLimit.MaxRequests; i++)
+                {
+                    var deleteDataFirst = await ApilaneService.DeleteDataAsync(request);
+                    deleteDataFirst.Match(response => response,
+                    error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
+                }
+
+                // Second wave should fail
+
+                var deleteDataSecond = await ApilaneService.DeleteDataAsync(request);
+                if (IsInconclusive(rateLimit, wave, deleteDataSecond, attempt))
+                {
+                    continue;
+                }
+
+                deleteDataSecond.Match(response => 
+                {
+                    if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
+                    {
+                        throw new Exception($"We should not be here");
+                    }
+
+                    return 0;
+                },
+                error =>
+                {
+                    if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
+                    {
+                        Assert.Equal(ValidationError.RATE_LIMIT_EXCEEDED, error.Code);
+                    }
+
+                    return 0;
+                });
+
+                break;
             }
-
-            // Second wave should fail
-
-            var deleteDataSecond = await ApilaneService.DeleteDataAsync(request);
-            deleteDataSecond.Match(response => 
-            {
-                if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
-                {
-                    throw new Exception($"We should not be here");
-                }
-
-                return 0;
-            },
-            error =>
-            {
-                if (rateLimit.TimeWindowType != (int)EndpointRateLimit.None)
-                {
-                    Assert.Equal(ValidationError.RATE_LIMIT_EXCEEDED, error.Code);
-                }
-
-                return 0;
-            });
 
             if (rateLimit.TimeWindowType == (int)EndpointRateLimit.Per_Second)
             {
                 // Third wave should succeed if we wait for 1 second
 
-                Thread.Sleep(1000);
+                await Task.Delay(1000);
 
                 var deleteDataThird = await ApilaneService.DeleteDataAsync(request);
                 deleteDataThird.Match(response => response,
                 error => throw new Exception($"We should not be here | {error.Code} | {error.Message} | {error.Property}"));
             }
+        }
+
+        /// <summary>
+        /// Whether a wave of a per-second limit proved nothing and must run again: only a wave that ran inside one
+        /// second proves the limit. On a slow run the first request has left the window when the one over the
+        /// limit is sent, and that one is then rightly allowed. A few attempts at most.
+        /// </summary>
+        private static bool IsInconclusive<T>(DBWS_Security.RateLimitItem rateLimit, Stopwatch wave, Either<T, ApilaneError> overLimit, int attempt)
+        {
+            return attempt < 5
+                && rateLimit.TimeWindowType == (int)EndpointRateLimit.Per_Second
+                && wave.Elapsed >= TimeSpan.FromSeconds(1)
+                && overLimit.Match(_ => true, _ => false);
         }
 
         private async Task<long> RegisterUserAsync(string userEmail, string userPassword)

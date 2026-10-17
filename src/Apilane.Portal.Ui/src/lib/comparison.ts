@@ -97,6 +97,16 @@ export function isIdentical(view: ComparisonView): boolean {
   return sections.every((section) => Object.values(section).every((list) => list.length === 0))
 }
 
+/**
+ * Whether the other application has something this one lacks: what a schema import of this
+ * application from the other one would add. Removed and changed things are never imported.
+ */
+export function hasAdditions(view: ComparisonView): boolean {
+  const sections: { added: readonly unknown[] }[] = Object.values(view)
+
+  return sections.some((section) => section.added.length > 0)
+}
+
 function valueChange(change: Schemas['ComparisonFieldChange']): ValueChange {
   return { field: change.Field, before: change.Before, after: change.After }
 }

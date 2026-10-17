@@ -180,6 +180,7 @@ namespace Apilane.Portal.Api.V1.Contracts
         /// Write-only. Null or left out keeps the stored connection string; a value replaces it.
         /// Required when the application has none stored yet. Ignored for an SQLLite application.
         /// The API server does not check it: a wrong value shows when the application is next called.
+        /// People only: an agent must leave it out or send null (403 otherwise).
         /// </summary>
         public string? ConnectionString { get; set; }
     }

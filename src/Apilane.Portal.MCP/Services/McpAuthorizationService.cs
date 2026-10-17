@@ -18,6 +18,11 @@ namespace Apilane.Portal.Services
 {
     public class McpAuthorizationService : IMcpAuthorizationService
     {
+        /// <summary>
+        /// How long the connections page keeps listing a connection after it expired or was revoked.
+        /// </summary>
+        public const int EndedConnectionRetentionDays = 30;
+
         private readonly IMcpPortalStore _store;
 
         public McpAuthorizationService(IMcpPortalStore store)
@@ -101,6 +106,7 @@ namespace Apilane.Portal.Services
             }
             var now = DateTime.UtcNow;
             await _store.McpAuthorizationRequests.Where(x => x.ExpiresAt < now).ExecuteDeleteAsync();
+            await DeleteEndedConnectionsAsync(now);
             if (await _store.McpAuthorizationRequests.CountAsync(x => x.ClientId == clientId && !x.Used) >= 20)
             {
                 throw new McpOAuthException("temporarily_unavailable", "Too many pending authorization requests.", 429);
@@ -434,6 +440,27 @@ namespace Apilane.Portal.Services
             var hash = Hash(requestId);
             return await _store.McpAuthorizationRequests.AsNoTracking().FirstOrDefaultAsync(x => x.Id == hash && !x.Used && x.ExpiresAt > DateTime.UtcNow)
                 ?? throw _store.NotFound("Authorization request");
+        }
+
+        /// <summary>
+        /// A connection that expired or was revoked more than <see cref="EndedConnectionRetentionDays"/>
+        /// days ago is only history: it goes, with its codes and tokens (one pair per refresh). Its
+        /// client registration is then removed by the next registration cleanup.
+        /// </summary>
+        private async Task DeleteEndedConnectionsAsync(DateTime now)
+        {
+            var cutoff = now.AddDays(-EndedConnectionRetentionDays);
+            var ended = await _store.McpConnections.AsNoTracking()
+                .Where(x => x.ExpiresAt < cutoff || x.RevokedAt < cutoff)
+                .Select(x => x.Id)
+                .ToListAsync();
+            if (ended.Count == 0)
+            {
+                return;
+            }
+            await _store.McpTokens.Where(x => ended.Contains(x.ConnectionId)).ExecuteDeleteAsync();
+            await _store.McpAuthorizationCodes.Where(x => ended.Contains(x.ConnectionId)).ExecuteDeleteAsync();
+            await _store.McpConnections.Where(x => ended.Contains(x.Id)).ExecuteDeleteAsync();
         }
 
         private async Task RevokeReplayAsync(string id)

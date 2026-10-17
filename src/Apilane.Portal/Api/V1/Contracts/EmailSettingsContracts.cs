@@ -64,6 +64,7 @@ namespace Apilane.Portal.Api.V1.Contracts
 
         /// <summary>
         /// Write-only. Null keeps the stored password, an empty string clears it, a value replaces it.
+        /// Null is refused while a password is stored and MailServer or MailUserName gets a new value.
         /// </summary>
         public string? MailPassword { get; set; }
 

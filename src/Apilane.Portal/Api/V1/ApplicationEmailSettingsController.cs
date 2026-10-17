@@ -35,8 +35,11 @@ namespace Apilane.Portal.Api.V1
         /// <summary>
         /// Saves the SMTP settings and the e-mail confirmation redirect URL, all together. Every
         /// value is written (null or empty clears it) except MailPassword, which null keeps and an
-        /// empty string clears. For human owners and collaborators only: agents cannot change
-        /// mail transport or confirmation redirects, regardless of their application grants.
+        /// empty string clears. A new MailServer or MailUserName while a password is stored needs
+        /// the password again: without a MailPassword it is 400 VALIDATION on MailPassword, so the
+        /// stored password never goes to another host or account. For human owners and
+        /// collaborators only: agents cannot change mail transport or confirmation redirects,
+        /// regardless of their application grants.
         /// A 'Warning' response header means the settings were saved and the API server could not
         /// be refreshed: it keeps sending with the old settings until its cache expires.
         /// </summary>

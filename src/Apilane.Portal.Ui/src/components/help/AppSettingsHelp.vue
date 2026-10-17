@@ -13,6 +13,7 @@ import HelpSheet from '@/components/HelpSheet.vue'
         <li><strong>Rename</strong> the application.</li>
         <li><strong>Change the connection string</strong> of its database, when it uses SQL Server, MySQL or PostgreSQL.</li>
         <li><strong>Take it offline</strong>, or bring it back online.</li>
+        <li><strong>Export</strong> it as a zip, <strong>compare</strong> it with another of your applications, or <strong>clone</strong> it.</li>
         <li><strong>Rebuild</strong> or <strong>delete</strong> it, in the danger zone.</li>
       </ul>
     </HelpItem>

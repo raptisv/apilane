@@ -216,10 +216,11 @@ namespace Apilane.Api.Core.Services
             if (validationErrors.Count > 0)
                 throw new Exception(string.Join(",", validationErrors));
 
-            // Finally, only if the user has changed the entity name
+            // Finally, only if the user has changed the entity name. The names of its constraints carry the
+            // entity name, so they are renamed with it.
             if (!entity.Name.Equals(newName))
             {
-                await _applicationDataStoreFactory.RenameTableAsync(entity.Name, newName);
+                await _applicationDataStoreFactory.RenameTableAsync(entity.Name, newName, entity.Constraints);
             }
         }
 

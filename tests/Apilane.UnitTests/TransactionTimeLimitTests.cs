@@ -6,7 +6,8 @@ namespace Apilane.UnitTests
 {
     /// <summary>
     /// The time limit that <see cref="TransactionScopeService"/> records for the transaction it opens, which
-    /// the MySQL repository uses to stop a command before its scope times out.
+    /// every repository uses to stop its commands within it, and the backstop after which the transaction
+    /// times out by itself.
     /// </summary>
     [TestClass]
     public class TransactionTimeLimitTests
@@ -91,6 +92,37 @@ namespace Apilane.UnitTests
             }
 
             Assert.IsNull(TransactionTimeLimit.GetRemaining());
+        }
+
+        [TestMethod]
+        public async Task Transaction_Past_Its_Time_Limit_Should_Stay_Active_Until_The_Backstop()
+        {
+            using (NewServiceScope(TimeSpan.FromSeconds(1)))
+            {
+                var transaction = Transaction.Current ?? throw new InvalidOperationException("No ambient transaction");
+
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+                // The limit has passed, so the commands are refused (TransactionEnlistment.GetCommandTimeout), but
+                // the transaction is not rolled back on the timer thread while a request may still use it
+                var remaining = TransactionTimeLimit.GetRemaining();
+                Assert.IsNotNull(remaining);
+                Assert.IsTrue(remaining.Value <= TimeSpan.Zero, $"Unexpected time left: {remaining}");
+                Assert.AreEqual(TransactionStatus.Active, transaction.TransactionInformation.Status);
+            }
+        }
+
+        [TestMethod]
+        public void GetRemaining_Of_A_Scope_Longer_Than_The_Maximum_Timeout_Should_Leave_Room_For_The_Backstop()
+        {
+            // System.Transactions would cut the transaction to its maximum timeout and lose the backstop
+            using (NewServiceScope(TransactionManager.MaximumTimeout + TimeSpan.FromMinutes(5)))
+            {
+                var remaining = TransactionTimeLimit.GetRemaining();
+
+                Assert.IsNotNull(remaining);
+                Assert.IsTrue(remaining.Value <= TransactionManager.MaximumTimeout - TransactionScopeService.BackstopTimeout, $"Unexpected time left: {remaining}");
+            }
         }
 
         private static TransactionScope NewServiceScope(TimeSpan timeout)

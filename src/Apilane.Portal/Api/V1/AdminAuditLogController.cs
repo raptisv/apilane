@@ -18,8 +18,9 @@ namespace Apilane.Portal.Api.V1
 
         /// <summary>
         /// Returns one page of the instance audit log, newest first: changes to servers, instance
-        /// settings and user roles, new applications and database backup downloads. Total counts
-        /// every entry, not only the page. Admin only.
+        /// settings and user roles, agents added or deleted, the creation and the deletion of every
+        /// application, and database backup downloads. Total counts every entry, not only the page.
+        /// Admin only.
         /// </summary>
         [HttpGet]
         [ProducesResponseType(typeof(ListResponse<AuditLogEntryResponse>), StatusCodes.Status200OK)]

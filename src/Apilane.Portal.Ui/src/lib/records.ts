@@ -141,7 +141,7 @@ export function sortParam(sort: Sort | undefined): string | undefined {
 
 // Filtering ------------------------------------------------------------------------------------
 
-export type FilterOperator = 'contains' | 'equal'
+export type FilterOperator = 'contains' | 'equal' | 'greaterorequal' | 'lessorequal'
 
 /** What one filter box of the grid holds. `value` '' is no filter; a Boolean box holds 'true' or 'false'. */
 export interface ColumnFilter {
@@ -152,10 +152,81 @@ export interface ColumnFilter {
 /**
  * The operators a column's filter offers, the default first: a String
  * 'contains' or 'equal', an encrypted String 'equal' only (its stored value is encrypted and the
- * filter is compared with that stored text), a Number, Date or Boolean 'equal'.
+ * filter is compared with that stored text), a Number or a Date 'equal', 'greaterorequal' or
+ * 'lessorequal', a Boolean 'equal'.
  */
 export function filterOperators(property: Property): FilterOperator[] {
-  return property.Type === 'String' && !property.Encrypted ? ['contains', 'equal'] : ['equal']
+  if (property.Type === 'String') {
+    return property.Encrypted ? ['equal'] : ['contains', 'equal']
+  }
+
+  return property.Type === 'Number' || property.Type === 'Date' ? ['equal', 'greaterorequal', 'lessorequal'] : ['equal']
+}
+
+/** The operator the button of a filter box switches to: the next one the column offers, then the first again. */
+export function nextFilterOperator(property: Property, current: FilterOperator): FilterOperator {
+  const operators = filterOperators(property)
+
+  return operators[(operators.indexOf(current) + 1) % operators.length] ?? 'equal'
+}
+
+/** How the button of a filter box shows an operator ('≥'), and the words for its tooltip and a screen reader ('at least'). */
+export function filterOperatorText(property: Property, operator: FilterOperator): { symbol: string; words: string } {
+  const date = property.Type === 'Date'
+
+  switch (operator) {
+    case 'contains':
+      return { symbol: '~', words: 'contains' }
+    case 'greaterorequal':
+      return { symbol: '≥', words: date ? 'on or after' : 'at least' }
+    case 'lessorequal':
+      return { symbol: '≤', words: date ? 'on or before' : 'at most' }
+    default:
+      return { symbol: '=', words: date ? 'on' : 'equal to' }
+  }
+}
+
+const datePattern = /^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2})(?::(\d{2}))?)?$/
+
+/**
+ * The span a typed date stands for, in UTC as the API server reads it: 'yyyy-MM-dd' is a whole day,
+ * 'yyyy-MM-dd HH:mm' a minute and 'yyyy-MM-dd HH:mm:ss' a second, from `start` up to (not including)
+ * `end`, both as 'yyyy-MM-dd HH:mm:ss.SSS'. The stored dates have milliseconds, so the moment typed
+ * would almost never be equal to one of them. Undefined for any other text (milliseconds, a Unix
+ * timestamp, a date that does not exist), which is sent as typed.
+ */
+export function dateSpan(text: string): { start: string; end: string } | undefined {
+  const match = datePattern.exec(text)
+
+  if (!match) {
+    return undefined
+  }
+
+  const part = (index: number) => Number(match[index] ?? 0)
+  const year = part(1)
+  const month = part(2) - 1
+  const day = part(3)
+  const hours = part(4)
+  const minutes = part(5)
+  const seconds = part(6)
+  const start = new Date(Date.UTC(year, month, day, hours, minutes, seconds))
+
+  // Date.UTC moves on from a day or an hour that does not exist (2026-02-30), and reads the years 0 to 99 as 19xx.
+  const exists =
+    start.getUTCFullYear() === year &&
+    start.getUTCMonth() === month &&
+    start.getUTCDate() === day &&
+    start.getUTCHours() === hours &&
+    start.getUTCMinutes() === minutes &&
+    start.getUTCSeconds() === seconds
+
+  if (!exists) {
+    return undefined
+  }
+
+  const length = match[6] !== undefined ? 1000 : match[4] !== undefined ? 60_000 : 86_400_000
+
+  return { start: formatRecordDate(start, false), end: formatRecordDate(start.getTime() + length, false) }
 }
 
 /** An empty filter box for every property. */
@@ -173,10 +244,11 @@ export function hasFilters(filters: Record<string, ColumnFilter>): boolean {
 /**
  * The `filter` parameter of Data/Get: { Logic: 'and', Filters: [{ Property, Operator, Value }] } as
  * JSON, one entry per box with a value, or undefined when there is none. A Boolean is sent as '1' or
- * '0'.
+ * '0'. A date with a span (dateSpan) is sent as its span: 'equal' is within it, 'greaterorequal'
+ * from its start, 'lessorequal' up to its end, so '≤ 2026-10-16' takes in the whole of that day.
  */
 export function filterParam(properties: readonly Property[], filters: Record<string, ColumnFilter>): string | undefined {
-  const items: { Property: string; Operator: FilterOperator; Value: string }[] = []
+  const items: { Property: string; Operator: FilterOperator | 'less'; Value: string }[] = []
 
   for (const property of properties) {
     const filter = filters[property.Name]
@@ -187,6 +259,19 @@ export function filterParam(properties: readonly Property[], filters: Record<str
     }
 
     const operator = filterOperators(property).includes(filter.operator) ? filter.operator : 'equal'
+    const span = property.Type === 'Date' ? dateSpan(value) : undefined
+
+    if (span) {
+      if (operator !== 'lessorequal') {
+        items.push({ Property: property.Name, Operator: 'greaterorequal', Value: span.start })
+      }
+
+      if (operator !== 'greaterorequal') {
+        items.push({ Property: property.Name, Operator: 'less', Value: span.end })
+      }
+
+      continue
+    }
 
     items.push({
       Property: property.Name,

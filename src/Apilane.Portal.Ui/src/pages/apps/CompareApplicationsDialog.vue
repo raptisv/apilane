@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { AppWindowIcon, ArrowRightIcon, CircleAlertIcon, CircleCheckIcon, GitCompareArrowsIcon, RefreshCwIcon } from '@lucide/vue'
+import {
+  AppWindowIcon,
+  ArrowRightIcon,
+  CircleAlertIcon,
+  CircleCheckIcon,
+  GitCompareArrowsIcon,
+  RefreshCwIcon,
+  UploadIcon,
+} from '@lucide/vue'
 import { computed } from 'vue'
 import ApplicationSelect from '@/components/ApplicationSelect.vue'
 import DiffSection from '@/components/diff/DiffSection.vue'
@@ -14,7 +22,7 @@ import { Label } from '@/components/ui/label'
 import { useAsync } from '@/composables/useAsync'
 import { api, unwrap } from '@/lib/api'
 import type { Application } from '@/lib/applications'
-import { comparisonView, constraintTypeName, isIdentical, ruleText } from '@/lib/comparison'
+import { comparisonView, constraintTypeName, hasAdditions, isIdentical, ruleText } from '@/lib/comparison'
 import ComparedProperty from './ComparedProperty.vue'
 
 // What differs between one application (`source`, the card that was clicked) and another one of
@@ -111,6 +119,17 @@ const codeClass = 'font-mono text-xs wrap-anywhere'
         <ArrowRightIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span class="sr-only">compared with</span>
         <span class="wrap-anywhere">{{ data.target }}</span>
+      </p>
+
+      <!-- What is Added can be brought over: the Import tab of the source, with the other application picked for 'Load diff'. -->
+      <p v-if="targetToken && hasAdditions(data.view)" class="-mt-3 mb-6 text-sm">
+        <RouterLink
+          :to="{ name: 'app-schema-import', params: { appToken: source.Token }, query: { source: targetToken } }"
+          class="inline-flex items-start gap-1.5 rounded-sm font-medium text-link underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <UploadIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span class="wrap-anywhere">Import what {{ data.target }} adds into {{ data.source }}</span>
+        </RouterLink>
       </p>
 
       <StateMessage

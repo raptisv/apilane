@@ -35,7 +35,7 @@ const emit = defineEmits<{
   dirty: [value: boolean]
 }>()
 
-const { application } = useApplication()
+const { application, reload } = useApplication()
 
 const form = reactive({
   AuthTokenExpireMinutes: '' as string | number,
@@ -146,6 +146,8 @@ async function submit(): Promise<void> {
   }
 
   toast.success('Security settings saved.')
+  // The application carries the largest file, which the upload of the data browser checks.
+  void reload()
 }
 
 const allowOnly = computed(() => form.ClientIPsLogic === 'Allow' && form.ClientIPs.some((address) => address.trim() !== ''))

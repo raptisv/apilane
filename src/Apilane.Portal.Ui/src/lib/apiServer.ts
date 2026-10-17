@@ -190,8 +190,9 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 /**
- * An API server has two error bodies: { Code, Message, Property, Entity } from its actions and
- * { Error, Message } from its 'portal users only' check. Both become the body ApiError reads.
+ * An API server of this version answers only { Code, Message, Property, Entity }. API servers
+ * before 10.5.5 answered { Error, Message } from their portal-users-only check, so that body is
+ * still read. Both become the body ApiError reads.
  */
 function errorBody(body: unknown): unknown {
   if (typeof body !== 'object' || body === null) {

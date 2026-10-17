@@ -479,12 +479,13 @@ namespace Apilane.Portal.Tests
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
             var owner = await _portal.WithDbContextAsync(db => db.Users.AsNoTracking().SingleAsync(x => x.Email == user.Email));
+            var stored = await _portal.WithDbContextAsync(db => db.Applications.AsNoTracking().SingleAsync(x => x.Name == name));
 
-            // The row of a new application names who created it and carries no application ID.
+            // The row of a new application names who created it and carries its ID, given once it was saved.
             var audit = await AuditRowAsync(name);
             Assert.Equal(user.Email, audit.UserEmail);
             Assert.Equal(owner.Id, audit.UserId);
-            Assert.Null(audit.AppID);
+            Assert.Equal(stored.ID, audit.AppID);
             Assert.Contains(name, audit.Changes);
             Assert.DoesNotContain("audit-secret", audit.Changes);
         }
@@ -908,6 +909,207 @@ namespace Apilane.Portal.Tests
             await AssertNoRowAsync(export.Name);
         }
 
+        // A value that the Portal's own editors refuse, edited into a file. The message names the
+        // place in the file and says what is wrong there.
+        [Theory]
+        [InlineData("Name", "Name: Must be 4 to 100 characters")]
+        [InlineData("FileSize", "MaxAllowedFileSizeInKB: Must be between 1 and 25600 (1 KB to 25 MB)")]
+        [InlineData("TokenExpiry", "AuthTokenExpireMinutes: Must be 1 or more")]
+        [InlineData("ClientIPs", "ClientIPsValue: '10.0.0.256' is not a valid IPv4 or IPv6 address")]
+        [InlineData("MailPort", "MailServerPort: Must be between 1 and 65535")]
+        [InlineData("DifferentiationEntity", "DifferentiationEntity: Allowed characters are a-z, A-Z and _, at most 40 characters")]
+        [InlineData("EntityName", "Entities[0].Name 'My Orders': Allowed characters are a-z, A-Z and _")]
+        [InlineData("PropertyName", "Entities[0].Properties[1].Name 'Total_Data': The name cannot end with '_Data'")]
+        [InlineData("SystemPropertyName", "Entities[1].Properties[0].Name 'I D': Allowed characters are a-z, A-Z and _")]
+        [InlineData("PropertyType", "Entities[0].Properties[1].TypeID: Must be 1 (String), 2 (Number), 3 (Boolean) or 4 (Date)")]
+        [InlineData("Constraint", "Entities[0].EntConstraints[0].Properties: Property 'Nope' does not exist or is not a valid constraint identifier")]
+        [InlineData("CustomEndpointName", "CustomEndpoints[0].Name 'Get Orders': Letters a-z and A-Z only, at most 80 characters")]
+        [InlineData("RuleAction", "Security[0].Action: Must be get, post, put or delete")]
+        [InlineData("RuleProperty", "Security[0].Properties: 'ID' is not a property a get rule of Orders can list")]
+        [InlineData("RuleRepeated", "Security[1]: Same type, name, role and action as Security[0]")]
+        [InlineData("RuleRateLimit", "Security[0].RateLimit.MaxRequests: Must be 1 or more")]
+        public async Task Import_File_With_A_Value_An_Editor_Refuses_Should_Return_400_On_File_And_Create_Nothing(string change, string message)
+        {
+            var user = await NewUserAsync();
+            var server = await _portal.CreateServerAsync();
+
+            var export = Export();
+            var orders = export.Entities[0];
+
+            switch (change)
+            {
+                case "Name":
+                    export.Name = "abc";
+                    break;
+                case "FileSize":
+                    export.MaxAllowedFileSizeInKB = 2000000;
+                    break;
+                case "TokenExpiry":
+                    export.AuthTokenExpireMinutes = 0;
+                    break;
+                case "ClientIPs":
+                    export.ClientIPsValue = "10.0.0.1,10.0.0.256";
+                    break;
+                case "MailPort":
+                    export.MailServerPort = 70000;
+                    break;
+                case "DifferentiationEntity":
+                    export.DifferentiationEntity = "Com pany";
+                    break;
+                case "EntityName":
+                    orders.Name = "My Orders";
+                    break;
+                case "PropertyName":
+                    orders.Properties.Add(CustomProperty(32, "Total_Data", PropertyType.Number));
+                    break;
+                case "SystemPropertyName":
+                    export.Entities[1].Properties[0].Name = "I D";
+                    break;
+                case "PropertyType":
+                    orders.Properties.Add(CustomProperty(32, "Total", (PropertyType)9));
+                    break;
+                case "Constraint":
+                    orders.EntConstraints = JsonSerializer.Serialize(new[] { new EntityConstraint { TypeID = (int)ConstraintType.Unique, Properties = "Nope" } });
+                    break;
+                case "CustomEndpointName":
+                    export.CustomEndpoints[0].Name = "Get Orders";
+                    break;
+                case "RuleAction":
+                    export.Security = Rules(Rule("Orders", "patch"));
+                    break;
+                case "RuleProperty":
+                    export.Security = Rules(Rule("Orders", "get", properties: "ID"));
+                    break;
+                case "RuleRepeated":
+                    export.Security = Rules(Rule("Orders", "get"), Rule("Orders", "get", record: EndpointRecordAuthorization.Owned));
+                    break;
+                case "RuleRateLimit":
+                    export.Security = Rules(Rule("Orders", "get", rateLimit: new DBWS_Security.RateLimitItem { MaxRequests = 0, TimeWindowType = (int)EndpointRateLimit.Per_Minute }));
+                    break;
+                default:
+                    throw new InvalidOperationException($"No change '{change}'.");
+            }
+
+            var response = await user.Client.PostAsync(ImportUrl, ImportBody(Json(export), server.ID, "SQLLite", null));
+
+            await AssertValidationAsync(response, "File", message);
+            Assert.Empty(_portal.ApiServer.Requests);
+            await AssertNoRowAsync(export.Name);
+        }
+
+        [Fact]
+        public async Task Import_Should_Not_Take_The_System_Flags_From_The_File()
+        {
+            var user = await NewUserAsync();
+            var server = await _portal.CreateServerAsync();
+            ScriptApiServer();
+
+            // The file makes its own entity, and a property of it, system ones and that property the
+            // key; its ID an ordinary property; and Files, which every application has, an entity of its own.
+            var export = Export();
+            var orders = export.Entities[0];
+            orders.IsSystem = true;
+            orders.IsReadOnly = true;
+            orders.Properties[0].IsSystem = false;
+            orders.Properties[0].IsPrimaryKey = false;
+            orders.Properties.Add(new DBWS_EntityProperty
+            {
+                ID = 32,
+                EntityID = -1,
+                Name = "Total",
+                IsSystem = true,
+                IsPrimaryKey = true,
+                TypeID = (int)PropertyType.Number,
+                DecimalPlaces = 0
+            });
+            export.Entities[1].IsSystem = false;
+
+            var response = await user.Client.PostAsync(ImportUrl, ImportBody(Json(export), server.ID, "SQLLite", null));
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+            // Stored, and sent to the API server, as POST entities would have made them: so the API
+            // server creates a column for Total, and the editors can rename and delete Orders and Total.
+            var stored = await LoadAsync(export.Token);
+            var sent = JsonSerializer.Deserialize<DBWS_Application>(Assert.Single(_portal.ApiServer.Requests).Body)
+                ?? throw new InvalidOperationException("No Generate body.");
+
+            foreach (var application in new[] { stored, sent })
+            {
+                var entities = application.Entities.ToDictionary(x => x.Name);
+
+                Assert.Equal("False False", $"{entities["Orders"].IsSystem} {entities["Orders"].IsReadOnly}");
+                Assert.Equal(
+                    new[] { "ID True True", "Total False False" },
+                    entities["Orders"].Properties.Select(x => $"{x.Name} {x.IsSystem} {x.IsPrimaryKey}").OrderBy(x => x, StringComparer.Ordinal));
+                Assert.True(entities["Files"].IsSystem);
+                Assert.True(entities["Users"].IsSystem);
+            }
+        }
+
+        [Fact]
+        public async Task Import_Should_Store_Addresses_Custom_Endpoints_And_Rules_As_The_Editors_Store_Them()
+        {
+            var user = await NewUserAsync();
+            var server = await _portal.CreateServerAsync();
+            ScriptApiServer();
+
+            var export = Export();
+            export.ClientIPsValue = " 10.0.0.1 ,10.0.0.0/8,,10.0.0.1";
+            export.CustomEndpoints[0].Name = " GetOrders ";
+
+            // A rule in another letter case, one for an entity the file no longer has (deleting an
+            // entity keeps its rules), and one whose rate limit has the window None.
+            export.Security = Rules(
+                Rule("Orders", "GET", properties: "Gone"),
+                Rule("Deleted", "get"),
+                new DBWS_Security
+                {
+                    Name = "GetOrders",
+                    TypeID = (int)SecurityTypes.CustomEndpoint,
+                    RoleID = Globals.AUTHENTICATED,
+                    Action = "get",
+                    RateLimit = new DBWS_Security.RateLimitItem { MaxRequests = 0, TimeWindowType = (int)EndpointRateLimit.None }
+                });
+
+            var response = await user.Client.PostAsync(ImportUrl, ImportBody(Json(export), server.ID, "SQLLite", null));
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+            var stored = await LoadAsync(export.Token);
+
+            Assert.Equal("10.0.0.1,10.0.0.0/8", stored.ClientIPsValue);
+            Assert.Equal("GetOrders", Assert.Single(stored.CustomEndpoints).Name);
+
+            // As the Security page shows them and its next save stores them.
+            Assert.Equal(
+                Rules(
+                    new DBWS_Security { Name = "Orders", TypeID = (int)SecurityTypes.Entity, RoleID = Globals.ANONYMOUS, Action = "get", Properties = string.Empty },
+                    new DBWS_Security { Name = "GetOrders", TypeID = (int)SecurityTypes.CustomEndpoint, RoleID = Globals.AUTHENTICATED, Action = "get" }),
+                stored.Security);
+        }
+
+        [Fact]
+        public async Task Import_Should_Write_Every_Audit_Row_Into_The_Log_Of_The_Imported_Application()
+        {
+            var user = await NewUserAsync();
+            var server = await _portal.CreateServerAsync();
+            ScriptApiServer();
+
+            var export = Export();
+            var response = await user.Client.PostAsync(ImportUrl, ImportBody(Json(export), server.ID, "SQLLite", null));
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+            var log = await (await user.Client.GetAsync($"{Url}/{export.Token}/audit-log")).ReadJsonAsync<ListResponse<AuditLogEntryResponse>>();
+
+            // The application, its 3 entities with their 4 properties, its custom endpoint and its report.
+            Assert.Equal(
+                new[] { "Application", "Custom Endpoint", "Entity", "Entity", "Entity", "Property", "Property", "Property", "Property", "Report" },
+                log.Data.Select(x => x.EntityType).OrderBy(x => x, StringComparer.Ordinal));
+            Assert.All(log.Data, x => Assert.Equal($"Created | {user.Email}", $"{x.Action} | {x.UserEmail}"));
+        }
+
         [Theory]
         [InlineData("SQLServer", null, "ConnectionString", "Required")]
         [InlineData("PostgreSQL", "  ", "ConnectionString", "Required")]
@@ -1268,6 +1470,43 @@ namespace Apilane.Portal.Tests
                 Required = true,
                 TypeID = isPrimaryKey ? (int)PropertyType.Number : (int)PropertyType.String
             };
+        }
+
+        private static DBWS_EntityProperty CustomProperty(long id, string name, PropertyType type)
+        {
+            return new DBWS_EntityProperty
+            {
+                ID = id,
+                EntityID = -1,
+                Name = name,
+                TypeID = (int)type,
+                DecimalPlaces = type == PropertyType.Number ? 0 : null
+            };
+        }
+
+        private static DBWS_Security Rule(
+            string entity,
+            string action,
+            string? properties = null,
+            EndpointRecordAuthorization record = EndpointRecordAuthorization.All,
+            DBWS_Security.RateLimitItem? rateLimit = null)
+        {
+            return new DBWS_Security
+            {
+                Name = entity,
+                TypeID = (int)SecurityTypes.Entity,
+                RoleID = Globals.ANONYMOUS,
+                Action = action,
+                Record = (int)record,
+                Properties = properties,
+                RateLimit = rateLimit
+            };
+        }
+
+        // The Security column as SecurityRulesService writes it.
+        private static string Rules(params DBWS_Security[] rules)
+        {
+            return JsonSerializer.Serialize(rules.ToList());
         }
 
         private static string Json(DBWS_Application application)

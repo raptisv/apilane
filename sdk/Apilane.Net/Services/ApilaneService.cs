@@ -17,7 +17,7 @@ namespace Apilane.Net.Services
     public sealed partial class ApilaneService : IApilaneService
     {
         private readonly string _applicationTokenHeaderName = "x-application-token";
-        private readonly HttpClient _httpClient;
+        private readonly Func<HttpClient> _getHttpClient;
         private readonly ApilaneConfiguration _config;
 
         public static readonly JsonSerializerOptions JsonDeserializerSettings = new JsonSerializerOptions()
@@ -36,11 +36,36 @@ namespace Apilane.Net.Services
             }
         };
 
+        /// <summary>
+        /// A service that sends every request with the given client. The client also gets the application
+        /// token as a default header, for the requests its owner sends with it.
+        /// </summary>
         internal ApilaneService(
             HttpClient httpClient,
+            ApilaneConfiguration config) : this(() => httpClient, config)
+        {
+            if (!httpClient.DefaultRequestHeaders.Contains(_applicationTokenHeaderName))
+            {
+                httpClient.DefaultRequestHeaders.Add(_applicationTokenHeaderName, _config.ApplicationToken);
+            }
+        }
+
+        /// <summary>
+        /// A service that takes a client from the factory for each request, so that the factory's handler
+        /// rotation (and with it DNS changes) applies to a service that lives as long as the application.
+        /// </summary>
+        internal ApilaneService(
+            IHttpClientFactory httpClientFactory,
+            string httpClientName,
+            ApilaneConfiguration config) : this(() => httpClientFactory.CreateClient(httpClientName), config)
+        {
+        }
+
+        private ApilaneService(
+            Func<HttpClient> getHttpClient,
             ApilaneConfiguration config)
         {
-            _httpClient = httpClient;
+            _getHttpClient = getHttpClient;
             _config = config;
 
             if (string.IsNullOrWhiteSpace(config.ApplicationApiUrl))
@@ -52,12 +77,15 @@ namespace Apilane.Net.Services
             {
                 throw new Exception("Apilane application token is required");
             }
+        }
 
-            // Add application token header
-            if (!_httpClient.DefaultRequestHeaders.Contains(_applicationTokenHeaderName))
-            {
-                _httpClient.DefaultRequestHeaders.Add(_applicationTokenHeaderName, _config.ApplicationToken);
-            }
+        /// <summary>
+        /// Sends a request with the application token header.
+        /// </summary>
+        private Task<HttpResponseMessage> SendAsync(HttpRequestMessage httpRequest, CancellationToken cancellationToken)
+        {
+            httpRequest.Headers.Add(_applicationTokenHeaderName, _config.ApplicationToken);
+            return _getHttpClient().SendAsync(httpRequest, cancellationToken);
         }
 
         public async Task<Either<long, ApilaneError>> HealthCheckAsync(
@@ -65,7 +93,7 @@ namespace Apilane.Net.Services
         {
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"{_config.ApplicationApiUrl}/Health/Liveness"))
             {
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();
 

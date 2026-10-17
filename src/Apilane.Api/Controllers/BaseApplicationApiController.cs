@@ -88,8 +88,14 @@ namespace Apilane.Api.Controllers
             UserHasFullAccess = false;
             if (queryService.IsPortalRequest)
             {
+                // ApiExceptionFilter reads the answer instead of asking the Portal again. Until the Portal
+                // answers, the caller is not known to own the application, also when it cannot be asked.
+                context.HttpContext.Items[ApiExceptionFilter.UserHasFullAccessItemKey] = false;
+
                 var portalInfoService = context.HttpContext.RequestServices.GetRequiredService<IPortalInfoService>();
                 UserHasFullAccess = await portalInfoService.UserOwnsApplicationAsync(authorizationToken, applicationToken);
+
+                context.HttpContext.Items[ApiExceptionFilter.UserHasFullAccessItemKey] = UserHasFullAccess;
             }
 
             // Validate

@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace Apilane.Api.Core.Services
@@ -151,19 +152,21 @@ namespace Apilane.Api.Core.Services
         {
             bool isTheSameUser = Utils.GetLong(userThatAcceptsTheEmail[nameof(Users.ID)]).Equals(Utils.GetLong(userThatTriggeredTheEmail[nameof(Users.ID)]));
 
-            // Fill with user properties
+            // Fill with user properties. The values come from the users themselves (a user name can be any text), and the
+            // body is sent as HTML: they are encoded there, so a name cannot add a link or markup to the application's
+            // mail. The subject is plain text and takes them as they are.
 
             foreach (var userProperty in EmailEvent.UserProperties)
             {
                 string strPlaceholder = $"{{{nameof(Users)}.{userProperty.Key}}}";
                 subject = subject.Replace(strPlaceholder, Utils.GetString(userThatAcceptsTheEmail[userProperty.Key]));
-                content = content.Replace(strPlaceholder, Utils.GetString(userThatAcceptsTheEmail[userProperty.Key]));
+                content = content.Replace(strPlaceholder, WebUtility.HtmlEncode(Utils.GetString(userThatAcceptsTheEmail[userProperty.Key])));
 
                 if (!isTheSameUser)
                 {
                     string strPlaceholder_Triggered = $"{{{nameof(Users)}.From.{userProperty.Key}}}";
                     subject = subject.Replace(strPlaceholder_Triggered, Utils.GetString(userThatTriggeredTheEmail[userProperty.Key]));
-                    content = content.Replace(strPlaceholder_Triggered, Utils.GetString(userThatTriggeredTheEmail[userProperty.Key]));
+                    content = content.Replace(strPlaceholder_Triggered, WebUtility.HtmlEncode(Utils.GetString(userThatTriggeredTheEmail[userProperty.Key])));
                 }
             }
 

@@ -4,10 +4,15 @@ import AuthForm from '@/components/AuthForm.vue'
 import FormField from '@/components/FormField.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useInstance } from '@/composables/useInstance'
 import { useMutation } from '@/composables/useMutation'
 import { api, unwrapAnonymous } from '@/lib/api'
 import type { Schemas } from '@/lib/api'
 import { formErrors } from '@/lib/forms'
+
+// Whether the instance can send mail: without it the screen says so instead of offering a form
+// that can only fail. When it cannot be loaded, the form is shown.
+const { data: instance } = useInstance()
 
 const form = reactive<Schemas['ForgotPasswordRequest']>({ Email: '' })
 
@@ -38,6 +43,16 @@ async function submit(): Promise<boolean> {
     <h1 ref="heading" tabindex="-1" class="text-base font-medium outline-none">
       Please check your email to reset your password.
     </h1>
+    <Button as-child class="mt-6 w-full">
+      <RouterLink :to="{ name: 'login' }">Sign in</RouterLink>
+    </Button>
+  </div>
+
+  <div v-else-if="instance?.IsMailSetup === false" class="text-center">
+    <h1 class="text-base font-medium">Password reset is not available</h1>
+    <p class="mt-2 text-sm text-muted-foreground">
+      This instance cannot send email, so no reset link can be sent. Ask an administrator of this instance.
+    </p>
     <Button as-child class="mt-6 w-full">
       <RouterLink :to="{ name: 'login' }">Sign in</RouterLink>
     </Button>

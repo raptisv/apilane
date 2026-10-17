@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CircleAlertIcon, CircleCheckIcon, CloudDownloadIcon, Loader2Icon, UploadIcon } from '@lucide/vue'
 import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import ApplicationSelect from '@/components/ApplicationSelect.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DiffCount from '@/components/diff/DiffCount.vue'
@@ -18,6 +19,7 @@ import { api, unwrap } from '@/lib/api'
 import { examplePayload, importFailure, parsePayload, payloadSummary } from '@/lib/schemaImport'
 import type { SchemaImportPayload, SummaryCount } from '@/lib/schemaImport'
 
+const route = useRoute()
 const { application, reload: reloadApplication } = useApplication()
 
 // AppLayout gives every application a fresh screen, so the token is fixed for the life of this one.
@@ -34,6 +36,20 @@ const payloadText = ref('')
 
 const sourceToken = ref<string>()
 const sourceMissing = ref(false)
+
+// The compare dialog links here with ?source=<token>: that application is picked once the list is
+// there, unless the user has picked one already. A token that is not one of the others is ignored.
+const linkedSource = typeof route.query.source === 'string' ? route.query.source : undefined
+
+watch(
+  others,
+  (list) => {
+    if (sourceToken.value === undefined && list.some((other) => other.Token === linkedSource)) {
+      sourceToken.value = linkedSource
+    }
+  },
+  { immediate: true },
+)
 
 watch(sourceToken, () => (sourceMissing.value = false))
 

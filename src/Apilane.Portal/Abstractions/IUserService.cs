@@ -23,14 +23,16 @@ namespace Apilane.Portal.Abstractions
 
         /// <summary>
         /// Creates the agent {Name}@agent.local (see <see cref="Api.PortalAgent"/>) and its key. The
-        /// key is in the answer and nowhere else. Throws a VALIDATION <see cref="Api.PortalException"/>
-        /// on Name when an agent with that name exists.
+        /// key is in the answer and nowhere else. Writes an instance audit row. Throws a VALIDATION
+        /// <see cref="Api.PortalException"/> on Name when an agent with that name exists.
         /// </summary>
         Task<AgentCreatedResponse> CreateAgentAsync(CreateAgentRequest request);
 
         /// <summary>
-        /// Deletes an agent: its user, its key and its entries in the collaborator lists. Throws a
-        /// NOT_FOUND <see cref="Api.PortalException"/> for an unknown id and for a user that is not an agent.
+        /// Deletes an agent: its user, its key and its entries in the collaborator lists, and writes
+        /// an instance audit row. Throws a NOT_FOUND <see cref="Api.PortalException"/> for an unknown
+        /// id and for a user that is not an agent, and a CONFLICT one, naming them, when the agent
+        /// owns applications.
         /// </summary>
         Task DeleteAgentAsync(string userId);
     }

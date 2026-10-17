@@ -32,7 +32,8 @@ namespace Apilane.Portal.Extensions
                     "Call apilane_operations to discover operations, then request one operationId for its exact contract. " +
                     "Call PortalApplications_List through apilane_call to discover accessible applications and " +
                     "ApplicationPermissions_Get for current grants. All calls enforce live agent permissions. " +
-                    "Renaming entities/properties, sharing, administrator operations and reading secrets are unavailable.";
+                    "Renaming entities/properties, changing the connection string or mail settings, sharing, " +
+                    "administrator operations and reading secrets are unavailable.";
             })
                 // Per-request authentication and scope; no transport session can retain stale grants.
                 .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)

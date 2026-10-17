@@ -98,13 +98,20 @@ if (response.HasError(out var error))
 List<Product> products = response.Value.Data;
 ```
 
-Alternatively, use `OnErrorThrowException` to throw on errors:
+Alternatively, use `OnErrorThrowException(true)` to throw on errors. The call then throws an `ApilaneErrorException` (namespace `Apilane.Net.Models.Data`), which derives from `Exception` and carries the `Error` (`Code`, `Message`, `Property`, `Entity`) and the HTTP `StatusCode`:
 
 ```csharp
-var response = await _apilaneService.GetDataAsync<Product>(
-    DataGetListRequest.New("Products")
-        .WithAuthToken(authToken)
-        .OnErrorThrowException(true));
+try
+{
+    var response = await _apilaneService.GetDataAsync<Product>(
+        DataGetListRequest.New("Products")
+            .WithAuthToken(authToken)
+            .OnErrorThrowException(true));
+}
+catch (ApilaneErrorException ex) when (ex.Error.Code == ValidationError.UNAUTHORIZED)
+{
+    // Sign in again
+}
 ```
 
 ## Account
@@ -202,6 +209,8 @@ public class Product : Apilane.Net.Models.Data.DataItem
 ```
 
 `DataItem` provides the system properties `ID`, `Owner` (the id of the user who created the record, nullable) and `Created` (Unix time in milliseconds).
+
+Date properties are returned as Unix milliseconds. The extensions in `Apilane.Net.Extensions` convert them: `UnixTimestampToDatetime()` turns a value into a UTC `DateTime` the way the API reads it (a positive number of exactly 10 digits is seconds, any other value, a negative one before 1970 too, milliseconds), and `ToUnixTimestampMilliseconds()` turns a `DateTime` into a value to write or filter with.
 
 ### Get Records (Paginated)
 
@@ -442,6 +451,8 @@ var result = await _apilaneService.GetStatsAggregateAsync<List<OrderTotals>>(
         .WithSort(ascending: false));
 ```
 
+The rows are ordered by their aggregate values: largest first by default and with `WithSort(ascending: false)`, smallest first with `WithSort(ascending: true)`.
+
 ### Distinct
 
 ```csharp
@@ -455,6 +466,8 @@ var result = await _apilaneService.GetStatsDistinctAsync<List<CategoryValue>>(
     StatsDistinctRequest.New("Products", "Category")
         .WithAuthToken(authToken));
 ```
+
+The answer holds at most 1000 distinct values.
 
 ## Schema
 
@@ -495,7 +508,7 @@ var response = await _apilaneService.GetCustomEndpointAsync<List<Order>, List<Or
 var (orders, items) = response.Value;
 ```
 
-A `List<>` type receives the whole result set. Any other type receives the first row of that result set (or its default when the set is empty). Parameters are whole numbers (`long?`); a parameter name can be given only once per request.
+A `List<>` type receives the whole result set. Any other type receives the first row of that result set (or its default when the set is empty). A result set the endpoint does not return reads as empty: an endpoint that only runs an `UPDATE` returns none, so `<List<Order>>` gives an empty list and `<List<Order>, List<OrderItem>>` on an endpoint with one `SELECT` gives an empty second list. Parameters are whole numbers (`long?`); a parameter name can be given only once per request.
 
 ## URL Helpers
 

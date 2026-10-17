@@ -62,6 +62,13 @@ const deleting = ref<Server>()
 
 const remove = useMutation((id: number) => unwrap(api.DELETE('/api/v1/admin/servers/{id}', { params: { path: { id } } })))
 
+/** Why a server cannot be deleted, or undefined when it can: the API refuses one that hosts applications (409). */
+function deleteBlocked(server: Server): string | undefined {
+  const count = server.ApplicationCount
+
+  return count > 0 ? `Cannot be deleted while it hosts ${count} ${count === 1 ? 'application' : 'applications'}` : undefined
+}
+
 function openDelete(server: Server): void {
   deleting.value = server
   remove.reset()
@@ -146,10 +153,15 @@ async function submitDelete(): Promise<boolean> {
                 <PencilIcon />
                 <span class="sr-only">Edit {{ server.Name }}</span>
               </Button>
-              <Button variant="ghost" size="icon-sm" title="Delete" @click="openDelete(server)">
-                <Trash2Icon />
-                <span class="sr-only">Delete {{ server.Name }}</span>
-              </Button>
+              <!-- The title sits on a wrapper: a disabled button gets no pointer events, so it would show no tooltip. -->
+              <span class="inline-flex" :title="deleteBlocked(server) ?? 'Delete'">
+                <Button variant="ghost" size="icon-sm" :disabled="deleteBlocked(server) !== undefined" @click="openDelete(server)">
+                  <Trash2Icon />
+                  <span class="sr-only">
+                    Delete {{ server.Name }}<template v-if="deleteBlocked(server)">: {{ deleteBlocked(server) }}</template>
+                  </span>
+                </Button>
+              </span>
             </div>
           </TableCell>
         </TableRow>

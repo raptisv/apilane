@@ -95,7 +95,7 @@ Two modes are available (the choice 'Addresses in the list are' on the **Securit
 !!!warning "Important"
     These settings are not a replacement for network security tools. Use them as an additional security layer, not as the primary application security mechanism.
 
-    The address is read from the first entry of the `X-Forwarded-For` header when the request carries one, otherwise from the connection. Apilane cannot tell whether a proxy set that header, so the list only means something when the API can be reached **only** through a proxy or load balancer that overwrites `X-Forwarded-For` with the address it saw. If the API is reachable directly, any caller can send the header and pick an address.
+    The address comes from the connection, or from the `X-Forwarded-For` header as far as the `TrustedProxies` setting of the API server allows: set it to `none` when callers reach the API server directly (the header is then never read), or to the addresses of your own reverse proxies (the header is then read only on their connections). **Set it on every API server.** Not set, the first entry of the header is believed from anyone, so any caller can send the header and pick an address, and the API server logs a `SECURITY` warning at start. See [Where the address of a caller comes from](developer_guide/security.md#where-the-address-of-a-caller-comes-from).
 
 ### Rate limiting
 

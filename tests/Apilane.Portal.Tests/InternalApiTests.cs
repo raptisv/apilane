@@ -179,6 +179,32 @@ namespace Apilane.Portal.Tests
             Assert.Null(response.Headers.Location);
         }
 
+        // ---------- The lookups of every check ----------
+
+        [Fact]
+        public async Task Schema_Update_Should_Add_The_Indexes_Of_The_Lookups_To_An_Existing_Database()
+        {
+            // A database made before the indexes existed: the schema update of the startup adds them.
+            var sql = await _portal.WithDbContextAsync(async db =>
+            {
+                await db.Database.ExecuteSqlRawAsync("DROP INDEX IF EXISTS \"IX_Applications_Token\"");
+                await db.Database.ExecuteSqlRawAsync("DROP INDEX IF EXISTS \"IX_Applications_UserID\"");
+                await db.Database.ExecuteSqlRawAsync("DROP INDEX IF EXISTS \"IX_AspNetUsers_AdminAuthToken\"");
+                await db.Database.ExecuteSqlRawAsync("DROP INDEX IF EXISTS \"IX_Collaborations_UserEmail\"");
+
+                db.EnsureSchemaUpdated();
+
+                return await db.Database
+                    .SqlQueryRaw<string>("SELECT sql AS \"Value\" FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL")
+                    .ToListAsync();
+            });
+
+            Assert.Contains(sql, x => x.StartsWith("CREATE UNIQUE INDEX \"IX_Applications_Token\"", StringComparison.Ordinal));
+            Assert.Contains(sql, x => x.StartsWith("CREATE INDEX \"IX_Applications_UserID\"", StringComparison.Ordinal));
+            Assert.Contains(sql, x => x.StartsWith("CREATE INDEX \"IX_AspNetUsers_AdminAuthToken\"", StringComparison.Ordinal));
+            Assert.Contains(sql, x => x.StartsWith("CREATE INDEX \"IX_Collaborations_UserEmail\"", StringComparison.Ordinal));
+        }
+
         // ---------- What every /api address gets ----------
 
         [Theory]

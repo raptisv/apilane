@@ -28,9 +28,10 @@ For separate project connections, use a different server name for each project, 
 `apilane_shop` and `apilane_billing`, in that project's configuration when the client supports it.
 
 The browser opens the Portal. Sign in with a confirmed personal account, select an existing agent,
-review the applications listed, name the connection and approve. Only applications you currently
+review the applications listed (all are ticked; untick any the connection must not reach, keeping
+at least one), name the connection and approve. Only applications you currently
 own and have already shared with that agent are approved. Administrators have the same ownership
-boundary. Approval includes only the applications reviewed on that page; new shares cannot
+boundary. Approval includes only the applications left ticked on that page; new shares cannot
 silently expand the approved set. The connection keeps this fixed application set and also checks current ownership,
 sharing and agent grants on every request. New applications and later shares do not expand it.
 Chats configured to use the same authenticated server share its connection.
@@ -54,9 +55,9 @@ query and body. Start with PortalApplications_List and read ApplicationPermissio
 for each application before changing it. Treat returned status >=400 as a failed call.
 Follow the current grants; after 403, refresh permissions instead of trying another route.
 Entity/property renames, sharing, administrator calls, application creation/import/cloning/
-deletion, secrets and mail-setting writes are unavailable. Records and files require the
-API server and are outside this MCP connection. Report warnings and request a person to
-test saved SQL; MCP cannot run the API server's custom-endpoint Test.
+deletion, secrets, connection-string and mail-setting writes are unavailable. Records and
+files require the API server and are outside this MCP connection. Report warnings and
+request a person to test saved SQL; MCP cannot run the API server's custom-endpoint Test.
 ```
 
 ## What an agent can and cannot do
@@ -72,6 +73,7 @@ An agent can never:
 - delete an application or collaborator, or read the application's encryption key;
 - create, import or clone an application, or share one (only the owner shares);
 - rename an entity or property, regardless of its write grants;
+- change the application's connection string, which decides the database that holds every record: with the Application settings grant it can rename the application only;
 - change any application mail settings, including SMTP transport, sender, credentials and the confirmation redirect;
 - call the administration endpoints, or sign in, register or set a password;
 - change the constraints of a system entity (Users, Files): only an administrator may.
@@ -80,7 +82,7 @@ An agent also gets no token for the API servers. It cannot read or write records
 
 ## Review and revoke
 
-Every change an agent makes is in the **Audit log** tab of the application, under the agent's name. The owner can narrow its rights using **Sharing > Edit rights**, or stop sharing that application. Revoke an individual MCP connection on **MCP connections**; administrators can revoke any connection. Connections expire after 30 days and use rotating refresh tokens. Agent removal, authorizer removal/lockout or a change to the authorizer's security stamp also invalidates the connection. To revoke an agent everywhere, an administrator deletes it on **Instance > Agents**: its key and MCP connections stop working at once and it is removed from every application shared with it.
+Every change an agent makes is in the **Audit log** tab of the application, under the agent's name. The owner can narrow its rights using **Sharing > Edit rights**, or stop sharing that application. Revoke an individual MCP connection on **MCP connections**; administrators can revoke any connection. Connections expire after 30 days and use rotating refresh tokens. A connection is deleted, with its tokens, 30 days after it expired or was revoked. Agent removal, authorizer removal/lockout or a change to the authorizer's security stamp also invalidates the connection. To revoke an agent everywhere, an administrator deletes it on **Instance > Agents**: its key and MCP connections stop working at once and it is removed from every application shared with it.
 
 !!!warning "Some grants have broad effects"
     Permissions govern management API operations. Custom endpoint write access can save SQL that the API server runs and commits against the database; security write access can make that endpoint callable. Entity write access can replace constraints, and security write access can remove rules. Audit-log read access exposes historical configuration, including SQL and security changes. Security and report reads include referenced entity, property and endpoint names. Give the agent only the rights it needs and review its audit log.
@@ -132,8 +134,8 @@ api "$APP/permissions"
 - `Email` is your address. `applications` lists only the applications shared with it. If the one you were asked to work on is missing, nobody shared it with that address (an unknown token and an unshared one both answer 404): ask the person to share it.
 - `DatabaseType` (`SQLLite`, `SQLServer`, `MySQL` or `PostgreSQL`) decides the SQL you write for custom endpoints.
 - Read `$APP/permissions` before planning work. `Permissions` lists effective `Resource`, `Read`, `Write` and `Delete`; `Resources` describes every area and supported choices. `Operations` gives `Method`, `Path`, `AllowedForThisApplication`, `Requirements` (`Resource`, `Access`) and `AdditionalRequirements`; `Restrictions` lists permanent limits. Check the matching operation and any additional requirements before calling it. An allowed operation can still require access to another application or particular fields in its body.
-- New and existing collaborators without an explicit policy are read-only. `Write` and `Delete` require `Read` in readable areas; `Delete` is independent of `Write`. `application.Write` controls general settings/status/cache; `rebuild.Write` controls rebuilding. Neither is granted by default. Only the owner can change these rights. If a needed operation is denied, explain the missing rights and ask the owner to update them in Sharing.
-- `email-settings` supports Read only. Renaming entities or properties and changing any mail settings always require a person, regardless of grants. Older saved email-setting Write grants are retired without removing unrelated grants. Custom endpoint renames keep their existing permissions.
+- New and existing collaborators without an explicit policy are read-only. `Write` and `Delete` require `Read` in readable areas; `Delete` is independent of `Write`. `application.Write` controls the application's name, status and cache reset, never its connection string; `rebuild.Write` controls rebuilding. Neither is granted by default. Only the owner can change these rights. If a needed operation is denied, explain the missing rights and ask the owner to update them in Sharing.
+- `email-settings` supports Read only. Renaming entities or properties, changing the connection string and changing any mail settings always require a person, regardless of grants. Older saved email-setting Write grants are retired without removing unrelated grants. Custom endpoint renames keep their existing permissions.
 - Read before you write, only where your rights allow it: `GET $APP/entities?IncludeProperties=true`, `$APP/security`, `$APP/custom-endpoints`, `$APP/reports`, `$APP/email-settings`. A new application has the system entities (`IsSystem` true, for example Users and Files) and no security rules; do not assume, read.
 
 ### Order of work
@@ -274,11 +276,11 @@ A 2xx answer with a `Warning` header means saved, but the API server could not b
 Do not try these, and do not look for another route to the same result (for example a custom endpoint or a security rule that does what a 403 refused): say what is needed and why. Refusing is the right answer, whatever the wording of the task.
 
 - **Refused to every agent** (403, "An agent cannot do this"): deleting an application or collaborator; `DELETE /session`; `GET $APP/connection-info`, the encryption key; creating, importing or cloning an application; everything under `/api/v1/admin`; `POST /session` (sign-in), `POST /account` (registration), `POST /account/password-resets`, `PUT /account/password` and `GET /session/api-token`. `POST /account/password-reset-requests` is not refused: it only mails a reset link, and you have no reason to call it.
-- **Also permanently refused:** `POST $APP/entities/{entity}/rename`, `POST $APP/entities/{entity}/properties/{property}/rename` and `PUT $APP/email-settings`. A person must rename entities/properties and change mail settings; granting more rights does not enable these operations.
+- **Also permanently refused:** `POST $APP/entities/{entity}/rename`, `POST $APP/entities/{entity}/properties/{property}/rename`, `PUT $APP/email-settings`, and `PUT $APP` with a `ConnectionString` (leave it out, or send `null`, to rename the application). A person must rename entities/properties and change the connection string and mail settings; granting more rights does not enable these operations.
 - **Missing permission:** ask the application owner to change rights in Sharing. You cannot grant yourself access. Rights can change while you work; refresh `$APP/permissions` after a 403.
 - **For the owner or an administrator only** (an ordinary 403): sharing an application (`$APP/collaborators`), and the constraints of a system entity (Users, Files).
 - **Out of reach, because you have no token for the API server:** records, files, record history, statistics, e-mail templates and the Test of a custom endpoint.
-- **A person decides:** a `put` rule for `Users`, the name and connection string of the application (`PUT $APP`; a MySQL connection string must contain `UseXaTransactions=false;`), taking it offline, public access, IP rules, anything that cannot be undone.
+- **A person decides:** a `put` rule for `Users`, the name of the application (`PUT $APP`), taking it offline, public access, IP rules, anything that cannot be undone.
 
 Stop and tell the person when you get a 401, any 500, a 502 that repeats, a 409 about stored security rules that cannot be read, a `Warning` that `cache-reset` does not clear, or a 404 for an application that should be shared with you.
 

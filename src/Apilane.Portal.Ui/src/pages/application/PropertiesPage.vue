@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ColumnsIcon, PlusIcon, TriangleAlertIcon } from '@lucide/vue'
+import { ColumnsIcon, InfoIcon, PlusIcon, TriangleAlertIcon } from '@lucide/vue'
 import { computed, reactive, ref } from 'vue'
 import ConfirmByNameDialog from '@/components/ConfirmByNameDialog.vue'
 import FormDialog from '@/components/FormDialog.vue'
@@ -30,7 +30,12 @@ const entityName = entity.value.Name
 const entityPath = { appToken, entity: entityName }
 
 // Who may read or write each property: the table shows it as an icon next to the name.
-provideAccessSummaries()
+const access = provideAccessSummaries()
+
+// A custom entity no rule gives access to yet (every new one): the API refuses every call to it, which the
+// screen says at the top. Nothing is said while the rules are not known.
+const closed = computed(() => !entity.value.IsSystem && access.item('Entity', entityName)?.kind === 'closed')
+const securityRoute = { name: 'app-security', params: { appToken }, query: { item: `Entity-${entityName}` } }
 
 function propertyPath(property: Property) {
   return { params: { path: { ...entityPath, property: property.Name } } }
@@ -242,6 +247,15 @@ const warningClass = 'flex gap-2.5 rounded-lg border border-warning/40 bg-warnin
     gap, not margins: the first section is missing for an entity that takes no properties.
   -->
   <div class="flex flex-col gap-8">
+    <div v-if="closed" role="note" class="flex gap-2.5 rounded-lg border border-primary/40 bg-primary/10 p-3 text-sm">
+      <InfoIcon class="mt-0.5 size-4 shrink-0 text-link" aria-hidden="true" />
+      <p>
+        {{ entityName }} is private: no security rule gives access to it yet, so the API refuses every call from the users of
+        the application. Give them access in the
+        <RouterLink :to="securityRoute" class="font-medium text-link underline underline-offset-4">security section</RouterLink>.
+      </p>
+    </div>
+
     <!-- An entity that takes no new properties (Files) has no custom ones either. -->
     <section v-if="entity.AllowAddProperties || custom.length > 0" aria-labelledby="custom-properties">
       <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">

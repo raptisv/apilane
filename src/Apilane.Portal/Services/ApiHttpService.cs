@@ -68,47 +68,7 @@ namespace Apilane.Portal.Services
                 ?? throw new Exception("Result cannot be null");
         }
 
-        public async Task<Either<DataResponse, HttpStatusCode>> GetAllDataAsync(
-            string serverUrl,
-            string appToken,
-            string entity,
-            string portalUserAuthToken)
-        {
-            int pageIndex = 1;
-            int pageSize = 1000;
-            var data = new DataResponse()
-            {
-                Data = new List<Dictionary<string, object?>>()
-            };
-
-            var dataTotalResult = await GetDataAsync(serverUrl, appToken, entity, pageIndex, pageSize, portalUserAuthToken);
-
-            if (dataTotalResult.IsError(out var error1))
-            {
-                return error1;
-            }
-
-            data.Data.AddRange(dataTotalResult.Value.Data);
-
-            // While the data fetched equals the page size, meaning there must be also other elements to fetch.
-            while (dataTotalResult.Value.Data.Count >= pageSize)
-            {
-                pageIndex++;
-
-                dataTotalResult = await GetDataAsync(serverUrl, appToken, entity, pageIndex, pageSize, portalUserAuthToken);
-
-                if (dataTotalResult.IsError(out var error2))
-                {
-                    return error2;
-                }
-
-                data.Data.AddRange(dataTotalResult.Value.Data);
-            }
-
-            return data;
-        }
-
-        private async Task<Either<DataTotalResponse, HttpStatusCode>> GetDataAsync(
+        public async Task<Either<DataTotalResponse, HttpStatusCode>> GetDataPageAsync(
             string serverUrl,
             string appToken,
             string entity,

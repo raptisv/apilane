@@ -9,6 +9,7 @@ using Apilane.Portal.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,6 +18,11 @@ namespace Apilane.Portal.Services
 {
     public class ApplicationService : IApplicationService
     {
+        public const string AgentConnectionStringMessage = "An agent cannot change the connection string. Leave ConnectionString out, or ask a person to change it in the Portal.";
+
+        public const string RebuildAuditEntityType = "Application";
+        public const string RebuildAuditAction = "Rebuilt";
+
         private readonly ApplicationDbContext _dbContext;
         private readonly IApplicationAccessService _applicationAccessService;
         private readonly IPortalAccessService _portalAccessService;
@@ -92,6 +98,13 @@ namespace Apilane.Portal.Services
             var user = await _portalAccessService.GetCurrentUserAsync();
             var application = await _applicationAccessService.GetApplicationAsync(appToken);
 
+            // The connection string decides which database receives every record of the application,
+            // so, like the mail transport, it is for people only whatever an agent's grants are.
+            if (request.ConnectionString is not null && PortalAgent.IsAgent(user.Email))
+            {
+                throw PortalException.Forbidden(AgentConnectionStringMessage);
+            }
+
             // The stored type decides, never the request.
             if (application.DatabaseType != (int)DatabaseType.SQLLite)
             {
@@ -136,10 +149,28 @@ namespace Apilane.Portal.Services
 
         public async Task RebuildAsync(string appToken)
         {
+            var user = await _portalAccessService.GetCurrentUserAsync();
             var application = await _applicationAccessService.GetApplicationAsync(appToken);
 
-            // Nothing changes in the Portal; the scope still resets the cache after a successful rebuild.
-            await _applicationWriteScope.SaveAsync(application, () => _apiServerClient.RebuildAsync(application));
+            // Nothing else changes in the Portal; the scope still resets the cache after a successful rebuild.
+            await _applicationWriteScope.SaveAsync(application, async () =>
+            {
+                await _apiServerClient.RebuildAsync(application);
+
+                // Every record is gone and no tracked change records it, so the audit row is written
+                // here, and only once the API server has done it.
+                _dbContext.AuditLogs.Add(new PortalAuditLog
+                {
+                    Timestamp = DateTime.UtcNow,
+                    UserId = user.Id,
+                    UserEmail = user.Email ?? string.Empty,
+                    AppID = application.ID,
+                    EntityType = RebuildAuditEntityType,
+                    EntityIdentifier = application.Name,
+                    Action = RebuildAuditAction,
+                    Changes = null
+                });
+            });
         }
 
         public async Task DeleteAsync(string appToken)

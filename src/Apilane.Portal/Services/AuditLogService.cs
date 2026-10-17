@@ -12,6 +12,11 @@ namespace Apilane.Portal.Services
 {
     public class AuditLogService : IAuditLogService
     {
+        // As ApplicationDbContext writes them.
+        private const string ApplicationEntityType = "Application";
+        private const string CreatedAction = "Created";
+        private const string DeletedAction = "Deleted";
+
         private readonly ApplicationDbContext _dbContext;
 
         public AuditLogService(ApplicationDbContext dbContext)
@@ -21,9 +26,16 @@ namespace Apilane.Portal.Services
 
         public async Task<ListResponse<AuditLogEntryResponse>> QueryAsync(long? appId, PageQuery page)
         {
-            var query = _dbContext.AuditLogs
-                .AsNoTracking()
-                .Where(x => x.AppID == appId);
+            // The instance log also shows who created and who deleted each application: those rows
+            // carry the application, whose own log goes with it.
+            var query = appId is null
+                ? _dbContext.AuditLogs
+                    .AsNoTracking()
+                    .Where(x => x.AppID == null
+                        || (x.EntityType == ApplicationEntityType && (x.Action == CreatedAction || x.Action == DeletedAction)))
+                : _dbContext.AuditLogs
+                    .AsNoTracking()
+                    .Where(x => x.AppID == appId);
 
             var total = await query.CountAsync();
 

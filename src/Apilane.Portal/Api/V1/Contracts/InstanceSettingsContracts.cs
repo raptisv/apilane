@@ -78,6 +78,10 @@ namespace Apilane.Portal.Api.V1.Contracts
         /// </summary>
         public string? MailServer { get; set; }
 
+        /// <summary>
+        /// 1 to 65535. Null clears it.
+        /// </summary>
+        [Range(1, 65535, ErrorMessage = "Must be between 1 and 65535")]
         public int? MailServerPort { get; set; }
 
         public string? MailUserName { get; set; }

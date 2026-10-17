@@ -29,12 +29,15 @@ namespace Microsoft.Extensions.DependencyInjection
 
             if (string.IsNullOrWhiteSpace(serviceKey))
             {
+                // The singleton takes a client from the factory per request: a client kept for its whole life
+                // would keep one handler, so pooled connections would never follow a DNS change
                 services.AddSingleton<IApilaneService>((serviceProvider) =>
                 {
                     var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
 
                     return new ApilaneService(
-                        httpClientFactory.CreateClient(httpClientName),
+                        httpClientFactory,
+                        httpClientName,
                         config);
                 });
             }
@@ -46,7 +49,8 @@ namespace Microsoft.Extensions.DependencyInjection
                     var httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
 
                     return new ApilaneService(
-                        httpClientFactory.CreateClient(httpClientName),
+                        httpClientFactory,
+                        httpClientName,
                         config);
                 });
             }

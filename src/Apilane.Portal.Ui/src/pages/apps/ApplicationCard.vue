@@ -29,15 +29,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useApplicationExport } from '@/composables/useApplicationExport'
 import { useAsync } from '@/composables/useAsync'
-import { useMutation } from '@/composables/useMutation'
 import { statusChange } from '@/lib/applicationActions'
 import { apiServer, swaggerUrl } from '@/lib/apiServer'
 import { accountDisplayName } from '@/lib/agents'
 import { databaseTypeLabel, formatStorage } from '@/lib/applications'
 import type { Application } from '@/lib/applications'
-import { saveBlob } from '@/lib/download'
-import * as toast from '@/lib/toast'
 
 // One application on the applications page. `info`, `compare`, `status`, `rebuild` and `delete` ask the page
 // to open that dialog: the page holds them, so a deleted card can disappear while its dialog closes.
@@ -52,19 +50,7 @@ function server() {
 // the card's footer.
 const storage = useAsync(() => server().get<number>('/api/Application/GetStorageUsed'))
 
-const exportZip = useMutation(async () => {
-  saveBlob(await server().getBlob('/api/Application/Export'), `${props.application.Token}.zip`)
-})
-
-async function onExport(): Promise<void> {
-  if (exportZip.pending.value) {
-    return
-  }
-
-  if (!(await exportZip.run())) {
-    toast.error(exportZip.error.value)
-  }
-}
+const exportZip = useApplicationExport(() => props.application)
 </script>
 
 <template>
@@ -142,7 +128,7 @@ async function onExport(): Promise<void> {
             </a>
           </DropdownMenuItem>
           <!-- The menu stays open while the export runs, so the busy state is visible. -->
-          <DropdownMenuItem :aria-busy="exportZip.pending.value" @select.prevent="onExport">
+          <DropdownMenuItem :aria-busy="exportZip.pending.value" @select.prevent="exportZip.run">
             <Loader2Icon v-if="exportZip.pending.value" class="animate-spin" />
             <CloudDownloadIcon v-else />
             {{ exportZip.pending.value ? 'Exporting…' : 'Export' }}

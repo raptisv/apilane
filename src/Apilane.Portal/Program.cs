@@ -76,7 +76,8 @@ namespace Apilane.Portal
             builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
             {
                 options.UseSqlite($"Data Source={Path.Combine(appConfig.FilesPath, "Apilane.db")}");
-                options.EnableSensitiveDataLogging(true);
+                // Parameter values in EF errors would put tokens, keys and passwords in the logs.
+                options.EnableSensitiveDataLogging(environment == Common.Enums.HostingEnvironment.Development);
                 //options.ConfigureWarnings(x => x.Ignore(RelationalEventId.AmbientTransactionWarning));
             });
 
@@ -192,6 +193,10 @@ namespace Apilane.Portal
                 }
             }
 
+            // Before HSTS: behind a loopback proxy that ends HTTPS, the request counts as HTTPS only
+            // once X-Forwarded-Proto has been applied, and HSTS is sent only for HTTPS requests.
+            app.UseForwardedHeaders();
+
             if (environment == Common.Enums.HostingEnvironment.Development)
             {
                 app.UseDeveloperExceptionPage();
@@ -231,8 +236,6 @@ namespace Apilane.Portal
             {
                 app.UseOpenTelemetryPrometheusScrapingEndpoint(context => context.Request.Path == "/metrics");
             }
-
-            app.UseForwardedHeaders();
 
             // The built UI (wwwroot/ui) is the only folder served as files, at the site root.
             var uiFiles = PortalApiDependencyInjection.CreateUiFileProvider(app.Environment);

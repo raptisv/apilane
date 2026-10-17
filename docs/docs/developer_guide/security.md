@@ -16,6 +16,8 @@ A new application starts with a token lifetime of 60 minutes, **Allow users with
 
 ## Sign in
 
+Sign-in attempts are limited per login name: over the limit, `Account/Login` answers `RATE_LIMIT_EXCEEDED`.
+
 #### Allow only one sign-in at a time
 If this option is enabled, each new user login forces logout from any previous logged-in sessions. This setting essentially deletes/deprecates any previous authentication tokens, which will prevent further access using those tokens.
 
@@ -79,7 +81,7 @@ The largest file a user can upload, from 1 KB to 25,600 KB (25 MB). Whether a us
 
 ## IP allow/block
 
-Two modes are available for IP-based access control (card **IP access**, choice 'Addresses in the list are'). Each box holds one entry, which is an **address** (IPv4 `203.0.113.7`, or IPv6 `2001:db8::1`), a **network** in CIDR notation (`10.0.0.0/8`, `192.168.1.0/24`, `2001:db8::/32`) or a **range** of addresses of one family, both ends included (`10.0.0.1-10.0.0.50`). A network is written without bits beyond its prefix (`10.0.0.0/8`, not `10.1.2.3/8`), and an IPv4 address in plain dotted form, with no leading zeros. The Portal stores every entry in this canonical form. An empty list accepts every address. The caller's address is the first entry of the `X-Forwarded-For` header when the request carries one (a reverse proxy sets it), otherwise the address of the connection. The list does not apply to people who manage the application in the Portal.
+Two modes are available for IP-based access control (card **IP access**, choice 'Addresses in the list are'). Each box holds one entry, which is an **address** (IPv4 `203.0.113.7`, or IPv6 `2001:db8::1`), a **network** in CIDR notation (`10.0.0.0/8`, `192.168.1.0/24`, `2001:db8::/32`) or a **range** of addresses of one family, both ends included (`10.0.0.1-10.0.0.50`). A network is written without bits beyond its prefix (`10.0.0.0/8`, not `10.1.2.3/8`), and an IPv4 address in plain dotted form, with no leading zeros. The Portal stores every entry in this canonical form. An empty list accepts every address. The caller's address is the address of the connection, or an entry of the `X-Forwarded-For` header when the connection comes from one of your own proxies, as the `TrustedProxies` setting of the API server says: see [Where the address of a caller comes from](#where-the-address-of-a-caller-comes-from). The list does not apply to people who manage the application in the Portal.
 
 #### Blocked: every other address is accepted
 Use this setting to block specific IP addresses from accessing your application. This configuration may be useful if you wish to isolate applications, e.g. prevent access to a production application from a development/staging server.
@@ -116,7 +118,7 @@ The **IP access** card of the **Security** tab shows what the API server sees fo
 
 ## Forgot password
 
-The **Forgot password** card shows two addresses that start a password reset: a ready-made page for your users (`{ServerUrl}/App/{appToken}/Account/Manage/ForgotPassword`) and the `Email/ForgotPassword` endpoint. Both send the Reset password [email](email_templates.md) and need the SMTP settings, and both share one limit of one email per address every 5 minutes. Forgot-password and confirmation requests also share a 60-call-per-minute budget for the application, including unknown addresses. The rate-limit store expires idle entries and refuses new requests when its bounded capacity is full. A successful password reset or password change signs the user out of every existing session and invalidates outstanding reset links. The card has nothing to save.
+The **Forgot password** card shows two addresses that start a password reset: a ready-made page for your users (`{ServerUrl}/App/{appToken}/Account/Manage/ForgotPassword`) and the `Email/ForgotPassword` endpoint. Both send the Reset password [email](email_templates.md) and need the SMTP settings, and both share one limit of one email per address every 5 minutes. Forgot-password and confirmation requests also share a 60-call-per-minute budget for the application, including unknown addresses. The rate-limit store expires idle entries and refuses new requests when its bounded capacity is full. A successful password reset or password change signs the user out of every existing session and invalidates outstanding reset links. So does setting a user's Password, or deleting the user, through the Data API. The card has nothing to save.
 
 ---
 

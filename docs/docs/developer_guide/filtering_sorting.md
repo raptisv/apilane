@@ -86,9 +86,9 @@ How a value is written depends on the type of the property:
 | Property type | Value |
 |---|---|
 | String | Text. Spaces at the start and end are removed. |
-| Number | A number such as `3` or `3.5`. With `contains` and `notcontains`, a comma-separated list of numbers (see below). |
+| Number | A plain number such as `3`, `-3` or `3.5`, with `.` for decimals and no thousands separator. With `contains` and `notcontains`, a comma-separated list of numbers (see below). |
 | Boolean | `true` or `false` (`1`, `0`, `on` and `off` also work). Only `equal` and `notequal`. |
-| Date | Unix time in seconds (10 digits) or milliseconds (13 digits), or `yyyy-MM-dd`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd HH:mm:ss` or `yyyy-MM-dd HH:mm:ss.fff`, all in UTC. Text with a `T` or a `Z` (ISO 8601) is refused. |
+| Date | Unix time: a positive number of exactly 10 digits is seconds, any other whole number milliseconds (negative before 1970), so a value the API returned can be used as it is. Or text: `yyyy-MM-dd`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd HH:mm:ss.fff`, or ISO 8601 with a `T` (`2025-01-15T10:30:00`, also with a fraction), optionally with `Z` or an offset such as `+02:00`. Text without a zone is read as UTC. |
 | any | `null`: `equal` finds the records where the property is empty, `notequal` the ones where it is not. No other operator accepts `null`. |
 
 A filter on a property that does not exist, and a filter or sort on a property the caller has no read access to, is refused (`INVALID_FILTER_PARAMETER`, `INVALID_SORT_PARAMETER`). A group inside another group must not have an empty `Filters` list: the query fails.

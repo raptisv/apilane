@@ -13,7 +13,8 @@ namespace Apilane.Portal.Abstractions
 
         /// <summary>
         /// Saves the SMTP settings and the confirmation redirect URL together, then resets the API
-        /// server's cache so it sends with the new settings.
+        /// server's cache so it sends with the new settings. A new server or user name without a new
+        /// password, while one is stored, is a VALIDATION error on MailPassword.
         /// </summary>
         Task<EmailSettingsResponse> UpdateAsync(string appToken, EmailSettingsRequest request);
     }

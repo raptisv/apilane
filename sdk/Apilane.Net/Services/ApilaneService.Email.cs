@@ -1,5 +1,4 @@
 using Apilane.Net.Abstractions;
-using Apilane.Net.Extensions;
 using Apilane.Net.Models.Data;
 using Apilane.Net.Request;
 using Apilane.Net.Utilities;
@@ -49,7 +48,7 @@ namespace Apilane.Net.Services
             using (var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.GetUrl(_config.ApplicationApiUrl)))
             {
                 httpRequest.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-                var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+                var response = await SendAsync(httpRequest, cancellationToken);
                 response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 var jsonString = await response.Content.ReadAsStringAsync();
 
@@ -58,7 +57,7 @@ namespace Apilane.Net.Services
                     var errorResponse = JsonSerializer.Deserialize<ApilaneError>(jsonString, JsonDeserializerSettings)!;
                     if (request.ShouldThrowExceptionOnError())
                     {
-                        throw new Exception(errorResponse.BuildErrorMessage());
+                        throw new ApilaneErrorException(errorResponse, (int)response.StatusCode);
                     }
                     return errorResponse;
                 }

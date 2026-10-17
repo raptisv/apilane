@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { CircleAlertIcon, Loader2Icon, PowerIcon, Trash2Icon, WrenchIcon } from '@lucide/vue'
+import {
+  CircleAlertIcon,
+  CloudDownloadIcon,
+  CopyIcon,
+  GitCompareArrowsIcon,
+  Loader2Icon,
+  PowerIcon,
+  Trash2Icon,
+  WrenchIcon,
+} from '@lucide/vue'
 import { computed, nextTick, reactive, ref, useTemplateRef } from 'vue'
 import { useRouter } from 'vue-router'
 import ApplicationStatusDialog from '@/components/ApplicationStatusDialog.vue'
@@ -15,6 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useApplication } from '@/composables/useApplication'
+import { useApplicationExport } from '@/composables/useApplicationExport'
 import { useApplications } from '@/composables/useApplications'
 import { useMutation } from '@/composables/useMutation'
 import { api, unwrap } from '@/lib/api'
@@ -69,6 +79,9 @@ const rebuildOpen = ref(false)
 const deleteOpen = ref(false)
 
 const statusLabel = computed(() => statusChange(application.value.Name, application.value.Online).label)
+
+// Export, compare and clone: the same as in the card menu of the applications page.
+const exportZip = useApplicationExport(() => application.value)
 
 function onDeleted(): void {
   void router.push({ name: 'apps' })
@@ -135,6 +148,30 @@ const noteClass = 'text-sm text-muted-foreground'
         <Button variant="outline" @click="statusOpen = true">
           <PowerIcon />
           {{ statusLabel }}
+        </Button>
+      </div>
+    </section>
+
+    <section :class="sectionClass" aria-labelledby="copy-title">
+      <h2 id="copy-title" class="text-sm font-semibold">Export, compare and clone</h2>
+
+      <p :class="noteClass">
+        Export downloads a zip of the application. For an application on SQLite it also holds the database file and the
+        uploaded files, so handle it like the data itself. Compare shows what differs from another of your applications.
+        Clone makes a copy, with or without its records.
+      </p>
+
+      <div class="flex flex-wrap gap-2">
+        <Button variant="outline" :disabled="exportZip.pending.value" @click="exportZip.run">
+          <Loader2Icon v-if="exportZip.pending.value" class="animate-spin" />
+          <CloudDownloadIcon v-else />
+          {{ exportZip.pending.value ? 'Exporting…' : 'Export' }}
+        </Button>
+        <Button as-child variant="outline">
+          <RouterLink :to="{ name: 'apps', query: { compare: appToken } }"><GitCompareArrowsIcon />Compare with…</RouterLink>
+        </Button>
+        <Button as-child variant="outline">
+          <RouterLink :to="{ name: 'app-clone', params: { appToken } }"><CopyIcon />Clone</RouterLink>
         </Button>
       </div>
     </section>

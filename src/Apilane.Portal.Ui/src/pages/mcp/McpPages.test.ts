@@ -47,7 +47,15 @@ function connection(Id: string, Name: string, overrides: Partial<Schemas['McpCon
 }
 
 async function mountPage(component: Component, path: string): Promise<void> {
-  router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: { render: () => null } }] })
+  const empty = { render: () => null }
+  router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/apps', name: 'apps', component: empty },
+      { path: '/admin/agents', name: 'admin-agents', component: empty },
+      { path: '/:pathMatch(.*)*', component: empty },
+    ],
+  })
   await router.push(path)
   await router.isReady()
   wrapper = mount(component, { attachTo: document.body, global: { plugins: [router] } })
@@ -210,11 +218,61 @@ describe('MCP approval', () => {
     }
   })
 
+  it('sends only the applications left ticked, all of them by default, and refuses none', async () => {
+    authorization.Agents[0] = {
+      Id: 'build-agent-id', Name: 'Build',
+      Applications: [{ Token: 'private-app-id', Name: 'Shop' }, { Token: 'billing-app-id', Name: 'Billing' }],
+    }
+    await mountPage(AuthorizePage, '/mcp/authorize?requestId=pending-request')
+    await choose('Agent', 'Build')
+    const boxes = () => body().findAll('[role="checkbox"]')
+    expect(boxes().map((box) => box.attributes('aria-checked'))).toEqual(['true', 'true'])
+    expect(body().text()).not.toContain('billing-app-id')
+
+    await boxes()[0]?.trigger('click')
+    await settle()
+    await boxes()[1]?.trigger('click')
+    await settle()
+    expect(boxes().map((box) => box.attributes('aria-checked'))).toEqual(['false', 'false'])
+    await body().get('form').trigger('submit')
+    await settle()
+    expect(body().text()).toContain('Select at least one application.')
+    expect(calls.post).not.toHaveBeenCalled()
+
+    await boxes()[1]?.trigger('click')
+    await settle()
+    expect(body().text()).not.toContain('Select at least one application.')
+    await body().get('form').trigger('submit')
+    await settle()
+    expect(calls.post).toHaveBeenCalledExactlyOnceWith(authorizationPath, {
+      body: { RequestId: 'pending-request', AgentId: 'build-agent-id', Name: 'Example client', ApplicationTokens: ['billing-app-id'] },
+    })
+  })
+
+  it('ticks every application again when another agent is chosen', async () => {
+    authorization.Agents[0] = {
+      Id: 'build-agent-id', Name: 'Build',
+      Applications: [{ Token: 'private-app-id', Name: 'Shop' }, { Token: 'billing-app-id', Name: 'Billing' }],
+    }
+    await mountPage(AuthorizePage, '/mcp/authorize?requestId=pending-request')
+    await choose('Agent', 'Build')
+    await body().findAll('[role="checkbox"]')[0]?.trigger('click')
+    await settle()
+    expect(body().findAll('[role="checkbox"]').map((box) => box.attributes('aria-checked'))).toEqual(['false', 'true'])
+    await choose('Agent', 'Docs')
+    await choose('Agent', 'Build')
+    expect(body().findAll('[role="checkbox"]').map((box) => box.attributes('aria-checked'))).toEqual(['true', 'true'])
+  })
+
   it('allows denial with no eligible agents but cannot approve', async () => {
     authorization.Agents = []
     await mountPage(AuthorizePage, '/mcp/authorize?requestId=pending-request')
     expect(body().text()).toContain('No agents available')
     expect(body().text()).toContain('an application you own')
+    const links = body().findAll('a')
+    expect(links.map((link) => [link.text(), link.attributes('href'), link.attributes('target')])).toEqual([
+      ['Go to applications (opens in a new tab)', '/apps', '_blank'],
+    ])
     expect(button('Approve connection').attributes('disabled')).toBeDefined()
     await body().get('form').trigger('submit')
     await settle()
@@ -222,6 +280,17 @@ describe('MCP approval', () => {
     await button('Deny').trigger('click')
     await settle()
     expect(calls.post).toHaveBeenCalledExactlyOnceWith(denyPath, { body: { RequestId: 'pending-request' } })
+  })
+
+  it('also links an administrator with no eligible agents to the agents screen', async () => {
+    authorization.Agents = []
+    setSession({ Email: 'admin@example.test', IsAdmin: true, InstanceTitle: 'Portal', Version: '1' })
+    await mountPage(AuthorizePage, '/mcp/authorize?requestId=pending-request')
+    const links = body().findAll('a')
+    expect(links.map((link) => [link.text(), link.attributes('href'), link.attributes('target')])).toEqual([
+      ['Go to applications (opens in a new tab)', '/apps', '_blank'],
+      ['Go to agents (opens in a new tab)', '/admin/agents', '_blank'],
+    ])
   })
 
   it('replaces the form when the request expires before approval', async () => {
