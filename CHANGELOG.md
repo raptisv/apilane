@@ -1,5 +1,8 @@
 # Changelog
 
+## 10.5.6 (2026-11-08)
+- feat(api): accept the HTTP QUERY method on reads with long filters
+
 ## 10.5.5 (2026-10-17)
 - fix: SQLite rebuild data loss, value parsing and other issues from the E2E review
 
