@@ -129,6 +129,7 @@ namespace Apilane.Api.Controllers
         /// <param name="properties">The entity properties to fetch, comma separated. Leave empty to fetch all properties. Use it to limit consumed bandwidth.</param>
         /// <param name="getTotal">Default value false. Set it to true to get the count of records according to the specidified filtering </param>
         /// <returns>An object that consists of two properties. Data is an array of records. If GetTotal is set to True, Total is the count of records, according to the specidified filtering</returns>
+        /// <remarks>The same address also accepts the HTTP QUERY method (RFC 10008), with the entity in the query string and the other parameters as a JSON body, for filters too long for a URL.</remarks>
         [HttpGet]
         [Produces("application/json")]
         [ProducesResponseType(typeof(DataResponse), 200)]
@@ -163,6 +164,30 @@ namespace Apilane.Api.Controllers
                 getTotal);
 
             return Json(result);
+        }
+
+        /// <summary>
+        /// The QUERY form of <see cref="Get"/>: the entity stays in the query string, the other parameters are the
+        /// JSON body (<see cref="DataQueryBodyVm"/>).
+        /// </summary>
+        [AcceptVerbs(HttpQueryMethod)]
+        [ActionName(nameof(Get))]
+        [ApiExplorerSettings(IgnoreApi = true)]
+        [Produces("application/json")]
+        public Task<JsonResult> GetByQuery(
+            [BindRequired] string entity,
+            [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] DataQueryBodyVm? body)
+        {
+            body ??= new DataQueryBodyVm();
+
+            return Get(
+                entity,
+                body.PageIndex,
+                body.PageSize,
+                QueryBodyVm.ToParameter(body.Filter),
+                QueryBodyVm.ToParameter(body.Sort),
+                QueryBodyVm.ToParameter(body.Properties),
+                body.GetTotal);
         }
 
         /// <summary>

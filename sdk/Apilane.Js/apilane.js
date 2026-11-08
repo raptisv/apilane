@@ -38,6 +38,13 @@
 // Enums
 // ============================================================================
 
+/**
+ * A read whose address would be longer than this is sent with the HTTP QUERY method (RFC 10008) instead of GET,
+ * its parameters in a JSON body. The API refuses request lines above 8 KB, and proxies often refuse less. Shorter
+ * reads stay GET, which every proxy and firewall passes.
+ */
+export const MAX_GET_URL_LENGTH = 4096;
+
 /** Filter comparison operators. */
 export const FilterOperator = Object.freeze({
     equal: 'equal',
@@ -588,18 +595,29 @@ class ApilaneRequestBase {
     }
 
     /**
+     * The JSON body of this request when it is sent with the HTTP QUERY method, or null for a request that is
+     * always a GET. It holds the parameters of _getExtraParams, with the filter and the sort as JSON.
+     * @internal
+     * @returns {object|null}
+     */
+    _getQueryBody() {
+        return null;
+    }
+
+    /**
      * Builds the full URL for this request.
      * @param {string} apiUrl - The base API URL.
+     * @param {boolean} [includeExtraParams=true] - false leaves out the parameters a QUERY request sends in its body.
      * @returns {string}
      */
-    getUrl(apiUrl) {
+    getUrl(apiUrl, includeExtraParams = true) {
         const params = new URLSearchParams();
 
         if (this.#entity != null && this.#entity.trim() !== '') {
             params.set('Entity', this.#entity);
         }
 
-        const extra = this._getExtraParams();
+        const extra = includeExtraParams ? this._getExtraParams() : null;
         if (extra != null) {
             for (const [key, value] of extra.entries()) {
                 params.append(key, value);
@@ -922,6 +940,18 @@ export class DataGetListRequest extends ApilaneRequestBase {
             params.set('sort', JSON.stringify(this.#sort));
         }
         return params;
+    }
+
+    /** @internal */
+    _getQueryBody() {
+        return {
+            pageIndex: this.#pageIndex,
+            pageSize: this.#pageSize,
+            getTotal: this.#getTotal,
+            properties: this.#properties != null && this.#properties.length > 0 ? this.#properties : null,
+            filter: this.#filter,
+            sort: this.#sort,
+        };
     }
 }
 
@@ -1336,6 +1366,18 @@ export class StatsAggregateRequest extends ApilaneRequestBase {
         }
         return params;
     }
+
+    /** @internal */
+    _getQueryBody() {
+        return {
+            groupBy: this.#groupBy,
+            pageIndex: this.#pageIndex,
+            pageSize: this.#pageSize,
+            orderDirection: this.#ascending ? 'asc' : 'desc',
+            filter: this.#filter,
+            properties: this.#properties,
+        };
+    }
 }
 
 /** Stats distinct request builder. */
@@ -1378,6 +1420,11 @@ export class StatsDistinctRequest extends ApilaneRequestBase {
             params.set('filter', JSON.stringify(this.#filter));
         }
         return params;
+    }
+
+    /** @internal */
+    _getQueryBody() {
+        return { property: this.#property, filter: this.#filter };
     }
 }
 
@@ -1524,6 +1571,18 @@ export class FileGetListRequest extends ApilaneRequestBase {
             params.set('sort', JSON.stringify(this.#sort));
         }
         return params;
+    }
+
+    /** @internal */
+    _getQueryBody() {
+        return {
+            pageIndex: this.#pageIndex,
+            pageSize: this.#pageSize,
+            getTotal: this.#getTotal,
+            properties: this.#properties != null && this.#properties.length > 0 ? this.#properties : null,
+            filter: this.#filter,
+            sort: this.#sort,
+        };
     }
 }
 
@@ -1984,10 +2043,37 @@ export class ApilaneService {
      */
     async #get(request, signal, transform) {
         const url = request.getUrl(this.#apiUrl);
+        const body = url.length > MAX_GET_URL_LENGTH ? request._getQueryBody() : null;
+        if (body != null) {
+            return this.#queryJson(request, body, signal, transform);
+        }
         const headers = await this.#buildHeaders(request, 'GET', url, '');
         const response = await this.#customFetch(url, {
             method: 'GET',
             headers,
+            signal,
+        });
+        return this.#handleResponse(response, request, transform);
+    }
+
+    /**
+     * Performs a QUERY request (RFC 10008): a read with its parameters in a JSON body.
+     * @template T
+     * @param {ApilaneRequestBase} request
+     * @param {*} body
+     * @param {AbortSignal} [signal]
+     * @param {function(string): T} [transform]
+     * @returns {Promise<ApilaneResult<T>>}
+     */
+    async #queryJson(request, body, signal, transform) {
+        const url = request.getUrl(this.#apiUrl, false);
+        const bodyString = JSON.stringify(body);
+        const headers = await this.#buildHeaders(request, 'QUERY', url, bodyString);
+        headers['Content-Type'] = 'application/json';
+        const response = await this.#customFetch(url, {
+            method: 'QUERY',
+            headers,
+            body: bodyString,
             signal,
         });
         return this.#handleResponse(response, request, transform);

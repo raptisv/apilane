@@ -1,5 +1,7 @@
 ﻿using Apilane.Api.Core.Abstractions;
 using Apilane.Api.Core.Configuration;
+using Apilane.Api.Core.Enums;
+using Apilane.Api.Core.Exceptions;
 using Apilane.Common.Models.Dto;
 using Apilane.Api.Filters;
 using Apilane.Api.Models.ViewModels;
@@ -34,6 +36,7 @@ namespace Apilane.Api.Controllers
         /// <param name="orderDirection">Default value DESC. Used for data sort direction. Accepted values "ASC", "DESC"</param>
         /// <param name="groupBy">Default value NULL. Used for data grouping</param>
         /// <returns>The result of the aggregate function</returns>
+        /// <remarks>The same address also accepts the HTTP QUERY method (RFC 10008), with the entity in the query string and the other parameters as a JSON body, for filters too long for a URL.</remarks>
         [HttpGet]
         [ServiceFilter(typeof(ApplicationLogActionFilter))]
         [Produces("application/json")]
@@ -64,12 +67,44 @@ namespace Apilane.Api.Controllers
         }
 
         /// <summary>
+        /// The QUERY form of <see cref="Aggregate"/>: the entity stays in the query string, the other parameters are
+        /// the JSON body (<see cref="AggregateQueryBodyVm"/>).
+        /// </summary>
+        [AcceptVerbs(HttpQueryMethod)]
+        [ActionName(nameof(Aggregate))]
+        [ApiExplorerSettings(IgnoreApi = true)]
+        [ServiceFilter(typeof(ApplicationLogActionFilter))]
+        [Produces("application/json")]
+        public Task<object> AggregateByQuery(
+            [BindRequired] string entity,
+            [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] AggregateQueryBodyVm? body)
+        {
+            body ??= new AggregateQueryBodyVm();
+
+            var properties = QueryBodyVm.ToParameter(body.Properties);
+            if (string.IsNullOrWhiteSpace(properties))
+            {
+                throw new ApilaneException(AppErrors.ERROR, "The body property 'properties' is required.");
+            }
+
+            return Aggregate(
+                entity,
+                properties,
+                body.PageIndex,
+                body.PageSize,
+                QueryBodyVm.ToParameter(body.Filter),
+                QueryBodyVm.ToParameter(body.GroupBy),
+                body.OrderDirection);
+        }
+
+        /// <summary>
         /// Use this endpoint to get the distinct values of any property of the given entity, depending on user access level
         /// </summary>
         /// <param name="entity">Required. The entity name</param>
         /// <param name="property">Required. The property can be on any type</param>
         /// <param name="filter">Optional. Default value NULL. Used for data fitlering</param>
         /// <returns>Returns the distinc values of the requested property</returns>
+        /// <remarks>The same address also accepts the HTTP QUERY method (RFC 10008), with the entity in the query string and the other parameters as a JSON body, for filters too long for a URL.</remarks>
         [HttpGet]
         [ServiceFilter(typeof(ApplicationLogActionFilter))]
         [Produces("application/json")]
@@ -89,6 +124,30 @@ namespace Apilane.Api.Controllers
                 Application.DifferentiationEntity, 
                 property,
                 filter);
+        }
+
+        /// <summary>
+        /// The QUERY form of <see cref="Distinct"/>: the entity stays in the query string, the other parameters are
+        /// the JSON body (<see cref="DistinctQueryBodyVm"/>).
+        /// </summary>
+        [AcceptVerbs(HttpQueryMethod)]
+        [ActionName(nameof(Distinct))]
+        [ApiExplorerSettings(IgnoreApi = true)]
+        [ServiceFilter(typeof(ApplicationLogActionFilter))]
+        [Produces("application/json")]
+        public Task<object> DistinctByQuery(
+            [BindRequired] string entity,
+            [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] DistinctQueryBodyVm? body)
+        {
+            if (string.IsNullOrWhiteSpace(body?.Property))
+            {
+                throw new ApilaneException(AppErrors.ERROR, "The body property 'property' is required.");
+            }
+
+            return Distinct(
+                entity,
+                body.Property,
+                QueryBodyVm.ToParameter(body.Filter));
         }
 
         [ApplicationOwnerAuthorize]

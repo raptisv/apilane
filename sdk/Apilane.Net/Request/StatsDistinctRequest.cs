@@ -1,4 +1,5 @@
 ﻿using Apilane.Net.Models.Data;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Text.Json;
 
@@ -40,6 +41,15 @@ namespace Apilane.Net.Request
             }
 
             return extraParams;
+        }
+
+        protected override Dictionary<string, object?> GetQueryBody()
+        {
+            return new Dictionary<string, object?>
+            {
+                ["property"] = _property,
+                ["filter"] = _filter
+            };
         }
     }
 }

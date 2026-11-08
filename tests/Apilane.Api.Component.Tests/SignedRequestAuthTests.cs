@@ -172,5 +172,35 @@ namespace Apilane.Api.Component.Tests
 
             Assert.Equal("Request signing is not supported for file uploads. Use WithAuthToken for PostFileAsync.", ex.Message);
         }
+
+        [Theory]
+        [ClassData(typeof(StorageConfigurationTestData))]
+        public async Task Signed_Get_With_A_Filter_Too_Long_For_A_Url_Is_Sent_As_A_Signed_Query(DatabaseType dbType, string? connectionString, bool useDiffEntity)
+        {
+            var (keyId, token) = await SetupAndLoginAsync(dbType, connectionString, useDiffEntity);
+
+            var ids = new System.Collections.Generic.List<long>();
+            foreach (var value in new[] { "a", "b", "c" })
+            {
+                var postResult = await ApilaneService.PostDataAsync(
+                    DataPostRequest.New(CustomEntityLight.EntityName).WithAuthToken(token),
+                    new { Custom_String_Required = value });
+                ids.Add(postResult.Match(r => r.Single(), e => throw new Exception($"Post failed | {e.Code} | {e.Message}")));
+            }
+
+            // Two of the records, and ids no record has, enough of them to be too long for a URL. The signature
+            // covers the method and the JSON body
+            var wanted = ids.Take(2).Concat(Enumerable.Range(1, 2000).Select(i => ids.Max() + i));
+            var request = DataGetListRequest.New(CustomEntityLight.EntityName)
+                .WithSigning(keyId, token)
+                .WithFilter(new FilterItem(Globals.PrimaryKeyColumn, FilterOperator.contains, string.Join(",", wanted)));
+
+            Assert.True(request.GetUrl("http://localhost").Length > DataGetListRequest.MaxGetUrlLength);
+
+            var getResult = await ApilaneService.GetDataAsync<CustomEntityLight>(request);
+            var data = getResult.Match(r => r.Data, e => throw new Exception($"Signed query failed | {e.Code} | {e.Message}"));
+
+            Assert.Equal(ids.Take(2), data.Select(x => x.ID).OrderBy(x => x));
+        }
     }
 }

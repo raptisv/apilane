@@ -200,6 +200,31 @@ x-application-token: {appToken}
 
 `Total` is only included when `getTotal=true`.
 
+#### Long filters: the QUERY method
+
+A URL has a length limit: the API refuses request lines above 8 KB, and proxies on the way often refuse less. A long filter, such as an [`IN` list](developer_guide/filtering_sorting.md#matching-a-set-of-values-in) of thousands of IDs, may not fit. The same address therefore also accepts the HTTP `QUERY` method ([RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html)): a read like `GET`, with its parameters in a JSON body instead of the query string, so nothing needs URL encoding.
+
+```
+QUERY /api/Data/Get?entity=Products
+x-application-token: {appToken}
+Content-Type: application/json
+
+{
+  "filter": { "Property": "ID", "Operator": "contains", "Value": "3,7,42" },
+  "sort": { "Property": "Name", "Direction": "asc" },
+  "properties": ["ID", "Name"],
+  "pageIndex": 1,
+  "pageSize": 20,
+  "getTotal": true
+}
+```
+
+`entity` stays in the query string; every other parameter of the table above goes in the body, and each is optional. `filter` and `sort` are JSON (a JSON string holding them works too), and `properties` is an array of names or a comma-separated string. Access rules, rate limits and [signed requests](developer_guide/security.md#authenticating-requests) apply as for `GET`; a signature covers the method and the body. The answer is the same as for `GET`.
+
+The [.NET](developer_guide/sdk.md) and [JavaScript](https://github.com/raptisv/apilane/tree/main/sdk/Apilane.Js) SDKs send `QUERY` on their own when the address of the `GET` would be longer than 4096 characters, and `GET` otherwise. A proxy or firewall that does not know the method yet may refuse it: allow `QUERY` there if you send long filters.
+
+`Files/Get`, `Stats/Aggregate` and `Stats/Distinct` accept `QUERY` the same way. No other endpoint does (`405 Method Not Allowed`).
+
 ### Get Record by ID
 
 ```
@@ -409,7 +434,7 @@ GET /api/Files/Get
 x-application-token: {appToken}
 ```
 
-Supports the same `pageIndex`, `pageSize`, `filter`, `sort`, `properties`, and `getTotal` parameters as Data/Get (but no `entity`).
+Supports the same `pageIndex`, `pageSize`, `filter`, `sort`, `properties`, and `getTotal` parameters as Data/Get (but no `entity`). It accepts [`QUERY`](#long-filters-the-query-method) too, with those parameters in the body.
 
 **Response:**
 ```json
@@ -479,6 +504,8 @@ x-application-token: {appToken}
 
 Rows are ordered by the aggregate values (`orderDirection`), not by the group columns. Function names are not case-sensitive.
 
+Aggregate accepts [`QUERY`](#long-filters-the-query-method) too: `entity` in the query string, the other parameters in the body, with `properties` and `groupBy` as arrays or comma-separated strings.
+
 ### Distinct
 
 Get distinct values of a property.
@@ -493,6 +520,8 @@ x-application-token: {appToken}
 | `entity` | Yes | Entity name |
 | `property` | Yes | Property name |
 | `filter` | No | JSON filter expression |
+
+Distinct accepts [`QUERY`](#long-filters-the-query-method) too: `entity` in the query string, `property` and `filter` in the body.
 
 **Response:** An array with one object per distinct value, keyed by the property name, sorted ascending, at most 1000 of them:
 

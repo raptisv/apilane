@@ -17,7 +17,7 @@ namespace Apilane.Net.Services
             StatsAggregateRequest request,
             CancellationToken cancellationToken = default)
         {
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = request.CreateReadRequest(_config.ApplicationApiUrl))
             {
                 await ApplyAuthAsync(httpRequest, request);
                 var response = await SendAsync(httpRequest, cancellationToken);
@@ -41,7 +41,7 @@ namespace Apilane.Net.Services
             StatsAggregateRequest request,
             CancellationToken cancellationToken = default)
         {
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = request.CreateReadRequest(_config.ApplicationApiUrl))
             {
                 await ApplyAuthAsync(httpRequest, request);
                 var response = await SendAsync(httpRequest, cancellationToken);
@@ -63,7 +63,7 @@ namespace Apilane.Net.Services
 
         public async Task<Either<string, ApilaneError>> GetStatsDistinctAsync(StatsDistinctRequest request, CancellationToken cancellationToken = default)
         {
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = request.CreateReadRequest(_config.ApplicationApiUrl))
             {
                 await ApplyAuthAsync(httpRequest, request);
                 var response = await SendAsync(httpRequest, cancellationToken);
@@ -85,7 +85,7 @@ namespace Apilane.Net.Services
 
         public async Task<Either<T, ApilaneError>> GetStatsDistinctAsync<T>(StatsDistinctRequest request, CancellationToken cancellationToken = default)
         {
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = request.CreateReadRequest(_config.ApplicationApiUrl))
             {
                 await ApplyAuthAsync(httpRequest, request);
                 var response = await SendAsync(httpRequest, cancellationToken);

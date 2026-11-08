@@ -33,6 +33,13 @@ namespace Apilane.Api.Controllers
     {
         private static readonly ConcurrentDictionary<string, bool> _systemTablesMigratedTokens = new();
 
+        /// <summary>
+        /// The HTTP QUERY method (RFC 10008): a safe, idempotent read whose parameters travel in the body. The read
+        /// endpoints that take a filter accept it next to GET, under the same address, so a long filter does not hit
+        /// the length limit of the request line. It is kept out of Swagger, which cannot describe the method yet.
+        /// </summary>
+        protected const string HttpQueryMethod = "QUERY";
+
         protected readonly ApiConfiguration ApiConfiguration;
         protected readonly IClusterClient ClusterClient;
 

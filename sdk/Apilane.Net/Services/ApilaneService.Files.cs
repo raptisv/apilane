@@ -20,7 +20,7 @@ namespace Apilane.Net.Services
         {
             request.WithTotal(false);
 
-            using (var httpRequest = new HttpRequestMessage(HttpMethod.Get, request.GetUrl(_config.ApplicationApiUrl)))
+            using (var httpRequest = request.CreateReadRequest(_config.ApplicationApiUrl))
             {
                 await ApplyAuthAsync(httpRequest, request);
                 var response = await SendAsync(httpRequest, cancellationToken);

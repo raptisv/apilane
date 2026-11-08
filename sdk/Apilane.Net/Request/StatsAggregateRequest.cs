@@ -92,5 +92,18 @@ namespace Apilane.Net.Request
 
             return extraParams;
         }
+
+        protected override Dictionary<string, object?> GetQueryBody()
+        {
+            return new Dictionary<string, object?>
+            {
+                ["groupBy"] = _groupBy,
+                ["pageIndex"] = _pageIndex,
+                ["pageSize"] = _pageSize,
+                ["orderDirection"] = _ascending ? "asc" : "desc",
+                ["filter"] = _filter,
+                ["properties"] = _properties
+            };
+        }
     }
 }

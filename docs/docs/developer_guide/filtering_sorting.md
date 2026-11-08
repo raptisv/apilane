@@ -136,6 +136,8 @@ GET https://my.api.server/api/Data/Get?entity=Products&filter=%7B%22Property%22%
 x-application-token: {appToken}
 ```
 
+A filter too long for a URL (above about 8 KB, or less behind some proxies), such as an `IN` list of thousands of IDs, can be sent with the HTTP `QUERY` method instead, as JSON in the body with no URL encoding: see [Long filters: the QUERY method](../api_reference.md#long-filters-the-query-method). The SDKs switch to it on their own for long requests.
+
 !!!info "Tip"
     Use the [.NET SDK](sdk.md) to build filters with a type-safe builder pattern instead of constructing JSON manually.
 

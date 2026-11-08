@@ -122,6 +122,7 @@ namespace Apilane.Api.Controllers
         /// <param name="sort">Default value NULL. Used for data sorting</param>
         /// <param name="getTotal">Default value false. Set it to true to get the count of records according to the specidified filtering </param>
         /// <returns>An object that consists of two properties. Data is an array of records. Total is the count of records, according to the specidified filtering</returns>
+        /// <remarks>The same address also accepts the HTTP QUERY method (RFC 10008), with the parameters as a JSON body, for filters too long for a URL.</remarks>
         [HttpGet]
         [Produces("application/json")]
         [ProducesResponseType(typeof(object), (int)HttpStatusCode.OK)]
@@ -149,6 +150,27 @@ namespace Apilane.Api.Controllers
                 filter,
                 sort,
                 getTotal);
+        }
+
+        /// <summary>
+        /// The QUERY form of <see cref="Get"/>: the parameters are the JSON body (<see cref="DataQueryBodyVm"/>).
+        /// </summary>
+        [AcceptVerbs(HttpQueryMethod)]
+        [ActionName(nameof(Get))]
+        [ApiExplorerSettings(IgnoreApi = true)]
+        [Produces("application/json")]
+        public Task<DataResponse> GetByQuery(
+            [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] DataQueryBodyVm? body)
+        {
+            body ??= new DataQueryBodyVm();
+
+            return Get(
+                body.PageIndex,
+                body.PageSize,
+                QueryBodyVm.ToParameter(body.Properties),
+                QueryBodyVm.ToParameter(body.Filter),
+                QueryBodyVm.ToParameter(body.Sort),
+                body.GetTotal);
         }
 
         private async Task<IActionResult> GetGivenTheIDAsync(Files fileItem)

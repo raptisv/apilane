@@ -211,6 +211,8 @@ const deleted = await apilane.deleteData(
 // deleted.value => [123, 124] (deleted IDs)
 ```
 
+A list read whose address would be longer than `MAX_GET_URL_LENGTH` (4096 characters), such as an `IN` filter of thousands of IDs, is sent with the HTTP `QUERY` method (RFC 10008), its parameters in a JSON body; shorter reads stay `GET`. This applies to `getData`, `getDataTotal`, `getAllData`, `getFiles` and the Stats calls.
+
 ### Transactions
 
 ```javascript

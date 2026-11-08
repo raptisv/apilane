@@ -350,6 +350,8 @@ var response = await _apilaneService.GetDataAsync<Product>(
         .WithProperties("ID", "Name", "Price"));
 ```
 
+A list read whose address would be longer than `DataGetListRequest.MaxGetUrlLength` (4096 characters), such as an `IN` filter of thousands of IDs, is sent with the HTTP `QUERY` method, its parameters in a JSON body; shorter reads stay `GET`. This applies to `GetDataAsync`, `GetDataTotalAsync`, `GetAllDataAsync`, `GetFilesAsync` and the Stats calls. See [Long filters: the QUERY method](../api_reference.md#long-filters-the-query-method).
+
 ## Transactions
 
 See [Transactions](transactions.md) for the full reference.

@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -110,7 +113,50 @@ namespace Apilane.Net.Request
             return null;
         }
 
+        /// <summary>
+        /// A read whose address would be longer than this is sent with the HTTP QUERY method (RFC 10008) instead of
+        /// GET, its parameters in a JSON body. The API refuses request lines above 8 KB, and proxies often refuse less.
+        /// Shorter reads stay GET, which every proxy and firewall passes.
+        /// </summary>
+        public const int MaxGetUrlLength = 4096;
+
+        internal static readonly HttpMethod QueryMethod = new HttpMethod("QUERY");
+
+        /// <summary>
+        /// The JSON body of this request when it is sent with the QUERY method, or null for a request that is always
+        /// a GET. It holds the parameters of <see cref="GetExtraParams"/>, with the filter and the sort as JSON.
+        /// </summary>
+        protected virtual Dictionary<string, object?>? GetQueryBody()
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// The request of a read: a GET, or a QUERY when the address of the GET would be longer than
+        /// <see cref="MaxGetUrlLength"/> and the endpoint accepts QUERY.
+        /// </summary>
+        internal HttpRequestMessage CreateReadRequest(string apiUrl)
+        {
+            var url = GetUrl(apiUrl);
+            var body = url.Length > MaxGetUrlLength ? GetQueryBody() : null;
+
+            if (body is null)
+            {
+                return new HttpRequestMessage(HttpMethod.Get, url);
+            }
+
+            return new HttpRequestMessage(QueryMethod, GetUrl(apiUrl, includeExtraParams: false))
+            {
+                Content = new StringContent(JsonSerializer.Serialize(body, JsonSerializerOptions), Encoding.UTF8, "application/json")
+            };
+        }
+
         public string GetUrl(string apiUrl)
+        {
+            return GetUrl(apiUrl, includeExtraParams: true);
+        }
+
+        private string GetUrl(string apiUrl, bool includeExtraParams)
         {
             var baseParams = new NameValueCollection();
             if (!string.IsNullOrWhiteSpace(_entity))
@@ -125,7 +171,7 @@ namespace Apilane.Net.Request
                 from value in baseParams.GetValues(key)
                 select string.Format("{0}={1}", EncodeQueryPart(key), EncodeQueryPart(value))).ToList();
 
-            var extraParams = GetExtraParams();
+            var extraParams = includeExtraParams ? GetExtraParams() : null;
 
             if (extraParams != null &&
                 extraParams.HasKeys())
