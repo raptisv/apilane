@@ -53,20 +53,29 @@ export type ChangeView =
   | { kind: 'list'; removed: string[]; added: string[] }
   /** A JSON property + Created or Deleted: 'View JSON (n items)', or '(empty)' when count is 0. */
   | { kind: 'json'; count: number; json: string }
-  /** A text that changed and is long or has several lines (a custom endpoint's SQL): what was removed and added, line by line. */
+  /** A text that changed (the SQL of a custom endpoint): what was removed and added, line by line like a pull request. */
   | { kind: 'lines'; lines: DiffLine[] }
-  /** A long single-line text that changed: the words, with the removed and the added ones marked. */
-  | { kind: 'words'; parts: DiffPart[] }
   /** Everything else: the stored text, one cell per value column. `old` cells are shown dimmed. */
   | { kind: 'text'; cells: { text: string; old: boolean }[] }
 
-export type DiffPart = { type: 'same' | 'added' | 'removed'; text: string }
+/** A piece of a changed line; `changed` ones are the words that differ from the paired line. */
+export interface DiffSegment {
+  text: string
+  changed: boolean
+}
+
+export interface DiffPart {
+  type: 'same' | 'added' | 'removed'
+  text: string
+  /** Line numbers in the old and the new text; a removed line has no new one, an added line no old one. */
+  oldNo?: number
+  newNo?: number
+  /** Set on a line that was changed into another: its words, the differing ones marked. */
+  segments?: DiffSegment[]
+}
 
 /** One line of a line diff. A 'gap' stands for `hidden` unchanged lines left out. */
 export type DiffLine = DiffPart | { type: 'gap'; text: string; hidden: number }
-
-/** A single-line text up to this long is shown as old and new side by side. */
-const shortTextLength = 80
 
 /** Unchanged lines kept around each change. */
 const contextLines = 3
@@ -131,26 +140,20 @@ export function describeChange(action: string, change: AuditChange, entityType?:
   return { kind: 'text', cells: [action === 'Created' ? newCell : oldCell] }
 }
 
-// ---- Long texts ----
+// ---- Changed texts ----
 
-/** The diff of a long or multi-line text, or undefined when side by side is easier to read. */
+/**
+ * The diff of a changed text, line by line like a pull request. A value of one word (a name, a number, an
+ * e-mail address) is not text to compare: old and new stay side by side.
+ */
 function textDiff(oldText: string, newText: string): ChangeView | undefined {
-  const multiline = /[\r\n]/.test(oldText) || /[\r\n]/.test(newText)
-
-  if (!multiline && Math.max(oldText.length, newText.length) <= shortTextLength) {
+  if (oldText === newText || !/\s/.test(oldText + newText)) {
     return undefined
   }
 
-  if (multiline) {
-    const split = (text: string) => text.split(/\r\n|\r|\n/)
+  const split = (text: string) => text.split(/\r\n|\r|\n/)
 
-    return { kind: 'lines', lines: foldContext(diffSequences(split(oldText), split(newText))) }
-  }
-
-  // Words with their spaces, so the parts join back into the text.
-  const words = (text: string) => text.match(/\s+|[^\s]+/g) ?? []
-
-  return { kind: 'words', parts: mergeParts(diffSequences(words(oldText), words(newText))) }
+  return { kind: 'lines', lines: foldContext(numberLines(pairInline(diffSequences(split(oldText), split(newText))))) }
 }
 
 /** The longest common subsequence of two lists: what stayed, what left the old one, what came into the new one. */
@@ -212,21 +215,87 @@ function diffSequences(oldItems: string[], newItems: string[]): DiffPart[] {
   return parts
 }
 
-/** Neighbouring parts of one type become one part. */
-function mergeParts(parts: DiffPart[]): DiffPart[] {
-  const merged: DiffPart[] = []
+/** Words with their spaces and punctuation, so the pieces join back into the line. */
+function tokens(text: string): string[] {
+  return text.match(/\s+|\w+|[^\s\w]/g) ?? []
+}
 
-  for (const part of parts) {
-    const last = merged[merged.length - 1]
+/**
+ * A run of removed lines followed by a run of added lines is a change of those lines: the first removed
+ * line pairs with the first added one, and so on. A pair gets the words that differ marked, like GitHub.
+ */
+function pairInline(parts: DiffPart[]): DiffPart[] {
+  const result: DiffPart[] = []
+  let i = 0
 
-    if (last && last.type === part.type) {
-      last.text += part.text
+  while (i < parts.length) {
+    if (parts[i].type !== 'removed') {
+      result.push(parts[i++])
+      continue
+    }
+
+    const removed: DiffPart[] = []
+    const added: DiffPart[] = []
+
+    while (i < parts.length && parts[i].type === 'removed') {
+      removed.push({ ...parts[i++] })
+    }
+
+    while (i < parts.length && parts[i].type === 'added') {
+      added.push({ ...parts[i++] })
+    }
+
+    for (let k = 0; k < Math.min(removed.length, added.length); k++) {
+      const words = diffSequences(tokens(removed[k].text), tokens(added[k].text))
+
+      removed[k].segments = mergeSegments(words, 'removed')
+      added[k].segments = mergeSegments(words, 'added')
+    }
+
+    result.push(...removed, ...added)
+  }
+
+  return result
+}
+
+/** The pieces of one side of a changed line: the common words and the words only this side has. */
+function mergeSegments(words: DiffPart[], side: 'removed' | 'added'): DiffSegment[] {
+  const segments: DiffSegment[] = []
+
+  for (const word of words) {
+    if (word.type !== 'same' && word.type !== side) {
+      continue
+    }
+
+    const changed = word.type !== 'same'
+    const last = segments[segments.length - 1]
+
+    if (last && last.changed === changed) {
+      last.text += word.text
     } else {
-      merged.push({ ...part })
+      segments.push({ text: word.text, changed })
     }
   }
 
-  return merged
+  return segments
+}
+
+/** The line numbers of the old and of the new text, like the two gutters of a pull request diff. */
+function numberLines(parts: DiffPart[]): DiffPart[] {
+  let oldNo = 0
+  let newNo = 0
+
+  return parts.map((part) => {
+    if (part.type !== 'added') {
+      oldNo++
+    }
+
+    if (part.type !== 'removed') {
+      newNo++
+    }
+
+    return { ...part, oldNo: part.type === 'added' ? undefined : oldNo, newNo: part.type === 'removed' ? undefined : newNo }
+  })
 }
 
 /** Keeps the lines around each change and folds the unchanged lines between them into a gap. */
@@ -234,7 +303,7 @@ function foldContext(lines: DiffPart[]): DiffLine[] {
   const keep = lines.map((line) => line.type !== 'same')
 
   for (let i = 0; i < lines.length; i++) {
-    if (keep[i] && lines[i].type !== 'same') {
+    if (lines[i].type !== 'same') {
       for (let k = Math.max(0, i - contextLines); k <= Math.min(lines.length - 1, i + contextLines); k++) {
         keep[k] = true
       }

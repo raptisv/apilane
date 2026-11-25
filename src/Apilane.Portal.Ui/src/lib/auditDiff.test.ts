@@ -266,13 +266,30 @@ describe('describeChange: other JSON properties modified', () => {
   })
 })
 
-describe('describeChange: long or multi-line text modified', () => {
+describe('describeChange: changed text', () => {
   const sql = (lines: string[]) => lines.join('\n')
+  const changed = (view: ChangeView) => (view.kind === 'lines' ? view.lines.filter((line) => line.type === 'added' || line.type === 'removed') : [])
 
-  it('keeps a short single-line text as old and new', () => {
-    const view = describeChange('Modified', { Property: 'Description', OldValue: 'a', NewValue: 'b' })
+  it('diffs a one-line text, with the words that differ marked', () => {
+    const view = describeChange('Modified', { Property: 'Query', OldValue: 'SELECT * FROM [Recordings]', NewValue: 'SELECT * FROM "Recordings"' })
+    const [removed, added] = changed(view)
 
-    expect(view.kind).toBe('text')
+    expect(view.kind).toBe('lines')
+    expect(removed.type === 'removed' && removed.segments?.filter((s) => s.changed).map((s) => s.text)).toEqual(['[', ']'])
+    expect(added.type === 'added' && added.segments?.filter((s) => s.changed).map((s) => s.text)).toEqual(['"', '"'])
+  })
+
+  it('numbers the lines of both texts', () => {
+    const view = describeChange('Modified', { Property: 'Query', OldValue: 'a\nb\nc', NewValue: 'a\nx\nc' })
+
+    expect(
+      view.kind === 'lines' && view.lines.map((line) => [line.type, 'oldNo' in line ? line.oldNo : 0, 'newNo' in line ? line.newNo : 0]),
+    ).toEqual([
+      ['same', 1, 1],
+      ['removed', 2, undefined],
+      ['added', undefined, 2],
+      ['same', 3, 3],
+    ])
   })
 
   it('shows a multi-line text line by line, with the unchanged lines around a change folded', () => {
@@ -280,36 +297,17 @@ describe('describeChange: long or multi-line text modified', () => {
     const after = sql(['SELECT', '  a,', '  b,', '  c,', '  d,', '  e,', '  f', 'FROM Product', 'WHERE Active = 0', 'ORDER BY a'])
     const view = describeChange('Modified', { Property: 'Query', OldValue: before, NewValue: after })
 
-    expect(view.kind).toBe('lines')
-
-    if (view.kind === 'lines') {
-      const changes = view.lines.filter((line) => line.type === 'added' || line.type === 'removed')
-
-      expect(changes).toEqual([
-        { type: 'removed', text: 'WHERE Active = 1' },
-        { type: 'added', text: 'WHERE Active = 0' },
-      ])
-      expect(view.lines[0]).toEqual({ type: 'gap', text: '5 unchanged lines', hidden: 5 })
-    }
+    expect(changed(view).map((line) => [line.type, line.text])).toEqual([
+      ['removed', 'WHERE Active = 1'],
+      ['added', 'WHERE Active = 0'],
+    ])
+    expect(view.kind === 'lines' && view.lines[0]).toEqual({ type: 'gap', text: '5 unchanged lines', hidden: 5 })
   })
 
   it('treats a changed line ending as no change in the lines', () => {
     const view = describeChange('Modified', { Property: 'Query', OldValue: 'SELECT 1\r\nFROM A', NewValue: 'SELECT 1\nFROM B' })
 
-    expect(view.kind === 'lines' && view.lines.filter((line) => line.type !== 'same').map((line) => line.text)).toEqual(['FROM A', 'FROM B'])
-  })
-
-  it('marks the words of a long single-line text', () => {
-    const base = 'SELECT Title, Price, Stock FROM Product WHERE Active = 1 AND Price > 10 ORDER BY Title'
-    const view = describeChange('Modified', { Property: 'Query', OldValue: base, NewValue: base.replace('Price > 10', 'Price > 20') })
-
-    expect(view.kind).toBe('words')
-
-    if (view.kind === 'words') {
-      expect(view.parts.map((part) => part.text).join('')).toContain('Price > ')
-      expect(view.parts.filter((part) => part.type === 'removed').map((part) => part.text)).toEqual(['10'])
-      expect(view.parts.filter((part) => part.type === 'added').map((part) => part.text)).toEqual(['20'])
-    }
+    expect(changed(view).map((line) => line.text)).toEqual(['FROM A', 'FROM B'])
   })
 
   it('leaves an account field alone', () => {

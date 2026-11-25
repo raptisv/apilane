@@ -99,35 +99,42 @@ const cellClass = 'border p-2 align-top'
             </td>
           </template>
 
-          <!-- A long or multi-line text (the SQL of a custom endpoint): a diff across both value columns. -->
+          <!-- A changed text (the SQL of a custom endpoint): a diff across both value columns, like a pull request. -->
           <td v-else-if="row.view.kind === 'lines'" :class="cellClass" colspan="2">
             <div class="overflow-x-auto rounded-md border bg-background/40 font-mono" role="group" :aria-label="`Changes of ${row.property}`">
               <div
                 v-for="(line, i) in row.view.lines"
                 :key="i"
-                class="flex gap-2 px-2 py-px whitespace-pre"
+                class="flex min-w-max"
                 :class="{
                   [addedClass]: line.type === 'added',
                   [removedClass]: line.type === 'removed',
                   'bg-muted/40 text-muted-foreground italic': line.type === 'gap',
                 }"
               >
-                <span class="w-3 shrink-0 select-none" aria-hidden="true">{{ line.type === 'added' ? '+' : line.type === 'removed' ? '-' : '' }}</span>
-                <span v-if="line.type === 'added'" class="sr-only">Added: </span>
-                <span v-else-if="line.type === 'removed'" class="sr-only">Removed: </span>
-                <span>{{ line.text }}</span>
+                <template v-if="line.type === 'gap'">
+                  <span class="px-2 py-px">{{ line.text }}</span>
+                </template>
+                <template v-else>
+                  <span class="w-8 shrink-0 px-1 text-right text-muted-foreground select-none" aria-hidden="true">{{ line.oldNo }}</span>
+                  <span class="w-8 shrink-0 px-1 text-right text-muted-foreground select-none" aria-hidden="true">{{ line.newNo }}</span>
+                  <span class="w-5 shrink-0 text-center select-none" aria-hidden="true">{{ line.type === 'added' ? '+' : line.type === 'removed' ? '-' : '' }}</span>
+                  <span v-if="line.type === 'added'" class="sr-only">Added: </span>
+                  <span v-else-if="line.type === 'removed'" class="sr-only">Removed: </span>
+                  <span class="py-px pr-2 whitespace-pre">
+                    <template v-if="line.segments">
+                      <span
+                        v-for="(segment, k) in line.segments"
+                        :key="k"
+                        :class="segment.changed && (line.type === 'added' ? 'rounded-sm bg-success/30' : 'rounded-sm bg-destructive/30')"
+                        >{{ segment.text }}</span
+                      >
+                    </template>
+                    <template v-else>{{ line.text }}</template>
+                  </span>
+                </template>
               </div>
             </div>
-          </td>
-
-          <td v-else-if="row.view.kind === 'words'" :class="cellClass" colspan="2">
-            <p class="font-mono break-words whitespace-pre-wrap">
-              <template v-for="(part, i) in row.view.parts" :key="i">
-                <span v-if="part.type === 'same'">{{ part.text }}</span>
-                <span v-else-if="part.type === 'added'" :class="addedClass"><span class="sr-only">Added: </span>{{ part.text }}</span>
-                <span v-else :class="removedClass" class="line-through"><span class="sr-only">Removed: </span>{{ part.text }}</span>
-              </template>
-            </p>
           </td>
 
           <td v-else-if="row.view.kind === 'json'" :class="cellClass">
