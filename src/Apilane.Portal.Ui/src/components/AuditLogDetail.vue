@@ -99,6 +99,37 @@ const cellClass = 'border p-2 align-top'
             </td>
           </template>
 
+          <!-- A long or multi-line text (the SQL of a custom endpoint): a diff across both value columns. -->
+          <td v-else-if="row.view.kind === 'lines'" :class="cellClass" colspan="2">
+            <div class="overflow-x-auto rounded-md border bg-background/40 font-mono" role="group" :aria-label="`Changes of ${row.property}`">
+              <div
+                v-for="(line, i) in row.view.lines"
+                :key="i"
+                class="flex gap-2 px-2 py-px whitespace-pre"
+                :class="{
+                  [addedClass]: line.type === 'added',
+                  [removedClass]: line.type === 'removed',
+                  'bg-muted/40 text-muted-foreground italic': line.type === 'gap',
+                }"
+              >
+                <span class="w-3 shrink-0 select-none" aria-hidden="true">{{ line.type === 'added' ? '+' : line.type === 'removed' ? '-' : '' }}</span>
+                <span v-if="line.type === 'added'" class="sr-only">Added: </span>
+                <span v-else-if="line.type === 'removed'" class="sr-only">Removed: </span>
+                <span>{{ line.text }}</span>
+              </div>
+            </div>
+          </td>
+
+          <td v-else-if="row.view.kind === 'words'" :class="cellClass" colspan="2">
+            <p class="font-mono break-words whitespace-pre-wrap">
+              <template v-for="(part, i) in row.view.parts" :key="i">
+                <span v-if="part.type === 'same'">{{ part.text }}</span>
+                <span v-else-if="part.type === 'added'" :class="addedClass"><span class="sr-only">Added: </span>{{ part.text }}</span>
+                <span v-else :class="removedClass" class="line-through"><span class="sr-only">Removed: </span>{{ part.text }}</span>
+              </template>
+            </p>
+          </td>
+
           <td v-else-if="row.view.kind === 'json'" :class="cellClass">
             <Button
               v-if="row.view.count > 0"

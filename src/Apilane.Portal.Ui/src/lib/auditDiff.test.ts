@@ -265,3 +265,56 @@ describe('describeChange: other JSON properties modified', () => {
     expect(added('5')).toBe('(item)')
   })
 })
+
+describe('describeChange: long or multi-line text modified', () => {
+  const sql = (lines: string[]) => lines.join('\n')
+
+  it('keeps a short single-line text as old and new', () => {
+    const view = describeChange('Modified', { Property: 'Description', OldValue: 'a', NewValue: 'b' })
+
+    expect(view.kind).toBe('text')
+  })
+
+  it('shows a multi-line text line by line, with the unchanged lines around a change folded', () => {
+    const before = sql(['SELECT', '  a,', '  b,', '  c,', '  d,', '  e,', '  f', 'FROM Product', 'WHERE Active = 1', 'ORDER BY a'])
+    const after = sql(['SELECT', '  a,', '  b,', '  c,', '  d,', '  e,', '  f', 'FROM Product', 'WHERE Active = 0', 'ORDER BY a'])
+    const view = describeChange('Modified', { Property: 'Query', OldValue: before, NewValue: after })
+
+    expect(view.kind).toBe('lines')
+
+    if (view.kind === 'lines') {
+      const changes = view.lines.filter((line) => line.type === 'added' || line.type === 'removed')
+
+      expect(changes).toEqual([
+        { type: 'removed', text: 'WHERE Active = 1' },
+        { type: 'added', text: 'WHERE Active = 0' },
+      ])
+      expect(view.lines[0]).toEqual({ type: 'gap', text: '5 unchanged lines', hidden: 5 })
+    }
+  })
+
+  it('treats a changed line ending as no change in the lines', () => {
+    const view = describeChange('Modified', { Property: 'Query', OldValue: 'SELECT 1\r\nFROM A', NewValue: 'SELECT 1\nFROM B' })
+
+    expect(view.kind === 'lines' && view.lines.filter((line) => line.type !== 'same').map((line) => line.text)).toEqual(['FROM A', 'FROM B'])
+  })
+
+  it('marks the words of a long single-line text', () => {
+    const base = 'SELECT Title, Price, Stock FROM Product WHERE Active = 1 AND Price > 10 ORDER BY Title'
+    const view = describeChange('Modified', { Property: 'Query', OldValue: base, NewValue: base.replace('Price > 10', 'Price > 20') })
+
+    expect(view.kind).toBe('words')
+
+    if (view.kind === 'words') {
+      expect(view.parts.map((part) => part.text).join('')).toContain('Price > ')
+      expect(view.parts.filter((part) => part.type === 'removed').map((part) => part.text)).toEqual(['10'])
+      expect(view.parts.filter((part) => part.type === 'added').map((part) => part.text)).toEqual(['20'])
+    }
+  })
+
+  it('leaves an account field alone', () => {
+    const view = describeChange('Modified', { Property: 'UserEmail', OldValue: 'x'.repeat(100), NewValue: 'y'.repeat(100) }, 'Collaboration')
+
+    expect(view.kind).toBe('text')
+  })
+})

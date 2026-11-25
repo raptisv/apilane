@@ -53,8 +53,23 @@ export type ChangeView =
   | { kind: 'list'; removed: string[]; added: string[] }
   /** A JSON property + Created or Deleted: 'View JSON (n items)', or '(empty)' when count is 0. */
   | { kind: 'json'; count: number; json: string }
+  /** A text that changed and is long or has several lines (a custom endpoint's SQL): what was removed and added, line by line. */
+  | { kind: 'lines'; lines: DiffLine[] }
+  /** A long single-line text that changed: the words, with the removed and the added ones marked. */
+  | { kind: 'words'; parts: DiffPart[] }
   /** Everything else: the stored text, one cell per value column. `old` cells are shown dimmed. */
   | { kind: 'text'; cells: { text: string; old: boolean }[] }
+
+export type DiffPart = { type: 'same' | 'added' | 'removed'; text: string }
+
+/** One line of a line diff. A 'gap' stands for `hidden` unchanged lines left out. */
+export type DiffLine = DiffPart | { type: 'gap'; text: string; hidden: number }
+
+/** A single-line text up to this long is shown as old and new side by side. */
+const shortTextLength = 80
+
+/** Unchanged lines kept around each change. */
+const contextLines = 3
 
 export const noDetailText = 'No detail available.'
 
@@ -98,6 +113,14 @@ export function describeChange(action: string, change: AuditChange, entityType?:
   const displayValue = (value: string | null | undefined) => value == null
     ? '<null>'
     : isAccountField ? accountDisplayName(value) : value
+  if (action === 'Modified' && !isAccountField && change.OldValue != null && change.NewValue != null) {
+    const textView = textDiff(change.OldValue, change.NewValue)
+
+    if (textView) {
+      return textView
+    }
+  }
+
   const oldCell = { text: displayValue(change.OldValue), old: true }
   const newCell = { text: displayValue(change.NewValue), old: false }
 
@@ -106,6 +129,137 @@ export function describeChange(action: string, change: AuditChange, entityType?:
   }
 
   return { kind: 'text', cells: [action === 'Created' ? newCell : oldCell] }
+}
+
+// ---- Long texts ----
+
+/** The diff of a long or multi-line text, or undefined when side by side is easier to read. */
+function textDiff(oldText: string, newText: string): ChangeView | undefined {
+  const multiline = /[\r\n]/.test(oldText) || /[\r\n]/.test(newText)
+
+  if (!multiline && Math.max(oldText.length, newText.length) <= shortTextLength) {
+    return undefined
+  }
+
+  if (multiline) {
+    const split = (text: string) => text.split(/\r\n|\r|\n/)
+
+    return { kind: 'lines', lines: foldContext(diffSequences(split(oldText), split(newText))) }
+  }
+
+  // Words with their spaces, so the parts join back into the text.
+  const words = (text: string) => text.match(/\s+|[^\s]+/g) ?? []
+
+  return { kind: 'words', parts: mergeParts(diffSequences(words(oldText), words(newText))) }
+}
+
+/** The longest common subsequence of two lists: what stayed, what left the old one, what came into the new one. */
+function diffSequences(oldItems: string[], newItems: string[]): DiffPart[] {
+  // Identical heads and tails are matched first, so the table below holds only what changed.
+  let head = 0
+
+  while (head < oldItems.length && head < newItems.length && oldItems[head] === newItems[head]) {
+    head++
+  }
+
+  let tail = 0
+
+  while (
+    tail < oldItems.length - head &&
+    tail < newItems.length - head &&
+    oldItems[oldItems.length - 1 - tail] === newItems[newItems.length - 1 - tail]
+  ) {
+    tail++
+  }
+
+  const a = oldItems.slice(head, oldItems.length - tail)
+  const b = newItems.slice(head, newItems.length - tail)
+  const parts: DiffPart[] = oldItems.slice(0, head).map((text) => ({ type: 'same', text }))
+
+  if (a.length * b.length > 4_000_000) {
+    // Too large for the table: the whole middle is shown as replaced.
+    parts.push(...a.map((text): DiffPart => ({ type: 'removed', text })), ...b.map((text): DiffPart => ({ type: 'added', text })))
+  } else {
+    const width = b.length + 1
+    const table = new Uint32Array((a.length + 1) * width)
+
+    for (let i = a.length - 1; i >= 0; i--) {
+      for (let j = b.length - 1; j >= 0; j--) {
+        table[i * width + j] = a[i] === b[j] ? table[(i + 1) * width + j + 1] + 1 : Math.max(table[(i + 1) * width + j], table[i * width + j + 1])
+      }
+    }
+
+    let i = 0
+    let j = 0
+
+    while (i < a.length && j < b.length) {
+      if (a[i] === b[j]) {
+        parts.push({ type: 'same', text: a[i] })
+        i++
+        j++
+      } else if (table[(i + 1) * width + j] >= table[i * width + j + 1]) {
+        parts.push({ type: 'removed', text: a[i++] })
+      } else {
+        parts.push({ type: 'added', text: b[j++] })
+      }
+    }
+
+    parts.push(...a.slice(i).map((text): DiffPart => ({ type: 'removed', text })), ...b.slice(j).map((text): DiffPart => ({ type: 'added', text })))
+  }
+
+  parts.push(...oldItems.slice(oldItems.length - tail).map((text): DiffPart => ({ type: 'same', text })))
+
+  return parts
+}
+
+/** Neighbouring parts of one type become one part. */
+function mergeParts(parts: DiffPart[]): DiffPart[] {
+  const merged: DiffPart[] = []
+
+  for (const part of parts) {
+    const last = merged[merged.length - 1]
+
+    if (last && last.type === part.type) {
+      last.text += part.text
+    } else {
+      merged.push({ ...part })
+    }
+  }
+
+  return merged
+}
+
+/** Keeps the lines around each change and folds the unchanged lines between them into a gap. */
+function foldContext(lines: DiffPart[]): DiffLine[] {
+  const keep = lines.map((line) => line.type !== 'same')
+
+  for (let i = 0; i < lines.length; i++) {
+    if (keep[i] && lines[i].type !== 'same') {
+      for (let k = Math.max(0, i - contextLines); k <= Math.min(lines.length - 1, i + contextLines); k++) {
+        keep[k] = true
+      }
+    }
+  }
+
+  const folded: DiffLine[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    if (keep[i]) {
+      folded.push(lines[i])
+      continue
+    }
+
+    const last = folded[folded.length - 1]
+
+    if (last && last.type === 'gap') {
+      last.hidden++
+      last.text = `${last.hidden} unchanged lines`
+    } else {
+      folded.push({ type: 'gap', text: '1 unchanged line', hidden: 1 })
+    }
+  }
+
+  return folded
 }
 
 // ---- JSON arrays ----
