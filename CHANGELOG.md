@@ -1,5 +1,8 @@
 # Changelog
 
+## 10.5.8 (2026-11-25)
+- feat(portal-ui): show changed text in the audit log as a detailed diff
+
 ## 10.5.7 (2026-11-25)
 - feat(sdk): version 10.3.0
 - fix(api): drop PostgreSQL tables without session_replication_role
