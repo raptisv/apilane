@@ -1,5 +1,10 @@
 # Changelog
 
+## 10.5.7 (2026-11-25)
+- feat(sdk): version 10.3.0
+- fix(api): drop PostgreSQL tables without session_replication_role
+- feat(portal-ui): show diffs for changed long and multi-line text in the audit log
+
 ## 10.5.6 (2026-11-08)
 - feat(api): accept the HTTP QUERY method on reads with long filters
 
