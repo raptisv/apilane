@@ -20,6 +20,10 @@ namespace CasinoService.ComponentTests.Infrastructure
     {
         private const string Password = "Apilane_Tests_1!";
 
+        // The API connects to PostgreSQL as the owner of each test database, not as the superuser, the way
+        // a real deployment should: what needs a superuser (session_replication_role, for one) fails here.
+        private const string PostgreSqlOwner = "apilane";
+
         private readonly IReadOnlyCollection<string> _databaseNames;
         private readonly Lazy<Task> _sqlServerReady;
         private readonly Lazy<Task> _mySqlReady;
@@ -91,7 +95,7 @@ namespace CasinoService.ComponentTests.Infrastructure
                     return $"Server={_mySql.Hostname};Port={_mySql.GetMappedPublicPort(MySqlBuilder.MySqlPort)};Uid=root;Pwd={Password};Database={MySqlName(databaseName)};UseXaTransactions=false;";
                 case DatabaseType.PostgreSQL:
                     await postgreSqlReady;
-                    return $"Server={_postgreSql.Hostname};Port={_postgreSql.GetMappedPublicPort(PostgreSqlBuilder.PostgreSqlPort)};Database={databaseName};User Id=postgres;Password={Password};";
+                    return $"Server={_postgreSql.Hostname};Port={_postgreSql.GetMappedPublicPort(PostgreSqlBuilder.PostgreSqlPort)};Database={databaseName};User Id={PostgreSqlOwner};Password={Password};";
                 default:
                     throw new NotSupportedException($"No container for database type {databaseType}");
             }
@@ -137,7 +141,11 @@ namespace CasinoService.ComponentTests.Infrastructure
         {
             await _postgreSql.StartAsync();
 
-            var script = string.Join(Environment.NewLine, _databaseNames.Select(name => $"CREATE DATABASE \"{name}\";"));
+            // A login role without superuser, CREATEDB or CREATEROLE that owns the test databases (and so
+            // their public schema)
+            var script = string.Join(Environment.NewLine,
+                new[] { $"CREATE ROLE {PostgreSqlOwner} LOGIN PASSWORD '{Password}';" }
+                    .Concat(_databaseNames.Select(name => $"CREATE DATABASE \"{name}\" OWNER {PostgreSqlOwner};")));
 
             var result = await _postgreSql.ExecScriptAsync(script);
 

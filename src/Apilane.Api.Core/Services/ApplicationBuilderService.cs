@@ -162,9 +162,15 @@ namespace Apilane.Api.Core.Services
                         await using (var ctx = new PostgreSQLDataStorageRepository(connectionString))
                         {
                             var tables = await ctx.ExecTableAsync(@"SELECT tablename as table FROM pg_tables WHERE schemaname = current_schema();");
-                            var cmd = $@"SET session_replication_role = replica;
-                                        {string.Join("", tables.ToDictionary().Select(x => $@"DROP TABLE IF EXISTS ""{x["table"]}"" CASCADE;"))}
-                                        SET session_replication_role = DEFAULT;";
+                            // CASCADE drops the foreign keys of other tables that point here, so the order
+                            // does not matter. No session_replication_role: setting it needs a superuser,
+                            // and the database owner Apilane normally connects as is not one.
+                            var cmd = string.Join("", tables.ToDictionary().Select(x => $@"DROP TABLE IF EXISTS ""{x["table"]}"" CASCADE;"));
+
+                            if (string.IsNullOrEmpty(cmd))
+                            {
+                                break;
+                            }
 
                             await ctx.ExecNQAsync(cmd);
                         }
